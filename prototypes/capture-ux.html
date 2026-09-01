@@ -1,0 +1,813 @@
+<!doctype html>
+<!--
+  PROTOTYPE (throwaway) — Inzpo capture UX, issue #6
+  Three variants of the capture flow, switchable via ?variant=a|b|c and the floating bar:
+    A "One smart bar"   — single intake, auto-detects kind, tagging always inline
+    B "Type chooser"    — pick a type tile, focused per-type form, tagging on a second screen
+    C "Guided wizard"   — substance → preview → tag, one decision per screen
+  Phone-frame toggle in the bar judges the real question: comfort at ~390px.
+  In-memory only. Open this file in a browser; no build, no server needed.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inzpo · capture prototype</title>
+<style>
+  :root {
+    --bg: #101014; --panel: #1a1a21; --panel2: #22222b; --line: #2e2e3a;
+    --text: #ececf1; --dim: #9a9aa8; --accent: #7c6cff; --accent2: #4fd1c5;
+    --danger: #ff6b81; --radius: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 16px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    min-height: 100vh;
+  }
+  #proto-banner {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 60;
+    background: repeating-linear-gradient(45deg, #3a2f00, #3a2f00 12px, #4a3c00 12px, #4a3c00 24px);
+    color: #ffe08a; font-size: 12px; font-weight: 600; text-align: center;
+    padding: 4px 8px; letter-spacing: .04em;
+  }
+  #stage { padding: 44px 0 96px; min-height: 100vh; }
+  body.phone #stage { display: flex; justify-content: center; align-items: flex-start; }
+  #app {
+    max-width: 640px; margin: 0 auto; padding: 14px 16px 24px;
+  }
+  body.phone #app {
+    width: 390px; max-width: 390px; height: 800px; overflow-y: auto;
+    margin: 8px auto; padding: 14px 14px 24px;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 28px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.7);
+  }
+
+  h1 { font-size: 22px; margin: 4px 0 2px; }
+  .sub { color: var(--dim); font-size: 14px; margin: 0 0 14px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  button { font: inherit; color: inherit; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; cursor: pointer; }
+  button.ghost { background: transparent; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 650; }
+  button.primary:disabled { opacity: .4; cursor: not-allowed; }
+  button.small { padding: 6px 10px; font-size: 13px; }
+
+  input[type=text], input[type=url], textarea {
+    font: inherit; font-size: 16px; color: var(--text); width: 100%;
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 12px;
+  }
+  input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .intake { display: flex; gap: 8px; }
+  .intake input { flex: 1; }
+
+  .dropzone {
+    border: 2px dashed var(--line); border-radius: var(--radius);
+    padding: 26px 14px; text-align: center; color: var(--dim); cursor: pointer;
+  }
+  .dropzone.drag { border-color: var(--accent2); color: var(--accent2); background: rgba(79,209,197,.06); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 999px;
+    padding: 8px 14px; font-size: 14px; cursor: pointer; min-height: 36px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip.kindchip.on { background: var(--accent2); border-color: var(--accent2); color: #08282a; }
+  .chip.add { color: var(--dim); border-style: dashed; }
+
+  .facet { margin-bottom: 10px; }
+  .facet .flabel { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin-bottom: 6px; }
+
+  .card { display: flex; gap: 12px; background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-top: 10px; }
+  .poster { width: 96px; height: 72px; border-radius: 8px; flex: none; background: var(--line); }
+  .card .meta { min-width: 0; }
+  .card .meta b { display: block; font-size: 15px; overflow-wrap: anywhere; }
+  .card .meta p { margin: 4px 0 0; font-size: 13px; color: var(--dim); overflow-wrap: anywhere; }
+  .card input { margin-top: 6px; font-size: 14px; padding: 8px; }
+
+  .thumbwrap img { max-width: 100%; max-height: 220px; border-radius: 10px; display: block; }
+  .swatches { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .swatch { width: 44px; height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.15); }
+
+  .spinner {
+    width: 18px; height: 18px; border-radius: 50%; flex: none;
+    border: 2px solid var(--line); border-top-color: var(--accent);
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .savebar {
+    position: sticky; bottom: 0; z-index: 10;
+    padding: 12px 0 4px; margin-top: 6px;
+    background: linear-gradient(transparent, var(--bg) 30%);
+  }
+  .savebar button { width: 100%; padding: 14px; font-size: 16px; border-radius: 12px; }
+
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tile {
+    text-align: left; padding: 14px; min-height: 84px;
+    display: flex; flex-direction: column; gap: 4px; justify-content: center;
+  }
+  .tile .ic { font-size: 22px; }
+  .tile b { font-size: 15px; }
+  .tile span { font-size: 12px; color: var(--dim); }
+
+  .stepper { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+  .dot { width: 26px; height: 26px; border-radius: 50%; background: var(--panel2); border: 1px solid var(--line);
+         display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--dim); }
+  .dot.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .bar { flex: 1; height: 2px; background: var(--line); }
+  .wiznav { display: flex; gap: 8px; margin-top: 8px; }
+  .wiznav button { flex: 1; }
+
+  .strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; }
+  .mini { flex: none; width: 148px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
+  .mini .mp { height: 56px; border-radius: 6px; margin-bottom: 6px; }
+  .mini b { font-size: 12px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mini span { font-size: 11px; color: var(--dim); }
+  .empty { color: var(--dim); font-size: 13px; }
+
+  .kbadge { display: inline-block; font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+            color: var(--accent2); border: 1px solid var(--accent2); border-radius: 4px; padding: 1px 5px; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%) translateY(20px);
+    background: var(--accent2); color: #06282a; font-weight: 650; font-size: 14px;
+    padding: 10px 18px; border-radius: 999px; opacity: 0; pointer-events: none;
+    transition: all .25s; z-index: 80;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  #switcher {
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 2px; z-index: 70;
+    background: #000; color: #fff; border: 1px solid #444; border-radius: 999px;
+    padding: 6px 8px; box-shadow: 0 8px 30px rgba(0,0,0,.6); font-size: 14px;
+  }
+  #switcher button { background: transparent; border: none; padding: 6px 10px; border-radius: 999px; }
+  #switcher button:hover { background: #222; }
+  #switcher .vlabel { min-width: 170px; text-align: center; font-weight: 600; }
+  #switcher .mode { color: #8ab4ff; }
+</style>
+</head>
+<body>
+<div id="proto-banner">🚧 PROTOTYPE · Inzpo capture UX · throwaway — nothing is persisted</div>
+<div id="stage"><main id="app"></main></div>
+<div id="toast"></div>
+<div id="switcher">
+  <button id="sw-prev" title="Previous variant">‹</button>
+  <span class="vlabel" id="vlabel"></span>
+  <button id="sw-next" title="Next variant">›</button>
+  <button id="sw-phone" class="mode" title="Toggle 390px phone frame">📱 Phone</button>
+  <button id="sw-reset" title="Reset session state">↺</button>
+</div>
+
+<script>
+'use strict';
+
+/* ---------- stub domain data (seed vocabularies per the ontology decision) ---------- */
+
+const FACETS = {
+  Style:      ['Minimal', 'Brutalist', 'Swiss', 'Art deco', 'Y2K', 'Organic'],
+  Usage:      ['Landing page', 'Dashboard', 'Mobile app', 'E-commerce', 'Portfolio'],
+  Medium:     ['Web', 'Print', 'Packaging', 'Signage'],
+  Format:     ['Typography', 'Layout', 'Icon set', 'Motion', 'Illustration'],
+  Mood:       ['Calm', 'Playful', 'Moody', 'Luxe', 'Energetic'],
+  Complexity: ['Sparse', 'Balanced', 'Dense'],
+};
+const KIND_LABEL = { url: 'URL', screenshot: 'Screenshot', photo: 'Photo', palette: 'Palette', article: 'Article', video: 'Video' };
+
+/* ---------- tiny helpers ---------- */
+
+const app = document.getElementById('app');
+const $ = s => app.querySelector(s);
+const $$ = s => [...app.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hash = s => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7) >>> 0;
+const grad = (h, d = 25) => `linear-gradient(135deg, hsl(${h % 360} 62% 56%), hsl(${(h + d) % 360} 70% 38%))`;
+
+let uid = 1;
+const session = { items: [] };
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1600);
+}
+
+/* simulated metadata fetch — canned, deterministic-ish, never touches the network */
+function fakeFetch(url) {
+  return new Promise(res => setTimeout(() => {
+    const u = url.startsWith('http') ? url : 'https://' + url;
+    let host = 'site', path = '', title = '', kind = 'url';
+    try { const p = new URL(u); host = p.hostname.replace('www.', ''); path = p.pathname; } catch {}
+    const slug = decodeURIComponent(path.split('/').filter(Boolean).pop() || '').replace(/[-_]+/g, ' ').trim();
+    if (/youtube\.com|youtu\.be|vimeo\.com|twitch\.tv/.test(host)) {
+      kind = 'video'; title = slug ? slug.replace(/\b\w/g, c => c.toUpperCase()) : `${host} video`;
+    } else if (path.split('/').filter(Boolean).length >= 2 && slug.split(' ').length >= 2) {
+      kind = 'article'; title = slug.replace(/\b\w/g, c => c.toUpperCase());
+    } else {
+      title = host;
+    }
+    res({
+      kind, url: u, title: title || host,
+      desc: { url: 'Portfolio and selected work.', article: 'A long-read on craft, process, and the details that make it sing.', video: 'Recorded talk · 24 min' }[kind],
+      hue: hash(host) % 360,
+    });
+  }, 700));
+}
+
+function fakeColors(seedStr) {
+  const h = hash(seedStr);
+  return [0, 1, 2, 3, 4].map(i => `hsl(${(h + i * 37) % 360} ${45 + (h >> (i + 2)) % 30}% ${28 + ((h >> i) % 5) * 11}%)`);
+}
+
+/* ---------- shared components ---------- */
+
+function newTagState() {
+  const st = { facets: {}, free: [] };
+  for (const f of Object.keys(FACETS)) st.facets[f] = new Set();
+  return st;
+}
+
+function facetGroupHTML(name, st, opts = {}) {
+  const sel = st.facets[name];
+  const chips = FACETS[name].map(v =>
+    `<button class="chip ${sel.has(v) ? 'on' : ''}" data-facet="${name}" data-val="${esc(v)}">${esc(v)}</button>`).join('');
+  return `<div class="facet" ${opts.open === false ? 'hidden' : ''} data-facetblock="${name}">
+    <div class="flabel">${name}</div>
+    <div class="chips">${chips}<button class="chip add" data-facetadd="${name}">＋</button></div>
+  </div>`;
+}
+
+function bindFacetChips(st, rerenderLabels) {
+  app.querySelectorAll('[data-facet]').forEach(b => b.onclick = () => {
+    const f = b.dataset.facet, v = b.dataset.val;
+    st.facets[f].has(v) ? st.facets[f].delete(v) : st.facets[f].add(v);
+    b.classList.toggle('on');
+    rerenderLabels && rerenderLabels();
+  });
+  app.querySelectorAll('[data-facetadd]').forEach(b => b.onclick = () => {
+    const f = b.dataset.facetadd;
+    const input = document.createElement('input');
+    input.type = 'text'; input.placeholder = `New ${f.toLowerCase()} value…`;
+    input.style.cssText = 'max-width:180px;font-size:14px;padding:8px;';
+    b.replaceWith(input); input.focus();
+    const commit = () => {
+      const v = input.value.trim();
+      if (v) { FACETS[f].push(v); st.facets[f].add(v); }
+      renderCurrent();
+    };
+    input.onkeydown = e => { if (e.key === 'Enter') commit(); };
+    input.onblur = commit;
+  });
+}
+
+function freeTagHTML(st) {
+  return `<div class="facet"><div class="flabel">Free tags</div>
+    <div class="chips" id="freetags">
+      ${st.free.map((t, i) => `<button class="chip ${t._on ? 'on' : ''}" data-free="${i}">✕ ${esc(t.name)}</button>`).join('')}
+      <button class="chip add" id="freeadd">＋ tag</button>
+    </div></div>`;
+}
+
+function bindFreeTags(st) {
+  const box = $('#freetags');
+  if (!box) return;
+  box.querySelectorAll('[data-free]').forEach(b => b.onclick = () => {
+    const t = st.free[+b.dataset.free]; t._on = !t._on; b.classList.toggle('on');
+  });
+  $('#freeadd').onclick = () => {
+    const input = document.createElement('input');
+    input.type = 'text'; input.placeholder = 'tag name…';
+    input.style.cssText = 'max-width:140px;font-size:14px;padding:8px;';
+    $('#freeadd').replaceWith(input); input.focus();
+    const commit = () => {
+      const v = input.value.trim();
+      if (v && !st.free.some(t => t.name === v)) st.free.push({ name: v, _on: true });
+      renderCurrent();
+    };
+    input.onkeydown = e => { if (e.key === 'Enter') commit(); };
+    input.onblur = commit;
+  };
+}
+
+function tagSummary(st) {
+  const out = [];
+  for (const f of Object.keys(st.facets)) for (const v of st.facets[f]) out.push(`${f}:${v}`);
+  for (const t of st.free) if (t._on) out.push(`#${t.name}`);
+  return out;
+}
+
+function stripHTML() {
+  return `<section class="panel">
+    <div class="flabel" style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin-bottom:8px">
+      Captured this session (${session.items.length}) — in-memory state</div>
+    ${session.items.length === 0
+      ? `<div class="empty">Nothing captured yet. Save something and it lands here.</div>`
+      : `<div class="strip">${session.items.map(it => `
+          <div class="mini">
+            <div class="mp" style="background:${it.image ? `center/cover url(${it.image})` : grad(it.hue || hash(it.title))}"></div>
+            <span class="kbadge">${KIND_LABEL[it.kind]}</span>
+            <b>${esc(it.title)}</b>
+            <span>${esc(tagSummary(it.tags).slice(0, 2).join(' · ')) || 'untagged'}</span>
+          </div>`).join('')}</div>`}
+  </section>`;
+}
+
+function makeItem(partial) {
+  return { id: uid++, title: 'Untitled', desc: '', hue: null, image: null, colors: null, source: null, tags: newTagState(), ...partial };
+}
+
+/* ---------- variant A — one smart bar ---------- */
+
+const A = {
+  state: null,
+  fresh() { A.state = { phase: 'idle', kind: null, guess: null, meta: null, loading: false, url: '', image: null, colors: null, paletteRows: null, st: newTagState(), openFacet: '__none__' }; },
+
+  mount() {
+    if (!A.state) A.fresh();
+    const s = A.state;
+    const hasSubstance = s.meta || s.image || s.paletteRows;
+
+    let stage = '';
+    if (s.loading) stage = `<div class="card"><div class="spinner"></div><div class="meta"><b>Fetching preview…</b><p>${esc(s.url)}</p></div></div>`;
+    else if (s.meta) stage = `
+      <div class="card">
+        <div class="poster" style="background:${grad(s.meta.hue)}"></div>
+        <div class="meta">
+          <span class="kbadge">${KIND_LABEL[s.kind]}</span>
+          <b>${esc(s.meta.title)}</b>
+          <p>${esc(s.meta.desc)} · ${esc(s.meta.url)}</p>
+          <input type="text" id="titleEdit" value="${esc(s.meta.title)}" placeholder="Title">
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px"><span class="empty">Not a ${KIND_LABEL[s.kind]}?</span>
+        ${['url', 'article', 'video'].map(k => `<button class="chip kindchip ${s.kind === k ? 'on' : ''}" data-kind="${k}">${KIND_LABEL[k]}</button>`).join('')}
+      </div>`;
+    else if (s.image) stage = `
+      <div class="panel thumbwrap">
+        <img src="${s.image}" alt="">
+        <div class="swatches">${s.colors.map(c => `<div class="swatch" style="background:${c}"></div>`).join('')}
+          <button class="chip" id="regen">↻ colors</button></div>
+        <div class="row" style="margin-top:10px"><span class="empty">What is it?</span>
+          ${['screenshot', 'photo'].map(k => `<button class="chip kindchip ${s.kind === k ? 'on' : ''}" data-kind="${k}">${KIND_LABEL[k]}</button>`).join('')}
+        </div>
+      </div>`;
+    else if (s.paletteRows) stage = `
+      <div class="panel">
+        <div class="flabel" style="font-size:12px;text-transform:uppercase;color:var(--dim)">Palette</div>
+        <div class="swatches" style="margin:8px 0">${s.paletteRows.map(c => `<div class="swatch" style="background:${c}"></div>`).join('')}</div>
+        <div class="row">
+          <button class="small" id="palAdd">＋ color</button>
+          <button class="small ghost" id="palShuffle">↻ shuffle</button>
+          <button class="small ghost" id="palDrop">remove palette</button>
+        </div>
+      </div>`;
+
+    const facetBlocks = Object.keys(FACETS).map(f => {
+      const open = s.openFacet === null || s.openFacet === f;
+      const count = s.st.facets[f].size;
+      return `<div class="panel" style="padding:10px 14px">
+        <div class="row" style="justify-content:space-between;cursor:pointer" data-toggle="${f}">
+          <span style="font-weight:600;font-size:14px">${f}${count ? ` · ${count}` : ''}</span><span>${s.openFacet === f ? '▾' : '▸'}</span>
+        </div>
+        ${facetGroupHTML(f, s.st, { open: s.openFacet === f })}
+      </div>`;
+    }).join('');
+
+    app.innerHTML = `
+      <h1>Capture</h1>
+      <p class="sub">Variant A · one smart bar — paste a link, drop an image, or tap to pick. Inzpo figures out the kind.</p>
+      ${stripHTML()}
+      <section class="panel">
+        <div class="intake">
+          <input type="url" id="urlin" placeholder="Paste a URL…" inputmode="url">
+          <button class="primary" id="go">→</button>
+        </div>
+        <div class="dropzone" id="dz" style="margin-top:10px">Drop an image here · or tap to choose 📷</div>
+        <input type="file" id="file" accept="image/*" hidden>
+        <div class="row" style="margin-top:10px">
+          <span class="empty">Quick add:</span>
+          <button class="chip ${s.paletteRows ? 'on' : ''}" id="palettebtn">🎨 Palette</button>
+        </div>
+        ${stage}
+      </section>
+      <div id="tagzone">${hasSubstance ? facetBlocks + freeTagHTML(s.st) : ''}</div>
+      <div class="savebar"><button class="primary" id="save" ${hasSubstance ? '' : 'disabled'}>
+        ${hasSubstance ? `Save ${KIND_LABEL[s.kind] || 'Item'}` : 'Save — add something first'}</button></div>`;
+
+    /* wiring */
+    $('#go').onclick = () => A.submitUrl($('#urlin').value);
+    $('#urlin').onkeydown = e => { if (e.key === 'Enter') A.submitUrl($('#urlin').value); };
+    const dz = $('#dz'), file = $('#file');
+    dz.onclick = () => file.click();
+    file.onchange = () => file.files[0] && A.setImage(file.files[0]);
+    dz.ondragover = e => { e.preventDefault(); dz.classList.add('drag'); };
+    dz.ondragleave = () => dz.classList.remove('drag');
+    dz.ondrop = e => { e.preventDefault(); dz.classList.remove('drag'); const f = e.dataTransfer.files[0]; f && A.setImage(f); };
+    $('#palettebtn').onclick = () => {
+      if (s.paletteRows) { s.paletteRows = null; s.kind = null; }
+      else { s.paletteRows = fakeColors('palette' + Math.random()); s.kind = 'palette'; s.meta = null; if (s.image) URL.revokeObjectURL(s.image); s.image = null; }
+      renderCurrent();
+    };
+
+    $$('[data-kind]').forEach(b => b.onclick = () => { s.kind = b.dataset.kind; if (s.meta) s.meta.kind = b.dataset.kind; renderCurrent(); });
+    const t = $('#titleEdit'); if (t) t.oninput = () => { s.meta.title = t.value; };
+    const rg = $('#regen'); if (rg) rg.onclick = () => { s.colors = fakeColors('x' + Math.random()); renderCurrent(); };
+
+    const pa = $('#palAdd'); if (pa) pa.onclick = () => { s.paletteRows.push('hsl(200 50% 50%)'); renderCurrent(); };
+    const ps = $('#palShuffle'); if (ps) ps.onclick = () => { s.paletteRows = fakeColors('p' + Math.random()); renderCurrent(); };
+    const pd = $('#palDrop'); if (pd) pd.onclick = () => { s.paletteRows = null; renderCurrent(); };
+
+    $$('.panel [data-toggle]').forEach(h => h.onclick = () => { s.openFacet = s.openFacet === h.dataset.toggle ? '__none__' : h.dataset.toggle; renderCurrent(); });
+    bindFacetChips(s.st);
+    bindFreeTags(s.st);
+    $('#save').onclick = A.save;
+  },
+
+  submitUrl(raw) {
+    const url = raw.trim();
+    if (!url) return;
+    const s = A.state;
+    s.url = url; s.loading = true; s.image = null; s.paletteRows = null;
+    renderCurrent();
+    fakeFetch(url).then(meta => {
+      if (s.url !== url) return;
+      s.loading = false; s.meta = meta; s.kind = meta.kind; s.hue = meta.hue;
+      renderCurrent();
+    });
+  },
+
+  setImage(f) {
+    const s = A.state;
+    if (s.image) URL.revokeObjectURL(s.image);
+    s.url = ''; s.image = URL.createObjectURL(f); s.meta = null; s.paletteRows = null;
+    s.kind = s.kind === 'photo' ? 'photo' : 'screenshot';
+    s.colors = fakeColors(f.name + f.size);
+    renderCurrent();
+  },
+
+  save() {
+    const s = A.state;
+    session.items.unshift(makeItem({
+      kind: s.kind, title: s.meta ? s.meta.title : (s.paletteRows ? 'Untitled palette' : 'Image'),
+      desc: s.meta ? s.meta.desc : '', hue: s.hue, image: s.image, colors: s.paletteRows || s.colors,
+      source: s.meta ? { url: s.meta.url } : null, tags: s.st,
+    }));
+    toast(`Saved · ${KIND_LABEL[s.kind]}`);
+    A.fresh(); renderCurrent();
+  },
+};
+
+/* ---------- variant B — type chooser ---------- */
+
+const B = {
+  state: null,
+  fresh() { B.state = { screen: 'chooser', type: null, phase: 'form', st: newTagState(), url: '', meta: null, loading: false, image: null, colors: null, paletteRows: ['hsl(12 70% 55%)', 'hsl(42 80% 60%)', 'hsl(170 55% 45%)', 'hsl(220 60% 50%)', 'hsl(280 50% 60%)'] }; },
+
+  mount() {
+    if (!B.state) B.fresh();
+    const s = B.state;
+    if (s.screen === 'chooser') return B.chooser();
+    return B.form();
+  },
+
+  chooser() {
+    const s = B.state;
+    const tiles = [
+      ['url', '🔗', 'Paste a link'], ['screenshot', '🖥', 'Upload a capture'],
+      ['photo', '📷', 'Upload a photo'], ['palette', '🎨', 'Build a palette'],
+      ['article', '📄', 'Save an article'], ['video', '▶️', 'Save a video'],
+    ];
+    app.innerHTML = `
+      <h1>Capture</h1>
+      <p class="sub">Variant B · pick the type first — every type gets its own focused form.</p>
+      ${stripHTML()}
+      <div class="tiles">${tiles.map(([k, ic, blurb]) => `
+        <button class="tile" data-type="${k}"><span class="ic">${ic}</span><b>${KIND_LABEL[k]}</b><span>${blurb}</span></button>`).join('')}
+      </div>`;
+    $$('[data-type]').forEach(b => b.onclick = () => { s.type = b.dataset.type; s.screen = 'form'; s.phase = 'form'; renderCurrent(); });
+  },
+
+  form() {
+    const s = B.state, t = s.type;
+    const linked = ['url', 'article', 'video'].includes(t);
+
+    let stage = '';
+    if (linked) {
+      stage = s.loading
+        ? `<div class="card"><div class="spinner"></div><div class="meta"><b>Fetching preview…</b></div></div>`
+        : s.meta
+          ? `<div class="card"><div class="poster" style="background:${grad(s.meta.hue)}"></div>
+              <div class="meta"><b>${esc(s.meta.title)}</b><p>${esc(s.meta.desc)}</p>
+              <input type="text" id="titleEdit" value="${esc(s.meta.title)}"></div></div>`
+          : '';
+    } else if (t === 'screenshot' || t === 'photo') {
+      stage = s.image
+        ? `<div class="panel thumbwrap"><img src="${s.image}">
+            <div class="swatches">${s.colors.map(c => `<div class="swatch" style="background:${c}"></div>`).join('')}</div></div>`
+        : `<div class="dropzone" id="dz">Drop or tap to choose ${t === 'photo' ? '📷' : '🖥'}</div><input type="file" id="file" accept="image/*" hidden>`;
+    } else if (t === 'palette') {
+      stage = `<div class="panel">
+        <div class="swatches" style="margin:8px 0">${s.paletteRows.map(c => `<div class="swatch" style="background:${c}"></div>`).join('')}</div>
+        <div class="row"><button class="small" id="palAdd">＋ color</button><button class="small ghost" id="palShuffle">↻ shuffle</button></div></div>`;
+    }
+
+    const substance = linked ? s.meta : (t === 'palette' ? s.paletteRows.length : s.image);
+    const body = s.phase === 'form' ? `
+      ${t === 'article' ? '<p class="sub">Paste the article\'s URL — Inzpo saves the link + a preview of it.</p>' : ''}
+      ${t === 'video' ? '<p class="sub">Paste a YouTube / Vimeo link — Inzpo saves it with the poster frame.</p>' : ''}
+      ${linked ? `<div class="intake"><input type="url" id="urlin" placeholder="https://…" inputmode="url" value="${esc(s.url)}"><button class="primary" id="fetch">Fetch</button></div>${stage}` : stage}
+      <div class="wiznav" style="margin-top:14px">
+        <button id="back">‹ Types</button>
+        <button class="primary" id="next" ${substance ? '' : 'disabled'}>Add tags ›</button>
+      </div>`
+      : `
+      <p class="sub">Tag it — tap any number, skip what doesn't apply.</p>
+      ${Object.keys(FACETS).map(f => `<div class="panel" style="padding:12px 14px">${facetGroupHTML(f, s.st)}</div>`).join('')}
+      <div class="panel" style="padding:12px 14px">${freeTagHTML(s.st)}</div>
+      <div class="wiznav">
+        <button id="back">‹ Back</button>
+        <button class="primary" id="save">Save ${KIND_LABEL[t]}</button>
+      </div>`;
+
+    app.innerHTML = `
+      <h1>New ${KIND_LABEL[t]}</h1>
+      <p class="sub">Variant B · focused form</p>${stripHTML()}
+      <section class="panel">${body}</section>`;
+
+    const urlin = $('#urlin');
+    if (urlin) {
+      urlin.oninput = () => { s.url = urlin.value; };
+      urlin.onkeydown = e => { if (e.key === 'Enter') $('#fetch').click(); };
+      $('#fetch').onclick = () => {
+        s.url = urlin.value;
+        if (!s.url.trim()) return;
+        s.loading = true; renderCurrent();
+        fakeFetch(s.url).then(m => {
+          if (B.state.type !== t || B.state.phase !== 'form') return;
+          s.loading = false; s.meta = m; s.hue = m.hue; renderCurrent();
+        });
+      };
+    }
+    const dz = $('#dz');
+    if (dz) {
+      const file = $('#file');
+      dz.onclick = () => file.click();
+      dz.ondragover = e => { e.preventDefault(); dz.classList.add('drag'); };
+      dz.ondragleave = () => dz.classList.remove('drag');
+      dz.ondrop = e => { e.preventDefault(); dz.classList.remove('drag'); const f = e.dataTransfer.files[0]; f && B.setImage(f); };
+      file.onchange = () => file.files[0] && B.setImage(file.files[0]);
+    }
+    const te = $('#titleEdit'); if (te) te.oninput = () => { s.meta.title = te.value; };
+    const pa = $('#palAdd'); if (pa) pa.onclick = () => { s.paletteRows.push('hsl(200 50% 50%)'); renderCurrent(); };
+    const psh = $('#palShuffle'); if (psh) psh.onclick = () => { s.paletteRows = fakeColors('p' + Math.random()); renderCurrent(); };
+    $$('[data-facet]').forEach(b => b.onclick = () => {
+      const f = b.dataset.facet, v = b.dataset.val;
+      s.st.facets[f].has(v) ? s.st.facets[f].delete(v) : s.st.facets[f].add(v);
+      b.classList.toggle('on');
+    });
+    bindFreeTags(s.st);
+
+    $('#back').onclick = () => { if (s.phase === 'form') { B.fresh(); } else { s.phase = 'form'; } renderCurrent(); };
+    const nx = $('#next'); if (nx) nx.onclick = () => { s.phase = 'tag'; renderCurrent(); };
+    const sv = $('#save'); if (sv) sv.onclick = () => {
+      session.items.unshift(makeItem({
+        kind: t, title: s.meta ? s.meta.title : (t === 'palette' ? 'Untitled palette' : 'Image'),
+        desc: s.meta ? s.meta.desc : '', hue: s.hue, image: s.image,
+        colors: t === 'palette' ? s.paletteRows : s.colors,
+        source: s.meta ? { url: s.meta.url } : null, tags: s.st,
+      }));
+      toast(`Saved · ${KIND_LABEL[t]}`); B.fresh(); renderCurrent();
+    };
+  },
+
+  setImage(f) {
+    const s = B.state;
+    if (s.image) URL.revokeObjectURL(s.image);
+    s.image = URL.createObjectURL(f); s.colors = fakeColors(f.name + f.size);
+    renderCurrent();
+  },
+};
+
+/* ---------- variant C — guided wizard ---------- */
+
+const C = {
+  state: null,
+  fresh() { C.state = { step: 1, route: null, kind: null, guess: null, meta: null, loading: false, url: '', image: null, colors: null, paletteRows: null, st: newTagState() }; },
+
+  mount() {
+    if (!C.state) C.fresh();
+    const s = C.state;
+    const stepName = ['1 · Substance', '2 · Preview', '3 · Tag'][s.step - 1];
+    app.innerHTML = `
+      <h1>Capture</h1>
+      <p class="sub">Variant C · guided wizard — one decision per screen.</p>
+      ${stripHTML()}
+      <div class="stepper">
+        ${[1, 2, 3].map(i => `<div class="dot ${i === s.step ? 'on' : ''}">${i}</div>${i < 3 ? '<div class="bar"></div>' : ''}`).join('')}
+        <span class="empty" style="margin-left:4px">${stepName}</span>
+      </div>
+      <section class="panel" id="stepbody"></section>
+      <div class="savebar"></div>`;
+    C['step' + s.step]();
+  },
+
+  step1() {
+    const s = C.state;
+    $('#stepbody').innerHTML = `
+      <div class="row" style="gap:10px">
+        <button class="chip ${s.route === 'url' ? 'on' : ''}" data-route="url" style="padding:14px">🔗 Paste a link</button>
+        <button class="chip ${s.route === 'image' ? 'on' : ''}" data-route="image" style="padding:14px">🖼 Add an image</button>
+        <button class="chip ${s.route === 'palette' ? 'on' : ''}" data-route="palette" style="padding:14px">🎨 Build a palette</button>
+      </div>
+      <div class="dropzone" id="dz" style="margin-top:12px">…or drop a file anywhere on the panel</div>
+      <input type="file" id="file" accept="image/*" hidden>
+      <div id="routed"></div>
+      <div class="wiznav"><button class="primary" id="next" ${s.route ? '' : 'disabled'}>Preview ›</button></div>`;
+
+    $$('[data-route]').forEach(b => b.onclick = () => {
+      s.route = b.dataset.route;
+      if (s.route === 'palette') s.kind = 'palette';
+      C.renderRoute(); C.paintNext();
+    });
+    const dz = $('#dz'), file = $('#file');
+    dz.onclick = () => file.click();
+    dz.ondragover = e => { e.preventDefault(); dz.classList.add('drag'); };
+    dz.ondragleave = () => dz.classList.remove('drag');
+    dz.ondrop = e => { e.preventDefault(); dz.classList.remove('drag'); const f = e.dataTransfer.files[0]; f && C.setImage(f); };
+    file.onchange = () => file.files[0] && C.setImage(file.files[0]);
+    $('#next').onclick = () => {
+      if (!s.route) return toast('Pick one first');
+      if (s.route === 'url' && !s.meta) return toast('Fetch the link first');
+      if (s.route === 'image' && !s.image) return toast('Add an image first');
+      s.step = 2; renderCurrent();
+    };
+    C.renderRoute();
+  },
+
+  renderRoute() {
+    const s = C.state, box = $('#routed');
+    if (!box) return;
+    if (s.route === 'url') {
+      box.innerHTML = `
+        <div class="intake" style="margin-top:10px">
+          <input type="url" id="urlin" placeholder="https://…" inputmode="url" value="${esc(s.url)}">
+          <button class="primary" id="fetch">→</button>
+        </div>
+        <div class="row" style="margin-top:10px"><span class="empty">Kind:</span>
+          ${['url', 'article', 'video'].map(k => `<button class="chip kindchip ${s.kind === k ? 'on' : ''}" data-kind="${k}">${KIND_LABEL[k]}</button>`).join('')}
+        </div>`;
+      const urlin = $('#urlin');
+      urlin.oninput = () => { s.url = urlin.value; };
+      urlin.onkeydown = e => { if (e.key === 'Enter') $('#fetch').click(); };
+      $('#fetch').onclick = () => {
+        s.url = urlin.value;
+        if (!s.url.trim()) return;
+        s.loading = true; s.meta = null; C.renderRoute(); C.paintNext();
+        fakeFetch(s.url).then(m => {
+          if (C.state.step !== 1 || C.state.route !== 'url') return;
+          s.loading = false; s.meta = m; s.kind = m.kind; s.hue = m.hue; C.renderRoute();
+        });
+      };
+      $$('[data-kind]').forEach(b => b.onclick = () => { s.kind = b.dataset.kind; C.renderRoute(); });
+    } else if (s.route === 'image') {
+      box.innerHTML = `<div class="row" style="margin-top:10px"><span class="empty">Kind:</span>
+        ${['screenshot', 'photo'].map(k => `<button class="chip kindchip ${s.kind === k ? 'on' : ''}" data-kind="${k}">${KIND_LABEL[k]}</button>`).join('')}</div>`;
+      $$('[data-kind]').forEach(b => b.onclick = () => { s.kind = b.dataset.kind; C.renderRoute(); });
+    } else if (s.route === 'palette') {
+      s.kind = 'palette';
+      s.paletteRows = s.paletteRows || fakeColors('p' + Math.random());
+      box.innerHTML = `<div class="swatches" style="margin-top:10px">${s.paletteRows.map(c => `<div class="swatch" style="background:${c}"></div>`).join('')}
+        <button class="chip" id="palShuffle">↻ shuffle</button></div>`;
+      $('#palShuffle').onclick = () => { s.paletteRows = fakeColors('p' + Math.random()); C.renderRoute(); };
+    }
+  },
+
+  paintNext() {
+    const nx = $('#next');
+    if (nx) nx.disabled = !!(C.state.route === 'url' && !C.state.meta && !C.state.loading);
+  },
+
+  setImage(f) {
+    const s = C.state;
+    if (s.image) URL.revokeObjectURL(s.image);
+    s.route = 'image'; s.url = ''; s.meta = null; s.image = URL.createObjectURL(f);
+    s.colors = fakeColors(f.name + f.size); s.kind = s.kind === 'photo' ? 'photo' : 'screenshot';
+    C.renderRoute(); C.paintNext();
+  },
+
+  step2() {
+    const s = C.state;
+    let inner = '';
+    if (s.route === 'url') {
+      inner = s.loading
+        ? `<div class="row"><div class="spinner"></div> Fetching preview…</div>`
+        : `<div class="card"><div class="poster" style="background:${grad(s.hue || 200)}"></div>
+            <div class="meta"><span class="kbadge">${KIND_LABEL[s.kind]}</span><b>${esc(s.meta.title)}</b>
+            <p>${esc(s.meta.desc)} · ${esc(s.meta.url)}</p>
+            <input type="text" id="titleEdit" value="${esc(s.meta.title)}"></div></div>`;
+    } else if (s.route === 'image') {
+      inner = `<div class="thumbwrap"><img src="${s.image}">
+        <div class="row" style="margin-top:8px"><span class="kbadge">${KIND_LABEL[s.kind]}</span></div>
+        <div class="swatches">${s.colors.map(c => `<div class="swatch" style="background:${c}"></div>`).join('')}
+          <button class="chip" id="regen">↻ colors</button></div></div>`;
+    } else {
+      inner = `<div class="swatches">${s.paletteRows.map(c => `<div class="swatch" style="background:${c}"></div>`).join('')}</div>`;
+    }
+    $('#stepbody').innerHTML = `${inner}
+      <div class="wiznav"><button id="back">‹ Back</button><button class="primary" id="next">Tag it ›</button></div>`;
+    const te = $('#titleEdit'); if (te) te.oninput = () => { s.meta.title = te.value; };
+    const rg = $('#regen'); if (rg) rg.onclick = () => { s.colors = fakeColors('x' + Math.random()); C.step2(); };
+    $('#back').onclick = () => { s.step = 1; renderCurrent(); };
+    $('#next').onclick = () => {
+      if (s.route === 'url' && !s.meta) return toast('Fetch the preview first');
+      if (s.route === 'image' && !s.image) return toast('Add an image first');
+      s.step = 3; renderCurrent();
+    };
+  },
+
+  step3() {
+    const s = C.state;
+    $('#stepbody').innerHTML = `
+      ${Object.keys(FACETS).map(f => `<div style="margin-bottom:12px">${facetGroupHTML(f, s.st)}</div>`).join('')}
+      ${freeTagHTML(s.st)}
+      <div class="wiznav"><button id="back">‹ Back</button><button class="primary" id="save">Save ${KIND_LABEL[s.kind] || 'Item'}</button></div>`;
+    bindFacetChips(s.st);
+    bindFreeTags(s.st);
+    $('#back').onclick = () => { s.step = 2; renderCurrent(); };
+    $('#save').onclick = () => {
+      session.items.unshift(makeItem({
+        kind: s.kind, title: s.meta ? s.meta.title : (s.route === 'palette' ? 'Untitled palette' : 'Image'),
+        desc: s.meta ? s.meta.desc : '', hue: s.hue, image: s.image,
+        colors: s.route === 'palette' ? s.paletteRows : s.colors,
+        source: s.meta ? { url: s.meta.url } : null, tags: s.st,
+      }));
+      toast(`Saved · ${KIND_LABEL[s.kind]}`); C.fresh(); renderCurrent();
+    };
+  },
+};
+
+/* ---------- variant registry + floating switcher ---------- */
+
+const VARIANTS = [
+  { key: 'a', name: 'One smart bar', mod: A },
+  { key: 'b', name: 'Type chooser', mod: B },
+  { key: 'c', name: 'Guided wizard', mod: C },
+];
+let current = 0;
+
+function renderCurrent() {
+  const v = VARIANTS[current];
+  document.title = `Inzpo capture · ${v.key.toUpperCase()} (${v.name})`;
+  v.mod.mount();
+}
+
+function setParams(kv) {
+  const p = new URLSearchParams(location.search);
+  for (const [k, val] of Object.entries(kv)) val == null ? p.delete(k) : p.set(k, val);
+  history.replaceState(null, '', location.pathname + '?' + p.toString() + location.hash);
+}
+
+function go(delta) {
+  current = (current + delta + VARIANTS.length) % VARIANTS.length;
+  A.fresh(); B.fresh(); C.fresh();
+  setParams({ variant: VARIANTS[current].key });
+  renderCurrent();
+}
+
+function setPhone(on) {
+  document.body.classList.toggle('phone', on);
+  document.getElementById('sw-phone').style.fontWeight = on ? 800 : 400;
+  setParams({ phone: on ? '1' : null });
+}
+
+/* switcher wiring */
+const vl = document.getElementById('vlabel');
+function paintSwitcher() { vl.textContent = `${VARIANTS[current].key.toUpperCase()} (${VARIANTS[current].name})`; }
+document.getElementById('sw-prev').onclick = () => go(-1);
+document.getElementById('sw-next').onclick = () => go(1);
+document.getElementById('sw-phone').onclick = () => setPhone(!document.body.classList.contains('phone'));
+document.getElementById('sw-reset').onclick = () => { session.items.length = 0; A.fresh(); B.fresh(); C.fresh(); renderCurrent(); };
+window.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea, [contenteditable]')) return;
+  if (e.key === 'ArrowLeft') go(-1);
+  if (e.key === 'ArrowRight') go(1);
+});
+
+/* boot from URL */
+const p0 = new URLSearchParams(location.search);
+current = Math.max(0, VARIANTS.findIndex(v => v.key === (p0.get('variant') || 'a')));
+if (p0.get('phone') === '1') setPhone(true);
+paintSwitcher();
+renderCurrent();
+</script>
+</body>
+</html>
