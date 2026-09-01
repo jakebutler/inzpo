@@ -1,0 +1,1732 @@
+<!doctype html>
+<!--
+  PROTOTYPE (throwaway) — Inzpo item editing & vocabulary management UI, issue #16
+  Question: where do post-capture edits live, and how do they behave?
+  Three variants over one host (slim toolbar + small wall + full-screen item detail,
+  per #8's adopted B-pattern chrome), switchable via ?variant=a|b|c and the floating
+  bar (← → keys work too, 📱 judges 390px):
+    A "Live surface"        — no modes, no sheets: everything is inline-editable in
+                              place; vocabulary ops in small anchored popovers
+    B "Edit mode + settings" — explicit View→Edit toggle on the detail page;
+                              vocabulary lives in a dedicated full-screen settings
+                              area you drill into
+    C "Sheets & long-press"  — detail stays read-only; one capture-style edit sheet;
+                              every value chip answers a long-press/right-click with
+                              a context sheet; vocabulary manager is itself a sheet
+  Scope (grilled 2026-09-01): edit title · note · facet values · free tags; palette
+  color editing IS in (user-owned, ordered: add / remove / reorder); source copy
+  editing included lightly; vocabulary manager with create + rename-everywhere +
+  merge + remove-if-unused; promote free tag → facet value; smart-collection
+  rename/delete. Extracted colors on images stay non-editable (⟳ regenerate stub).
+  Vocabulary ops propagate: items AND saved smart-collection filter states follow
+  renames/merges (a smart collection stores values by name — the query must not
+  silently break). Remove-if-unused is gated by live usage counts.
+  ~36 in-memory mock items. Open this file in a browser; no build, no server.
+  Round-1 reaction: variant B favored (explicit edit mode). Palette editor upgraded
+  to a full picker: SV drag area + hue slider + HEX / R G B / C M Y K entry + family
+  presets; tap any existing swatch to fine-tune it live. Boots on B by default.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inzpo · editing prototype</title>
+<style>
+  :root {
+    --bg: #101014; --panel: #1a1a21; --panel2: #22222b; --line: #2e2e3a;
+    --text: #ececf1; --dim: #9a9aa8; --accent: #7c6cff; --accent2: #4fd1c5;
+    --danger: #ff6b81; --radius: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    min-height: 100vh;
+  }
+  #proto-banner {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 90;
+    background: repeating-linear-gradient(45deg, #3a2f00, #3a2f00 12px, #4a3c00 12px, #4a3c00 24px);
+    color: #ffe08a; font-size: 12px; font-weight: 600; text-align: center;
+    padding: 4px 8px; letter-spacing: .04em;
+  }
+  #stage { padding: 34px 0 92px; min-height: 100vh; }
+  body.phone #stage { display: flex; justify-content: center; align-items: flex-start; }
+  #app { min-height: calc(100vh - 126px); }
+  body.phone #app {
+    width: 390px; max-width: 390px; height: 820px; overflow-y: auto;
+    margin: 8px auto; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 28px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.7); position: relative;
+  }
+
+  button { font: inherit; color: inherit; background: var(--panel2); border: 1px solid var(--line);
+           border-radius: 10px; padding: 9px 13px; cursor: pointer; }
+  button.ghost { background: transparent; }
+  button.small { padding: 5px 9px; font-size: 13px; border-radius: 8px; }
+  button.tiny { padding: 2px 6px; font-size: 11px; border-radius: 6px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 650; }
+  button.danger { color: var(--danger); }
+  button:disabled { opacity: .38; cursor: not-allowed; }
+  input[type=text], input[type=search], input[type=color], textarea {
+    font: inherit; font-size: 15px; color: var(--text);
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
+  }
+  input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  textarea { width: 100%; resize: vertical; min-height: 54px; }
+
+  /* ---------- chips (item-level: value chips with remove / add / menu) ---------- */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 999px;
+    padding: 5px 12px; font-size: 13px; cursor: default; min-height: 30px;
+    display: inline-flex; align-items: center; gap: 7px; user-select: none;
+  }
+  .chip .x {
+    background: none; border: none; padding: 0 1px; font-size: 13px; line-height: 1;
+    color: var(--dim); cursor: pointer; border-radius: 50%;
+  }
+  .chip .x:hover { color: var(--danger); }
+  .chip .dots {
+    background: none; border: none; padding: 0 2px; font-size: 13px; line-height: 1;
+    color: var(--dim); cursor: pointer;
+  }
+  .chip .dots:hover { color: var(--text); }
+  .chip.add {
+    background: transparent; border-style: dashed; color: var(--dim); cursor: pointer;
+  }
+  .chip.add:hover { color: var(--text); border-color: var(--accent); }
+  .chip.static.in { background: rgba(124,108,255,.16); border-color: var(--accent); }
+  .chip .n { color: var(--dim); font-size: 11px; }
+
+  /* combobox (create-on-type add) */
+  .combo { position: relative; display: inline-flex; }
+  .combo input { padding: 5px 10px; font-size: 13px; border-radius: 999px; min-width: 150px; }
+  .combo .sugg {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 200px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 14px 40px rgba(0,0,0,.6); padding: 6px; max-height: 240px; overflow-y: auto;
+  }
+  .combo .sugg button { display: flex; justify-content: space-between; gap: 10px; width: 100%;
+    background: transparent; border: none; text-align: left; padding: 7px 9px; border-radius: 8px; font-size: 13.5px; }
+  .combo .sugg button:hover { background: var(--panel2); }
+  .combo .sugg .new { color: var(--accent2); }
+
+  /* ---------- toolbar + wall ---------- */
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .badge { display: inline-flex; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+           background: var(--accent); color: #fff; font-size: 11px; font-weight: 700;
+           align-items: center; justify-content: center; margin-left: 4px; }
+  .wallhead { display: flex; align-items: baseline; gap: 10px; margin: 2px 0 10px; flex-wrap: wrap; }
+  .wallhead .dim, .dim { color: var(--dim); font-size: 12.5px; }
+  .wall { columns: 250px 3; column-gap: 12px; }
+  body.phone .wall { columns: 160px auto; column-gap: 10px; }
+  .card {
+    break-inside: avoid; margin: 0 0 12px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; cursor: pointer;
+  }
+  .card .grad { width: 100%; height: 120px; display: block; }
+  .card .pal { display: flex; flex-direction: column; height: 96px; }
+  .card .pal i { flex: 1; }
+  .cardmeta { padding: 8px 11px 9px; }
+  .cardmeta b { display: block; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kbadge { display: inline-block; font-size: 9px; letter-spacing: .07em; text-transform: uppercase;
+            color: var(--accent2); border: 1px solid var(--accent2); border-radius: 4px; padding: 0 4px; margin-right: 6px; }
+
+  /* ---------- sheets & modals ---------- */
+  .modal-back { position: fixed; inset: 0; z-index: 50; background: rgba(6,6,10,.66);
+                display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+           width: min(460px, 100%); max-height: 82vh; overflow-y: auto; padding: 16px; }
+  .modal h3 { margin: 0 0 4px; font-size: 16px; }
+  .sheet-back { position: fixed; inset: 0; background: rgba(6,6,10,.6); z-index: 50;
+                display: flex; align-items: flex-end; justify-content: center; }
+  .sheet {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 18px 18px 0 0;
+    width: min(560px, 100%); max-height: 84vh; overflow-y: auto; padding: 14px 16px 18px;
+  }
+  .sheet .grip { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 12px; }
+  .sheet h3 { margin: 0 0 4px; font-size: 16px; }
+  .sheet .donebar, .modal .donebar { position: sticky; bottom: -18px; margin: 14px -16px -18px; padding: 12px 16px;
+                    background: linear-gradient(transparent, var(--panel) 30%); display: flex; gap: 8px; }
+  .sheet .donebar button, .modal .donebar button { flex: 1; }
+  .modal .listitem { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+                     width: 100%; background: transparent; border: none; border-radius: 10px;
+                     padding: 9px 10px; font-size: 14px; text-align: left; }
+  .modal .listitem:hover { background: var(--panel2); }
+  .modal .listitem .n, .vrow .n { color: var(--dim); font-size: 12px; }
+  .modal .row { display: flex; gap: 8px; margin-top: 12px; }
+  .modal .row input { flex: 1; }
+  .empty { color: var(--dim); font-size: 13px; }
+  .flabel { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  .hint { color: var(--dim); font-size: 12.5px; margin: 6px 0; }
+
+  /* context action list (inside modal or sheet) */
+  .alist button { display: flex; justify-content: space-between; align-items: center; width: 100%;
+    background: transparent; border: none; border-radius: 10px; padding: 11px 10px;
+    font-size: 14.5px; text-align: left; }
+  .alist button:hover { background: var(--panel2); }
+  .alist button.danger { color: var(--danger); }
+  .alist button:disabled:hover { background: none; }
+  .alist .n { color: var(--dim); font-size: 12px; }
+
+  /* ---------- pickers for value targets ---------- */
+  .valpick { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+  .valpick .chip { cursor: pointer; }
+  .valpick .chip:hover { border-color: var(--accent); }
+  .valpick .chip.sel { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* ---------- swatches ---------- */
+  .swatchline { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
+  .swatchline .sq { width: 34px; height: 34px; border-radius: 9px; border: 1px solid rgba(255,255,255,.15); }
+  .swedit { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; }
+  .swedit i { width: 40px; height: 40px; border-radius: 9px; border: 1px solid rgba(255,255,255,.15); display: block; cursor: pointer; }
+  .swedit .swctl { display: flex; gap: 2px; }
+  .swedit .swctl button { padding: 0 5px; font-size: 11px; border-radius: 6px; min-height: 20px; line-height: 1.2; }
+  .famdots { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+  .famdots button { width: 24px; height: 24px; border-radius: 50%; padding: 0; border: 2px solid rgba(255,255,255,.18); }
+  input[type=color] { width: 34px; height: 34px; padding: 2px; border-radius: 9px; cursor: pointer; }
+
+  /* ---------- color picker ---------- */
+  .cp { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-top: 10px; }
+  .cp .sv { position: relative; height: 150px; border-radius: 8px; cursor: crosshair; touch-action: none;
+            background: linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, #f00); }
+  .cp .sv .th { position: absolute; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff;
+                box-shadow: 0 0 0 1px #000, 0 1px 4px rgba(0,0,0,.5); transform: translate(-50%,-50%); pointer-events: none; }
+  .cp .hue { position: relative; height: 14px; border-radius: 7px; margin: 12px 0 10px; cursor: pointer; touch-action: none;
+             background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+  .cp .hue .th { position: absolute; top: 50%; width: 10px; height: 20px; border-radius: 4px; border: 2px solid #fff;
+                 box-shadow: 0 0 0 1px #000; transform: translate(-50%,-50%); pointer-events: none; }
+  .cp .fdots { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+  .cp .fdots button { width: 20px; height: 20px; border-radius: 50%; padding: 0; border: 1px solid rgba(255,255,255,.25); }
+  .cp .fields { display: flex; flex-direction: column; gap: 6px; }
+  .cp .frow { display: flex; gap: 5px; align-items: center; }
+  .cp .frow label { font-size: 10.5px; color: var(--dim); width: 12px; text-align: right; flex: none; }
+  .cp .frow input { flex: 1; min-width: 0; padding: 6px 8px; font-size: 13px;
+                    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .cp .foot { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+  .cp .prev { width: 44px; height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.2); flex: none; }
+
+  /* ---------- detail surfaces ---------- */
+  .detail-page { position: fixed; inset: 0; z-index: 45; background: var(--bg); overflow-y: auto; }
+  .detail-page .dhero { max-width: 780px; margin: 0 auto; padding: 18px; }
+  .detail-page .dback { position: sticky; top: 38px; z-index: 5; }
+  .dtitle { font-size: 19px; margin: 10px 0 2px; overflow-wrap: anywhere; }
+  .dsub { color: var(--dim); font-size: 13px; margin: 0 0 12px; }
+  .dblock { margin: 14px 0; }
+  .dblock .flabel { margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .dblock .flabel .sp { flex: 1; }
+  .srcbox { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .srcbox b { font-size: 14px; display: block; overflow-wrap: anywhere; }
+  .srcbox p { margin: 4px 0; color: var(--dim); font-size: 13px; overflow-wrap: anywhere; }
+  .srcbox .u { color: var(--accent2); font-size: 12px; overflow-wrap: anywhere; }
+  .srcbox .se { width: 100%; margin: 3px 0; font-size: 13.5px; }
+  .noteline { background: var(--panel2); border-radius: 10px; padding: 8px 12px; font-size: 13.5px; }
+  .dactions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  .originline { font-size: 13px; color: var(--dim); }
+  .linkish { color: var(--accent2); cursor: pointer; text-decoration: underline; }
+
+  /* variant A inline editing */
+  .inline-title { width: 100%; font-size: 19px; font-weight: 700; margin: 10px 0 2px;
+                  background: transparent; border: 1px dashed transparent; border-radius: 8px; padding: 4px 8px; }
+  .inline-title:hover { border-color: var(--line); }
+  .inline-note { background: var(--panel2); border: 1px dashed transparent; border-radius: 10px;
+                 padding: 8px 12px; font-size: 13.5px; }
+  .inline-note:hover { border-color: var(--line); }
+  .flabel .org { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 13px; padding: 0 3px; }
+  .flabel .org:hover { color: var(--text); }
+
+  /* variant B edit mode + settings */
+  .editbar { position: sticky; top: 34px; z-index: 6; display: flex; gap: 8px; align-items: center;
+             background: linear-gradient(var(--bg) 70%, transparent); padding: 8px 0; margin: -8px 0 4px; }
+  .editbar .tag { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+                  color: var(--accent2); }
+  .settings { position: fixed; inset: 0; z-index: 55; background: var(--bg); overflow-y: auto; }
+  .settings .shero { max-width: 620px; margin: 0 auto; padding: 18px; }
+  .settings .crumb { position: sticky; top: 38px; z-index: 5; }
+  .vrow { display: flex; align-items: center; gap: 8px; padding: 9px 4px; border-bottom: 1px solid var(--line); }
+  .vrow:last-child { border-bottom: none; }
+  .vrow .vname { flex: 1; font-size: 14.5px; overflow-wrap: anywhere; }
+  .vrow input.vname { background: var(--panel2); border: 1px solid var(--accent); border-radius: 8px; padding: 5px 9px; }
+  .vrow .newrow input { flex: 1; }
+  .secitem { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%;
+             background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+             padding: 12px 14px; margin-bottom: 8px; font-size: 15px; text-align: left; cursor: pointer; }
+  .secitem:hover { border-color: var(--accent); }
+
+  /* variant C action row */
+  .actionrow { position: sticky; bottom: 0; z-index: 6; display: flex; gap: 8px; padding: 12px 0 4px;
+               background: linear-gradient(transparent, var(--bg) 40%); }
+  .actionrow button { flex: 1; }
+  .c-chip { cursor: pointer; }
+  .c-chip:hover { border-color: var(--accent); }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%) translateY(20px);
+    background: var(--accent2); color: #06282a; font-weight: 650; font-size: 14px;
+    padding: 10px 18px; border-radius: 999px; opacity: 0; pointer-events: none;
+    transition: all .25s; z-index: 95; max-width: 88vw; text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  #switcher {
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 2px; z-index: 99;
+    background: #000; color: #fff; border: 1px solid #444; border-radius: 999px;
+    padding: 6px 8px; box-shadow: 0 8px 30px rgba(0,0,0,.6); font-size: 14px;
+  }
+  #switcher button { background: transparent; border: none; padding: 6px 10px; border-radius: 999px; color: #fff; }
+  #switcher button:hover { background: #222; }
+  #switcher .vlabel { min-width: 200px; text-align: center; font-weight: 600; }
+  #switcher .mode { color: #8ab4ff; }
+</style>
+</head>
+<body>
+<div id="proto-banner">🚧 PROTOTYPE · Inzpo editing &amp; vocabulary UX · throwaway — nothing is persisted</div>
+<div id="stage"><main id="app"></main></div>
+<div id="toast"></div>
+<div id="switcher">
+  <button id="sw-prev" title="Previous variant">‹</button>
+  <span class="vlabel" id="vlabel"></span>
+  <button id="sw-next" title="Next variant">›</button>
+  <button id="sw-phone" class="mode" title="Toggle 390px phone frame">📱 Phone</button>
+  <button id="sw-reset" title="Reset session state">↺</button>
+</div>
+
+<script>
+'use strict';
+
+/* ================================================================
+   Domain stubs — six fixed facets (#2), six item kinds fixed at
+   capture (#5), 14 color families (#7). Vocabulary ops propagate to
+   items AND saved smart-collection filter states.
+   ================================================================ */
+
+const SEED_FACETS = {
+  Style:      ['Minimal', 'Brutalist', 'Swiss', 'Art deco', 'Y2K', 'Organic', 'Memphis'],
+  Usage:      ['Landing page', 'Dashboard', 'Mobile app', 'E-commerce', 'Portfolio'],
+  Medium:     ['Web', 'Print', 'Packaging', 'Signage'],
+  Format:     ['Hero', 'Card grid', 'Icon set', 'Motion', 'Illustration'],
+  Mood:       ['Calm', 'Playful', 'Moody', 'Luxe', 'Energetic'],
+  Complexity: ['Sparse', 'Balanced', 'Dense'],
+};
+const KINDS = ['url', 'screenshot', 'photo', 'palette', 'article', 'video'];
+const KIND_LABEL = { url: 'URL', screenshot: 'Screenshot', photo: 'Photo', palette: 'Palette', article: 'Article', video: 'Video' };
+const FAMILIES = [
+  ['red', '#e5484d'], ['orange', '#f76b15'], ['yellow', '#f5d90a'], ['cream/beige', '#efe1c6'],
+  ['brown', '#8a5a44'], ['gold', '#d4af37'], ['green', '#46a758'], ['teal', '#12a594'],
+  ['blue', '#3b82f6'], ['purple', '#8e4ec6'], ['pink', '#f472b6'], ['black', '#1a1a1a'],
+  ['white', '#f8f8f8'], ['gray', '#8f8f98'],
+];
+const NEUTRALS = ['black', 'white', 'gray', 'cream/beige'];
+
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const app = document.getElementById('app');
+const cap = s => s.replace(/\b\w/g, c => c.toUpperCase());
+const fmtDate = ts => new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1900);
+}
+
+/* ---------- mock library ---------- */
+
+const ADJ = ['Quiet', 'Sunlit', 'Neon', 'Soft', 'Concrete', 'Velvet', 'Paper', 'Glass', 'Midnight', 'Copper',
+             'Frosted', 'Wild', 'Studio', 'Kiosk', 'Archive', 'Bloom', 'Grid', 'Faded', 'Electric', 'Clay'];
+const NOUN = ['hero section', 'pricing page', 'onboarding flow', 'checkout', 'landing page', 'dashboard',
+              'settings screen', 'editorial spread', 'poster series', 'packaging set', 'signage system',
+              'portfolio grid', 'nav pattern', 'empty state', '404 page', 'card layout', 'dense table',
+              'mobile nav', 'icon set', 'motion study', 'type pairing', 'menu board', 'app icon', 'brand sheet'];
+const HOSTS = {
+  url:     ['siteinspire.com', 'godly.website', 'awwwards.com', 'are.na', 'dribbble.com', 'cosmos.so'],
+  article: ['typography.garden', 'uxnotes.dev', 'designsystems.com', 'readymag.stories', 'the-brick.medium.com'],
+  video:   ['youtube.com', 'vimeo.com'],
+};
+const TAG_SEEDS = ['reference', 'to-try', 'client-x', 'redesign', 'typography-crush', 'hero-inspo',
+                   'later', 'pattern', 'favorite', 'hover-idea', 'kiosk-idea'];
+const TAG_POOL = TAG_SEEDS.filter(t => t !== 'kiosk-idea');
+
+const store = { items: [], collections: [], smarts: [], tags: new Set(), facets: {}, nextId: 1 };
+const byId = id => store.items.find(i => i.id === id);
+
+function blankFs() {
+  return {
+    facets: Object.fromEntries(Object.keys(SEED_FACETS).map(f => [f, {}])),
+    free: {}, colors: {}, kinds: {}, text: '', sort: 'newest',
+  };
+}
+
+function mkItem(patch) {
+  const it = Object.assign({
+    id: store.nextId++, kind: 'url', title: '', note: '',
+    colors: [], families: [], facetMap: {}, free: [], source: null,
+    created: Date.now(), originOf: null, derived: null, collections: new Set(),
+  }, patch);
+  syncItem(it);
+  return it;
+}
+function syncItem(it) { it.facetVals = Object.values(it.facetMap).flat(); }
+
+function buildLibrary() {
+  const rnd = mulberry32(20260901);
+  const now = Date.now();
+  store.nextId = 1;
+  store.items = []; store.collections = []; store.smarts = [];
+  store.tags = new Set(TAG_SEEDS);
+  store.facets = JSON.parse(JSON.stringify(SEED_FACETS));
+  const ago = d => now - d * 86400000;
+
+  /* curated items so every flow is demonstrable */
+  const p1 = mkItem({ kind: 'palette', title: 'Ember & ash', created: ago(2),
+    colors: ['#e5484d', '#8a5a44', '#1a1a1a', '#f8f8f8', '#d4af37'],
+    families: ['red', 'brown', 'black', 'white', 'gold'],
+    facetMap: { Style: ['Minimal'], Mood: ['Moody'], Complexity: ['Sparse'] },
+    free: ['reference', 'client-x'] });
+  const img1 = mkItem({ kind: 'photo', title: 'Sunlit stairwell', created: ago(9),
+    colors: ['#efe1c6', '#f76b15', '#8a5a44'], families: ['cream/beige', 'orange', 'brown'],
+    facetMap: { Style: ['Organic'], Mood: ['Calm'], Medium: ['Web'] }, free: ['favorite'] });
+  p1.originOf = img1.id; img1.derived = p1.id;
+  const p2 = mkItem({ kind: 'palette', title: 'Signal greens', created: ago(1),
+    colors: ['#12a594', '#46a758', '#0e0e10'], families: ['teal', 'green', 'black'],
+    facetMap: { Mood: ['Energetic'], Usage: ['Mobile app'] }, free: ['to-try'] });
+  const a1 = mkItem({ kind: 'article', title: 'Notes on quiet interfaces', created: ago(4),
+    note: 'The section on friction is worth quoting in the deck.',
+    colors: ['#f8f8f8', '#8f8f98', '#1a1a1a'], families: ['white', 'gray', 'black'],
+    facetMap: { Style: ['Swiss', 'Minimal'], Mood: ['Calm'], Usage: ['Landing page'], Format: ['Hero'] },
+    free: ['reference', 'typography-crush'],
+    source: { url: 'https://typography.garden/quiet-interfaces', title: 'Notes on quiet interfaces',
+              desc: 'A long-read on restraint, whitespace, and friction as a feature.' } });
+  const u1 = mkItem({ kind: 'url', title: 'Godly — portfolio gallery', created: ago(6),
+    colors: ['#3b82f6', '#0e0e10', '#f8f8f8'], families: ['blue', 'black', 'white'],
+    facetMap: { Usage: ['Portfolio'], Medium: ['Web'], Style: ['Y2K'] }, free: ['hero-inspo'],
+    source: { url: 'https://godly.website', title: 'Godly', desc: 'Astronomically good web design.' } });
+  const v1 = mkItem({ kind: 'video', title: 'Grid systems, a talk', created: ago(12),
+    colors: ['#1a1a1a', '#8f8f98'], families: ['black', 'gray'],
+    facetMap: { Format: ['Motion'], Style: ['Swiss'] }, free: ['later'],
+    source: { url: 'https://youtube.com/watch?v=grid12', title: 'Grid systems, a talk', desc: 'Recorded talk · 24 min' } });
+  const img2 = mkItem({ kind: 'screenshot', title: 'Neon checkout', created: ago(3),
+    colors: ['#f472b6', '#8e4ec6', '#0e0e10'], families: ['pink', 'purple', 'black'],
+    facetMap: { Usage: ['E-commerce'], Style: ['Brutalist'], Complexity: ['Dense'] }, free: ['redesign', 'pattern'] });
+  store.items.push(p1, p2, img1, a1, u1, v1, img2);
+
+  /* random fill */
+  const flatVals = Object.values(SEED_FACETS).flat();
+  for (let i = 0; i < 28; i++) {
+    const kind = KINDS[Math.floor(rnd() * KINDS.length)];
+    const title = cap(ADJ[Math.floor(rnd() * ADJ.length)] + ' ' + NOUN[Math.floor(rnd() * NOUN.length)]);
+    const fams = new Set();
+    for (let k = 0; k < 2; k++) {
+      let f; do { f = FAMILIES[Math.floor(rnd() * 14)][0]; } while (NEUTRALS.includes(f) || fams.has(f));
+      fams.add(f);
+    }
+    fams.add(NEUTRALS[Math.floor(rnd() * NEUTRALS.length)]);
+    const famList = [...fams];
+    const facetMap = {};
+    const fkeys = Object.keys(SEED_FACETS);
+    const useF = new Set();
+    const nF = 2 + Math.floor(rnd() * 3);
+    while (useF.size < nF) useF.add(fkeys[Math.floor(rnd() * fkeys.length)]);
+    for (const f of useF) {
+      const vals = SEED_FACETS[f];
+      facetMap[f] = [vals[Math.floor(rnd() * vals.length)]];
+    }
+    const free = [];
+    if (rnd() < .75) free.push(TAG_POOL[Math.floor(rnd() * TAG_POOL.length)]);
+    if (rnd() < .3) free.push(TAG_POOL[Math.floor(rnd() * TAG_POOL.length)]);
+    let source = null;
+    if (kind === 'url' || kind === 'article' || kind === 'video') {
+      const host = HOSTS[kind][Math.floor(rnd() * HOSTS[kind].length)];
+      const slug = NOUN[Math.floor(rnd() * NOUN.length)].replace(/ /g, '-');
+      source = {
+        url: `https://${host}/${kind === 'video' ? 'watch?v=dQw4w9Wg' : 'work/' + slug}-${i}`,
+        title: title, desc: 'Portfolio and selected work.',
+      };
+    }
+    store.items.push(mkItem({
+      kind, title, note: rnd() < .3 ? 'Steal the hover treatment.' : '',
+      colors: famList.map(f => FAMILIES.find(x => x[0] === f)[1]), families: famList,
+      facetMap, free: [...new Set(free)], source, created: ago(3 + Math.floor(rnd() * 300)),
+    }));
+  }
+
+  /* guarantee demo fixtures: an unused facet value + an unused free tag */
+  for (const it of store.items) {
+    if (it.facetMap.Style) { it.facetMap.Style = it.facetMap.Style.filter(v => v !== 'Memphis'); if (!it.facetMap.Style.length) delete it.facetMap.Style; }
+    it.free = it.free.filter(t => t !== 'kiosk-idea');
+    syncItem(it);
+  }
+
+  store.collections = [
+    { id: 'c1', name: 'Landing pages I love' },
+    { id: 'c2', name: 'Dark dashboards' },
+    { id: 'c3', name: 'Print & packaging' },
+  ];
+  [a1, u1, img2].forEach(it => it.collections.add('c1'));
+  [v1, img2].forEach(it => it.collections.add('c2'));
+
+  const s1 = blankFs(); s1.facets.Mood.Moody = 'in'; s1.facets.Medium.Web = 'in';
+  const s2 = blankFs(); s2.colors.blue = 'in'; s2.colors.teal = 'in'; s2.sort = 'shuffle';
+  const s3 = blankFs(); s3.facets.Style.Minimal = 'in'; s3.kinds.photo = 'ex'; s3.kinds.screenshot = 'ex'; s3.sort = 'title';
+  store.smarts = [
+    { id: 's1', name: 'Moody web heroes', sort: 'newest', fs: s1 },
+    { id: 's2', name: 'Blues & teals', sort: 'shuffle', fs: s2 },
+    { id: 's3', name: 'Minimal, no photos', sort: 'title', fs: s3 },
+  ];
+}
+
+/* ---------- vocabulary engine (shared by all variants) ----------
+   Rule: values are shared — renames/merges update every Item that
+   carries them, AND every saved smart collection whose stored filter
+   state references the value (queries must not silently break). */
+
+const facetValues = f => {
+  const known = new Set(Object.values(SEED_FACETS).flat());
+  return [...new Set([...store.facets[f], ...store.items.flatMap(i => i.facetMap[f] || []).filter(v => !known.has(v))])];
+};
+const tagUniverse = () => [...new Set([...store.tags, ...store.items.flatMap(i => i.free)])].sort();
+const facetCount = (f, v) => store.items.filter(i => (i.facetMap[f] || []).includes(v)).length;
+const tagCount = t => store.items.filter(i => i.free.includes(t)).length;
+
+function moveSmartKey(facetsObj, from, to) {
+  const st = facetsObj[from];
+  if (st == null) return;
+  delete facetsObj[from];
+  if (facetsObj[to] == null) facetsObj[to] = st;
+}
+function facetValueChanged(f, from, to) {
+  for (const it of store.items) {
+    const arr = it.facetMap[f];
+    if (arr && arr.includes(from)) {
+      it.facetMap[f] = [...new Set(arr.map(v => v === from ? to : v))];
+      syncItem(it);
+    }
+  }
+  const seeds = store.facets[f];
+  const si = seeds.indexOf(from);
+  if (si >= 0) seeds.splice(si, 1);
+  if (!seeds.includes(to)) seeds.push(to);
+  for (const s of store.smarts) moveSmartKey(s.fs.facets[f], from, to);
+}
+function renameFacetValue(f, from, to) {
+  to = to.trim();
+  if (!to || to === from) return false;
+  const existed = facetValues(f).includes(to);
+  facetValueChanged(f, from, to);
+  toast(existed ? `Merged “${from}” into “${to}” · ${facetCount(f, to)} items carry “${to}”`
+                : `Renamed “${from}” → “${to}” everywhere`);
+  return true;
+}
+function mergeFacetValue(f, from, to) {
+  to = to.trim();
+  if (!to || to === from) return false;
+  const n = facetCount(f, from);
+  facetValueChanged(f, from, to);
+  toast(`Merged “${from}” into “${to}” · ${n} item${n === 1 ? '' : 's'} moved`);
+  return true;
+}
+function removeFacetValue(f, v) {
+  if (facetCount(f, v) > 0) return false;
+  const seeds = store.facets[f];
+  const si = seeds.indexOf(v);
+  if (si >= 0) seeds.splice(si, 1);
+  for (const s of store.smarts) delete s.fs.facets[f][v];
+  toast(`Removed “${v}” — it wasn't on any item`);
+  return true;
+}
+function createFacetValue(f, v) {
+  v = v.trim();
+  if (!v) return false;
+  if (!store.facets[f].includes(v)) store.facets[f].push(v);
+  return true;
+}
+function tagChanged(from, to) {
+  to = to.trim();
+  for (const it of store.items) {
+    if (it.free.includes(from)) { it.free = [...new Set(it.free.map(t => t === from ? to : t))]; }
+  }
+  store.tags.delete(from); store.tags.add(to);
+  for (const s of store.smarts) moveSmartKey(s.fs.free, from, to);
+}
+function renameTag(from, to) {
+  to = to.trim();
+  if (!to || to === from) return false;
+  const existed = tagUniverse().includes(to);
+  tagChanged(from, to);
+  toast(existed ? `Merged #${from} into #${to}` : `Renamed #${from} → #${to} everywhere`);
+  return true;
+}
+function mergeTag(from, to) {
+  to = to.trim();
+  if (!to || to === from) return false;
+  const n = tagCount(from);
+  tagChanged(from, to);
+  toast(`Merged #${from} into #${to} · ${n} item${n === 1 ? '' : 's'} moved`);
+  return true;
+}
+function removeTag(t) {
+  if (tagCount(t) > 0) return false;
+  store.tags.delete(t);
+  for (const s of store.smarts) delete s.fs.free[t];
+  toast(`Removed #${t} — it wasn't on any item`);
+  return true;
+}
+function promoteTag(tag, f, value) {
+  value = (value || tag).trim();
+  if (!value) return false;
+  const isNew = !facetValues(f).includes(value);
+  let n = 0;
+  for (const it of store.items) {
+    if (it.free.includes(tag)) {
+      it.free = it.free.filter(t => t !== tag);
+      it.facetMap[f] = [...new Set([...(it.facetMap[f] || []), value])];
+      syncItem(it); n++;
+    }
+  }
+  if (isNew) createFacetValue(f, value); else if (!store.facets[f].includes(value)) store.facets[f].push(value);
+  store.tags.delete(tag);
+  for (const s of store.smarts) {
+    const st = s.fs.free[tag];
+    if (st != null) { delete s.fs.free[tag]; if (s.fs.facets[f][value] == null) s.fs.facets[f][value] = st; }
+  }
+  toast(`Promoted #${tag} → ${f} · ${value}${isNew ? ' (new value)' : ''} · ${n} item${n === 1 ? '' : 's'}`);
+  return n > 0 || isNew;
+}
+
+/* ---------- item-level edit helpers ---------- */
+
+function itemAddFacet(it, f, v) { if (!facetValues(f).includes(v)) createFacetValue(f, v); it.facetMap[f] = [...new Set([...(it.facetMap[f] || []), v])]; syncItem(it); }
+function itemRemoveFacet(it, f, v) { it.facetMap[f] = (it.facetMap[f] || []).filter(x => x !== v); if (!it.facetMap[f].length) delete it.facetMap[f]; syncItem(it); }
+function itemAddTag(it, t) { t = t.trim(); if (!t) return; store.tags.add(t); it.free = [...new Set([...it.free, t])]; }
+function itemRemoveTag(it, t) { it.free = it.free.filter(x => x !== t); }
+
+function crudeFamily(hex) {
+  const r = parseInt(hex.slice(1, 3), 16) / 255, g = parseInt(hex.slice(3, 5), 16) / 255, b = parseInt(hex.slice(5, 7), 16) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  if (d < .09) return l < .16 ? 'black' : l > .85 ? 'white' : 'gray';
+  const s = d / (1 - Math.abs(2 * l - 1) || 1);
+  let h; if (mx === r) h = ((g - b) / d + 6) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
+  h = Math.round(h * 60);
+  if (l > .7 && s < .4 && h >= 20 && h < 80) return 'cream/beige';
+  if (h < 15 || h >= 335) return 'red'; if (h < 40) return h > 22 && s > .5 && l < .45 ? 'brown' : 'orange';
+  if (h < 52) return 'gold'; if (h < 67) return 'yellow'; if (h < 160) return 'green';
+  if (h < 195) return 'teal'; if (h < 255) return 'blue'; if (h < 300) return 'purple';
+  return 'pink';
+}
+function paletteAddSwatch(it, hex, fam) {
+  it.colors.push(hex);
+  it.families.push(fam || crudeFamily(hex));
+}
+function paletteRemoveSwatch(it, i) { it.colors.splice(i, 1); it.families.splice(i, 1); }
+function paletteMoveSwatch(it, i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= it.colors.length) return;
+  [it.colors[i], it.colors[j]] = [it.colors[j], it.colors[i]];
+  [it.families[i], it.families[j]] = [it.families[j], it.families[i]];
+}
+
+function smartDelete(s) {
+  store.smarts = store.smarts.filter(x => x.id !== s.id);
+  toast(`Deleted smart collection “${s.name}” — its items are untouched`);
+}
+function smartRename(s, name) {
+  name = name.trim();
+  if (!name || name === s.name) return;
+  s.name = name;
+  toast(`Smart collection renamed to “${name}”`);
+}
+
+/* snapshot / restore for variants with explicit save-or-cancel */
+function snapshotItem(it) {
+  return JSON.stringify({ title: it.title, note: it.note, source: it.source,
+    facetMap: it.facetMap, free: it.free, colors: it.colors, families: it.families });
+}
+function restoreItem(it, snap) {
+  const o = JSON.parse(snap);
+  Object.assign(it, o, { collections: it.collections, created: it.created, id: it.id,
+    originOf: it.originOf, derived: it.derived, kind: it.kind });
+  it.source = o.source ? { ...o.source } : null;
+  syncItem(it);
+}
+
+/* ---------- shells ---------- */
+
+function closeTop() {
+  const els = [...document.querySelectorAll('.modal-back, .sheet-back, .detail-page, .settings')];
+  const top = els[els.length - 1];
+  if (top) top.remove();
+}
+function closeAllOverlays() {
+  document.querySelectorAll('.modal-back, .sheet-back, .detail-page, .settings').forEach(el => el.remove());
+}
+function shell(kind, title, bodyHTML) {
+  const back = document.createElement('div');
+  back.className = kind === 'sheet' ? 'sheet-back' : 'modal-back';
+  back.innerHTML = kind === 'sheet'
+    ? `<div class="sheet"><div class="grip"></div><h3>${title}</h3>${bodyHTML}</div>`
+    : `<div class="modal"><h3>${title}</h3>${bodyHTML}</div>`;
+  back.addEventListener('click', e => { if (e.target === back) back.remove(); });
+  document.body.appendChild(back);
+  return back;
+}
+
+/* ---------- shared detail fragments (read-only renders) ---------- */
+
+function kindSub(it) {
+  return `<span class="kbadge">${KIND_LABEL[it.kind]}</span> captured ${fmtDate(it.created)}`;
+}
+function originHTML(it) {
+  const origin = it.originOf ? byId(it.originOf) : null;
+  const derived = it.derived ? byId(it.derived) : null;
+  return (origin ? `<div class="dblock"><div class="flabel">Origin</div><div class="originline">Palette saved from <span class="linkish" data-goto="${origin.id}">${esc(origin.title)}</span></div></div>` : '')
+       + (derived ? `<div class="dblock"><div class="flabel">Derived</div><div class="originline"><span class="linkish" data-goto="${derived.id}">${esc(derived.title)}</span> was saved from this image</div></div>` : '');
+}
+function collectionsHTML(it) {
+  if (!it.collections.size) return '';
+  return `<div class="dblock"><div class="flabel">In collections</div><div class="chips">${[...it.collections].map(cid => {
+    const c = store.collections.find(x => x.id === cid);
+    return c ? `<span class="chip static in">${esc(c.name)}</span>` : '';
+  }).join('')}</div></div>`;
+}
+function visualHTML(it, tall) {
+  const g = `background:linear-gradient(${(it.id * 47) % 360}deg, ${it.colors[0] || '#333'}, ${it.colors[1 % Math.max(1, it.colors.length)] || '#111'})`;
+  if (it.kind === 'palette') return `<div class="pal">${it.colors.map(c => `<i style="background:${c}"></i>`).join('')}</div>`;
+  if (tall) return `<div class="grad" style="height:${tall}px;${g};border-radius:12px"></div>`;
+  return `<div class="grad" style="${g}"></div>`;
+}
+function bindGoto(root, closeFn) {
+  root.querySelectorAll('[data-goto]').forEach(s => s.onclick = () => {
+    const t = byId(+s.dataset.goto);
+    if (t) { closeFn && closeFn(); currentVariant().openItem(t); }
+  });
+}
+function collectionPicker(it, after) {
+  const m = shell('modal', 'Add to collection', `
+    ${store.collections.map(c => `
+      <button class="listitem" data-c="${c.id}">
+        <span>${esc(c.name)}${it.collections.has(c.id) ? ' <span class="n">· already in</span>' : ''}</span>
+        <span class="n">${store.items.filter(i => i.collections.has(c.id)).length}</span>
+      </button>`).join('')}
+    <div class="row"><input type="text" placeholder="New collection…"><button class="primary small" id="mknew">Create</button></div>`);
+  m.querySelectorAll('[data-c]').forEach(b => b.onclick = () => {
+    const c = store.collections.find(x => x.id === b.dataset.c);
+    it.collections.has(c.id) ? it.collections.delete(c.id) : it.collections.add(c.id);
+    toast(it.collections.has(c.id) ? `Added to “${c.name}”` : `Removed from “${c.name}”`);
+    m.remove(); after && after();
+  });
+  m.querySelector('#mknew').onclick = () => {
+    const inp = m.querySelector('input');
+    if (!inp.value.trim()) return;
+    const c = { id: 'c' + Date.now(), name: inp.value.trim() };
+    store.collections.push(c); it.collections.add(c.id);
+    toast(`Added to “${c.name}”`); m.remove(); after && after();
+  };
+}
+
+/* ---------- shared flow dialogs (atomic vocab ops; modal vs sheet per variant) ---------- */
+
+function flowRenameValue(kind, f, from, sh, after) {
+  const label = kind === 'facet' ? f : 'Free tag';
+  const m = shell(sh, `Rename ${kind === 'facet' ? f + ' · ' : ''}${kind === 'facet' ? '“' + esc(from) + '”' : '#' + esc(from)}`, `
+    <p class="hint">Renames it everywhere — every item carrying it, and every saved search that filters by it. If the new name already exists, the two merge.</p>
+    <div class="row"><input type="text" id="rn" value="${esc(from)}"><button class="primary small" id="go">Rename</button></div>`);
+  const go = () => {
+    const v = m.querySelector('#rn').value;
+    const ok = kind === 'facet' ? renameFacetValue(f, from, v) : renameTag(from, v);
+    if (ok) { m.remove(); after && after(); }
+  };
+  m.querySelector('#go').onclick = go;
+  m.querySelector('#rn').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  setTimeout(() => m.querySelector('#rn').select(), 30);
+}
+
+function flowMergeValue(kind, f, from, sh, after) {
+  const others = (kind === 'facet' ? facetValues(f) : tagUniverse()).filter(v => v !== from);
+  let target = null;
+  const m = shell(sh, `Merge ${kind === 'facet' ? '“' + esc(from) + '”' : '#' + esc(from)} into…`, `
+    <p class="hint">Pick the surviving value. Every item carrying ${kind === 'facet' ? '“' + esc(from) + '”' : '#' + esc(from)} (${kind === 'facet' ? facetCount(f, from) : tagCount(from)}) moves to it; saved searches follow.</p>
+    <div class="valpick" id="vp">${others.map(v => `<span class="chip" data-v="${esc(v)}">${esc(kind === 'facet' ? v : '#' + v)} <span class="n">${kind === 'facet' ? facetCount(f, v) : tagCount(v)}</span></span>`).join('') || '<span class="empty">No other values yet.</span>'}</div>
+    <div class="donebar"><button class="primary" id="go" disabled>Merge</button></div>`);
+  m.querySelectorAll('[data-v]').forEach(b => b.onclick = () => {
+    m.querySelectorAll('[data-v]').forEach(x => x.classList.remove('sel'));
+    b.classList.add('sel'); target = b.dataset.v;
+    m.querySelector('#go').disabled = false;
+    m.querySelector('#go').textContent = `Merge into ${kind === 'facet' ? '“' + target + '”' : '#' + target}`;
+  });
+  m.querySelector('#go').onclick = () => {
+    if (!target) return;
+    (kind === 'facet' ? mergeFacetValue(f, from, target) : mergeTag(from, target));
+    m.remove(); after && after();
+  };
+}
+
+function flowPromote(tag, sh, after) {
+  let facet = null, value = tag;
+  const m = shell(sh, `Promote #${esc(tag)} to a facet value`, `
+    <p class="hint">Every item carrying #${esc(tag)} (${tagCount(tag)}) gains the value; the tag dissolves. Saved searches filtering by the tag follow into the facet.</p>
+    <div class="flabel" style="margin-top:10px">1 · Choose the facet</div>
+    <div class="valpick" id="fp">${Object.keys(SEED_FACETS).map(f => `<span class="chip" data-f="${f}">${f}</span>`).join('')}</div>
+    <div class="flabel" style="margin-top:10px">2 · Value name</div>
+    <div class="row"><input type="text" id="vn" value="${esc(tag)}"><button class="primary small" id="go" disabled>Promote</button></div>
+    <div id="existing"></div>`);
+  const paintExisting = () => {
+    const vals = facetValues(facet).filter(v => v !== value);
+    m.querySelector('#existing').innerHTML = vals.length
+      ? `<div class="hint">Existing ${esc(facet)} values — click to reuse one:</div><div class="valpick">${vals.map(v => `<span class="chip" data-ev="${esc(v)}">${esc(v)}</span>`).join('')}</div>` : '';
+    m.querySelectorAll('[data-ev]').forEach(b => b.onclick = () => {
+      m.querySelector('#vn').value = b.dataset.ev; value = b.dataset.ev;
+    });
+  };
+  m.querySelectorAll('[data-f]').forEach(b => b.onclick = () => {
+    m.querySelectorAll('[data-f]').forEach(x => x.classList.remove('sel'));
+    b.classList.add('sel'); facet = b.dataset.f;
+    m.querySelector('#go').disabled = false;
+    paintExisting();
+  });
+  m.querySelector('#vn').oninput = e => { value = e.target.value; };
+  m.querySelector('#go').onclick = () => {
+    if (!facet) return;
+    promoteTag(tag, facet, value);
+    m.remove(); after && after();
+  };
+}
+
+function flowRemoveValue(kind, f, v, sh, after) {
+  const n = kind === 'facet' ? facetCount(f, v) : tagCount(v);
+  const label = kind === 'facet' ? `“${esc(v)}”` : `#${esc(v)}`;
+  const m = shell(sh, `Remove ${label} from the vocabulary`, n > 0
+    ? `<p class="hint">${esc(label)} is on ${n} item${n === 1 ? '' : 's'}. A value can be removed only while no item uses it — merge or rename it instead.</p>
+       <div class="donebar"><button id="ok">Close</button></div>`
+    : `<p class="hint">Nothing uses ${esc(label)}. Remove it from the vocabulary?</p>
+       <div class="donebar"><button id="ok" class="danger">Remove</button><button id="no">Keep</button></div>`);
+  m.querySelector('#ok').onclick = () => {
+    if (n > 0) { m.remove(); return; }
+    (kind === 'facet' ? removeFacetValue(f, v) : removeTag(v));
+    m.remove(); after && after();
+  };
+  const no = m.querySelector('#no'); if (no) no.onclick = () => m.remove();
+}
+
+/* value-row list used inside manager surfaces */
+function managerRowsHTML(kind, f) {
+  const vals = kind === 'facet' ? facetValues(f) : tagUniverse();
+  const cnt = v => kind === 'facet' ? facetCount(f, v) : tagCount(v);
+  return vals.map(v => `
+    <div class="vrow" data-kind="${kind}" data-f="${esc(f || '')}" data-v="${esc(v)}">
+      <span class="vname">${esc(kind === 'facet' ? v : '#' + v)}</span>
+      <span class="n">${cnt(v)} item${cnt(v) === 1 ? '' : 's'}</span>
+    </div>`).join('');
+}
+function bindManagerRows(root, sh, after) {
+  root.querySelectorAll('.vrow').forEach(r => r.onclick = () => {
+    valueContextSheet(r.dataset.kind, r.dataset.f, r.dataset.v, sh, after);
+  });
+}
+function valueContextSheet(kind, f, v, sh, after) {
+  const n = kind === 'facet' ? facetCount(f, v) : tagCount(v);
+  const onItem = current.item && (kind === 'facet'
+    ? (current.item.facetMap[f] || []).includes(v) : current.item.free.includes(v));
+  const label = kind === 'facet' ? `${f} · “${esc(v)}”` : `#${esc(v)}`;
+  const m = shell(sh, label, `<div class="alist">
+    <button data-a="rn"><span>✏️ Rename everywhere</span></button>
+    <button data-a="mg"><span>⇄ Merge into…</span><span class="n">${n} on items</span></button>
+    ${kind === 'tag' ? `<button data-a="pr"><span>⇧ Promote to facet value…</span></button>` : ''}
+    <button data-a="rmv" ${n > 0 ? 'disabled' : ''}><span>🗑 Remove from vocabulary</span>
+      <span class="n">${n > 0 ? `used by ${n} item${n === 1 ? '' : 's'}` : 'unused'}</span></button>
+    ${onItem ? `<button data-a="off" class="danger"><span>✕ Remove from this item</span></button>` : ''}
+  </div>`);
+  m.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
+    const a = b.dataset.a;
+    if (a === 'rn') { m.remove(); flowRenameValue(kind, f, v, sh, after); }
+    else if (a === 'mg') { m.remove(); flowMergeValue(kind, f, v, sh, after); }
+    else if (a === 'pr') { m.remove(); flowPromote(v, sh, after); }
+    else if (a === 'rmv') { m.remove(); flowRemoveValue(kind, f, v, sh, after); }
+    else if (a === 'off') {
+      if (kind === 'facet') itemRemoveFacet(current.item, f, v); else itemRemoveTag(current.item, v);
+      toast(kind === 'facet' ? `Removed “${v}” from this item` : `Removed #${v} from this item`);
+      m.remove(); after && after();
+    }
+  });
+}
+
+/* ---------- add-value combobox (create-on-type, per capture tray) ---------- */
+
+function attachCombo(rowEl, kind, f, it, onChange) {
+  const add = document.createElement('button');
+  add.className = 'chip add';
+  add.textContent = '＋';
+  add.title = kind === 'facet' ? `Add a ${f} value — type to create` : 'Add a free tag — type to create';
+  add.onclick = () => {
+    const wrap = document.createElement('span');
+    wrap.className = 'combo';
+    wrap.innerHTML = `<input type="text" placeholder="${kind === 'facet' ? esc(f) + ' value…' : 'tag…'}"><div class="sugg" hidden></div>`;
+    add.replaceWith(wrap);
+    const inp = wrap.querySelector('input'), sugg = wrap.querySelector('.sugg');
+    const universe = () => (kind === 'facet' ? facetValues(f) : tagUniverse()).filter(v => !(it && (kind === 'facet' ? (it.facetMap[f] || []) : it.free).includes(v)));
+    const paint = () => {
+      const q = inp.value.trim().toLowerCase();
+      const vals = universe().filter(v => v.toLowerCase().includes(q)).slice(0, 8);
+      sugg.hidden = false;
+      sugg.innerHTML = (q && !universe().some(v => v.toLowerCase() === q)
+        ? `<button data-new="1"><span class="new">Create ${esc(kind === 'facet' ? '' : '#') + esc(inp.value.trim())}</span></button>` : '')
+        + vals.map(v => `<button data-v="${esc(v)}"><span>${esc(kind === 'facet' ? v : '#' + v)}</span></button>`).join('');
+      sugg.querySelectorAll('[data-v]').forEach(b => b.onclick = () => commit(b.dataset.v));
+      const nb = sugg.querySelector('[data-new]');
+      if (nb) nb.onclick = () => commit(inp.value.trim());
+    };
+    const commit = v => {
+      v = (v || '').trim();
+      if (!v) return;
+      if (kind === 'facet') itemAddFacet(it, f, v); else itemAddTag(it, v);
+      onChange && onChange(v, universe().includes(v));
+      renderDetail();
+    };
+    inp.oninput = paint;
+    inp.onkeydown = e => {
+      if (e.key === 'Enter') { const first = sugg.querySelector('button'); if (first) first.click(); }
+      if (e.key === 'Escape') { wrap.replaceWith(add); }
+    };
+    inp.onblur = () => setTimeout(() => { if (wrap.isConnected) wrap.replaceWith(add); }, 150);
+    setTimeout(() => inp.focus(), 20);
+  };
+  rowEl.appendChild(add);
+}
+
+/* ---------- facet / tag chip rows for edit surfaces ---------- */
+
+function editableFacetRow(it, f) {
+  const vals = it.facetMap[f] || [];
+  const chips = vals.map(v => `
+    <span class="chip">${esc(v)}<button class="x" title="Remove from item" data-rmfv="${esc(f)}|${esc(v)}">✕</button></span>`).join('');
+  return `<div class="dblock"><div class="flabel" data-flabel="${esc(f)}">${esc(f)}<span class="sp"></span>
+      <span class="dim" style="font-size:11px;text-transform:none;letter-spacing:0">tap ＋ to add — new names are created on the fly</span></div>
+    <div class="chips" data-frow="${esc(f)}">${chips}</div></div>`;
+}
+function bindFacetRows(root, it, onChange) {
+  root.querySelectorAll('[data-rmfv]').forEach(b => b.onclick = () => {
+    const [f, v] = b.dataset.rmfv.split('|');
+    itemRemoveFacet(it, f, v);
+    toast(`Removed “${v}” from this item`);
+    onChange && onChange(); renderDetail();
+  });
+  root.querySelectorAll('[data-frow]').forEach(row => {
+    attachCombo(row, 'facet', row.dataset.frow, it, onChange);
+  });
+}
+function editableTagRow(it, opts) {
+  const menu = opts && opts.menu;
+  const chips = it.free.map(t => `
+    <span class="chip">#${esc(t)}<button class="x" title="Remove from item" data-rmtag="${esc(t)}">✕</button>${menu ? `<button class="dots" title="Value actions" data-tagmenu="${esc(t)}">⋯</button>` : ''}</span>`).join('');
+  return `<div class="dblock"><div class="flabel">Free tags<span class="sp"></span>
+      <span class="dim" style="font-size:11px;text-transform:none;letter-spacing:0">${menu ? '⋯ opens value actions (promote…)' : ''}</span></div>
+    <div class="chips" id="tagrow">${chips}</div></div>`;
+}
+function bindTagRows(root, it, onChange, menuShell) {
+  root.querySelectorAll('[data-rmtag]').forEach(b => b.onclick = () => {
+    itemRemoveTag(it, b.dataset.rmtag);
+    toast(`Removed #${b.dataset.rmtag} from this item`);
+    onChange && onChange(); renderDetail();
+  });
+  root.querySelectorAll('[data-tagmenu]').forEach(b => b.onclick = () => {
+    valueContextSheet('tag', '', b.dataset.tagmenu, menuShell, onChange);
+  });
+  const row = root.querySelector('#tagrow');
+  if (row) attachCombo(row, 'tag', '', it, onChange);
+}
+
+/* palette editing controls (A always / B edit mode / C edit sheet):
+   tap a swatch to fine-tune it in the picker; ＋ opens the picker in add mode */
+
+function paletteBlockHTML(it) {
+  return `<div class="dblock" id="palblock"><div class="flabel">Palette colors</div>${paletteEditorHTML(it)}</div>`;
+}
+function paletteEditorHTML(it) {
+  return `<div class="swatchline">${it.colors.map((c, i) => `
+    <span class="swedit" data-pidx="${i}"><i style="background:${c}" title="${esc(c)} · ${esc(it.families[i] || '?')}"></i>
+      <span class="swctl">
+        <button data-pmv="${i}|-1" title="Move left">‹</button>
+        <button data-pmv="${i}|1" title="Move right">›</button>
+        <button data-prm="${i}" title="Remove swatch">✕</button>
+      </span></span>`).join('')}
+    <span class="swedit"><i id="padd" style="background:transparent;border-style:dashed;display:flex;align-items:center;justify-content:center;color:var(--dim)">＋</i></span>
+  </div>
+  <div id="pickwrap"></div>
+  <p class="hint">Tap a swatch to fine-tune it — drag the picker or type HEX / RGB / CMYK · ‹ › reorders · ✕ removes · the color family is derived automatically.</p>`;
+}
+function bindPaletteBlock(pageRoot, it) {
+  const blk = pageRoot.querySelector('#palblock');
+  if (blk) bindPaletteEditor(blk, it);
+}
+function refreshPalBlock(blk, it) {
+  blk.innerHTML = `<div class="flabel">Palette colors</div>` + paletteEditorHTML(it);
+  bindPaletteEditor(blk, it);
+  throttledWall();
+}
+function bindPaletteEditor(blk, it) {
+  blk.querySelectorAll('[data-pidx]').forEach(sp => {
+    sp.querySelector('i').onclick = () => openColorPicker(it, blk, +sp.dataset.pidx);
+  });
+  blk.querySelectorAll('[data-pmv]').forEach(b => b.onclick = () => {
+    const [i, d] = b.dataset.pmv.split('|').map(Number);
+    paletteMoveSwatch(it, i, d); refreshPalBlock(blk, it);
+  });
+  blk.querySelectorAll('[data-prm]').forEach(b => b.onclick = () => {
+    paletteRemoveSwatch(it, +b.dataset.prm); refreshPalBlock(blk, it);
+  });
+  const add = blk.querySelector('#padd');
+  if (add) add.onclick = () => openColorPicker(it, blk, null);
+}
+
+/* color space helpers (rough, prototype-grade) */
+function hexToRgb(hex) { return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)]; }
+function rgb2hsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d) {
+    if (mx === r) h = ((g - b) / d + 6) % 6;
+    else if (mx === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+  return [h, mx ? d / mx * 100 : 0, mx * 100];
+}
+function hsv2rgb(h, s, v) {
+  s /= 100; v /= 100;
+  const k = n => (n + h / 60) % 6;
+  const f = n => v - v * s * Math.max(0, Math.min(k(n), 4 - k(n), 1));
+  return [f(5) * 255, f(3) * 255, f(1) * 255];
+}
+const hsv2hex = (h, s, v) => '#' + hsv2rgb(h, s, v).map(x => Math.round(x).toString(16).padStart(2, '0')).join('');
+function rgb2cmyk(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const k = 1 - Math.max(r, g, b);
+  if (k >= 1) return [0, 0, 0, 100];
+  return [(1 - r - k) / (1 - k) * 100, (1 - g - k) / (1 - k) * 100, (1 - b - k) / (1 - k) * 100, k * 100];
+}
+function cmyk2rgb(c, m, y, k) {
+  return [255 * (1 - c / 100) * (1 - k / 100), 255 * (1 - m / 100) * (1 - k / 100), 255 * (1 - y / 100) * (1 - k / 100)];
+}
+
+function openColorPicker(it, blk, idx) {
+  const wrap = blk.querySelector('#pickwrap');
+  if (!wrap) return;
+  const start = idx == null ? (it.colors[it.colors.length - 1] || '#7c6cff') : it.colors[idx];
+  let [h, s, v] = rgb2hsv(...hexToRgb(start));
+  wrap.innerHTML = `<div class="cp">
+    <div class="sv"><span class="th"></span></div>
+    <div class="hue"><span class="th"></span></div>
+    <div class="fdots">${FAMILIES.map(([fam, hex]) => `<button style="background:${hex}" title="${fam}" data-pfam="${hex}"></button>`).join('')}</div>
+    <div class="fields">
+      <div class="frow"><label>#</label><input data-f="hex" spellcheck="false"></div>
+      <div class="frow"><label>R</label><input data-f="r" inputmode="numeric"><label>G</label><input data-f="g" inputmode="numeric"><label>B</label><input data-f="b" inputmode="numeric"></div>
+      <div class="frow"><label>C</label><input data-f="c" inputmode="decimal"><label>M</label><input data-f="m" inputmode="decimal"><label>Y</label><input data-f="y" inputmode="decimal"><label>K</label><input data-f="k" inputmode="decimal"></div>
+    </div>
+    <div class="foot"><span class="prev"></span><span class="fam dim"></span><span style="flex:1"></span><button class="small primary addbtn"></button></div>
+  </div>`;
+  const q = sel => wrap.querySelector(sel);
+  const sv = q('.sv'), hue = q('.hue'), prev = q('.prev'), fam = q('.fam'), addbtn = q('.addbtn');
+  const F = f => q(`[data-f="${f}"]`);
+  const hexNow = () => hsv2hex(h, s, v);
+  function paint() {
+    const hex = hexNow();
+    const [r, g, b] = hexToRgb(hex);
+    const [c, m, y, k] = rgb2cmyk(r, g, b);
+    sv.style.background = `linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, hsl(${Math.round(h)},100%,50%))`;
+    q('.sv .th').style.left = s + '%';
+    q('.sv .th').style.top = (100 - v) + '%';
+    q('.hue .th').style.left = (h / 359 * 100) + '%';
+    prev.style.background = hex;
+    fam.textContent = 'family: ' + crudeFamily(hex);
+    const set = (el, val) => { if (el && el !== document.activeElement) el.value = val; };
+    set(F('hex'), hex.toUpperCase());
+    set(F('r'), Math.round(r)); set(F('g'), Math.round(g)); set(F('b'), Math.round(b));
+    set(F('c'), Math.round(c)); set(F('m'), Math.round(m)); set(F('y'), Math.round(y)); set(F('k'), Math.round(k));
+    addbtn.textContent = idx == null ? '＋ Add swatch' : 'Done';
+  }
+  function liveApply() {
+    if (idx == null) return;
+    const hex = hexNow();
+    it.colors[idx] = hex;
+    it.families[idx] = crudeFamily(hex);
+    const el = blk.querySelector(`[data-pidx="${idx}"] i`);
+    if (el) el.style.background = hex;
+    throttledWall();
+  }
+  function drag(el, fn) {
+    el.addEventListener('pointerdown', e => {
+      try { el.setPointerCapture(e.pointerId); } catch {}
+      fn(e);
+      const mv = ev => fn(ev);
+      const up = () => { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); };
+      el.addEventListener('pointermove', mv);
+      el.addEventListener('pointerup', up);
+      el.addEventListener('pointercancel', up);
+    });
+  }
+  drag(sv, e => {
+    const rc = sv.getBoundingClientRect();
+    s = Math.round(Math.min(1, Math.max(0, (e.clientX - rc.left) / rc.width)) * 100);
+    v = Math.round(Math.min(1, Math.max(0, 1 - (e.clientY - rc.top) / rc.height)) * 100);
+    paint(); liveApply();
+  });
+  drag(hue, e => {
+    const rc = hue.getBoundingClientRect();
+    h = Math.round(Math.min(1, Math.max(0, (e.clientX - rc.left) / rc.width)) * 359);
+    paint(); liveApply();
+  });
+  F('hex').oninput = e => {
+    const val = e.target.value.trim();
+    if (/^#[0-9a-f]{6}$/i.test(val)) {
+      [h, s, v] = rgb2hsv(...hexToRgb(val.toLowerCase()));
+      paint(); liveApply();
+    }
+  };
+  const rgbSync = () => {
+    const r = Math.min(255, parseInt(F('r').value) || 0), g = Math.min(255, parseInt(F('g').value) || 0), b = Math.min(255, parseInt(F('b').value) || 0);
+    [h, s, v] = rgb2hsv(r, g, b);
+    paint(); liveApply();
+  };
+  ['r', 'g', 'b'].forEach(ch => F(ch).oninput = rgbSync);
+  const cmykSync = () => {
+    const c = Math.min(100, parseFloat(F('c').value) || 0), m = Math.min(100, parseFloat(F('m').value) || 0),
+          y = Math.min(100, parseFloat(F('y').value) || 0), k = Math.min(100, parseFloat(F('k').value) || 0);
+    const [r, g, b] = cmyk2rgb(c, m, y, k);
+    [h, s, v] = rgb2hsv(r, g, b);
+    paint(); liveApply();
+  };
+  ['c', 'm', 'y', 'k'].forEach(ch => F(ch).oninput = cmykSync);
+  wrap.querySelectorAll('[data-pfam]').forEach(b => b.onclick = () => {
+    [h, s, v] = rgb2hsv(...hexToRgb(b.dataset.pfam));
+    paint(); liveApply();
+  });
+  addbtn.onclick = () => {
+    if (idx == null) paletteAddSwatch(it, hexNow());
+    refreshPalBlock(blk, it);
+  };
+  paint();
+}
+function extractedColorsHTML(it) {
+  return `<div class="dblock"><div class="flabel">Extracted colors<span class="sp"></span>
+      <button class="tiny ghost org" data-regen="1">⟳ Regenerate</button></div>
+    <div class="swatchline">${it.colors.map(c => `<span class="sq" style="background:${c}" title="${esc(c)}"></span>`).join('')}</div>
+    <p class="hint">Derived from the image — never hand-edited; regenerate instead.</p></div>`;
+}
+function bindExtracted(root) {
+  const b = root.querySelector('[data-regen]');
+  if (b) b.onclick = () => toast('In the real app: re-runs extraction (colors are derived, not edited)');
+}
+
+/* ================================================================
+   Host: slim toolbar + small wall (the #8 world edits live inside)
+   ================================================================ */
+
+const current = { item: null, snapshot: null, editing: false };
+
+function cardHTML(it) {
+  return `<article class="card" data-id="${it.id}">
+    ${it.kind === 'palette' ? `<div class="pal">${it.colors.map(c => `<i style="background:${c}"></i>`).join('')}</div>`
+      : `<div class="grad" style="background:linear-gradient(${(it.id * 47) % 360}deg, ${it.colors[0] || '#333'}, ${it.colors[1 % Math.max(1, it.colors.length)] || '#111'})"></div>`}
+    <div class="cardmeta"><span class="kbadge">${KIND_LABEL[it.kind]}</span><b>${esc(it.title)}</b></div>
+  </article>`;
+}
+
+function mountHost() {
+  app.innerHTML = `
+    <div class="toolbar" style="max-width:1000px;margin:0 auto;padding:0 16px">
+      <span style="font-weight:800;letter-spacing:.02em">Inzpo</span>
+      <span class="dim">editing prototype</span>
+      <span class="grow" style="flex:1"></span>
+      <button class="small" id="savedbtn">Saved ▾</button>
+      <button class="small" id="vocabbtn">Vocabulary</button>
+    </div>
+    <div style="max-width:1000px;margin:0 auto;padding:0 16px">
+      <div class="wallhead">
+        <b>All items</b><span class="dim">${store.items.length} items</span>
+        <span class="dim">· open one to edit it</span>
+        <span class="dim">· try:</span>
+        <button class="tiny ghost" data-demo="palette">🎨 a palette</button>
+        <button class="tiny ghost" data-demo="article">📄 an article</button>
+        <button class="tiny ghost" data-demo="photo">🖼 a photo</button>
+      </div>
+      <div class="wall" id="wall">${store.items.map(cardHTML).join('')}</div>
+    </div>`;
+  app.querySelectorAll('#wall .card').forEach(c => c.onclick = () => currentVariant().openItem(byId(+c.dataset.id)));
+  app.querySelectorAll('[data-demo]').forEach(b => b.onclick = () => {
+    const kind = b.dataset.demo;
+    const it = kind === 'palette' ? store.items.find(i => i.kind === 'palette' && i.originOf)
+      : store.items.find(i => i.kind === kind) || store.items.find(i => i.kind === 'palette');
+    if (it) currentVariant().openItem(it);
+  });
+  document.getElementById('savedbtn').onclick = currentVariant().openSaved;
+  document.getElementById('vocabbtn').onclick = currentVariant().openVocab;
+}
+function repaintWall() {
+  const wall = document.getElementById('wall');
+  if (wall) {
+    wall.innerHTML = store.items.map(cardHTML).join('');
+    wall.querySelectorAll('.card').forEach(c => c.onclick = () => currentVariant().openItem(byId(+c.dataset.id)));
+  }
+  const cnt = document.querySelector('.wallhead .dim');
+  if (cnt) cnt.textContent = `${store.items.length} items`;
+}
+let _tw = false;
+function throttledWall() {
+  if (!_tw) { _tw = true; requestAnimationFrame(() => { _tw = false; repaintWall(); }); }
+}
+function renderDetail() {
+  if (current.item) currentVariant().openItem(current.item, true);
+}
+function closeDetail() { current.item = null; current.editing = false; current.snapshot = null; }
+
+/* ---------- saved popover: per-variant smart-collection management ---------- */
+
+function savedRowActionsA(s, refresh) {
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:4px';
+  const rn = document.createElement('button');
+  rn.className = 'tiny ghost'; rn.textContent = '✎'; rn.title = 'Rename';
+  rn.onclick = () => {
+    row.innerHTML = `<input type="text" value="${esc(s.name)}" style="flex:1;padding:3px 8px;font-size:12px;border-radius:6px">`;
+    const inp = row.querySelector('input');
+    inp.focus(); inp.select();
+    const commit = () => { smartRename(s, inp.value); refresh(); };
+    inp.onkeydown = e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') refresh(); };
+    inp.onblur = commit;
+  };
+  const del = document.createElement('button');
+  del.className = 'tiny ghost danger'; del.textContent = '🗑'; del.title = 'Delete';
+  del.onclick = () => {
+    if (del.dataset.arm) { smartDelete(s); refresh(); }
+    else { del.dataset.arm = '1'; del.textContent = 'sure?'; setTimeout(() => { delete del.dataset.arm; del.textContent = '🗑'; }, 1600); }
+  };
+  row.append(rn, del);
+  return row;
+}
+function savedRowActionsBC(s, sh, refresh) {
+  const b = document.createElement('button');
+  b.className = 'tiny ghost'; b.textContent = '⋯';
+  b.onclick = () => {
+    const m = shell(sh, `Smart collection · ${esc(s.name)}`, `
+      <p class="hint">Renames only the saved query — membership always resolves live. Deleting it never touches items.</p>
+      <div class="row"><input type="text" id="nm" value="${esc(s.name)}"><button class="primary small" id="rn">Rename</button></div>
+      <div class="alist"><button class="danger" id="del"><span>🗑 Delete smart collection</span></button></div>`);
+    m.querySelector('#rn').onclick = () => { smartRename(s, m.querySelector('#nm').value); m.remove(); refresh(); };
+    m.querySelector('#del').onclick = () => { smartDelete(s); m.remove(); refresh(); };
+  };
+  return b;
+}
+
+function openSavedGeneric(sh, rowActions) {
+  const m = shell(sh, 'Saved &amp; collections', `
+    <div class="fgroup"><div class="flabel">Smart collections</div>
+      ${store.smarts.map(s => `<div class="listitem" style="cursor:default">
+        <span>🔍 ${esc(s.name)}</span>
+        <span style="display:flex;gap:6px;align-items:center"><span class="n">${s.sort}</span><span data-actions="${s.id}"></span></span>
+      </div>`).join('') || '<p class="empty">None saved yet.</p>'}
+    </div>
+    <p class="hint" style="margin-top:8px">A smart collection stores the complete filter state + sort; membership follows the items. Rename/delete here never touches items.</p>`);
+  const refresh = () => {
+    m.querySelectorAll('[data-actions]').forEach(sp => {
+      const s = store.smarts.find(x => x.id === sp.dataset.actions);
+      if (s) sp.replaceChildren(rowActions(s));
+      else {
+        const item = sp.closest('.listitem');
+        if (item) { item.style.opacity = .35; item.querySelector('span').innerHTML = '<s>' + item.querySelector('span').innerHTML + '</s>'; }
+        sp.replaceChildren();
+      }
+    });
+  };
+  refresh();
+}
+
+/* ================================================================
+   Variant A — "Live surface": no modes, no sheets. Everything is
+   editable in place; vocabulary ops in small anchored popovers.
+   ================================================================ */
+
+const A = {
+  openItem(it, keep) {
+    if (!keep) closeAllOverlays();
+    current.item = it; current.editing = false;
+    closeDetailPages();
+    const p = document.createElement('div');
+    p.className = 'detail-page';
+    p.innerHTML = `<div class="dhero">
+      <button class="small ghost dback" id="dclose">‹ Back to wall</button>
+      <div class="dsub" style="margin-top:10px">${kindSub(it)} <span class="dim">· always-editable — there is no save button</span></div>
+      <input class="inline-title" id="t" value="${esc(it.title)}" placeholder="Untitled">
+      <div class="dblock"><div class="flabel">Note</div>
+        <textarea class="inline-note" id="note" placeholder="Add a note…">${esc(it.note)}</textarea></div>
+      ${it.source ? `<div class="dblock"><div class="flabel">Source <span class="dim" style="text-transform:none;letter-spacing:0;font-size:11px">· the copy lives here, edit freely</span></div><div class="srcbox">
+        <input class="se" id="st" value="${esc(it.source.title)}">
+        <input class="se" id="sd" value="${esc(it.source.desc)}">
+        <input class="se" id="su" value="${esc(it.source.url)}" style="color:var(--accent2)">
+      </div></div>` : ''}
+      ${it.kind === 'palette'
+        ? paletteBlockHTML(it)
+        : (it.kind === 'photo' || it.kind === 'screenshot') ? extractedColorsHTML(it)
+        : `<div class="dblock"><div class="flabel">Preview colors</div>
+            <div class="swatchline">${it.colors.map(c => `<span class="sq" style="background:${c}"></span>`).join('')}</div>
+            <p class="hint">A stand-in preview for something that lives outside Inzpo.</p></div>`}
+      ${Object.keys(SEED_FACETS).map(f => editableFacetRow(it, f)).join('')}
+      ${editableTagRow(it, { menu: true })}
+      ${originHTML(it)}
+      ${collectionsHTML(it)}
+      <div class="dactions">
+        <button class="small" id="collect">＋ Collection</button>
+        ${it.source ? `<button class="small ghost" id="open-src">↗ Open source</button>` : ''}
+      </div>
+    </div>`;
+    const throttled = (() => { let raf = false; return () => { if (!raf) { raf = true; requestAnimationFrame(() => { raf = false; repaintWall(); }); } }; })();
+    p.querySelector('#t').oninput = e => { it.title = e.target.value; throttled(); };
+    p.querySelector('#note').oninput = e => { it.note = e.target.value; };
+    if (it.source) {
+      p.querySelector('#st').oninput = e => { it.source.title = e.target.value; throttled(); };
+      p.querySelector('#sd').oninput = e => { it.source.desc = e.target.value; };
+      p.querySelector('#su').oninput = e => { it.source.url = e.target.value; };
+    }
+    if (it.kind === 'palette') bindPaletteBlock(p, it);
+    if (it.kind === 'photo' || it.kind === 'screenshot') bindExtracted(p);
+    bindFacetRows(p, it, throttled);
+    bindTagRows(p, it, throttled, 'modal');
+    bindGoto(p, () => p.remove());
+    p.querySelector('#collect').onclick = () => collectionPicker(it, () => { p.remove(); A.openItem(it, true); });
+    const os = p.querySelector('#open-src');
+    if (os) os.onclick = () => toast('In the real app: opens ' + it.source.url);
+    p.querySelector('#dclose').onclick = () => { p.remove(); closeDetail(); repaintWall(); };
+    /* facet labels carry an inline organize popover */
+    p.querySelectorAll('[data-flabel]').forEach(lbl => {
+      const f = lbl.dataset.flabel;
+      const org = document.createElement('button');
+      org.className = 'org'; org.textContent = '⋯'; org.title = `Organize ${f} vocabulary`;
+      org.onclick = e => {
+        e.stopPropagation();
+        const m = shell('modal', `${f} vocabulary`, `
+          <p class="hint">Rename, merge, remove — everywhere at once. Counts are live.</p>
+          ${managerRowsHTML('facet', f)}
+          <div class="row"><input type="text" id="nv" placeholder="New ${esc(f)} value…"><button class="primary small" id="mk">Create</button></div>`);
+        bindManagerRows(m, 'modal', () => { m.remove(); renderDetail(); repaintWall(); });
+        m.querySelector('#mk').onclick = () => {
+          const v = m.querySelector('#nv').value.trim();
+          if (v && createFacetValue(f, v)) { toast(`Created “${v}” in ${f}`); m.remove(); renderDetail(); }
+        };
+      };
+      lbl.appendChild(org);
+    });
+    document.body.appendChild(p);
+  },
+
+  openVocab() {
+    const m = shell('modal', 'Vocabulary', `
+      <p class="hint">Six fixed facets, shared vocabularies, free tags in their own namespace. Rename/merge propagate to every item and saved search.</p>
+      ${Object.keys(SEED_FACETS).map(f => `
+        <details ${f === 'Style' ? 'open' : ''}><summary style="cursor:pointer;padding:7px 0;font-weight:650">${f}
+          <span class="dim" style="font-weight:400;font-size:12px">${facetValues(f).length} values</span></summary>
+          <div style="margin:4px 0 10px">${managerRowsHTML('facet', f)}
+          <div class="row"><input type="text" placeholder="New ${esc(f)} value…"><button class="primary small" data-mk="${esc(f)}">Create</button></div></div>
+        </details>`).join('')}
+      <details><summary style="cursor:pointer;padding:7px 0;font-weight:650">Free tags
+        <span class="dim" style="font-weight:400;font-size:12px">${tagUniverse().length} tags</span></summary>
+        <div style="margin:4px 0 10px">${managerRowsHTML('tag', '')}
+        <div class="row"><input type="text" placeholder="New free tag…"><button class="primary small" data-mktag="1">Create</button></div></div>
+      </details>`);
+    bindManagerRows(m, 'modal', () => { repaintWall(); });
+    m.querySelectorAll('[data-mk]').forEach(b => b.onclick = () => {
+      const inp = b.parentElement.querySelector('input');
+      if (inp.value.trim() && createFacetValue(b.dataset.mk, inp.value)) { toast(`Created “${inp.value.trim()}”`); m.remove(); A.openVocab(); }
+    });
+    const tk = m.querySelector('[data-mktag]');
+    if (tk) tk.onclick = () => {
+      const inp = tk.parentElement.querySelector('input');
+      if (inp.value.trim()) { itemAddTag({ free: [] }, ''); store.tags.add(inp.value.trim()); toast(`Created #${inp.value.trim()}`); m.remove(); A.openVocab(); }
+    };
+  },
+
+  openSaved() {
+    openSavedGeneric('modal', s => savedRowActionsA(s, () => { /* keep popover open */ }));
+  },
+};
+function closeDetailPages() { document.querySelectorAll('.detail-page, .settings').forEach(el => el.remove()); }
+
+/* ================================================================
+   Variant B — "Edit mode + settings": explicit View→Edit toggle on
+   the detail page; vocabulary in a full-screen settings area.
+   ================================================================ */
+
+const B = {
+  openItem(it, keep) {
+    if (!keep) closeAllOverlays();
+    current.item = it; current.editing = false;
+    closeDetailPages();
+    B.render(it);
+  },
+  render(it) {
+    closeDetailPages();
+    const p = document.createElement('div');
+    p.className = 'detail-page';
+    const edit = current.editing;
+    p.innerHTML = `<div class="dhero">
+      <div class="editbar">
+        <button class="small ghost dback" id="dclose">‹ Wall</button>
+        <span class="sp" style="flex:1"></span>
+        ${edit
+          ? `<span class="tag">Editing</span><button class="small ghost" id="cancel">Cancel</button><button class="small primary" id="done">Done</button>`
+          : `<button class="small primary" id="edit">✎ Edit</button>`}
+      </div>
+      ${edit
+        ? `<input class="inline-title" id="t" value="${esc(it.title)}" placeholder="Untitled">`
+        : `<div class="dtitle">${esc(it.title)}</div>`}
+      <div class="dsub">${kindSub(it)}</div>
+      ${edit
+        ? `<div class="dblock"><div class="flabel">Note</div><textarea class="inline-note" id="note" placeholder="Add a note…">${esc(it.note)}</textarea></div>`
+        : (it.note ? `<div class="dblock"><div class="flabel">Note</div><div class="noteline">${esc(it.note)}</div></div>` : '')}
+      ${it.source ? (edit
+        ? `<div class="dblock"><div class="flabel">Source</div><div class="srcbox">
+            <input class="se" id="st" value="${esc(it.source.title)}">
+            <input class="se" id="sd" value="${esc(it.source.desc)}">
+            <input class="se" id="su" value="${esc(it.source.url)}" style="color:var(--accent2)"></div></div>`
+        : `<div class="dblock"><div class="flabel">Source</div><div class="srcbox">
+            <b>${esc(it.source.title)}</b><p>${esc(it.source.desc)}</p><span class="u">${esc(it.source.url)}</span></div></div>`) : ''}
+      ${it.kind === 'palette'
+        ? (edit
+          ? paletteBlockHTML(it)
+          : `<div class="dblock"><div class="flabel">Palette colors</div>
+              <div class="swatchline">${it.colors.map(c => `<span class="sq" style="background:${c}"></span>`).join('')}</div></div>`)
+        : (it.kind === 'photo' || it.kind === 'screenshot')
+          ? extractedColorsHTML(it)
+          : `<div class="dblock"><div class="flabel">Preview colors</div>
+              <div class="swatchline">${it.colors.map(c => `<span class="sq" style="background:${c}"></span>`).join('')}</div></div>`}
+      ${edit ? `
+        <div class="dblock"><div class="flabel">Facets
+          <span class="sp"></span><button class="tiny ghost" id="govocab">Manage vocabulary ›</button></div>
+          ${Object.keys(SEED_FACETS).map(f => editableFacetRow(it, f)).join('')}</div>
+        ${editableTagRow(it)}`
+      : `
+        ${Object.entries(it.facetMap).filter(([, vals]) => vals.length).map(([f, vals]) => `
+          <div class="dblock"><div class="flabel">${esc(f)}</div>
+            <div class="chips">${vals.map(v => `<span class="chip static in">${esc(v)}</span>`).join('')}</div></div>`).join('')}
+        ${it.free.length ? `<div class="dblock"><div class="flabel">Free tags</div>
+          <div class="chips">${it.free.map(t => `<span class="chip static">#${esc(t)}</span>`).join('')}</div></div>` : ''}`}
+      ${originHTML(it)}
+      ${collectionsHTML(it)}
+      <div class="dactions">
+        <button class="small" id="collect">＋ Collection</button>
+        ${it.source && !edit ? `<button class="small ghost" id="open-src">↗ Open source</button>` : ''}
+      </div>
+    </div>`;
+    p.querySelector('#dclose').onclick = () => { p.remove(); closeDetail(); repaintWall(); };
+    p.querySelector('#collect').onclick = () => collectionPicker(it, () => B.render(it));
+    const os = p.querySelector('#open-src');
+    if (os) os.onclick = () => toast('In the real app: opens ' + it.source.url);
+    if (edit) {
+      current.snapshot = current.snapshot || snapshotItem(it);
+      p.querySelector('#t').oninput = e => { it.title = e.target.value; };
+      p.querySelector('#note').oninput = e => { it.note = e.target.value; };
+      if (it.source) {
+        p.querySelector('#st').oninput = e => { it.source.title = e.target.value; };
+        p.querySelector('#sd').oninput = e => { it.source.desc = e.target.value; };
+        p.querySelector('#su').oninput = e => { it.source.url = e.target.value; };
+      }
+      if (it.kind === 'palette') bindPaletteBlock(p, it);
+      bindFacetRows(p, it);
+      bindTagRows(p, it);
+      p.querySelector('#done').onclick = () => { current.editing = false; current.snapshot = null; toast('Saved (in-memory)'); B.render(it); repaintWall(); };
+      p.querySelector('#cancel').onclick = () => { restoreItem(it, current.snapshot); current.editing = false; current.snapshot = null; toast('Reverted'); B.render(it); };
+      p.querySelector('#govocab').onclick = () => B.openVocab(it);
+    } else {
+      p.querySelector('#edit').onclick = () => { current.editing = true; current.snapshot = snapshotItem(it); B.render(it); };
+      bindGoto(p, null);
+    }
+    document.body.appendChild(p);
+  },
+
+  openVocab(fromItem) {
+    closeAllOverlays();
+    B.vocabHome(fromItem);
+  },
+  vocabHome(fromItem) {
+    closeDetailPages();
+    const p = document.createElement('div');
+    p.className = 'settings';
+    p.innerHTML = `<div class="shero">
+      <button class="small ghost crumb" id="back">‹ ${fromItem ? 'Back to item' : 'Back to wall'}</button>
+      <h2 style="margin:12px 0 4px">Vocabulary</h2>
+      <p class="hint">Six fixed facets with shared vocabularies; free tags live in their own namespace. Renames and merges propagate to every item and saved search; remove only while unused.</p>
+      ${Object.keys(SEED_FACETS).map(f => `
+        <button class="secitem" data-f="${f}"><span>${f}</span>
+          <span class="dim">${facetValues(f).length} values · ${facetValues(f).reduce((a, v) => a + facetCount(f, v), 0)} uses</span></button>`).join('')}
+      <button class="secitem" data-f="__tags"><span>Free tags</span>
+        <span class="dim">${tagUniverse().length} tags · ${tagUniverse().reduce((a, t) => a + tagCount(t), 0)} uses</span></button>
+    </div>`;
+    p.querySelector('#back').onclick = () => {
+      p.remove();
+      if (fromItem) B.render(fromItem);
+    };
+    p.querySelectorAll('[data-f]').forEach(b => b.onclick = () => {
+      b.dataset.f === '__tags' ? B.vocabTags(fromItem) : B.vocabFacet(b.dataset.f, fromItem);
+    });
+    document.body.appendChild(p);
+  },
+  vocabFacet(f, fromItem) {
+    closeDetailPages();
+    const p = document.createElement('div');
+    p.className = 'settings';
+    const paint = () => {
+      p.innerHTML = `<div class="shero">
+        <button class="small ghost crumb" id="back">‹ Vocabulary</button>
+        <h2 style="margin:12px 0 4px">${f}</h2>
+        <p class="hint">Tap a name to rename it everywhere. Merge moves every item to the survivor; remove only while unused.</p>
+        <div id="rows">
+          ${facetValues(f).map(v => {
+            const n = facetCount(f, v);
+            return `<div class="vrow" data-v="${esc(v)}">
+              <span class="vname">${esc(v)}</span><span class="n">${n} item${n === 1 ? '' : 's'}</span>
+              <button class="tiny ghost" data-rn="${esc(v)}">Rename</button>
+              <button class="tiny ghost" data-mg="${esc(v)}">Merge</button>
+              <button class="tiny ghost danger" data-rm="${esc(v)}" ${n ? 'disabled title="Used by items — merge instead"' : ''}>Remove</button>
+            </div>`;
+          }).join('')}
+        </div>
+        <div class="row"><input type="text" id="nv" placeholder="New ${esc(f)} value…"><button class="primary small" id="mk">Create</button></div>
+      </div>`;
+      p.querySelector('#back').onclick = () => B.vocabHome(fromItem);
+      p.querySelectorAll('[data-rn]').forEach(b => b.onclick = () => flowRenameValue('facet', f, b.dataset.rn, 'modal', paint));
+      p.querySelectorAll('[data-mg]').forEach(b => b.onclick = () => flowMergeValue('facet', f, b.dataset.mg, 'modal', paint));
+      p.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => flowRemoveValue('facet', f, b.dataset.rm, 'modal', paint));
+      p.querySelectorAll('.vrow .vname').forEach(sp => sp.onclick = () => flowRenameValue('facet', f, sp.textContent, 'modal', paint));
+      p.querySelector('#mk').onclick = () => {
+        const v = p.querySelector('#nv').value.trim();
+        if (v && createFacetValue(f, v)) { toast(`Created “${v}” in ${f}`); paint(); }
+      };
+    };
+    paint();
+    document.body.appendChild(p);
+  },
+  vocabTags(fromItem) {
+    closeDetailPages();
+    const p = document.createElement('div');
+    p.className = 'settings';
+    const paint = () => {
+      p.innerHTML = `<div class="shero">
+        <button class="small ghost crumb" id="back">‹ Vocabulary</button>
+        <h2 style="margin:12px 0 4px">Free tags</h2>
+        <p class="hint">Low-friction glue outside the facets. Promotion moves every carrier into a facet value and dissolves the tag.</p>
+        ${tagUniverse().map(t => {
+          const n = tagCount(t);
+          return `<div class="vrow" data-v="${esc(t)}">
+            <span class="vname">#${esc(t)}</span><span class="n">${n} item${n === 1 ? '' : 's'}</span>
+            <button class="tiny ghost" data-pr="${esc(t)}">Promote…</button>
+            <button class="tiny ghost" data-rn="${esc(t)}">Rename</button>
+            <button class="tiny ghost danger" data-rm="${esc(t)}" ${n ? 'disabled' : ''}>Remove</button>
+          </div>`;
+        }).join('')}
+        <div class="row"><input type="text" id="nv" placeholder="New free tag…"><button class="primary small" id="mk">Create</button></div>
+      </div>`;
+      p.querySelector('#back').onclick = () => B.vocabHome(fromItem);
+      p.querySelectorAll('[data-pr]').forEach(b => b.onclick = () => flowPromote(b.dataset.pr, 'modal', paint));
+      p.querySelectorAll('[data-rn]').forEach(b => b.onclick = () => flowRenameValue('tag', '', b.dataset.rn, 'modal', paint));
+      p.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => flowRemoveValue('tag', '', b.dataset.rm, 'modal', paint));
+      p.querySelector('#mk').onclick = () => {
+        const v = p.querySelector('#nv').value.trim();
+        if (v) { store.tags.add(v); toast(`Created #${v}`); paint(); }
+      };
+    };
+    paint();
+    document.body.appendChild(p);
+  },
+
+  openSaved() {
+    openSavedGeneric('modal', s => savedRowActionsBC(s, 'modal', () => {}));
+  },
+};
+
+/* ================================================================
+   Variant C — "Sheets & long-press": detail stays read-only; one
+   capture-style edit sheet; any value chip answers a long-press
+   (or right-click / ⋯) with a context sheet; manager is a sheet.
+   ================================================================ */
+
+const C = {
+  openItem(it, keep) {
+    if (!keep) closeAllOverlays();
+    current.item = it; current.editing = false;
+    closeDetailPages();
+    const p = document.createElement('div');
+    p.className = 'detail-page';
+    p.innerHTML = `<div class="dhero">
+      <button class="small ghost dback" id="dclose">‹ Back to wall</button>
+      ${it.kind === 'palette' ? visualHTML(it, 150) : ''}
+      <div class="dtitle">${esc(it.title)}</div>
+      <div class="dsub">${kindSub(it)} <span class="dim">· read-only page — edits happen in sheets; long-press any value for its actions</span></div>
+      ${it.note ? `<div class="dblock"><div class="flabel">Note</div><div class="noteline">${esc(it.note)}</div></div>` : ''}
+      ${it.source ? `<div class="dblock"><div class="flabel">Source</div><div class="srcbox">
+        <b>${esc(it.source.title)}</b><p>${esc(it.source.desc)}</p><span class="u">${esc(it.source.url)}</span></div></div>` : ''}
+      ${(it.kind === 'photo' || it.kind === 'screenshot') ? extractedColorsHTML(it) : ''}
+      ${it.kind === 'palette' ? `<div class="dblock"><div class="flabel">Palette colors</div>
+        <div class="swatchline">${it.colors.map(c => `<span class="sq" style="background:${c}"></span>`).join('')}</div></div>` : ''}
+      ${Object.entries(it.facetMap).filter(([, vals]) => vals.length).map(([f, vals]) => `
+        <div class="dblock"><div class="flabel">${esc(f)}</div>
+          <div class="chips">${vals.map(v => `<span class="chip c-chip" data-ctx="facet|${esc(f)}|${esc(v)}" title="Long-press or ⋯ for actions">${esc(v)}<button class="dots">⋯</button></span>`).join('')}</div></div>`).join('')}
+      ${it.free.length ? `<div class="dblock"><div class="flabel">Free tags</div>
+        <div class="chips">${it.free.map(t => `<span class="chip c-chip" data-ctx="tag||${esc(t)}" title="Long-press or ⋯ for actions">#${esc(t)}<button class="dots">⋯</button></span>`).join('')}</div></div>` : ''}
+      ${it.kind !== 'photo' && it.kind !== 'screenshot' && it.kind !== 'palette' ? `<div class="dblock"><div class="flabel">Preview colors</div>
+        <div class="swatchline">${it.colors.map(c => `<span class="sq" style="background:${c}"></span>`).join('')}</div></div>` : ''}
+      ${originHTML(it)}
+      ${collectionsHTML(it)}
+      <div class="actionrow">
+        <button class="primary" id="edit">✎ Edit item</button>
+        <button id="collect">＋ Collection</button>
+      </div>
+    </div>`;
+    p.querySelector('#dclose').onclick = () => { p.remove(); closeDetail(); repaintWall(); };
+    p.querySelector('#collect').onclick = () => collectionPicker(it, () => C.openItem(it, true));
+    p.querySelector('#edit').onclick = () => C.editSheet(it);
+    p.querySelectorAll('[data-ctx]').forEach(ch => {
+      const [kind, f, v] = ch.dataset.ctx.split('|');
+      const open = () => valueContextSheet(kind, f, v, 'sheet', () => { renderDetail(); repaintWall(); });
+      ch.querySelector('.dots').onclick = e => { e.stopPropagation(); open(); };
+      longPress(ch, open);
+      ch.oncontextmenu = e => { e.preventDefault(); open(); };
+    });
+    bindGoto(p, () => p.remove());
+    bindExtracted(p);
+    document.body.appendChild(p);
+  },
+
+  editSheet(it) {
+    current.snapshot = snapshotItem(it);
+    const m = shell('sheet', `Edit · ${esc(it.title || 'Untitled')}`, `
+      <p class="hint">The capture surface, re-used: same trays, same create-on-type. Save or discard.</p>
+      <div class="dblock"><div class="flabel">Title</div><input type="text" id="t" value="${esc(it.title)}" style="width:100%"></div>
+      <div class="dblock"><div class="flabel">Note</div><textarea id="note" placeholder="Add a note…">${esc(it.note)}</textarea></div>
+      ${it.source ? `<div class="dblock"><div class="flabel">Source copy</div><div class="srcbox">
+        <input class="se" id="st" value="${esc(it.source.title)}">
+        <input class="se" id="sd" value="${esc(it.source.desc)}">
+        <input class="se" id="su" value="${esc(it.source.url)}" style="color:var(--accent2)"></div></div>` : ''}
+      ${it.kind === 'palette' ? paletteBlockHTML(it) : ''}
+      <div class="dblock"><div class="flabel">Facets — tap ＋, type to filter or create</div>
+        ${Object.keys(SEED_FACETS).map(f => editableFacetRow(it, f)).join('')}</div>
+      ${editableTagRow(it)}
+      <div class="donebar"><button id="discard">Discard</button><button class="primary" id="save">Save</button></div>`);
+    m.querySelector('#t').oninput = e => { it.title = e.target.value; };
+    m.querySelector('#note').oninput = e => { it.note = e.target.value; };
+    if (it.source) {
+      m.querySelector('#st').oninput = e => { it.source.title = e.target.value; };
+      m.querySelector('#sd').oninput = e => { it.source.desc = e.target.value; };
+      m.querySelector('#su').oninput = e => { it.source.url = e.target.value; };
+    }
+    if (it.kind === 'palette') bindPaletteBlock(m, it);
+    bindFacetRows(m, it);
+    bindTagRows(m, it);
+    m.querySelector('#save').onclick = () => { m.remove(); current.snapshot = null; toast('Saved (in-memory)'); renderDetail(); repaintWall(); };
+    m.querySelector('#discard').onclick = () => {
+      restoreItem(it, current.snapshot); current.snapshot = null;
+      toast('Reverted'); m.remove(); renderDetail();
+    };
+  },
+
+  openVocab() {
+    const m = shell('sheet', 'Vocabulary', `
+      <p class="hint">Expand a facet, tap a value for its actions. Long-press works on chips everywhere else, too.</p>
+      ${Object.keys(SEED_FACETS).map(f => `
+        <details><summary style="cursor:pointer;padding:8px 0;font-weight:650">${f}
+          <span class="dim" style="font-weight:400;font-size:12px">${facetValues(f).length} values</span></summary>
+          <div style="margin:2px 0 8px">${managerRowsHTML('facet', f)}
+          <div class="row"><input type="text" placeholder="New ${esc(f)} value…"><button class="primary small" data-mk="${esc(f)}">Create</button></div></div>
+        </details>`).join('')}
+      <details><summary style="cursor:pointer;padding:8px 0;font-weight:650">Free tags
+        <span class="dim" style="font-weight:400;font-size:12px">${tagUniverse().length} tags</span></summary>
+        <div style="margin:2px 0 8px">${managerRowsHTML('tag', '')}
+        <div class="row"><input type="text" placeholder="New free tag…"><button class="primary small" data-mktag="1">Create</button></div></div>
+      </details>`);
+    bindManagerRows(m, 'sheet', () => { renderDetail(); repaintWall(); });
+    m.querySelectorAll('[data-mk]').forEach(b => b.onclick = () => {
+      const inp = b.parentElement.querySelector('input');
+      if (inp.value.trim() && createFacetValue(b.dataset.mk, inp.value)) { toast(`Created “${inp.value.trim()}”`); m.remove(); C.openVocab(); }
+    });
+    const tk = m.querySelector('[data-mktag]');
+    if (tk) tk.onclick = () => {
+      const inp = tk.parentElement.querySelector('input');
+      if (inp.value.trim()) { store.tags.add(inp.value.trim()); toast(`Created #${inp.value.trim()}`); m.remove(); C.openVocab(); }
+    };
+  },
+
+  openSaved() {
+    openSavedGeneric('sheet', s => savedRowActionsBC(s, 'sheet', () => {}));
+  },
+};
+
+function longPress(el, fn) {
+  let t = null;
+  el.addEventListener('pointerdown', () => { t = setTimeout(() => { t = null; fn(); }, 500); });
+  ['pointerup', 'pointerleave', 'pointercancel', 'pointermove'].forEach(ev =>
+    el.addEventListener(ev, () => { if (t) { clearTimeout(t); t = null; } }));
+}
+
+/* ---------- variant registry + floating switcher ---------- */
+
+const VARIANTS = [
+  { key: 'a', name: 'Live surface', mod: A },
+  { key: 'b', name: 'Edit mode + settings', mod: B },
+  { key: 'c', name: 'Sheets & long-press', mod: C },
+];
+let currentIdx = 0;
+const currentVariant = () => VARIANTS[currentIdx].mod;
+
+function renderCurrent() {
+  const v = VARIANTS[currentIdx];
+  document.title = `Inzpo editing · ${v.key.toUpperCase()} (${v.name})`;
+  closeAllOverlays();
+  closeDetail();
+  mountHost();
+}
+
+function setParams(kv) {
+  const p = new URLSearchParams(location.search);
+  for (const [k, val] of Object.entries(kv)) val == null ? p.delete(k) : p.set(k, val);
+  history.replaceState(null, '', location.pathname + '?' + p.toString() + location.hash);
+}
+function go(delta) {
+  currentIdx = (currentIdx + delta + VARIANTS.length) % VARIANTS.length;
+  setParams({ variant: VARIANTS[currentIdx].key });
+  renderCurrent();
+}
+function setPhone(on) {
+  document.body.classList.toggle('phone', on);
+  document.getElementById('sw-phone').style.fontWeight = on ? 800 : 400;
+  setParams({ phone: on ? '1' : null });
+}
+
+const vl = document.getElementById('vlabel');
+function paintSwitcher() { vl.textContent = `${VARIANTS[currentIdx].key.toUpperCase()} (${VARIANTS[currentIdx].name})`; }
+document.getElementById('sw-prev').onclick = () => go(-1);
+document.getElementById('sw-next').onclick = () => go(1);
+document.getElementById('sw-phone').onclick = () => setPhone(!document.body.classList.contains('phone'));
+document.getElementById('sw-reset').onclick = () => { buildLibrary(); renderCurrent(); };
+window.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea, select, [contenteditable]')) return;
+  if (e.key === 'ArrowLeft') go(-1);
+  if (e.key === 'ArrowRight') go(1);
+  if (e.key === 'Escape') closeTop();
+});
+
+/* boot from URL */
+buildLibrary();
+const p0 = new URLSearchParams(location.search);
+currentIdx = Math.max(0, VARIANTS.findIndex(v => v.key === (p0.get('variant') || 'b')));
+if (p0.get('phone') === '1') setPhone(true);
+paintSwitcher();
+renderCurrent();
+</script>
+</body>
+</html>
