@@ -1,0 +1,1359 @@
+<!doctype html>
+<!--
+  PROTOTYPE (throwaway) — Inzpo browse & filter UI, issue #8
+  Question: how should browsing thousands of items look and behave?
+  Three variants of the library wall + faceted filter bar, switchable via ?variant=a|b|c
+  and the floating bar (← → keys work too). The item detail view — where the capture
+  toast's View-item action lands (per #15) — is deliberately different in each variant:
+    A "Library rail"    — persistent left rail (collections, smart collections, facets,
+                          tags, colors, kind) beside the wall; detail = right slide-over
+    B "Chips & sheet"   — toolbar + live active-filter chip row; filters in a full sheet;
+                          detail = full-screen page you go into and back from
+    C "Immersive wall"  — near-zero chrome; search-first omnibox + bottom sheets;
+                          detail = lightbox over a dimmed wall
+  All three obey the #7 semantics: tri-state include/exclude on facet values, free tags,
+  color families and kind (any-of within a dimension, AND across); plain substring text
+  search; sorts newest/oldest/title/shuffle; smart collections = saved filter state + sort,
+  resolving live; collections = hand-curated scope.
+  140 in-memory mock items. Open this file in a browser; no build, no server, no network.
+  📱 Phone button judges the real question at ~390px.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inzpo · browse prototype</title>
+<style>
+  :root {
+    --bg: #101014; --panel: #1a1a21; --panel2: #22222b; --line: #2e2e3a;
+    --text: #ececf1; --dim: #9a9aa8; --accent: #7c6cff; --accent2: #4fd1c5;
+    --danger: #ff6b81; --radius: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    min-height: 100vh;
+  }
+  #proto-banner {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 90;
+    background: repeating-linear-gradient(45deg, #3a2f00, #3a2f00 12px, #4a3c00 12px, #4a3c00 24px);
+    color: #ffe08a; font-size: 12px; font-weight: 600; text-align: center;
+    padding: 4px 8px; letter-spacing: .04em;
+  }
+  #stage { padding: 34px 0 92px; min-height: 100vh; }
+  body.phone #stage { display: flex; justify-content: center; align-items: flex-start; }
+  #app { min-height: calc(100vh - 126px); }
+  body.phone #app {
+    width: 390px; max-width: 390px; height: 820px; overflow-y: auto;
+    margin: 8px auto; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 28px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.7); position: relative;
+  }
+
+  button { font: inherit; color: inherit; background: var(--panel2); border: 1px solid var(--line);
+           border-radius: 10px; padding: 9px 13px; cursor: pointer; }
+  button.ghost { background: transparent; }
+  button.small { padding: 5px 9px; font-size: 13px; border-radius: 8px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 650; }
+  button.danger { color: var(--danger); }
+  input[type=text], input[type=search], select, textarea {
+    font: inherit; font-size: 15px; color: var(--text);
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
+  }
+  input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  select { padding-right: 8px; }
+
+  /* ---------- chips (tri-state: off → include → exclude) ---------- */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 12px; font-size: 13px; cursor: pointer; min-height: 32px;
+    display: inline-flex; align-items: center; gap: 6px; user-select: none;
+  }
+  .chip .n { color: var(--dim); font-size: 11px; }
+  .chip.in { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip.in .n { color: rgba(255,255,255,.75); }
+  .chip.ex { background: transparent; border-color: var(--danger); color: var(--danger);
+             text-decoration: line-through; text-decoration-thickness: 1.5px; }
+  .chip.ex::before { content: "≠"; font-size: 11px; font-weight: 800; text-decoration: none; }
+  .chip.static { cursor: default; }
+  .chip.static.in { background: rgba(124,108,255,.16); border-color: var(--accent); color: var(--text); }
+
+  /* ---------- swatch chips (color families) ---------- */
+  .swatches { display: flex; flex-wrap: wrap; gap: 7px; }
+  .sw {
+    width: 30px; height: 30px; border-radius: 50%; cursor: pointer; position: relative;
+    border: 2px solid rgba(255,255,255,.14); padding: 0;
+  }
+  .sw.in { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+  .sw.ex { opacity: .45; }
+  .sw.ex::after {
+    content: ""; position: absolute; inset: 12% -12% auto 12%; height: 2px;
+    background: var(--danger); transform: rotate(-45deg); transform-origin: center;
+    box-shadow: 0 0 0 .5px var(--bg);
+  }
+
+  /* ---------- cards + wall ---------- */
+  .wall { columns: 300px 3; column-gap: 14px; }
+  .card {
+    break-inside: avoid; margin: 0 0 14px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; position: relative;
+  }
+  .card .visual { position: relative; background: var(--panel2); cursor: pointer; }
+  .card .visual .grad { width: 100%; display: block; }
+  .pal { display: flex; flex-direction: column; }
+  .card .visual .pal { height: 120px; }
+  .lightbox .lvis .pal { width: 100%; height: 100%; }
+  .card .visual .pal i { flex: 1; }
+  .card .visual .glyph {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 30px; opacity: .8;
+  }
+  .cardmeta { padding: 9px 12px 10px; }
+  .cardmeta b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cardmeta .sub { color: var(--dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kbadge { display: inline-block; font-size: 9px; letter-spacing: .07em; text-transform: uppercase;
+            color: var(--accent2); border: 1px solid var(--accent2); border-radius: 4px; padding: 0 4px; margin-right: 6px; }
+  .qactions {
+    position: absolute; top: 8px; right: 8px; display: flex; gap: 5px; z-index: 5;
+    opacity: 0; transition: opacity .12s;
+  }
+  .card:hover .qactions, body.phone .qactions { opacity: 1; }
+  .qactions button {
+    width: 30px; height: 30px; padding: 0; border-radius: 8px; font-size: 14px; line-height: 1;
+    background: rgba(10,10,14,.78); border-color: rgba(255,255,255,.16); backdrop-filter: blur(4px);
+  }
+  .tri-hint { font-size: 11px; color: var(--dim); margin: 2px 0 8px; }
+
+  /* ---------- toolbars ---------- */
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .toolbar .search { flex: 1 1 200px; min-width: 150px; }
+  .toolbar .grow { flex: 1; }
+  .badge { display: inline-flex; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+           background: var(--accent); color: #fff; font-size: 11px; font-weight: 700;
+           align-items: center; justify-content: center; margin-left: 4px; }
+  .wallhead { display: flex; align-items: baseline; gap: 10px; margin: 2px 0 10px; flex-wrap: wrap; }
+  .wallhead .dim { color: var(--dim); font-size: 12.5px; }
+
+  /* ---------- variant A: rail layout ---------- */
+  .a-layout { display: grid; grid-template-columns: 264px 1fr; gap: 16px; align-items: start; }
+  .rail { position: sticky; top: 40px; max-height: calc(100vh - 140px); overflow-y: auto;
+          background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+          padding: 12px; }
+  .rail h4 { margin: 14px 0 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  .rail h4:first-child { margin-top: 0; }
+  .rail .navitem {
+    display: flex; justify-content: space-between; gap: 8px; width: 100%; text-align: left;
+    background: transparent; border: none; border-radius: 8px; padding: 6px 8px; font-size: 13.5px;
+  }
+  .rail .navitem:hover { background: var(--panel2); }
+  .rail .navitem.on { background: var(--panel2); color: #fff; font-weight: 650; box-shadow: inset 2px 0 0 var(--accent); }
+  .rail .navitem .n { color: var(--dim); font-size: 12px; }
+  .rail .facetblock { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
+  .rail .facethead { display: flex; justify-content: space-between; width: 100%; background: none; border: none;
+                     padding: 0 0 6px; font-size: 12.5px; font-weight: 650; text-align: left; }
+  .rail .facethead .n { color: var(--dim); font-weight: 400; }
+  .a-scopebtn { display: none; }
+
+  /* ---------- variant B: chips + sheet ---------- */
+  .activerow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; min-height: 30px; }
+  .activerow .lbl { font-size: 12px; color: var(--dim); }
+  .fchip { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px;
+           border-radius: 999px; padding: 4px 6px 4px 10px; cursor: pointer; }
+  .fchip .dim { opacity: .7; font-size: 11px; }
+  .fchip.ex { border-color: var(--danger); color: var(--danger); }
+  .fchip.in { border-color: var(--accent); background: rgba(124,108,255,.18); }
+  .fchip b { font-weight: 400; }
+  .fchip i { font-style: normal; width: 16px; height: 16px; border-radius: 50%; background: rgba(255,255,255,.14);
+             font-size: 11px; line-height: 16px; text-align: center; }
+  .sheet-back {
+    position: fixed; inset: 0; background: rgba(6,6,10,.6); z-index: 40;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .sheet {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 18px 18px 0 0;
+    width: min(560px, 100%); max-height: 78vh; overflow-y: auto; padding: 14px 16px 18px;
+  }
+  .sheet .grip { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 12px; }
+  .sheet h3 { margin: 0 0 4px; font-size: 16px; }
+  .sheet .fgroup { margin-top: 14px; }
+  .sheet .fgroup > .flabel { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; }
+  .sheet .donebar { position: sticky; bottom: -18px; margin: 14px -16px -18px; padding: 12px 16px;
+                    background: linear-gradient(transparent, var(--panel) 30%); }
+  .sheet .donebar button { width: 100%; }
+
+  /* ---------- variant C: immersive ---------- */
+  .c-top {
+    position: sticky; top: 34px; z-index: 30; display: flex; gap: 10px; align-items: center;
+    padding: 8px 10px; margin-bottom: 4px;
+    background: linear-gradient(var(--bg) 75%, transparent);
+  }
+  .c-top .brand { font-weight: 800; letter-spacing: .02em; padding: 0 4px; }
+  .omni { flex: 1; position: relative; }
+  .omni input { width: 100%; border-radius: 999px; padding: 10px 16px; }
+  .c-pop {
+    position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 35;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 18px 50px rgba(0,0,0,.6); padding: 12px; max-height: 70vh; overflow-y: auto;
+  }
+  .c-wall { columns: 240px 4; column-gap: 12px; }
+  .c-wall .card { border: none; background: transparent; border-radius: 16px; }
+  .c-wall .card .visual { border-radius: 16px; overflow: hidden; }
+  .c-wall .cardmeta { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 12px 10px;
+                      background: linear-gradient(transparent, rgba(0,0,0,.72)); opacity: 0; transition: opacity .15s; }
+  .c-wall .card:hover .cardmeta, body.phone .c-wall .card .cardmeta { opacity: 1; }
+  .c-wall .qactions { top: auto; bottom: 8px; right: 8px; }
+  .lib-pill { border-radius: 999px; }
+
+  /* ---------- popovers, modals, detail surfaces ---------- */
+  .modal-back { position: fixed; inset: 0; z-index: 50; background: rgba(6,6,10,.66);
+                display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+           width: min(420px, 100%); max-height: 80vh; overflow-y: auto; padding: 16px; }
+  .modal h3 { margin: 0 0 10px; font-size: 16px; }
+  .modal .listitem { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+                     width: 100%; background: transparent; border: none; border-radius: 10px;
+                     padding: 9px 10px; font-size: 14px; text-align: left; }
+  .modal .listitem:hover { background: var(--panel2); }
+  .modal .listitem .n { color: var(--dim); font-size: 12px; }
+  .modal .row { display: flex; gap: 8px; margin-top: 12px; }
+  .modal .row input { flex: 1; }
+
+  /* detail — A: slide-over panel */
+  .detail-panel {
+    position: fixed; top: 34px; right: 0; bottom: 92px; z-index: 45;
+    width: min(460px, 100vw); background: var(--panel); border-left: 1px solid var(--line);
+    box-shadow: -24px 0 60px rgba(0,0,0,.55); overflow-y: auto; padding: 18px;
+    animation: slidein .18s ease-out;
+  }
+  @keyframes slidein { from { transform: translateX(30px); opacity: 0; } }
+  /* detail — B: full-screen page */
+  .detail-page { position: fixed; inset: 0; z-index: 45; background: var(--bg); overflow-y: auto; }
+  .detail-page .dhero { max-width: 780px; margin: 0 auto; padding: 18px; }
+  .detail-page .dback { position: sticky; top: 38px; z-index: 5; }
+  /* detail — C: lightbox */
+  .lightbox { position: fixed; inset: 0; z-index: 50; background: rgba(5,5,9,.82);
+              display: flex; align-items: center; justify-content: center; padding: 18px; }
+  .lightbox .lbox { background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+                    width: min(860px, 100%); max-height: 88vh; overflow-y: auto;
+                    display: grid; grid-template-columns: 1.2fr 1fr; }
+  .lightbox .lvis { background: var(--panel2); min-height: 300px; display: flex; align-items: center; justify-content: center; }
+  .lightbox .lvis .grad, .lightbox .lvis img { width: 100%; height: 100%; object-fit: cover; }
+  .lightbox .lmeta { padding: 18px; overflow-y: auto; }
+
+  /* ---------- detail content (shared) ---------- */
+  .dtitle { font-size: 19px; margin: 10px 0 2px; overflow-wrap: anywhere; }
+  .dsub { color: var(--dim); font-size: 13px; margin: 0 0 12px; }
+  .dblock { margin: 14px 0; }
+  .dblock .flabel { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; }
+  .srcbox { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .srcbox b { font-size: 14px; display: block; overflow-wrap: anywhere; }
+  .srcbox p { margin: 4px 0; color: var(--dim); font-size: 13px; overflow-wrap: anywhere; }
+  .srcbox .u { color: var(--accent2); font-size: 12px; overflow-wrap: anywhere; }
+  .swatchline { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .swatchline .sq { width: 34px; height: 34px; border-radius: 9px; border: 1px solid rgba(255,255,255,.15); }
+  .noteline { background: var(--panel2); border-radius: 10px; padding: 8px 12px; font-size: 13.5px; color: var(--text); }
+  .dactions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  .originline { font-size: 13px; color: var(--dim); }
+  .originline a, .linkish { color: var(--accent2); cursor: pointer; text-decoration: underline; }
+
+  .empty { color: var(--dim); font-size: 13px; }
+  .flabel { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%) translateY(20px);
+    background: var(--accent2); color: #06282a; font-weight: 650; font-size: 14px;
+    padding: 10px 18px; border-radius: 999px; opacity: 0; pointer-events: none;
+    transition: all .25s; z-index: 95;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  #switcher {
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 2px; z-index: 99;
+    background: #000; color: #fff; border: 1px solid #444; border-radius: 999px;
+    padding: 6px 8px; box-shadow: 0 8px 30px rgba(0,0,0,.6); font-size: 14px;
+  }
+  #switcher button { background: transparent; border: none; padding: 6px 10px; border-radius: 999px; color: #fff; }
+  #switcher button:hover { background: #222; }
+  #switcher .vlabel { min-width: 160px; text-align: center; font-weight: 600; }
+  #switcher .mode { color: #8ab4ff; }
+
+  /* ---------- responsive / phone ---------- */
+  body.phone .wall, body.phone .c-wall { columns: 160px auto; column-gap: 10px; }
+  body.phone .card { margin-bottom: 10px; }
+  body.phone .qactions { opacity: 1; }
+  @media (max-width: 760px) {
+    .a-layout { grid-template-columns: 1fr; }
+    .rail {
+      position: fixed; top: 34px; left: 0; bottom: 0; width: min(320px, 86vw); max-height: none;
+      z-index: 44; border-radius: 0 18px 18px 0; transform: translateX(-105%); transition: transform .18s;
+    }
+    body.rail-open .rail { transform: none; }
+    body.rail-open::before {
+      content: ""; position: fixed; inset: 0; z-index: 43; background: rgba(6,6,10,.55);
+    }
+    .a-scopebtn { display: inline-flex; }
+    .lightbox .lbox { grid-template-columns: 1fr; }
+    .lightbox .lvis { min-height: 220px; }
+  }
+  /* same mobile layout inside the 390px phone frame (viewport stays wide) */
+  body.phone .a-layout { grid-template-columns: 1fr; }
+  body.phone .rail {
+    position: fixed; top: 34px; left: 0; bottom: 0; width: min(320px, 86vw); max-height: none;
+    z-index: 44; border-radius: 0 18px 18px 0; transform: translateX(-105%); transition: transform .18s;
+  }
+  body.phone.rail-open .rail { transform: none; }
+  body.phone.rail-open::before {
+    content: ""; position: fixed; inset: 0; z-index: 43; background: rgba(6,6,10,.55);
+  }
+  body.phone .a-scopebtn { display: inline-flex; }
+  body.phone .lightbox .lbox { grid-template-columns: 1fr; }
+  body.phone .lightbox .lvis { min-height: 220px; }
+</style>
+</head>
+<body>
+<div id="proto-banner">🚧 PROTOTYPE · Inzpo browse &amp; filter UX · throwaway — nothing is persisted</div>
+<div id="stage"><main id="app"></main></div>
+<div id="toast"></div>
+<div id="switcher">
+  <button id="sw-prev" title="Previous variant">‹</button>
+  <span class="vlabel" id="vlabel"></span>
+  <button id="sw-next" title="Next variant">›</button>
+  <button id="sw-phone" class="mode" title="Toggle 390px phone frame">📱 Phone</button>
+  <button id="sw-reset" title="Reset session state">↺</button>
+</div>
+
+<script>
+'use strict';
+
+/* ================================================================
+   Domain stubs — seed vocabularies per the ontology decision (#2),
+   filtering semantics per #7 (any-of within a dimension, AND across,
+   tri-state include/exclude; plain substring text search; 14 fixed
+   color families; sorts newest/oldest/title/shuffle).
+   ================================================================ */
+
+const FACETS = {
+  Style:      ['Minimal', 'Brutalist', 'Swiss', 'Art deco', 'Y2K', 'Organic'],
+  Usage:      ['Landing page', 'Dashboard', 'Mobile app', 'E-commerce', 'Portfolio'],
+  Medium:     ['Web', 'Print', 'Packaging', 'Signage'],
+  Format:     ['Hero', 'Card grid', 'Icon set', 'Motion', 'Illustration'],
+  Mood:       ['Calm', 'Playful', 'Moody', 'Luxe', 'Energetic'],
+  Complexity: ['Sparse', 'Balanced', 'Dense'],
+};
+const KINDS = ['url', 'screenshot', 'photo', 'palette', 'article', 'video'];
+const KIND_LABEL = { url: 'URL', screenshot: 'Screenshot', photo: 'Photo', palette: 'Palette', article: 'Article', video: 'Video' };
+const KIND_GLYPH = { url: '🔗', screenshot: '🖥', photo: '📷', palette: '🎨', article: '📄', video: '▶️' };
+
+/* the fixed color taxonomy (#7): 14 families, no user vocabulary */
+const FAMILIES = [
+  ['red',         ['#e5484d', '#c93a3f', '#b02e30']],
+  ['orange',      ['#f76b15', '#e35d0f', '#ff8a3d']],
+  ['yellow',      ['#f5d90a', '#e6c700', '#d4b400']],
+  ['cream/beige', ['#efe1c6', '#e3d0ac', '#f2e8d5']],
+  ['brown',       ['#8a5a44', '#6f4636', '#a06b52']],
+  ['gold',        ['#d4af37', '#b8942c', '#e0c25a']],
+  ['green',       ['#46a758', '#3b8f4b', '#5cb868']],
+  ['teal',        ['#12a594', '#0e8a7c', '#31bfae']],
+  ['blue',        ['#3b82f6', '#2f6fd0', '#5e96f8']],
+  ['purple',      ['#8e4ec6', '#7842a8', '#a568d8']],
+  ['pink',        ['#f472b6', '#e0559d', '#f78fc4']],
+  ['black',       ['#1a1a1a', '#0e0e10', '#2a2a2e']],
+  ['white',       ['#f8f8f8', '#ececec', '#ffffff']],
+  ['gray',        ['#8f8f98', '#70707a', '#a8a8b2']],
+];
+const NEUTRALS = ['black', 'white', 'gray', 'cream/beige'];
+
+/* ---------- seeded PRNG + tiny helpers ---------- */
+
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const app = document.getElementById('app');
+const $ = s => app.querySelector(s);
+const $$ = s => [...app.querySelectorAll(s)];
+const cap = s => s.replace(/\b\w/g, c => c.toUpperCase());
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1500);
+}
+
+/* ---------- mock library ---------- */
+
+const ADJ = ['Quiet', 'Sunlit', 'Neon', 'Soft', 'Concrete', 'Velvet', 'Paper', 'Glass', 'Midnight', 'Copper',
+             'Frosted', 'Wild', 'Studio', 'Kiosk', 'Archive', 'Bloom', 'Grid', 'Faded', 'Electric', 'Clay'];
+const NOUN = ['hero section', 'pricing page', 'onboarding flow', 'checkout', 'landing page', 'dashboard',
+              'settings screen', 'editorial spread', 'poster series', 'packaging set', 'signage system',
+              'portfolio grid', 'nav pattern', 'empty state', '404 page', 'card layout', 'dense table',
+              'mobile nav', 'icon set', 'motion study', 'type pairing', 'menu board', 'app icon', 'brand sheet'];
+const HOSTS = {
+  url:     ['siteinspire.com', 'godly.website', 'awwwards.com', 'are.na', 'dribbble.com', 'cosmos.so'],
+  article: ['typography.garden', 'uxnotes.dev', 'designsystems.com', 'readymag.stories', 'the-brick.medium.com'],
+  video:   ['youtube.com', 'vimeo.com'],
+};
+const FREE_TAGS = ['reference', 'to-try', 'client-x', 'redesign', 'typography-crush', 'hero-inspo',
+                   'later', 'pattern', 'favorite', 'hover-idea'];
+
+function familyHex(fam, rnd) {
+  const pool = FAMILIES.find(f => f[0] === fam)[1];
+  return pool[Math.floor(rnd() * pool.length)];
+}
+
+const store = {
+  items: [], collections: [], smarts: [], nextId: 1,
+};
+
+function buildLibrary() {
+  const rnd = mulberry32(20260831);
+  const now = Date.now();
+  store.nextId = 1;
+  store.items = []; store.collections = []; store.smarts = [];
+  const flatVals = Object.values(FACETS).flat();
+
+  for (let i = 0; i < 140; i++) {
+    const kind = KINDS[Math.floor(rnd() * KINDS.length)];
+    const title = cap(ADJ[Math.floor(rnd() * ADJ.length)] + ' ' + NOUN[Math.floor(rnd() * NOUN.length)]);
+
+    /* colors: 2 hue families + 1-2 neutrals → hex list + family list */
+    const fams = new Set();
+    for (let k = 0; k < 2; k++) {
+      let f; do { f = FAMILIES[Math.floor(rnd() * 14)][0]; } while (NEUTRALS.includes(f) || fams.has(f));
+      fams.add(f);
+    }
+    fams.add(NEUTRALS[Math.floor(rnd() * NEUTRALS.length)]);
+    if (rnd() < .4) { let f; do { f = FAMILIES[Math.floor(rnd() * 14)][0]; } while (fams.has(f)); fams.add(f); }
+    const famList = [...fams];
+    const colors = famList.map(f => familyHex(f, rnd));
+
+    /* facets: 2–4 values across 2–4 facets (tracked per-facet for the detail view) */
+    const facetMap = {};
+    const fkeys = Object.keys(FACETS);
+    const useF = new Set();
+    const nF = 2 + Math.floor(rnd() * 3);
+    while (useF.size < nF) useF.add(fkeys[Math.floor(rnd() * fkeys.length)]);
+    for (const f of useF) facetMap[f] = [FACETS[f][Math.floor(rnd() * FACETS[f].length)]];
+    const facetVals = Object.values(facetMap).flat();
+    const free = [];
+    if (rnd() < .75) free.push(FREE_TAGS[Math.floor(rnd() * FREE_TAGS.length)]);
+    if (rnd() < .3) free.push(FREE_TAGS[Math.floor(rnd() * FREE_TAGS.length)]);
+
+    let source = null;
+    if (kind === 'url' || kind === 'article' || kind === 'video') {
+      const host = HOSTS[kind][Math.floor(rnd() * HOSTS[kind].length)];
+      const slug = NOUN[Math.floor(rnd() * NOUN.length)].replace(/ /g, '-');
+      source = {
+        url: `https://${host}/${kind === 'video' ? 'watch?v=dQw4w9Wg' : 'work/' + slug}-${i}`,
+        title: title,
+        desc: kind === 'article' ? 'A long-read on craft, process, and the details that make it sing.'
+            : kind === 'video' ? 'Recorded talk · 24 min'
+            : 'Portfolio and selected work.',
+      };
+    }
+    const note = rnd() < .35 ? ['Steal the hover treatment.', 'Grid feels too tight at 4 columns.',
+      'Client loved this palette.', 'Try this nav on the redesign.', 'Type scale worth copying.'][Math.floor(rnd() * 5)] : '';
+
+    const it = {
+      id: store.nextId++, kind, title, note, colors, families: famList,
+      facetMap, facetVals, free: [...new Set(free)], source,
+      created: now - Math.floor(rnd() * 365 * 24 * 3600 * 1000),
+      originOf: null, derived: null,
+      collections: new Set(),
+    };
+    store.items.push(it);
+  }
+
+  /* a few palettes derive from images (Origin), stamping both directions */
+  const images = store.items.filter(i => i.kind === 'photo' || i.kind === 'screenshot');
+  const palettes = store.items.filter(i => i.kind === 'palette');
+  for (let i = 0; i < 3 && i < palettes.length && i < images.length; i++) {
+    palettes[i].originOf = images[i].id;
+    images[i].derived = palettes[i].id;
+  }
+
+  store.collections = [
+    { id: 'c1', name: 'Landing pages I love' },
+    { id: 'c2', name: 'Dark dashboards' },
+    { id: 'c3', name: 'Print & packaging' },
+  ];
+  for (let m = 0; m < 14; m++) store.items[m].collections.add('c1');
+  for (let m = 14; m < 28; m++) store.items[m].collections.add('c2');
+  for (let m = 28; m < 40; m++) store.items[m].collections.add('c3');
+
+  store.smarts = [
+    { id: 's1', name: 'Moody web heroes', sort: 'newest',
+      fs: seedFs({ facet: { Mood: { Moody: 'in' } }, facetOr: { Medium: { Web: 'in' } } }) },
+    { id: 's2', name: 'Blues & teals', sort: 'shuffle',
+      fs: seedFs({ colors: { blue: 'in', teal: 'in' } }) },
+    { id: 's3', name: 'Minimal, no photos', sort: 'title',
+      fs: seedFs({ facet: { Style: { Minimal: 'in' } }, kinds: { photo: 'ex', screenshot: 'ex' } }) },
+  ];
+}
+
+/* filter state -------------------------------------------------- */
+/* facets/facetvals: {dim: {value: 'in'|'ex'}} — colors and kinds same shape.
+   Semantics per #7: includes are any-of within the dimension; AND across dimensions;
+   any excluded value knocks an item out. */
+
+function seedFs(patch = {}) {
+  const fs = {
+    facets: Object.fromEntries(Object.keys(FACETS).map(f => [f, {}])),
+    free: {}, colors: {}, kinds: {},
+    text: '', sort: 'newest', scope: null, /* scope: collection id or null = all */
+  };
+  applyPatch(fs, patch);
+  return fs;
+}
+function applyPatch(fs, patch) {
+  if (patch.facet) for (const [f, vals] of Object.entries(patch.facet)) Object.assign(fs.facets[f], vals);
+  if (patch.facetOr) for (const [f, vals] of Object.entries(patch.facetOr)) Object.assign(fs.facets[f], vals);
+  if (patch.free) Object.assign(fs.free, patch.free);
+  if (patch.colors) Object.assign(fs.colors, patch.colors);
+  if (patch.kinds) Object.assign(fs.kinds, patch.kinds);
+  if (patch.text != null) fs.text = patch.text;
+  if (patch.sort) fs.sort = patch.sort;
+}
+
+function triToggle(obj, key) {
+  const cur = obj[key] || null;
+  obj[key] = cur === null ? 'in' : cur === 'in' ? 'ex' : null;
+}
+
+function matches(it, fs, ignore) {
+  if (fs.scope && !it.collections.has(fs.scope)) return false;
+  /* kind: tri-state */
+  const kin = KINDS.filter(k => fs.kinds[k] === 'in');
+  if (kin.length && !kin.includes(it.kind)) return false;
+  if (fs.kinds[it.kind] === 'ex') return false;
+  /* facets + free tags: any-of within dimension, AND across */
+  for (const [f, vals] of Object.entries(fs.facets)) {
+    const inc = Object.keys(vals).filter(v => vals[v] === 'in');
+    const ex = Object.keys(vals).filter(v => vals[v] === 'ex');
+    if (ex.some(v => it.facetVals.includes(v))) return false;
+    if (inc.length && !inc.some(v => it.facetVals.includes(v))) return false;
+  }
+  const finc = Object.keys(fs.free).filter(v => fs.free[v] === 'in');
+  const fex = Object.keys(fs.free).filter(v => fs.free[v] === 'ex');
+  if (fex.some(v => it.free.includes(v))) return false;
+  if (finc.length && !finc.some(v => it.free.includes(v))) return false;
+  /* colors: item matches a family when ANY carried color maps to it */
+  const cin = Object.keys(fs.colors).filter(v => fs.colors[v] === 'in');
+  const cex = Object.keys(fs.colors).filter(v => fs.colors[v] === 'ex');
+  if (cex.some(f => it.families.includes(f))) return false;
+  if (cin.length && !cin.some(f => it.families.includes(f))) return false;
+  /* text: plain substring over title, note, facet values, free tags, source copy, urls */
+  if (fs.text) {
+    const hay = [
+      it.title, it.note, ...it.facetVals, ...it.free,
+      it.source?.title, it.source?.desc, it.source?.url,
+    ].filter(Boolean).join('\n').toLowerCase();
+    if (!hay.includes(fs.text.toLowerCase())) return false;
+  }
+  return true;
+}
+
+function applySort(items, fs) {
+  const arr = [...items];
+  if (fs.sort === 'newest') arr.sort((a, b) => b.created - a.created);
+  else if (fs.sort === 'oldest') arr.sort((a, b) => a.created - b.created);
+  else if (fs.sort === 'title') arr.sort((a, b) => a.title.localeCompare(b.title));
+  else if (fs.sort === 'shuffle') { for (const it of arr) it._shuf ??= Math.random(); arr.sort((a, b) => a._shuf - b._shuf); }
+  return arr;
+}
+
+function countActive(fs) {
+  let n = 0;
+  for (const vals of Object.values(fs.facets)) n += Object.values(vals).filter(Boolean).length;
+  n += Object.values(fs.free).filter(Boolean).length;
+  n += Object.values(fs.colors).filter(Boolean).length;
+  n += Object.values(fs.kinds).filter(Boolean).length;
+  if (fs.text) n++;
+  return n;
+}
+function clearFs(fs) {
+  for (const vals of Object.values(fs.facets)) for (const k of Object.keys(vals)) delete vals[k];
+  for (const k of Object.keys(fs.free)) delete fs.free[k];
+  for (const k of Object.keys(fs.colors)) delete fs.colors[k];
+  for (const k of Object.keys(fs.kinds)) delete fs.kinds[k];
+  fs.text = '';
+}
+
+const byId = id => store.items.find(i => i.id === id);
+const fmtDate = ts => new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+function ago(ts) {
+  const d = Math.floor((Date.now() - ts) / 86400000);
+  return d === 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? `${d} days ago` : d < 365 ? `${Math.floor(d / 30)} mo ago` : 'over a year ago';
+}
+
+/* value lists for filter surfaces: facet seeds ∪ stray values not in any seed list */
+function facetValues(f) {
+  const known = new Set(Object.values(FACETS).flat());
+  return [...new Set([...FACETS[f], ...store.items.flatMap(i => i.facetVals).filter(v => !known.has(v))])];
+}
+function freeTagUniverse() {
+  const freq = {};
+  for (const it of store.items) for (const t of it.free) freq[t] = (freq[t] || 0) + 1;
+  return Object.keys(freq).sort((a, b) => freq[b] - freq[a]);
+}
+
+/* count helper: items matching fs if `key` in `dim` were included (for per-value counts) */
+function vcount(fs, patchKey, patchDim, val) {
+  const probe = JSON.parse(JSON.stringify(fs));
+  probe.facets = JSON.parse(JSON.stringify(fs.facets)); probe.free = { ...fs.free };
+  probe.colors = { ...fs.colors }; probe.kinds = { ...fs.kinds };
+  if (patchKey === 'kinds') probe.kinds[val] = 'in';
+  else if (patchKey === 'colors') probe.colors[val] = 'in';
+  else if (patchKey === 'free') probe.free[val] = 'in';
+  else probe.facets[patchDim][val] = 'in';
+  return store.items.filter(it => matches(it, probe)).length;
+}
+
+/* ---------- shared card + visual rendering ---------- */
+
+function visualHTML(it, tall) {
+  const h = tall || (it.kind === 'photo' ? 200 + (it.id * 37) % 140 : it.kind === 'screenshot' ? 150 + (it.id * 53) % 90 : null);
+  const g = `background:linear-gradient(${(it.id * 47) % 360}deg, ${it.colors[0]}, ${it.colors[1 % it.colors.length]})`;
+  if (it.kind === 'palette') {
+    return `<div class="visual"><div class="pal">${it.colors.map(c => `<i style="background:${c}"></i>`).join('')}</div></div>`;
+  }
+  if (it.kind === 'url' || it.kind === 'article' || it.kind === 'video') {
+    const glyph = it.kind === 'video' ? '▶️' : it.kind === 'article' ? '📄' : '';
+    return `<div class="visual"><div class="grad" style="height:118px;${g}"></div>${glyph ? `<div class="glyph">${glyph}</div>` : ''}</div>`;
+  }
+  return `<div class="visual"><div class="grad" style="height:${h}px;${g}"></div></div>`;
+}
+
+function cardHTML(it, cclass) {
+  const host = it.source ? new URL(it.source.url).hostname.replace('www.', '') : null;
+  return `<article class="card ${cclass || ''}" data-id="${it.id}">
+    <div class="qactions">
+      <button data-act="open" title="Open item">⤢</button>
+      <button data-act="collect" title="Add to collection">＋</button>
+      ${it.source ? `<button data-act="src" title="Open source">↗</button>` : ''}
+      <button data-act="dots" title="More">⋯</button>
+    </div>
+    ${visualHTML(it)}
+    <div class="cardmeta">
+      <div><span class="kbadge">${KIND_LABEL[it.kind]}</span><span class="sub">${host ? esc(host) : ago(it.created)}</span></div>
+      <b>${esc(it.title)}</b>
+    </div>
+  </article>`;
+}
+
+function bindCards(rootEl, v) {
+  rootEl.querySelectorAll('.card').forEach(card => {
+    const it = byId(+card.dataset.id);
+    card.querySelector('.visual').onclick = () => openDetail(it, v);
+    card.querySelectorAll('[data-act]').forEach(b => b.onclick = e => {
+      e.stopPropagation();
+      const act = b.dataset.act;
+      if (act === 'open') openDetail(it, v);
+      else if (act === 'collect') collectionPicker(it);
+      else if (act === 'src') toast('In the real app: opens ' + it.source.url);
+      else if (act === 'dots') actionSheet(it, v);
+    });
+  });
+}
+
+/* ---------- shared modals ---------- */
+
+function closeModal() { $$('.modal-back, .lightbox, .detail-panel, .detail-page, .sheet-back').forEach(el => el.remove()); }
+
+function collectionPicker(it) {
+  const m = document.createElement('div');
+  m.className = 'modal-back';
+  m.innerHTML = `<div class="modal">
+    <h3>Add to collection</h3>
+    ${store.collections.map(c => `
+      <button class="listitem" data-c="${c.id}">
+        <span>${esc(c.name)}${it.collections.has(c.id) ? ' <span class="n">· already in</span>' : ''}</span>
+        <span class="n">${store.items.filter(i => i.collections.has(c.id)).length}</span>
+      </button>`).join('')}
+    <div class="row"><input type="text" placeholder="New collection…"><button class="primary small" id="mknew">Create</button></div>
+  </div>`;
+  m.onclick = e => { if (e.target === m) m.remove(); };
+  m.querySelectorAll('[data-c]').forEach(b => b.onclick = () => {
+    const c = store.collections.find(x => x.id === b.dataset.c);
+    it.collections.has(c.id) ? it.collections.delete(c.id) : it.collections.add(c.id);
+    toast(it.collections.has(c.id) ? `Added to “${c.name}”` : `Removed from “${c.name}”`);
+    m.remove(); renderCurrent();
+  });
+  m.querySelector('#mknew').onclick = () => {
+    const inp = m.querySelector('input');
+    if (!inp.value.trim()) return;
+    const c = { id: 'c' + Date.now(), name: inp.value.trim() };
+    store.collections.push(c); it.collections.add(c.id);
+    toast(`Added to “${c.name}”`); m.remove(); renderCurrent();
+  };
+  document.body.appendChild(m);
+}
+
+function actionSheet(it, v) {
+  const m = document.createElement('div');
+  m.className = 'modal-back';
+  m.innerHTML = `<div class="modal">
+    <h3>${esc(it.title)}</h3>
+    <button class="listitem" data-a="open"><span>⤢ Open item</span></button>
+    <button class="listitem" data-a="collect"><span>＋ Add to collection</span></button>
+    ${it.source ? `<button class="listitem" data-a="src"><span>↗ Open source</span></button>` : ''}
+    <button class="listitem danger" data-a="del"><span>🗑 Delete item</span></button>
+    <div class="row"><button class="small ghost" id="cancel">Cancel</button></div>
+  </div>`;
+  m.onclick = e => { if (e.target === m) m.remove(); };
+  m.querySelector('#cancel').onclick = () => m.remove();
+  m.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
+    const a = b.dataset.a;
+    if (a === 'open') { m.remove(); openDetail(it, v); }
+    if (a === 'collect') { m.remove(); collectionPicker(it); }
+    if (a === 'src') toast('In the real app: opens ' + it.source.url);
+    if (a === 'del') {
+      store.items = store.items.filter(x => x.id !== it.id);
+      for (const x of store.items) {
+        if (x.originOf === it.id) x.originOf = null;
+        if (x.derived === it.id) x.derived = null;
+      }
+      toast('Deleted (in-memory)'); m.remove(); renderCurrent();
+    }
+  });
+  document.body.appendChild(m);
+}
+
+/* ---------- shared filter-surface builders ----------
+   each chip toggles tri-state and calls back into the variant's rerender */
+
+function triChips(fs, entries, onpick, withCounts, patchKey, patchDim) {
+  return `<div class="chips">${entries.map(([val, label]) => {
+    const st = patchKey === 'kinds' ? fs.kinds[val] : patchKey === 'colors' ? fs.colors[val]
+             : patchKey === 'free' ? fs.free[val] : fs.facets[patchDim][val];
+    const n = withCounts ? vcount(fs, patchKey, patchDim, val) : null;
+    const inner = patchKey === 'colors' ? '' :
+      `${esc(label)}${n != null ? ` <span class="n">${n}</span>` : ''}`;
+    return `<button class="chip ${st === 'in' ? 'in' : st === 'ex' ? 'ex' : ''}"
+      data-tri="${patchKey}" data-dim="${esc(patchDim || '')}" data-val="${esc(val)}" title="tap: include · again: exclude · again: off">
+      ${patchKey === 'colors' ? `<span class="sw ${st === 'in' ? 'in' : st === 'ex' ? 'ex' : ''}" style="background:${familyHex(val, mulberry32(val.length * 7919))};margin-right:6px"></span>` : ''}${inner}</button>`;
+  }).join('')}</div>`;
+}
+
+function bindTri(rootEl, fs, rerender) {
+  rootEl.querySelectorAll('[data-tri]').forEach(b => b.onclick = () => {
+    const key = b.dataset.tri, dim = b.dataset.dim, val = b.dataset.val;
+    triToggle(key === 'kinds' ? fs.kinds : key === 'colors' ? fs.colors : key === 'free' ? fs.free : fs.facets[dim], val);
+    rerender();
+  });
+}
+
+function activeChipsHTML(fs) {
+  const chips = [];
+  for (const [k, val] of Object.entries(fs.kinds)) if (val) chips.push({ dim: 'Kind', val: KIND_LABEL[k], st: val, kind: 'kinds', key: k });
+  for (const [f, vals] of Object.entries(fs.facets))
+    for (const [v, st] of Object.entries(vals)) if (st) chips.push({ dim: f, val: v, st, kind: 'facet', key: f });
+  for (const [v, st] of Object.entries(fs.free)) if (st) chips.push({ dim: 'Tag', val: '#' + v, st, kind: 'free', key: v });
+  for (const [f, st] of Object.entries(fs.colors)) if (st) chips.push({ dim: 'Color', val: f, st, kind: 'colors', key: f });
+  if (fs.text) chips.push({ dim: 'Search', val: `“${fs.text}”`, st: 'in', kind: 'text' });
+  return chips.map(c => `<button class="fchip ${c.st}" data-rm-kind="${c.kind}" data-rm-key="${esc(c.key)}" data-rm-val="${esc(c.val)}">
+    <span class="dim">${esc(c.dim)}</span><b>${esc(c.val)}</b><i>${c.st === 'in' ? '✓' : '≠'}</i></button>`).join('');
+}
+
+function bindActiveChips(rootEl, fs, rerender) {
+  rootEl.querySelectorAll('[data-rm-kind]').forEach(b => b.onclick = () => {
+    const kind = b.dataset.rmKind, key = b.dataset.rmKey;
+    if (kind === 'text') fs.text = '';
+    else if (kind === 'kinds') delete fs.kinds[key];
+    else if (kind === 'colors') delete fs.colors[key];
+    else if (kind === 'free') delete fs.free[key];
+    else delete fs.facets[key][b.dataset.rmVal];
+    rerender();
+  });
+}
+
+function facetSheetBody(fs) {
+  return `
+    <div class="fgroup"><div class="flabel">Kind</div>
+      ${triChips(fs, KINDS.map(k => [k, KIND_LABEL[k]]), null, false, 'kinds')}</div>
+    ${Object.keys(FACETS).map(f => `
+      <div class="fgroup"><div class="flabel">${f}</div>
+        ${triChips(fs, facetValues(f).map(v => [v, v]), null, true, 'facet', f)}</div>`).join('')}
+    <div class="fgroup"><div class="flabel">Free tags</div>
+      ${triChips(fs, freeTagUniverse().map(t => [t, '#' + t]), null, true, 'free')}</div>
+    <div class="fgroup"><div class="flabel">Colors</div>
+      <div class="tri-hint">tap a swatch: include → exclude → off</div>
+      ${triChips(fs, FAMILIES.map(([f]) => [f, f]), null, false, 'colors')}</div>`;
+}
+
+/* ---------- shared saved-search affordance ---------- */
+
+function smartCount(s) { return store.items.filter(it => matches(it, s.fs)).length; }
+
+function saveSearchFlow(fs, afterSave) {
+  const m = document.createElement('div');
+  m.className = 'modal-back';
+  m.innerHTML = `<div class="modal">
+    <h3>Save as smart collection</h3>
+    <p class="empty">Stores this complete filter state + sort (${countActive(fs)} filter${countActive(fs) === 1 ? '' : 's'}, sort: ${fs.sort}). Membership resolves live.</p>
+    <div class="row"><input type="text" placeholder="Name it…"><button class="primary small" id="sv">Save</button></div>
+  </div>`;
+  m.querySelector('#sv').onclick = () => {
+    const name = m.querySelector('input').value.trim();
+    if (!name) return;
+    const s = { id: 's' + Date.now(), name, sort: fs.sort, fs: JSON.parse(JSON.stringify(fs)) };
+    s.fs.scope = null;
+    store.smarts.push(s);
+    toast(`Saved “${name}”`); m.remove(); afterSave && afterSave(s);
+  };
+  document.body.appendChild(m);
+}
+
+/* ---------- shared detail view (content shared, surface per variant) ---------- */
+
+function detailBody(it) {
+  const linked = it.source != null;
+  const origin = it.originOf ? byId(it.originOf) : null;
+  const derived = it.derived ? byId(it.derived) : null;
+  const facetRows = Object.entries(it.facetMap).map(([f, vals]) => vals.length ? `<div class="dblock"><div class="flabel">${esc(f)}</div>
+      <div class="chips">${vals.map(v => `<button class="chip static in">${esc(v)}</button>`).join('')}</div></div>` : '').join('');
+  return `
+    <div class="dtitle">${esc(it.title)}</div>
+    <div class="dsub"><span class="kbadge">${KIND_LABEL[it.kind]}</span> captured ${fmtDate(it.created)} · ${ago(it.created)}</div>
+    ${it.note ? `<div class="dblock"><div class="flabel">Note</div><div class="noteline">${esc(it.note)}</div></div>` : ''}
+    ${linked ? `<div class="dblock"><div class="flabel">Source</div><div class="srcbox">
+      <b>${esc(it.source.title)}</b><p>${esc(it.source.desc)}</p>
+      <span class="u">${esc(it.source.url)}</span></div></div>` : ''}
+    <div class="dblock"><div class="flabel">Colors</div>
+      <div class="swatchline">${it.colors.map(c => `<span class="sq" style="background:${c}" title="${esc(c)}"></span>`).join('')}
+        <span class="empty">${it.families.map(esc).join(' · ')}</span></div></div>
+    ${facetRows}
+    ${it.free.length ? `<div class="dblock"><div class="flabel">Free tags</div>
+      <div class="chips">${it.free.map(t => `<button class="chip static">${esc('#' + t)}</button>`).join('')}</div></div>` : ''}
+    ${origin ? `<div class="dblock"><div class="flabel">Origin</div><div class="originline">Palette saved from <span class="linkish" data-goto="${origin.id}">${esc(origin.title)}</span></div></div>` : ''}
+    ${derived ? `<div class="dblock"><div class="flabel">Derived</div><div class="originline"><span class="linkish" data-goto="${derived.id}">${esc(derived.title)}</span> was saved from this image</div></div>` : ''}
+    ${it.collections.size ? `<div class="dblock"><div class="flabel">In collections</div>
+      <div class="chips">${[...it.collections].map(cid => {
+        const c = store.collections.find(x => x.id === cid);
+        return c ? `<button class="chip static in">${esc(c.name)}</button>` : '';
+      }).join('')}</div></div>` : ''}
+    <div class="dactions">
+      <button class="small" data-d="collect">＋ Collection</button>
+      ${linked ? `<button class="small" data-d="src">↗ Open source</button>` : ''}
+      <button class="small danger" data-d="del">🗑 Delete</button>
+    </div>`;
+}
+
+function bindDetail(rootEl, it, v, close) {
+  rootEl.querySelectorAll('[data-d]').forEach(b => b.onclick = () => {
+    const a = b.dataset.d;
+    if (a === 'collect') collectionPicker(it);
+    else if (a === 'src') toast('In the real app: opens ' + it.source.url);
+    else if (a === 'del') {
+      store.items = store.items.filter(x => x.id !== it.id);
+      for (const x of store.items) { if (x.originOf === it.id) x.originOf = null; if (x.derived === it.id) x.derived = null; }
+      toast('Deleted (in-memory)'); close(); renderCurrent();
+    }
+  });
+  rootEl.querySelectorAll('[data-goto]').forEach(s => s.onclick = () => {
+    const t = byId(+s.dataset.goto);
+    if (t) { close(); openDetail(t, v); }
+  });
+}
+
+function openDetail(it, v) {
+  closeModal();
+  if (v === 'a') {
+    const p = document.createElement('aside');
+    p.className = 'detail-panel';
+    p.innerHTML = `<button class="small ghost" id="dclose">✕ Close</button>${detailBody(it)}`;
+    p.querySelector('#dclose').onclick = () => p.remove();
+    bindDetail(p, it, v, () => p.remove());
+    document.body.appendChild(p);
+  } else if (v === 'b') {
+    const p = document.createElement('div');
+    p.className = 'detail-page';
+    p.innerHTML = `<div class="dhero">
+      <button class="small ghost dback" id="dclose">‹ Back to wall</button>
+      ${visualHTML(it, 300)}
+      ${detailBody(it)}</div>`;
+    p.querySelector('#dclose').onclick = () => p.remove();
+    document.body.appendChild(p);
+    bindDetail(p, it, v, () => p.remove());
+  } else {
+    const p = document.createElement('div');
+    p.className = 'lightbox';
+    p.innerHTML = `<div class="lbox">
+      <div class="lvis">${it.kind === 'palette'
+        ? `<div class="pal" style="width:100%">${it.colors.map(c => `<i style="background:${c};flex:1"></i>`).join('')}</div>`
+        : `<div class="grad" style="background:linear-gradient(${(it.id * 47) % 360}deg, ${it.colors[0]}, ${it.colors[1 % it.colors.length]})"></div>`}</div>
+      <div class="lmeta"><button class="small ghost" id="dclose">✕</button>${detailBody(it)}</div></div>`;
+    p.onclick = e => { if (e.target === p) p.remove(); };
+    p.querySelector('#dclose').onclick = () => p.remove();
+    bindDetail(p, it, v, () => p.remove());
+    document.body.appendChild(p);
+  }
+}
+
+/* ================================================================
+   Variant A — "Library rail": persistent left rail beside the wall,
+   detail = right slide-over. On mobile the rail becomes a drawer.
+   ================================================================ */
+
+const A = {
+  fs: null, openFacets: new Set(Object.keys(FACETS)),
+  fresh() { if (!A.fs) A.fs = seedFs(); },
+
+  mount() {
+    A.fresh();
+    const fs = A.fs;
+    const visible = applySort(store.items.filter(it => matches(it, fs)), fs);
+    const scopeName = fs.scope ? store.collections.find(c => c.id === fs.scope)?.name : 'All items';
+    const n = countActive(fs);
+
+    app.innerHTML = `
+      <div class="toolbar" style="max-width:1200px;margin:0 auto 10px;padding:0 16px">
+        <button class="small a-scopebtn" id="railbtn">☰ Filters</button>
+        <input type="search" class="search" id="q" placeholder="Search titles, notes, tags, sources…" value="${esc(fs.text)}">
+        <select id="sort">
+          <option value="newest" ${fs.sort === 'newest' ? 'selected' : ''}>Newest</option>
+          <option value="oldest" ${fs.sort === 'oldest' ? 'selected' : ''}>Oldest</option>
+          <option value="title" ${fs.sort === 'title' ? 'selected' : ''}>Title A–Z</option>
+          <option value="shuffle" ${fs.sort === 'shuffle' ? 'selected' : ''}>Shuffle</option>
+        </select>
+        <button class="small" id="saveq">🔖 Save search${n ? ` <span class="badge">${n}</span>` : ''}</button>
+      </div>
+      <div class="a-layout" style="max-width:1200px;margin:0 auto;padding:0 16px">
+        <aside class="rail" id="rail">
+          <button class="navitem ${!fs.scope ? 'on' : ''}" data-scope="">All items <span class="n">${store.items.length}</span></button>
+          <h4>Collections</h4>
+          ${store.collections.map(c => `<button class="navitem ${fs.scope === c.id ? 'on' : ''}" data-scope="${c.id}">
+              ${esc(c.name)} <span class="n">${store.items.filter(i => i.collections.has(c.id)).length}</span></button>`).join('')}
+          <h4>Smart collections</h4>
+          ${store.smarts.map(s => `<button class="navitem" data-smart="${s.id}">
+              ${esc(s.name)} <span class="n">${smartCount(s)}</span></button>`).join('')}
+          <h4>Kind</h4>
+          ${triChips(fs, KINDS.map(k => [k, KIND_LABEL[k]]), null, false, 'kinds')}
+          <div class="facetblock" style="border-top:none;padding-top:0">
+          ${Object.keys(FACETS).map(f => `
+            <div class="facetblock">
+              <button class="facethead" data-f="${f}">${f}
+                <span class="n">${Object.values(fs.facets[f]).filter(Boolean).length ? Object.entries(fs.facets[f]).filter(([, s]) => s).map(([v, s]) => (s === 'ex' ? '≠' : '') + v).join(', ') : 'any ▾'}</span>
+              </button>
+              ${A.openFacets.has(f) ? triChips(fs, facetValues(f).map(v => [v, v]), null, true, 'facet', f) : ''}
+            </div>`).join('')}
+          </div>
+          <div class="facetblock">
+            <button class="facethead" data-f="__free">Free tags <span class="n">${Object.values(fs.free).filter(Boolean).length ? '●' : 'any ▾'}</span></button>
+            ${A.openFacets.has('__free') ? triChips(fs, freeTagUniverse().map(t => [t, '#' + t]), null, true, 'free') : ''}
+          </div>
+          <div class="facetblock">
+            <button class="facethead" data-f="__color">Colors <span class="n">${Object.values(fs.colors).filter(Boolean).length ? '●' : 'any ▾'}</span></button>
+            ${A.openFacets.has('__color') ? `
+              <div class="tri-hint">tap: include → exclude → off</div>
+              ${triChips(fs, FAMILIES.map(([f]) => [f, f]), null, false, 'colors')}` : ''}
+          </div>
+        </aside>
+        <section>
+          <div class="wallhead">
+            <b>${esc(scopeName)}</b>
+            <span class="dim">Showing ${visible.length} of ${store.items.length} · ${n} filter${n === 1 ? '' : 's'} active</span>
+            ${n ? `<button class="small ghost" id="clearall">Clear all</button>` : ''}
+          </div>
+          ${visible.length ? `<div class="wall" id="wall">${visible.map(it => cardHTML(it)).join('')}</div>`
+            : `<p class="empty">Nothing matches. Loosen a filter or clear all.</p>`}
+        </section>
+      </div>`;
+
+    /* wiring */
+    $('#q').oninput = e => { fs.text = e.target.value.trim(); A.paintWall(); };
+    $('#sort').onchange = e => { fs.sort = e.target.value; renderCurrent(); };
+    $('#saveq').onclick = () => saveSearchFlow(fs, () => renderCurrent());
+    const ca = $('#clearall'); if (ca) ca.onclick = () => { clearFs(fs); fs.scope = null; renderCurrent(); };
+    $('#railbtn').onclick = () => document.body.classList.toggle('rail-open');
+    document.removeEventListener('click', A._doc);
+    A._doc = e => {
+      if (!document.body.classList.contains('rail-open')) return;
+      if (e.target.closest('#rail') || e.target.closest('#railbtn')) return;
+      document.body.classList.remove('rail-open');
+    };
+    document.addEventListener('click', A._doc);
+    $$('[data-scope]').forEach(b => b.onclick = () => { fs.scope = b.dataset.scope || null; document.body.classList.remove('rail-open'); renderCurrent(); });
+    $$('[data-smart]').forEach(b => b.onclick = () => {
+      const s = store.smarts.find(x => x.id === b.dataset.smart);
+      clearFs(fs);
+      Object.assign(fs.facets, JSON.parse(JSON.stringify(s.fs.facets)));
+      fs.free = { ...s.fs.free }; fs.colors = { ...s.fs.colors }; fs.kinds = { ...s.fs.kinds };
+      fs.text = s.fs.text; fs.sort = s.sort; fs.scope = null;
+      document.body.classList.remove('rail-open');
+      toast(`Smart collection “${s.name}” — ${smartCount(s)} items, live`);
+      renderCurrent();
+    });
+    $$('[data-f]').forEach(b => b.onclick = () => {
+      const f = b.dataset.f;
+      A.openFacets.has(f) ? A.openFacets.delete(f) : A.openFacets.add(f);
+      renderCurrent();
+    });
+    bindTri($('#rail'), fs, renderCurrent);
+    A.paintWall();
+  },
+
+  paintWall() {
+    const fs = A.fs;
+    const inScope = store.items.filter(it => matches(it, fs));
+    const visible = applySort(inScope, fs);
+    const n = countActive(fs);
+    const wall = $('#wall');
+    const head = $('.wallhead');
+    if (head) head.innerHTML = `<b>${esc(fs.scope ? store.collections.find(c => c.id === fs.scope)?.name : 'All items')}</b>
+      <span class="dim">Showing ${visible.length} of ${store.items.length} · ${n} filter${n === 1 ? '' : 's'} active</span>
+      ${n ? `<button class="small ghost" id="clearall">Clear all</button>` : ''}`;
+    if (head && $('#clearall')) $('#clearall').onclick = () => { clearFs(fs); fs.scope = null; renderCurrent(); };
+    if (!wall) return;
+    wall.innerHTML = visible.length ? visible.map(it => cardHTML(it)).join('') : '';
+    if (!visible.length) wall.outerHTML = `<p class="empty">Nothing matches. Loosen a filter or clear all.</p>`;
+    bindCards($('#wall') || app, A.key);
+  },
+  get key() { return 'a'; },
+};
+
+/* ================================================================
+   Variant B — "Chips & sheet": toolbar + live active-filter chips,
+   filters in a full sheet, detail = full-screen page.
+   ================================================================ */
+
+const B = {
+  fs: null,
+  fresh() { if (!B.fs) B.fs = seedFs(); },
+
+  mount() {
+    B.fresh();
+    const fs = B.fs;
+    const visible = applySort(store.items.filter(it => matches(it, fs)), fs);
+    const n = countActive(fs);
+
+    app.innerHTML = `
+      <div class="toolbar" style="max-width:1000px;margin:0 auto;padding:0 16px">
+        <input type="search" class="search" id="q" placeholder="Search…" value="${esc(fs.text)}">
+        <button id="filterbtn">⚙ Filters${n ? ` <span class="badge">${n}</span>` : ''}</button>
+        <select id="sort">
+          <option value="newest" ${fs.sort === 'newest' ? 'selected' : ''}>Newest</option>
+          <option value="oldest" ${fs.sort === 'oldest' ? 'selected' : ''}>Oldest</option>
+          <option value="title" ${fs.sort === 'title' ? 'selected' : ''}>Title A–Z</option>
+          <option value="shuffle" ${fs.sort === 'shuffle' ? 'selected' : ''}>Shuffle</option>
+        </select>
+        <button id="savedbtn">Saved ▾</button>
+        <button class="small" id="saveq">🔖</button>
+      </div>
+      <div style="max-width:1000px;margin:0 auto;padding:0 16px">
+        <div class="activerow" id="activerow">
+          <span class="lbl">Filters:</span>
+          ${activeChipsHTML(fs) || '<span class="lbl">none — showing everything</span>'}
+          ${n ? `<button class="small ghost" id="clearall">Clear all</button>` : ''}
+        </div>
+        <div class="wallhead">
+          <b>${esc(fs.scope ? store.collections.find(c => c.id === fs.scope)?.name : 'All items')}</b>
+          <span class="dim">${visible.length} of ${store.items.length}</span>
+        </div>
+        <div class="wall" id="wall">${visible.map(it => cardHTML(it)).join('')}</div>
+        ${!visible.length ? `<p class="empty">Nothing matches these filters.</p>` : ''}
+      </div>`;
+
+    $('#q').oninput = e => { fs.text = e.target.value.trim(); B.rerenderWall(); };
+    $('#sort').onchange = e => { fs.sort = e.target.value; renderCurrent(); };
+    $('#filterbtn').onclick = B.openSheet;
+    $('#saveq').onclick = () => saveSearchFlow(fs, () => renderCurrent());
+    $('#savedbtn').onclick = B.openSaved;
+    const ca = $('#clearall'); if (ca) ca.onclick = () => { clearFs(fs); fs.scope = null; renderCurrent(); };
+    bindActiveChips($('#activerow'), fs, renderCurrent);
+    bindCards($('#wall'), B.key);
+  },
+
+  rerenderWall() {
+    const fs = B.fs;
+    const visible = applySort(store.items.filter(it => matches(it, fs)), fs);
+    const n = countActive(fs);
+    $('#activerow').innerHTML = `<span class="lbl">Filters:</span>${activeChipsHTML(fs) || '<span class="lbl">none — showing everything</span>'}
+      ${n ? `<button class="small ghost" id="clearall">Clear all</button>` : ''}`;
+    bindActiveChips($('#activerow'), fs, renderCurrent);
+    const ca = $('#clearall'); if (ca) ca.onclick = () => { clearFs(fs); fs.scope = null; renderCurrent(); };
+    $('#wall').innerHTML = visible.map(it => cardHTML(it)).join('');
+    bindCards($('#wall'), B.key);
+    $('.wallhead .dim').textContent = `${visible.length} of ${store.items.length}`;
+  },
+
+  openSheet() {
+    const fs = B.fs;
+    const back = document.createElement('div');
+    back.className = 'sheet-back';
+    back.innerHTML = `<div class="sheet">
+      <div class="grip"></div>
+      <h3>Filter the wall</h3>
+      <p class="empty">Within a row: any-of. Across rows: AND. Second tap excludes (≠).</p>
+      ${facetSheetBody(fs)}
+      <div class="donebar"><button class="primary" id="done">Done · ${store.items.filter(it => matches(it, fs)).length} items match</button></div>
+    </div>`;
+    back.onclick = e => { if (e.target === back) back.remove(); };
+    bindTri(back, fs, () => {
+      back.querySelector('#done').textContent = `Done · ${store.items.filter(it => matches(it, fs)).length} items match`;
+      B.rerenderWall();
+    });
+    back.querySelector('#done').onclick = () => { back.remove(); renderCurrent(); };
+    document.body.appendChild(back);
+  },
+
+  openSaved() {
+    const fs = B.fs;
+    const m = document.createElement('div');
+    m.className = 'modal-back';
+    m.innerHTML = `<div class="modal">
+      <h3>Saved &amp; collections</h3>
+      <button class="listitem" data-scope=""><span>🗂 All items</span><span class="n">${store.items.length}</span></button>
+      <div class="fgroup"><div class="flabel">Collections</div>
+        ${store.collections.map(c => `<button class="listitem" data-scope="${c.id}">
+          <span>📂 ${esc(c.name)}${fs.scope === c.id ? ' ·' : ''}</span>
+          <span class="n">${store.items.filter(i => i.collections.has(c.id)).length}</span></button>`).join('')}
+      </div>
+      <div class="fgroup"><div class="flabel">Saved searches</div>
+        ${store.smarts.map(s => `<button class="listitem" data-s="${s.id}">
+          <span>🔍 ${esc(s.name)}</span><span class="n">${smartCount(s)} · ${esc(s.sort)}</span></button>`).join('')}
+      </div>
+      <p class="empty" style="margin-top:8px">A saved search stores the complete filter state + sort. Membership follows the items.</p>
+    </div>`;
+    m.onclick = e => { if (e.target === m) m.remove(); };
+    m.querySelectorAll('[data-scope]').forEach(b => b.onclick = () => {
+      fs.scope = b.dataset.scope || null;
+      m.remove(); renderCurrent();
+    });
+    m.querySelectorAll('[data-s]').forEach(b => b.onclick = () => {
+      const s = store.smarts.find(x => x.id === b.dataset.s);
+      clearFs(fs);
+      Object.assign(fs.facets, JSON.parse(JSON.stringify(s.fs.facets)));
+      fs.free = { ...s.fs.free }; fs.colors = { ...s.fs.colors }; fs.kinds = { ...s.fs.kinds };
+      fs.text = s.fs.text; fs.sort = s.sort;
+      m.remove(); toast(`“${s.name}” — ${smartCount(s)} items, live`); renderCurrent();
+    });
+    document.body.appendChild(m);
+  },
+  get key() { return 'b'; },
+};
+
+/* ================================================================
+   Variant C — "Immersive wall": near-zero chrome, search-first
+   omnibox with a filter popover, bottom sheet for the library,
+   detail = lightbox.
+   ================================================================ */
+
+const C = {
+  fs: null,
+  fresh() { if (!C.fs) C.fs = seedFs(); },
+
+  mount() {
+    C.fresh();
+    const fs = C.fs;
+    const visible = applySort(store.items.filter(it => matches(it, fs)), fs);
+    const n = countActive(fs);
+
+    app.innerHTML = `
+      <div class="c-top">
+        <span class="brand">Inzpo</span>
+        <div class="omni">
+          <input type="search" id="q" placeholder="Search — focus for filters, sorts & saved searches" value="${esc(fs.text)}">
+          <div class="c-pop" id="omnipop" hidden>
+            <div style="display:flex;gap:8px;margin-bottom:10px">
+              <select id="sort">
+                <option value="newest" ${fs.sort === 'newest' ? 'selected' : ''}>Newest</option>
+                <option value="oldest" ${fs.sort === 'oldest' ? 'selected' : ''}>Oldest</option>
+                <option value="title" ${fs.sort === 'title' ? 'selected' : ''}>Title A–Z</option>
+                <option value="shuffle" ${fs.sort === 'shuffle' ? 'selected' : ''}>Shuffle</option>
+              </select>
+              <button class="small" id="saveq">🔖 Save this search</button>
+            </div>
+            <div class="pop-inner">
+              <div class="activerow">${activeChipsHTML(fs) || `<span class="lbl">No active filters</span>`}</div>
+              ${facetSheetBody(fs)}
+            </div>
+          </div>
+        </div>
+        <button class="small" id="savedbtn">🔖</button>
+        <button class="small lib-pill" id="libbtn">☰ Library</button>
+      </div>
+      <div style="padding:0 10px">
+        <div class="wallhead" style="padding:0 6px">
+          <span class="dim">${visible.length} of ${store.items.length}${fs.scope ? ' · in a collection' : ''} · ${n} filter${n === 1 ? '' : 's'}</span>
+        </div>
+        <div class="wall c-wall" id="wall">${visible.map(it => cardHTML(it, 'c')).join('')}</div>
+        ${!visible.length ? `<p class="empty" style="padding:10px">Nothing matches.</p>` : ''}
+      </div>`;
+
+    const pop = $('#omnipop');
+    $('#q').onfocus = () => { pop.hidden = false; };
+    $('#q').oninput = e => { fs.text = e.target.value.trim(); C.rerenderWall(); };
+    if (!C._ocBound) {
+      document.addEventListener('click', C.outsideClose);
+      C._ocBound = true;
+    }
+    $('#sort').onchange = e => { fs.sort = e.target.value; renderCurrent(); };
+    $('#saveq').onclick = () => saveSearchFlow(fs, () => renderCurrent());
+    $('#savedbtn').onclick = C.openSaved;
+    $('#libbtn').onclick = C.openLibrary;
+    C.bindPop();
+    bindCards($('#wall'), C.key);
+  },
+
+  bindPop() {
+    const fs = C.fs;
+    const pop = $('#omnipop');
+    if (!pop) return;
+    bindActiveChips(pop.querySelector('.pop-inner'), fs, C.refresh);
+    bindTri(pop, fs, C.refresh);
+  },
+
+  refresh() {
+    const fs = C.fs;
+    C.rerenderWall();
+    const pop = $('#omnipop');
+    if (pop) {
+      pop.querySelector('.pop-inner').innerHTML = `
+        <div class="activerow">${activeChipsHTML(fs) || `<span class="lbl">No active filters</span>`}</div>
+        ${facetSheetBody(fs)}`;
+      C.bindPop();
+    }
+  },
+
+  outsideClose(e) {
+    const pop = $('#omnipop');
+    if (pop && !pop.hidden && !pop.contains(e.target) && e.target.id !== 'q') pop.hidden = true;
+  },
+
+  rerenderWall() {
+    const fs = C.fs;
+    const visible = applySort(store.items.filter(it => matches(it, fs)), fs);
+    const n = countActive(fs);
+    const wall = $('#wall');
+    if (!wall) return;
+    wall.innerHTML = visible.map(it => cardHTML(it, 'c')).join('');
+    bindCards(wall, C.key);
+    $('.wallhead .dim').textContent = `${visible.length} of ${store.items.length} · ${n} filter${n === 1 ? '' : 's'}`;
+    const ar = $('#omnipop .activerow');
+    if (ar) { ar.innerHTML = activeChipsHTML(fs) || '<span class="lbl">No active filters</span>'; bindActiveChips(ar.parentElement, fs, C.rerenderWall); }
+  },
+
+  openSaved() {
+    const m = document.createElement('div');
+    m.className = 'modal-back';
+    m.innerHTML = `<div class="modal">
+      <h3>Saved searches</h3>
+      ${store.smarts.map(s => `<button class="listitem" data-s="${s.id}">
+          <span>🔍 ${esc(s.name)}</span><span class="n">${smartCount(s)} · ${esc(s.sort)}</span></button>`).join('')}
+    </div>`;
+    m.onclick = e => { if (e.target === m) m.remove(); };
+    m.querySelectorAll('[data-s]').forEach(b => b.onclick = () => {
+      const s = store.smarts.find(x => x.id === b.dataset.s);
+      clearFs(C.fs);
+      Object.assign(C.fs.facets, JSON.parse(JSON.stringify(s.fs.facets)));
+      C.fs.free = { ...s.fs.free }; C.fs.colors = { ...s.fs.colors }; C.fs.kinds = { ...s.fs.kinds };
+      C.fs.text = s.fs.text; C.fs.sort = s.sort;
+      m.remove(); toast(`“${s.name}” — ${smartCount(s)} items, live`); renderCurrent();
+    });
+    document.body.appendChild(m);
+  },
+
+  openLibrary() {
+    const fs = C.fs;
+    const back = document.createElement('div');
+    back.className = 'sheet-back';
+    back.innerHTML = `<div class="sheet">
+      <div class="grip"></div>
+      <h3>Library</h3>
+      <button class="listitem" data-scope="">All items <span class="n">${store.items.length}</span></button>
+      <div class="fgroup"><div class="flabel">Collections</div>
+        ${store.collections.map(c => `<button class="listitem" data-scope="${c.id}">
+          <span>📂 ${esc(c.name)}</span><span class="n">${store.items.filter(i => i.collections.has(c.id)).length}</span></button>`).join('')}
+      </div>
+      <div class="fgroup"><div class="flabel">Smart collections</div>
+        ${store.smarts.map(s => `<button class="listitem" data-smart="${s.id}">
+          <span>🔍 ${esc(s.name)}</span><span class="n">${smartCount(s)} · ${esc(s.sort)}</span></button>`).join('')}
+      </div>
+    </div>`;
+    back.onclick = e => { if (e.target === back) back.remove(); };
+    back.querySelectorAll('[data-scope]').forEach(b => b.onclick = () => {
+      fs.scope = b.dataset.scope || null; back.remove(); renderCurrent();
+    });
+    back.querySelectorAll('[data-smart]').forEach(b => b.onclick = () => {
+      const s = store.smarts.find(x => x.id === b.dataset.smart);
+      clearFs(fs);
+      Object.assign(fs.facets, JSON.parse(JSON.stringify(s.fs.facets)));
+      fs.free = { ...s.fs.free }; fs.colors = { ...s.fs.colors }; fs.kinds = { ...s.fs.kinds };
+      fs.text = s.fs.text; fs.sort = s.sort; fs.scope = null;
+      back.remove(); toast(`“${s.name}” — ${smartCount(s)} items, live`); renderCurrent();
+    });
+    document.body.appendChild(back);
+  },
+  get key() { return 'c'; },
+};
+
+/* ---------- variant registry + floating switcher ---------- */
+
+const VARIANTS = [
+  { key: 'a', name: 'Library rail', mod: A },
+  { key: 'b', name: 'Chips & sheet', mod: B },
+  { key: 'c', name: 'Immersive wall', mod: C },
+];
+let current = 0;
+
+function renderCurrent() {
+  const v = VARIANTS[current];
+  document.title = `Inzpo browse · ${v.key.toUpperCase()} (${v.name})`;
+  v.mod.mount();
+}
+
+function setParams(kv) {
+  const p = new URLSearchParams(location.search);
+  for (const [k, val] of Object.entries(kv)) val == null ? p.delete(k) : p.set(k, val);
+  history.replaceState(null, '', location.pathname + '?' + p.toString() + location.hash);
+}
+
+function go(delta) {
+  closeModal();
+  document.body.classList.remove('rail-open');
+  current = (current + delta + VARIANTS.length) % VARIANTS.length;
+  setParams({ variant: VARIANTS[current].key });
+  renderCurrent();
+}
+
+function setPhone(on) {
+  document.body.classList.toggle('phone', on);
+  document.getElementById('sw-phone').style.fontWeight = on ? 800 : 400;
+  setParams({ phone: on ? '1' : null });
+}
+
+const vl = document.getElementById('vlabel');
+function paintSwitcher() { vl.textContent = `${VARIANTS[current].key.toUpperCase()} (${VARIANTS[current].name})`; }
+document.getElementById('sw-prev').onclick = () => go(-1);
+document.getElementById('sw-next').onclick = () => go(1);
+document.getElementById('sw-phone').onclick = () => setPhone(!document.body.classList.contains('phone'));
+document.getElementById('sw-reset').onclick = () => {
+  buildLibrary(); A.fs = null; B.fs = null; C.fs = null; closeModal(); renderCurrent();
+};
+window.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea, select, [contenteditable]')) return;
+  if (e.key === 'ArrowLeft') go(-1);
+  if (e.key === 'ArrowRight') go(1);
+  if (e.key === 'Escape') closeModal();
+});
+
+/* boot from URL */
+buildLibrary();
+const p0 = new URLSearchParams(location.search);
+current = Math.max(0, VARIANTS.findIndex(v => v.key === (p0.get('variant') || 'a')));
+if (p0.get('phone') === '1') setPhone(true);
+paintSwitcher();
+renderCurrent();
+</script>
+</body>
+</html>
