@@ -3,6 +3,11 @@ import { capture } from "./actions";
 import { ImageDropzone } from "./ImageDropzone";
 import { TagTray } from "./TagTray";
 import { loadTrayFacets } from "./tray";
+import { DuplicateNotice } from "./DuplicateNotice";
+import { SavedToast } from "./SavedToast";
+import { db } from "@/lib/db";
+import { items } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +22,19 @@ const ERRORS: Record<string, string> = {
 export default async function CapturePage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   const params = await searchParams;
   const facets = await loadTrayFacets();
+
+  let savedTitle: string | null = null;
+  if (params.saved) {
+    const rows = await db.select({ title: items.title }).from(items).where(eq(items.id, params.saved)).limit(1);
+    savedTitle = rows[0]?.title ?? null;
+  }
+
+  // Total reset: the tray and dropzone remount fresh on every visit — nothing carries over.
+  const resetKey = params.saved ?? params.error ?? "fresh";
 
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -32,6 +46,8 @@ export default async function CapturePage({
           <span className="text-sm text-neutral-500">Capture</span>
         </div>
 
+        {params.saved ? <SavedToast itemId={params.saved} title={savedTitle} /> : null}
+
         <form action={capture} className="mt-6 pb-4">
           <input
             type="url"
@@ -40,16 +56,17 @@ export default async function CapturePage({
             placeholder="Paste a link…"
             className="w-full rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-base outline-none focus:border-neutral-500 min-h-[44px]"
           />
+          <DuplicateNotice />
           <p className="mt-2 text-center text-xs text-neutral-500">— or —</p>
           <div className="mt-2">
-            <ImageDropzone />
+            <ImageDropzone key={`drop-${resetKey}`} />
           </div>
           {params.error ? (
             <p className="mt-2 text-sm text-red-400">{ERRORS[params.error] ?? "Something went wrong."}</p>
           ) : null}
 
           <div className="mt-6">
-            <TagTray facets={facets} />
+            <TagTray key={`tray-${resetKey}`} facets={facets} />
           </div>
 
           <button

@@ -13,8 +13,11 @@ function inList(values: string[]): SQL {
   );
 }
 
-export function buildWallQuery(state: FilterState): WallQuery {
+export function buildWallQuery(state: FilterState, collectionId?: string | null): WallQuery {
   const conds: SQL[] = [sql`i.capture_state = 'ready'`];
+  if (collectionId) {
+    conds.push(sql`exists (select 1 from collection_items ci where ci.item_id = i.id and ci.collection_id = ${collectionId})`);
+  }
 
   // kinds — any-of among includes, all excludes forbidden
   const includedKinds = Object.entries(state.kinds)

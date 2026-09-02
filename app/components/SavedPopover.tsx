@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { serializeFilter, type FilterState } from "@/lib/filter";
+import { deleteCollectionAction, renameCollectionAction } from "@/app/actions/collections";
 import { deleteSavedAction, renameSavedAction, saveSearchAction } from "@/app/actions/saved";
+import { serializeFilter, type FilterState } from "@/lib/filter";
 
 export interface SavedEntry {
   id: string;
@@ -11,7 +12,21 @@ export interface SavedEntry {
   f: string;
 }
 
-export function SavedPopover({ state, entries }: { state: FilterState; entries: SavedEntry[] }) {
+export interface CollectionEntry {
+  id: string;
+  name: string;
+  count: number;
+}
+
+export function SavedPopover({
+  state,
+  entries,
+  collections,
+}: {
+  state: FilterState;
+  entries: SavedEntry[];
+  collections: CollectionEntry[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [counts, setCounts] = useState<Record<string, number | "…">>({});
@@ -54,12 +69,10 @@ export function SavedPopover({ state, entries }: { state: FilterState; entries: 
       </button>
 
       {open ? (
-        <div className="absolute right-0 z-30 mt-2 w-72 rounded-xl border border-neutral-700 bg-neutral-950 p-3 shadow-xl">
-          {entries.length === 0 && !naming ? (
-            <p className="text-xs text-neutral-500">No saved searches yet. The filter bar is the query language — save its state here.</p>
-          ) : null}
-
-          <ul className="space-y-1">
+        <div className="absolute right-0 z-30 mt-2 max-h-[75vh] w-72 overflow-y-auto rounded-xl border border-neutral-700 bg-neutral-950 p-3 shadow-xl">
+          <h3 className="text-xs uppercase tracking-wide text-neutral-500">Smart collections</h3>
+          {entries.length === 0 ? <p className="mt-1 text-xs text-neutral-600">None yet.</p> : null}
+          <ul className="mt-1 space-y-1">
             {entries.map((entry) => (
               <li key={entry.id} className="flex items-center gap-1">
                 {renaming === entry.id ? (
@@ -89,9 +102,7 @@ export function SavedPopover({ state, entries }: { state: FilterState; entries: 
                       className="flex flex-1 items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-neutral-900 min-h-[32px]"
                     >
                       <span className="truncate">{entry.name}</span>
-                      <span className="ml-2 text-xs text-neutral-500">
-                        {counts[entry.id] ?? "…"}
-                      </span>
+                      <span className="ml-2 text-xs text-neutral-500">{counts[entry.id] ?? "…"}</span>
                     </button>
                     <button
                       type="button"
@@ -104,7 +115,7 @@ export function SavedPopover({ state, entries }: { state: FilterState; entries: 
                     <form action={deleteSavedAction}>
                       <input type="hidden" name="id" value={entry.id} />
                       <button type="submit" className="px-1 text-xs text-neutral-500 hover:text-red-400" aria-label={`Delete ${entry.name}`}>
-                        🗑
+                        ✕
                       </button>
                     </form>
                   </>
@@ -138,8 +149,67 @@ export function SavedPopover({ state, entries }: { state: FilterState; entries: 
               + Save this search
             </button>
           )}
+
+          <h3 className="mt-4 text-xs uppercase tracking-wide text-neutral-500">Collections</h3>
+          {collections.length === 0 ? <p className="mt-1 text-xs text-neutral-600">None yet — add Items from their detail view.</p> : null}
+          <ul className="mt-1 space-y-1">
+            {collections.map((col) => (
+              <li key={col.id} className="flex items-center gap-1">
+                {renaming === `c:${col.id}` ? (
+                  <form action={renameCollectionAction} className="flex flex-1 items-center gap-1">
+                    <input type="hidden" name="id" value={col.id} />
+                    <input
+                      ref={nameRef}
+                      name="name"
+                      defaultValue={col.name}
+                      className="flex-1 rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs"
+                    />
+                    <button type="submit" className="rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-900">
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRenaming(null)}
+                      className="text-xs text-neutral-500"
+                    >
+                      ✕
+                    </button>
+                  </form>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpen(false);
+                        router.push(`/?c=${col.id}`);
+                      }}
+                      className="flex flex-1 items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-neutral-900 min-h-[32px]"
+                    >
+                      <span className="truncate">{col.name}</span>
+                      <span className="ml-2 text-xs text-neutral-500">{col.count}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRenaming(`c:${col.id}`)}
+                      className="px-1 text-xs text-neutral-500 hover:text-neutral-300"
+                      aria-label={`Rename collection ${col.name}`}
+                    >
+                      ✎
+                    </button>
+                    <form action={deleteCollectionAction}>
+                      <input type="hidden" name="id" value={col.id} />
+                      <button type="submit" className="px-1 text-xs text-neutral-500 hover:text-red-400" aria-label={`Delete collection ${col.name}`}>
+                        ✕
+                      </button>
+                    </form>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
     </div>
   );
 }
+

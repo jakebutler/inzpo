@@ -24,8 +24,8 @@ export interface WallItem {
   freeTags: string[];
 }
 
-export async function getWallItems(state: FilterState): Promise<WallItem[]> {
-  const { where, orderBy } = buildWallQuery(state);
+export async function getWallItems(state: FilterState, collectionId?: string | null): Promise<WallItem[]> {
+  const { where, orderBy } = buildWallQuery(state, collectionId);
   const rows = await db.execute(sql`
     select i.id,
       i.kind,
@@ -46,8 +46,8 @@ export async function getWallItems(state: FilterState): Promise<WallItem[]> {
   return rows.rows as unknown as WallItem[];
 }
 
-export async function countWallItems(state: FilterState): Promise<number> {
-  const { where } = buildWallQuery(state);
+export async function countWallItems(state: FilterState, collectionId?: string | null): Promise<number> {
+  const { where } = buildWallQuery(state, collectionId);
   const rows = await db.execute(sql`select count(*)::int as n from items i where ${where}`);
   return (rows.rows[0] as { n: number }).n;
 }

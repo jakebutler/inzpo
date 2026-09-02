@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createImageItem } from "@/lib/items";
 import { createLinkedItem } from "@/lib/capture-url";
 import { attachTags, parseTagSelection } from "@/lib/ontology";
-import { isHttpUrl, normalizeUrl } from "@/lib/url";
+import { isHttpUrl } from "@/lib/url";
 
 export async function capture(formData: FormData): Promise<void> {
   const file = formData.get("image");
@@ -22,7 +22,7 @@ export async function capture(formData: FormData): Promise<void> {
     }
     await attachTags(itemId, tags);
     revalidatePath("/");
-    redirect("/");
+    redirect(`/capture?saved=${itemId}`);
   }
 
   if (rawUrl.length > 0) {
@@ -38,15 +38,8 @@ export async function capture(formData: FormData): Promise<void> {
       redirect("/capture?error=capture-failed");
     }
     revalidatePath("/");
-    redirect("/");
+    redirect(`/capture?saved=${result.itemId}`);
   }
 
   redirect("/capture?error=missing-image");
-}
-
-export async function checkDuplicate(rawUrl: string): Promise<string | null> {
-  const normalized = normalizeUrl(rawUrl);
-  const { findExistingByNormalizedUrl } = await import("@/lib/capture-url");
-  const existing = await findExistingByNormalizedUrl(normalized);
-  return existing ? existing.itemId : null;
 }

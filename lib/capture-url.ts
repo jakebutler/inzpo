@@ -146,7 +146,9 @@ export async function createLinkedItem(input: CreateLinkedItemInput): Promise<Cr
   return { itemId: id, kind, previewCaptured };
 }
 
-export async function findExistingByNormalizedUrl(normalized: string): Promise<{ itemId: string; title: string | null } | null> {
+export async function findExistingByNormalizedUrl(rawOrNormalized: string): Promise<{ itemId: string; title: string | null } | null> {
+  // normalizing inside makes the lookup safe for any caller (idempotent)
+  const normalized = normalizeUrl(rawOrNormalized);
   const rows = await db.execute(sql`
     select i.id, i.title
     from item_sources s join items i on i.id = s.item_id

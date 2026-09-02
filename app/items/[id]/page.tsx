@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getItemDetail } from "@/lib/items";
 import { getItemTags } from "@/lib/ontology";
+import { getItemCollections, listCollectionOptions } from "@/lib/item-collections";
 import { DeleteButton } from "../DeleteButton";
+import { addToCollectionAction, removeFromCollectionAction } from "@/app/actions/collections";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,8 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
   const item = await getItemDetail(id);
   if (!item) notFound();
   const tags = await getItemTags(id);
+  const [memberships, options] = await Promise.all([getItemCollections(id), listCollectionOptions()]);
+  const joinable = options.filter((o) => !memberships.some((m) => m.id === o.id));
 
   const facetGroups = new Map<string, string[]>();
   for (const t of tags.facetTags) {
@@ -122,6 +126,55 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
             </div>
           </section>
         ) : null}
+
+        <section className="mt-6">
+          <h2 className="text-xs uppercase tracking-wide text-neutral-500">Collections</h2>
+          {memberships.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {memberships.map((m) => (
+                <span key={m.id} className="flex items-center gap-1 rounded-full border border-neutral-700 bg-neutral-900 py-1 pl-3 pr-1 text-sm">
+                  {m.name}
+                  <form action={removeFromCollectionAction}>
+                    <input type="hidden" name="itemId" value={item.id} />
+                    <input type="hidden" name="collectionId" value={m.id} />
+                    <button type="submit" className="rounded-full px-2 text-xs text-neutral-500 hover:text-red-400" aria-label={`Remove from ${m.name}`}>
+                      ✕
+                    </button>
+                  </form>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1 text-xs text-neutral-600">Not in any collection yet.</p>
+          )}
+          <form action={addToCollectionAction} className="mt-2 flex flex-wrap items-center gap-1.5">
+            <input type="hidden" name="itemId" value={item.id} />
+            {joinable.length > 0 ? (
+              <select
+                name="collectionId"
+                aria-label="Add to collection"
+                className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm min-h-[36px]"
+              >
+                <option value="">Add to collection…</option>
+                {joinable.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+            <input
+              type="text"
+              name="newName"
+              placeholder="＋ new collection"
+              aria-label="New collection name"
+              className="w-40 rounded-full border border-dashed border-neutral-700 bg-transparent px-3 py-1.5 text-sm min-h-[36px] outline-none focus:border-neutral-500"
+            />
+            <button type="submit" className="rounded-full border border-neutral-700 px-3 py-1.5 text-sm min-h-[36px] hover:border-neutral-500">
+              Add
+            </button>
+          </form>
+        </section>
 
         <section className="mt-8 flex items-center justify-between border-t border-neutral-800 pt-4 pb-8">
           {item.source ? (
