@@ -1,10 +1,18 @@
 import Link from "next/link";
-import { captureImage } from "./actions";
+import { capture } from "./actions";
 import { ImageDropzone } from "./ImageDropzone";
 import { TagTray } from "./TagTray";
 import { loadTrayFacets } from "./tray";
 
 export const dynamic = "force-dynamic";
+
+const ERRORS: Record<string, string> = {
+  "missing-image": "Paste a URL or choose an image first.",
+  "bad-url": "That doesn't look like a valid http(s) URL.",
+  "blocked-url": "That address is blocked (private/internal networks are not fetchable).",
+  "capture-failed": "Capture failed — try again.",
+  "bad-image": "That file could not be processed as an image.",
+};
 
 export default async function CapturePage({
   searchParams,
@@ -24,13 +32,20 @@ export default async function CapturePage({
           <span className="text-sm text-neutral-500">Capture</span>
         </div>
 
-        <form action={captureImage} className="mt-6 pb-4">
-          <ImageDropzone />
-          {params.error === "missing-image" ? (
-            <p className="mt-2 text-sm text-red-400">Choose an image first.</p>
-          ) : null}
-          {params.error === "bad-image" ? (
-            <p className="mt-2 text-sm text-red-400">That file could not be processed as an image.</p>
+        <form action={capture} className="mt-6 pb-4">
+          <input
+            type="url"
+            name="url"
+            inputMode="url"
+            placeholder="Paste a link…"
+            className="w-full rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-base outline-none focus:border-neutral-500 min-h-[44px]"
+          />
+          <p className="mt-2 text-center text-xs text-neutral-500">— or —</p>
+          <div className="mt-2">
+            <ImageDropzone />
+          </div>
+          {params.error ? (
+            <p className="mt-2 text-sm text-red-400">{ERRORS[params.error] ?? "Something went wrong."}</p>
           ) : null}
 
           <div className="mt-6">
