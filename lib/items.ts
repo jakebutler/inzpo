@@ -16,6 +16,8 @@ export interface WallItem {
   placeholder: string | null;
   aspect: number | null;
   hexColors: string[];
+  facetTags: Array<{ facet: string; value: string }>;
+  freeTags: string[];
 }
 
 export async function getWallItems(): Promise<WallItem[]> {
@@ -31,6 +33,8 @@ export async function getWallItems(): Promise<WallItem[]> {
       placeholder: sql<string | null>`(select m.placeholder from media_assets m where m.item_id = items.id and m.role = 'primary' limit 1)`,
       aspect: sql<number | null>`(select round(m.width::numeric / nullif(m.height, 0), 4)::float8 from media_assets m where m.item_id = items.id and m.role = 'primary' limit 1)`,
       hexColors: sql<string[]>`coalesce((select array_agg(c.hex order by c.position) from item_colors c where c.item_id = items.id), '{}')`,
+      facetTags: sql<Array<{ facet: string; value: string }>>`coalesce((select jsonb_agg(jsonb_build_object('facet', f.name, 'value', fv.value) order by f.position, fv.value) from item_facet_values ifv join facet_values fv on fv.id = ifv.facet_value_id join facets f on f.id = fv.facet_id where ifv.item_id = items.id), '[]'::jsonb)`,
+      freeTags: sql<string[]>`coalesce((select jsonb_agg(ft.name order by ft.name) from item_free_tags ift join free_tags ft on ft.id = ift.free_tag_id where ift.item_id = items.id), '[]'::jsonb)`,
     })
     .from(items)
     .where(eq(items.captureState, "ready"))
