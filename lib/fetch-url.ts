@@ -77,3 +77,10 @@ export async function fetchImageBytes(url: string): Promise<Buffer> {
   }
   return readCapped(res);
 }
+
+export async function fetchOembedJson(endpoint: string): Promise<Record<string, unknown>> {
+  const res = await fetchCapped(endpoint, "application/json");
+  if (!res.ok) throw new Error(`oEmbed failed: HTTP ${res.status}`);
+  const buf = await readCapped(res);
+  return JSON.parse(buf.toString("utf8")) as Record<string, unknown>;
+}

@@ -5,7 +5,7 @@ import { newId } from "@/lib/ids";
 import { originalKey, PutObjectCommand, deletePrefix, r2 } from "@/lib/r2";
 import { processImage } from "@/lib/media";
 import { fetchImageBytes, fetchPage, type FetchedPage } from "@/lib/fetch-url";
-import { extractOgType, bodyTextLength, guessLinkedKind } from "@/lib/kind-guess";
+import { extractOgType, bodyTextLength, guessLinkedKind, matchOembedProvider } from "@/lib/kind-guess";
 import { normalizeUrl } from "@/lib/url";
 import type { TagSelection } from "@/lib/tags";
 import { attachTags } from "@/lib/ontology";
@@ -74,6 +74,32 @@ export async function createLinkedItem(input: CreateLinkedItemInput): Promise<Cr
     });
   }
 
+  // video short-circuit: platform oEmbed is more reliable than scraping
+  let oembedHtml: string | null = null;
+  const oembedEndpoint = matchOembedProvider(input.rawUrl);
+  if (oembedEndpoint) {
+    try {
+      const { fetchOembedJson } = await import("@/lib/fetch-url");
+      const json = await fetchOembedJson(oembedEndpoint(input.rawUrl));
+      oembedHtml = typeof json.html === "string" ? json.html : null;
+      if (!metadata.title && typeof json.title === "string") metadata.title = json.title;
+      if (typeof json.thumbnail_url === "string" && json.thumbnail_url) metadata.image = json.thumbnail_url;
+    } catch {
+      // oEmbed failure → scraped metadata or saved-no-poster fallback
+    }
+  }
+
+  // article Archived copy: extract from the HTML already fetched (no extra round-trip)
+  let articleHtml: string | null = null;
+  if (kind === "article" && page) {
+    const { extractReadableArticle } = await import("@/lib/article");
+    const extracted = extractReadableArticle(page.html, page.finalUrl);
+    if (extracted && extracted.html.length > 0) {
+      articleHtml = extracted.html;
+      if (!metadata.title && extracted.title) metadata.title = extracted.title;
+    }
+  }
+
   await db.insert(items).values({
     id,
     kind,
@@ -88,6 +114,7 @@ export async function createLinkedItem(input: CreateLinkedItemInput): Promise<Cr
     title: metadata.title || null,
     description: metadata.description || null,
     previewProvenanceUrl: metadata.image || null,
+    oembedHtml,
   });
 
   let previewCaptured = false;
@@ -135,6 +162,30 @@ export async function createLinkedItem(input: CreateLinkedItemInput): Promise<Cr
         previewCaptured = false; // preview failure never fails the capture
       }
     }
+
+    // Archived copy lands in R2 even when there is no preview
+    if (articleHtml) {
+      try {
+        const { articleKey } = await import("@/lib/r2");
+        const key = articleKey(id);
+        const bytes = Buffer.from(articleHtml, "utf8");
+        await r2().send(
+          new PutObjectCommand({
+            Bucket: process.env.R2_BUCKET!,
+            Key: key,
+            Body: bytes,
+            ContentType: "text/html; charset=utf-8",
+          }),
+        );
+        await db
+          .update(itemSources)
+          .set({ articleKey: key, articleBytes: bytes.byteLength })
+          .where(eq(itemSources.itemId, id));
+      } catch {
+        // archive failure never fails the capture
+      }
+    }
+
     if (input.tags) await attachTags(id, input.tags);
     await db.update(items).set({ captureState: "ready" }).where(eq(items.id, id));
   } catch (err) {

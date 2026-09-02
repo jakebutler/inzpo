@@ -7,6 +7,8 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
+const CSP = "default-src 'none';";
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ key: string[] }> }) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   if (!token || !(await verifySessionToken(token))) {
@@ -24,10 +26,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     from media_assets m
     where m.original_key = ${objectKey}
        or exists (select 1 from jsonb_each_text(m.variants) v where v.value = ${objectKey})
-       or m.placeholder is not null and ${objectKey} like 'items/%'
     limit 1
   `);
-  const mime = (known.rows[0] as { mime?: string } | undefined)?.mime;
+  let mime = (known.rows[0] as { mime?: string } | undefined)?.mime;
+
+  const article = await db.execute(sql`
+    select s.article_key as key from item_sources s where s.article_key = ${objectKey} limit 1
+  `);
+  const isArticle = article.rows.length > 0;
+  if (isArticle) mime = "text/html; charset=utf-8";
+  if (!mime && !isArticle) return new NextResponse(null, { status: 404 });
 
   try {
     const result = await r2().send(
@@ -40,6 +48,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         "Content-Length": String(result.ContentLength ?? ""),
         "Cache-Control": "private, max-age=31536000, immutable",
         "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": CSP,
       },
     });
   } catch {

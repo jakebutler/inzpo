@@ -2,7 +2,7 @@ import { desc, eq, and, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { itemColors, items, mediaAssets, type ItemKind } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
-import { itemPrefix, originalKey, PutObjectCommand, deletePrefix, r2 } from "@/lib/r2";
+import { itemPrefix, originalKey, PutObjectCommand, GetObjectCommand, deletePrefix, r2 } from "@/lib/r2";
 import { processImage, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
 import { extractColors } from "@/lib/extract-colors";
 import { hexToFamily } from "@/lib/colors";
@@ -59,6 +59,8 @@ export interface ItemDetail {
   note: string | null;
   createdAt: Date;
   source: { url: string; title: string | null; description: string | null } | null;
+  oembedHtml: string | null;
+  hasArticle: boolean;
   media: { originalKey: string; displayKey: string | null; placeholder: string | null; mime: string; width: number; height: number } | null;
   colors: Array<{ hex: string; family: string; origin: string; position: number }>;
   origin: { derivedItemId: string; originItemId: string } | null;
@@ -75,6 +77,8 @@ export async function getItemDetail(id: string): Promise<ItemDetail | null> {
       url: sql<string | null>`(select s.url from item_sources s where s.item_id = items.id)`,
       sourceTitle: sql<string | null>`(select s.title from item_sources s where s.item_id = items.id)`,
       sourceDescription: sql<string | null>`(select s.description from item_sources s where s.item_id = items.id)`,
+      oembedHtml: sql<string | null>`(select s.oembed_html from item_sources s where s.item_id = items.id)`,
+      articleKey: sql<string | null>`(select s.article_key from item_sources s where s.item_id = items.id)`,
       originalKey: sql<string | null>`(select m.original_key from media_assets m where m.item_id = items.id limit 1)`,
       displayKey: sql<string | null>`(select v.value from media_assets m, jsonb_each_text(m.variants) v where m.item_id = items.id and v.key = 'w1600' limit 1)`,
       placeholder: sql<string | null>`(select m.placeholder from media_assets m where m.item_id = items.id limit 1)`,
@@ -103,6 +107,8 @@ export async function getItemDetail(id: string): Promise<ItemDetail | null> {
     note: row.note,
     createdAt: row.createdAt,
     source: row.url ? { url: row.url, title: row.sourceTitle, description: row.sourceDescription } : null,
+    oembedHtml: row.oembedHtml ?? null,
+    hasArticle: !!row.articleKey,
     media:
       row.originalKey && row.mime && row.width && row.height
         ? {
@@ -193,5 +199,18 @@ export async function createImageItem(input: {
     await deletePrefix(itemPrefix(id)).catch(() => {});
     await db.delete(items).where(eq(items.id, id));
     throw err;
+  }
+}
+
+export async function getArticleHtml(itemId: string): Promise<string | null> {
+  const rows = await db.execute(sql`select article_key from item_sources where item_id = ${itemId} and article_key is not null limit 1`);
+  const key = (rows.rows[0] as { article_key?: string } | undefined)?.article_key;
+  if (!key) return null;
+  try {
+    const result = await r2().send(new GetObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: key }));
+    const body = result.Body as unknown as { transformToString: (enc: string) => Promise<string> };
+    return (await body.transformToString("utf8")) || null;
+  } catch {
+    return null;
   }
 }
