@@ -1,0 +1,14 @@
+# secrets — never commit
+HITL_kickoff_items.md
+.env
+.env.*
+!.env.example
+
+# deps / builds
+node_modules/
+.next/
+out/
+
+# tooling
+.vercel
+.DS_Store
