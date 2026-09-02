@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { LogoutButton } from "./components/LogoutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,10 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100 p-8 font-sans">
       <div className="max-w-3xl mx-auto">
-        <h1 className="text-2xl font-semibold tracking-tight">Inzpo</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight">Inzpo</h1>
+          <LogoutButton />
+        </div>
         <p className="mt-2 text-neutral-400">
           Walking skeleton — app is live and connected to Neon.
         </p>
