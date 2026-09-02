@@ -12,3 +12,4 @@ out/
 # tooling
 .vercel
 .DS_Store
+tsconfig.tsbuildinfo
