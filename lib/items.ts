@@ -1,9 +1,11 @@
 import { desc, eq, and, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { items, mediaAssets, type ItemKind } from "@/lib/db/schema";
+import { itemColors, items, mediaAssets, type ItemKind } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
 import { itemPrefix, originalKey, PutObjectCommand, deletePrefix, r2 } from "@/lib/r2";
 import { processImage, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
+import { extractColors } from "@/lib/extract-colors";
+import { hexToFamily } from "@/lib/colors";
 
 export interface WallItem {
   id: string;
@@ -77,6 +79,15 @@ export async function getItemDetail(id: string): Promise<ItemDetail | null> {
     .limit(1);
   const row = rows[0];
   if (!row) return null;
+  const tagRows = await db.execute(sql`
+    select hex, family, origin, position from item_colors where item_id = ${id} order by position
+  `);
+  const colors = (tagRows.rows as Array<{ hex: string; family: string; origin: string; position: number }>).map((c) => ({
+    hex: c.hex,
+    family: c.family,
+    origin: c.origin,
+    position: c.position,
+  }));
   return {
     id: row.id,
     kind: row.kind,
@@ -95,7 +106,7 @@ export async function getItemDetail(id: string): Promise<ItemDetail | null> {
             height: row.height,
           }
         : null,
-    colors: [],
+    colors,
     origin: null,
   };
 }
@@ -153,6 +164,21 @@ export async function createImageItem(input: {
       variants: variantMap,
       placeholder: processed.placeholder,
     });
+
+    const extracted = await extractColors(input.buffer);
+    if (extracted.length > 0) {
+      await db.insert(itemColors).values(
+        extracted.map((c, index) => ({
+          id: newId(),
+          itemId: id,
+          hex: c.hex,
+          family: hexToFamily(c.hex),
+          origin: c.origin,
+          position: index,
+        })),
+      );
+    }
+
     await db.update(items).set({ captureState: "ready" }).where(eq(items.id, id));
     return id;
   } catch (err) {

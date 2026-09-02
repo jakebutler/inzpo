@@ -51,6 +51,17 @@ export default async function Wall() {
                     <span className="uppercase tracking-wide text-neutral-500">{item.kind}</span>
                     <span className="ml-2 text-neutral-300">{item.title ?? "Untitled"}</span>
                   </div>
+                  {item.hexColors.length > 0 ? (
+                    <div className="mt-1.5 flex gap-1">
+                      {item.hexColors.slice(0, 6).map((hex, i) => (
+                        <span
+                          key={`${item.id}-${hex}-${i}`}
+                          className="inline-block h-3 w-3 rounded-full border border-neutral-700"
+                          style={{ backgroundColor: hex }}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
                   {item.facetTags.length > 0 || item.freeTags.length > 0 ? (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {item.facetTags.map((t) => (

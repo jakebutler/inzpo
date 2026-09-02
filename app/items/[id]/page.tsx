@@ -75,6 +75,26 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
           </section>
         ) : null}
 
+        {item.colors.length > 0 ? (
+          <section className="mt-6">
+            <h2 className="text-xs uppercase tracking-wide text-neutral-500">Colors</h2>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {item.colors.map((c) => (
+                <span
+                  key={`${c.hex}-${c.position}`}
+                  title={`${c.hex} · ${c.family}`}
+                  className="flex items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-900 py-1 pl-1 pr-3"
+                >
+                  <span className="inline-block h-6 w-6 rounded-full border border-neutral-700" style={{ backgroundColor: c.hex }} />
+                  <span className="text-xs text-neutral-400">
+                    {c.hex} · {c.family}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         {facetGroups.size > 0 || tags.freeTags.length > 0 ? (
           <section className="mt-6">
             <h2 className="text-xs uppercase tracking-wide text-neutral-500">Tags</h2>
