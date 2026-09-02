@@ -6,6 +6,8 @@ import { itemPrefix, originalKey, PutObjectCommand, deletePrefix, r2 } from "@/l
 import { processImage, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
 import { extractColors } from "@/lib/extract-colors";
 import { hexToFamily } from "@/lib/colors";
+import { buildWallQuery } from "@/lib/wall-query";
+import type { FilterState } from "@/lib/filter";
 
 export interface WallItem {
   id: string;
@@ -22,26 +24,32 @@ export interface WallItem {
   freeTags: string[];
 }
 
-export async function getWallItems(): Promise<WallItem[]> {
-  const rows = await db
-    .select({
-      id: items.id,
-      kind: items.kind,
-      title: items.title,
-      note: items.note,
-      createdAt: items.createdAt,
-      displayKey: sql<string | null>`(select v.value from media_assets m, jsonb_each_text(m.variants) v where m.item_id = items.id and v.key = 'w640' limit 1)`,
-      thumbKey: sql<string | null>`(select v.value from media_assets m, jsonb_each_text(m.variants) v where m.item_id = items.id and v.key = 'w256' limit 1)`,
-      placeholder: sql<string | null>`(select m.placeholder from media_assets m where m.item_id = items.id and m.role = 'primary' limit 1)`,
-      aspect: sql<number | null>`(select round(m.width::numeric / nullif(m.height, 0), 4)::float8 from media_assets m where m.item_id = items.id and m.role = 'primary' limit 1)`,
-      hexColors: sql<string[]>`coalesce((select array_agg(c.hex order by c.position) from item_colors c where c.item_id = items.id), '{}')`,
-      facetTags: sql<Array<{ facet: string; value: string }>>`coalesce((select jsonb_agg(jsonb_build_object('facet', f.name, 'value', fv.value) order by f.position, fv.value) from item_facet_values ifv join facet_values fv on fv.id = ifv.facet_value_id join facets f on f.id = fv.facet_id where ifv.item_id = items.id), '[]'::jsonb)`,
-      freeTags: sql<string[]>`coalesce((select jsonb_agg(ft.name order by ft.name) from item_free_tags ift join free_tags ft on ft.id = ift.free_tag_id where ift.item_id = items.id), '[]'::jsonb)`,
-    })
-    .from(items)
-    .where(eq(items.captureState, "ready"))
-    .orderBy(desc(items.createdAt));
-  return rows;
+export async function getWallItems(state: FilterState): Promise<WallItem[]> {
+  const { where, orderBy } = buildWallQuery(state);
+  const rows = await db.execute(sql`
+    select i.id,
+      i.kind,
+      i.title,
+      i.note,
+      i.created_at as "createdAt",
+      (select v.value from media_assets m, jsonb_each_text(m.variants) v where m.item_id = i.id and v.key = 'w640' limit 1) as "displayKey",
+      (select v.value from media_assets m, jsonb_each_text(m.variants) v where m.item_id = i.id and v.key = 'w256' limit 1) as "thumbKey",
+      (select m.placeholder from media_assets m where m.item_id = i.id and m.role = 'primary' limit 1) as "placeholder",
+      (select round(m.width::numeric / nullif(m.height, 0), 4)::float8 from media_assets m where m.item_id = i.id and m.role = 'primary' limit 1) as "aspect",
+      coalesce((select array_agg(c.hex order by c.position) from item_colors c where c.item_id = i.id), '{}') as "hexColors",
+      coalesce((select jsonb_agg(jsonb_build_object('facet', f.name, 'value', fv.value) order by f.position, fv.value) from item_facet_values ifv join facet_values fv on fv.id = ifv.facet_value_id join facets f on f.id = fv.facet_id where ifv.item_id = i.id), '[]'::jsonb) as "facetTags",
+      coalesce((select jsonb_agg(ft.name order by ft.name) from item_free_tags ift join free_tags ft on ft.id = ift.free_tag_id where ift.item_id = i.id), '[]'::jsonb) as "freeTags"
+    from items i
+    where ${where}
+    order by ${orderBy}
+  `);
+  return rows.rows as unknown as WallItem[];
+}
+
+export async function countWallItems(state: FilterState): Promise<number> {
+  const { where } = buildWallQuery(state);
+  const rows = await db.execute(sql`select count(*)::int as n from items i where ${where}`);
+  return (rows.rows[0] as { n: number }).n;
 }
 
 export interface ItemDetail {

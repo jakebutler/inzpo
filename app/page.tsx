@@ -1,36 +1,70 @@
-import Link from "next/link";
-import { getWallItems } from "@/lib/items";
+import { getWallItems, countWallItems } from "@/lib/items";
+import { getFacetsWithValues } from "@/lib/ontology";
+import { db } from "@/lib/db";
+import { freeTags } from "@/lib/db/schema";
+import { parseFilterParam, serializeFilter } from "@/lib/filter";
+import { COLOR_FAMILIES } from "@/lib/colors";
+import { listSavedSearches } from "@/lib/saved-searches";
+import { FilterBar } from "./components/FilterBar";
+import { SavedPopover } from "./components/SavedPopover";
 import { LogoutButton } from "./components/LogoutButton";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default async function Wall() {
-  const wallItems = await getWallItems();
+export default async function Wall({
+  searchParams,
+}: {
+  searchParams: Promise<{ f?: string }>;
+}) {
+  const params = await searchParams;
+  const state = parseFilterParam(params.f ?? null);
+
+  const [wallItems, count, facets, tags, saved] = await Promise.all([
+    getWallItems(state),
+    countWallItems(state),
+    getFacetsWithValues(),
+    db.select({ name: freeTags.name }).from(freeTags).orderBy(freeTags.name),
+    listSavedSearches(),
+  ]);
+
+  const savedSlot = (
+    <div className="flex items-center gap-2">
+      <SavedPopover
+        state={state}
+        entries={saved.map((s) => ({ id: s.id, name: s.name, f: serializeFilter(s.state) }))}
+      />
+      <LogoutButton />
+    </div>
+  );
 
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100">
-      <div className="sticky top-0 z-10 border-b border-neutral-800 bg-neutral-950/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <span className="text-lg font-semibold tracking-tight">Inzpo</span>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/capture"
-              className="rounded-lg bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white min-h-[36px] flex items-center"
-            >
-              + Capture
-            </Link>
-            <LogoutButton />
-          </div>
-        </div>
+      <FilterBar
+        state={state}
+        facets={facets.map((f) => ({ id: f.id, name: f.name, values: f.values.map((v) => v.value) }))}
+        families={[...COLOR_FAMILIES]}
+        freeTags={tags.map((t) => t.name)}
+        matchCount={count}
+        savedSlot={savedSlot}
+      />
+
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 pt-3">
+        <span className="text-xs text-neutral-500">
+          {count} item{count === 1 ? "" : "s"}
+        </span>
+        <Link href="/capture" className="text-xs text-neutral-400 hover:text-neutral-200">
+          + Capture
+        </Link>
       </div>
 
       {wallItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 py-32 text-center">
-          <p className="text-neutral-300">The wall is empty.</p>
-          <p className="text-sm text-neutral-500">Capture a photo to place the first brick.</p>
+          <p className="text-neutral-300">Nothing matches.</p>
+          <p className="text-sm text-neutral-500">Adjust the filters, or capture something new.</p>
         </div>
       ) : (
-        <div className="mx-auto max-w-6xl px-4 py-6 columns-2 md:columns-3 lg:columns-4 gap-4 [&>*]:mb-4">
+        <div className="mx-auto max-w-6xl px-4 py-4 columns-2 md:columns-3 lg:columns-4 gap-4 [&>*]:mb-4">
           {wallItems.map((item) => (
             <figure key={item.id} className="break-inside-avoid overflow-hidden rounded-xl bg-neutral-900">
               <Link href={`/items/${item.id}`} className="block">
@@ -44,7 +78,9 @@ export default async function Wall() {
                     className="w-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-32 items-center justify-center text-neutral-600">no media</div>
+                  <div className="flex h-32 items-center justify-center px-3 text-center text-neutral-500">
+                    {item.title ?? "Untitled"}
+                  </div>
                 )}
                 <figcaption className="px-3 py-2">
                   <div className="text-xs">
@@ -73,10 +109,7 @@ export default async function Wall() {
                         </span>
                       ))}
                       {item.freeTags.map((t) => (
-                        <span
-                          key={t}
-                          className="rounded-full border border-sky-500/40 px-2 py-0.5 text-[10px] text-sky-300"
-                        >
+                        <span key={t} className="rounded-full border border-sky-500/40 px-2 py-0.5 text-[10px] text-sky-300">
                           {t}
                         </span>
                       ))}
