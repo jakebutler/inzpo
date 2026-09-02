@@ -108,3 +108,62 @@ export function normalizeHex(value: string): string {
       : clean;
   return `#${full}`;
 }
+
+export function rgbToCmyk(r: number, g: number, b: number): { c: number; m: number; y: number; k: number } {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const k = 1 - Math.max(rn, gn, bn);
+  if (k === 1) return { c: 0, m: 0, y: 0, k: 1 };
+  return {
+    c: (1 - rn - k) / (1 - k),
+    m: (1 - gn - k) / (1 - k),
+    y: (1 - bn - k) / (1 - k),
+    k,
+  };
+}
+
+export function cmykToRgb(c: number, m: number, y: number, k: number): { r: number; g: number; b: number } {
+  return {
+    r: 255 * (1 - c) * (1 - k),
+    g: 255 * (1 - m) * (1 - k),
+    b: 255 * (1 - y) * (1 - k),
+  };
+}
+
+export function hexToCmyk(hex: string) {
+  const { r, g, b } = hexToRgb(hex);
+  return rgbToCmyk(r, g, b);
+}
+
+export function cmykToHex(c: number, m: number, y: number, k: number): string {
+  const { r, g, b } = cmykToRgb(c, m, y, k);
+  return rgbToHex(r, g, b);
+}
+
+export function hexToHsv(hex: string): { h: number; s: number; v: number } {
+  const { r, g, b } = hexToRgb(hex);
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const d = max - min;
+  let h = 0;
+  if (d !== 0) {
+    if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) * 60;
+    else if (max === gn) h = ((bn - rn) / d + 2) * 60;
+    else h = ((rn - gn) / d + 4) * 60;
+  }
+  return { h, s: max === 0 ? 0 : d / max, v: max };
+}
+
+export function hsvToHex(h: number, s: number, v: number): string {
+  const c = v * s;
+  const hp = (h % 360) / 60;
+  const x = c * (1 - Math.abs((hp % 2) - 1));
+  const [r1, g1, b1] =
+    hp < 1 ? [c, x, 0] : hp < 2 ? [x, c, 0] : hp < 3 ? [0, c, x] : hp < 4 ? [0, x, c] : hp < 5 ? [x, 0, c] : [c, 0, x];
+  const m = v - c;
+  return rgbToHex((r1 + m) * 255, (g1 + m) * 255, (b1 + m) * 255);
+}

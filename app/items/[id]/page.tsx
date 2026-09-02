@@ -46,9 +46,14 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
           <Link href="/" className="text-sm text-neutral-400 hover:text-neutral-200">
             ← Wall
           </Link>
-          <span className="rounded-full border border-neutral-700 px-2.5 py-1 text-xs uppercase tracking-wide text-neutral-400">
-            {KIND_LABEL[item.kind] ?? item.kind}
-          </span>
+          <div className="flex items-center gap-3">
+            <Link href={`/items/${item.id}/edit`} className="text-sm text-neutral-300 hover:text-white">
+              ✎ Edit
+            </Link>
+            <span className="rounded-full border border-neutral-700 px-2.5 py-1 text-xs uppercase tracking-wide text-neutral-400">
+              {KIND_LABEL[item.kind] ?? item.kind}
+            </span>
+          </div>
         </div>
       </div>
 

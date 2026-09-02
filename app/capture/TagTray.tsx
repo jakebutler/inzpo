@@ -8,9 +8,22 @@ export interface TrayFacet {
   values: string[];
 }
 
-export function TagTray({ facets }: { facets: TrayFacet[] }) {
-  const [selected, setSelected] = useState<Record<string, Set<string>>>({});
-  const [freeTags, setFreeTags] = useState<Set<string>>(new Set());
+export interface TrayInitial {
+  facetValues?: Record<string, string[]>;
+  freeTags?: string[];
+}
+
+export function TagTray({ facets, initial }: { facets: TrayFacet[]; initial?: TrayInitial }) {
+  const [selected, setSelected] = useState<Record<string, Set<string>>>(() => {
+    const init: Record<string, Set<string>> = {};
+    if (initial?.facetValues) {
+      for (const [facetId, values] of Object.entries(initial.facetValues)) {
+        init[facetId] = new Set(values);
+      }
+    }
+    return init;
+  });
+  const [freeTags, setFreeTags] = useState<Set<string>>(new Set(initial?.freeTags ?? []));
 
   const [facetDraft, setFacetDraft] = useState<Record<string, string>>({});
   const [freeDraft, setFreeDraft] = useState("");
