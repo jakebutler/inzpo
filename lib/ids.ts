@@ -1,5 +1,7 @@
-import { ulid } from "ulid";
+import { monotonicFactory } from "ulid";
+
+const monotonicUlid = monotonicFactory();
 
 export function newId(): string {
-  return ulid();
+  return monotonicUlid();
 }
