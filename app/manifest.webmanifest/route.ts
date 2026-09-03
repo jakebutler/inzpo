@@ -38,7 +38,7 @@ export function GET() {
       },
     },
   };
-  return new NextResponse(ICON_SVG === null ? "" : JSON.stringify(manifest, null, 2), {
+  return new NextResponse(JSON.stringify(manifest, null, 2), {
     headers: { "Content-Type": "application/manifest+json" },
   });
 }

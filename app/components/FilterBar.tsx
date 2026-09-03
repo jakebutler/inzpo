@@ -77,10 +77,7 @@ export function FilterBar({
   const activeCount = activeFilterCount(state);
 
   function apply(next: FilterState) {
-    const f = serializeFilter(next);
-    router.push(f === serializeFilter(EMPTY_FILTER) || activeFilterCount(next) === 0 ? `/?f=${f}` : `/?f=${f}`, {
-      scroll: false,
-    });
+    router.push(`/?f=${serializeFilter(next)}`, { scroll: false });
   }
 
   function pushState(next: FilterState) {
@@ -136,7 +133,7 @@ export function FilterBar({
     fetch("/api/filter-count", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: serializeFilter(state).replace(/^/, ""),
+      body: JSON.stringify({ f: serializeFilter(state) }),
       signal: controller.signal,
     })
       .then(async (res) => {
@@ -276,8 +273,8 @@ export function FilterBar({
               </button>
             </div>
 
-            <div className="space-y-5">
-              <section>
+            <div className="space-y-5 pb-6">
+              <section className="scroll-mt-24">
                 <h3 className="text-xs uppercase tracking-wide text-neutral-500">Kind</h3>
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   {KINDS.map((k) => {
@@ -304,7 +301,7 @@ export function FilterBar({
               </section>
 
               {facets.map((facet) => (
-                <section key={facet.id}>
+                <section key={facet.id} className="scroll-mt-24">
                   <h3 className="text-xs uppercase tracking-wide text-neutral-500">{facet.name}</h3>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {facet.values.map((value) => {
@@ -332,7 +329,7 @@ export function FilterBar({
               ))}
 
               {freeTags.length > 0 ? (
-                <section>
+                <section className="scroll-mt-24">
                   <h3 className="text-xs uppercase tracking-wide text-neutral-500">Free tags</h3>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {freeTags.map((tag) => {
@@ -359,7 +356,7 @@ export function FilterBar({
                 </section>
               ) : null}
 
-              <section>
+              <section className="scroll-mt-24">
                 <h3 className="text-xs uppercase tracking-wide text-neutral-500">Colors</h3>
                 <div className="mt-1.5 flex flex-wrap gap-2">
                   {families.map((family) => {

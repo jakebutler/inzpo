@@ -41,7 +41,7 @@ export function SavedPopover({
       fetch("/api/filter-count", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: entry.f,
+        body: JSON.stringify({ f: entry.f }),
         signal: controller.signal,
       })
         .then(async (res) => {
