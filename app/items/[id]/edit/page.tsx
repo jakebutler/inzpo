@@ -33,7 +33,9 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
           <Link href={`/items/${id}`} className="text-sm text-neutral-400 hover:text-neutral-200">
             ← Cancel
           </Link>
-          <span className="text-sm text-neutral-500">✎ Edit</span>
+          <Link href="/vocab" className="text-sm text-neutral-400 hover:text-neutral-200">
+            Manage vocabulary ›
+          </Link>
         </div>
 
         <form action={updateItem} className="mt-6 pb-4">

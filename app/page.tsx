@@ -67,9 +67,14 @@ export default async function Wall({
             </>
           ) : null}
         </span>
-        <Link href="/capture" className="text-xs text-neutral-400 hover:text-neutral-200">
-          + Capture
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link href="/vocab" className="text-xs text-neutral-400 hover:text-neutral-200">
+            Vocabulary
+          </Link>
+          <Link href="/capture" className="text-xs text-neutral-400 hover:text-neutral-200">
+            + Capture
+          </Link>
+        </div>
       </div>
 
       {wallItems.length === 0 ? (
