@@ -322,16 +322,16 @@ export function WallGrid({
         </button>
       </div>
       <div className="mx-auto max-w-6xl px-4 py-4">
-      <div className="grid grid-cols-2 gap-4 items-start md:grid-cols-3 lg:grid-cols-4">
-      {Array.from({ length: colCount }, (_, c) => (
-        <div key={c} className="flex flex-col gap-4">
       {items.length === 0 ? (
-        <div className="col-span-full flex flex-col items-center justify-center gap-3 py-32 text-center">
+        <div className="flex flex-col items-center justify-center gap-3 py-32 text-center">
           <p className="text-neutral-300">Nothing matches.</p>
           <p className="text-sm text-muted-foreground">Adjust the filters, or capture something new.</p>
         </div>
       ) : null}
-      {items.map((item) => (
+      <div className="grid grid-cols-2 gap-4 items-start md:grid-cols-3 lg:grid-cols-4">
+      {Array.from({ length: colCount }, (_, c) => (
+        <div key={c} className="flex flex-col gap-4">
+      {items.filter((_, i) => i % colCount === c).map((item) => (
         <figure key={item.id} className="group relative break-inside-avoid overflow-hidden rounded-xl bg-neutral-900">
           <Link
             href={`/items/${item.id}`}
