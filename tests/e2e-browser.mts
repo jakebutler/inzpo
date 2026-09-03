@@ -23,6 +23,8 @@ const png = await sharp({ create: { width: 800, height: 500, channels: 3, backgr
 const tmp = path.join("/tmp", `inzpo-e2e-${crypto.randomUUID()}.png`);
 fs.writeFileSync(tmp, png);
 
+const touchedIds: string[] = [];
+const deletedViaUi: string[] = [];
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
 const page = await ctx.newPage();
@@ -72,6 +74,7 @@ try {
   await page.click("text=View item");
   await page.waitForURL(/\/items\//);
   const detailUrl = page.url();
+  touchedIds.push(detailUrl.split("/items/")[1]);
   check("View item opens the detail view", true);
   check("detail shows kind Photo", await page.locator("text=Photo").first().isVisible());
   check("detail shows colors section", await page.locator("text=Colors").first().isVisible());
@@ -127,6 +130,7 @@ try {
   check("auto-selected tag marker animates in", true);
   await page.click('button[type="submit"]:has-text("Save")');
   await page.waitForURL(/\/capture\?saved=/, { timeout: 30000 });
+  touchedIds.push(page.url().match(/saved=([^&]+)/)?.[1] ?? "");
   check("URL capture works", true);
 
   // 12. duplicate notice: capture example.com first, then a dressed variant
@@ -134,6 +138,7 @@ try {
   await page.fill('input[name="url"]', "https://example.com/");
   await page.click('button[type="submit"]:has-text("Save")');
   await page.waitForURL(/\/capture\?saved=/, { timeout: 30000 });
+  touchedIds.push(page.url().match(/saved=([^&]+)/)?.[1] ?? "");
   await page.goto(BASE + "/capture");
   await page.fill('input[name="url"]', "https://example.com/?utm_source=e2e#top");
   await page.waitForSelector("text=Already saved", { timeout: 15000 });
@@ -152,6 +157,7 @@ try {
   await page.click('button:has-text("Delete…")');
   await page.click('form button[type="submit"]:has-text("Delete")');
   await page.waitForURL(`${BASE}/`);
+  deletedViaUi.push(detailUrl.split("/items/")[1]);
   check("hard delete returns to wall", true);
 } catch (err) {
   check("UNEXPECTED FAILURE", false, String(err).slice(0, 300));
@@ -165,13 +171,13 @@ try {
 // self-cleanup: remove everything this run created
 try {
   const { deleteItem } = await import("../lib/items");
-  const { db } = await import("../lib/db");
-  const { sql } = await import("drizzle-orm");
-  const leaked = await db.execute(
-    sql`select id from items where title like 'inzpo e2e%' or id in (select item_id from item_sources where url_normalized in ('https://example.com', 'https://www.joshwcomeau.com/animation/css-transitions/'))`,
-  );
-  for (const row of leaked.rows as Array<{ id: string }>) await deleteItem(row.id);
-  console.log(`self-cleanup removed ${(leaked.rows as unknown[]).length} item(s)`);
+  const ids = [...new Set([...touchedIds.filter(Boolean), ...deletedViaUi])];
+  for (const id of ids) {
+    try {
+      await deleteItem(id);
+    } catch {}
+  }
+  console.log(`self-cleanup removed up to ${ids.length} item(s) by id`);
 } catch (e) {
   console.log("cleanup warning:", String(e).slice(0, 120));
 }
