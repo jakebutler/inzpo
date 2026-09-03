@@ -244,7 +244,12 @@ export function FilterBar({
           {activeCount > 0 ? (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {chips.map((chip) => (
-                <button type="button" key={chip.key} onClick={chip.onRemove} title="Tap to remove">
+                <button
+                type="button"
+                key={chip.key}
+                onClick={chip.onRemove}
+                aria-label={`Remove filter: ${chip.label}`}
+              >
                   <Badge variant="outline" className="min-h-[28px] gap-1 px-2.5 text-xs">
                     {chip.label} <StanceMark s={(chip as { stance?: Stance }).stance} /> <X className="h-3 w-3 opacity-60" />
                   </Badge>
@@ -278,7 +283,13 @@ export function FilterBar({
                 {KINDS.map((k) => {
                   const s = state.kinds[k.id];
                   return (
-                    <button type="button" key={k.id} onClick={() => setKind(k.id)} aria-pressed={!!s}>
+                    <button
+                      type="button"
+                      key={k.id}
+                      onClick={() => setKind(k.id)}
+                      aria-pressed={s === "include"}
+                      aria-label={`${k.label}${s ? ` — ${s === "include" ? "included" : "excluded"}` : ""}`}
+                    >
                       <Badge variant="outline" className={`min-h-[36px] px-3 text-sm ${chipButton(!!s, s === "exclude")}`}>
                         {k.label} <StanceMark s={s} />
                       </Badge>
@@ -295,7 +306,13 @@ export function FilterBar({
                   {facet.values.map((value) => {
                     const s = state.facetValues.find((x) => x.facetId === facet.id && x.value === value)?.stance;
                     return (
-                      <button type="button" key={value} onClick={() => setFacetValue(facet.id, value)} aria-pressed={!!s}>
+                      <button
+                        type="button"
+                        key={value}
+                        onClick={() => setFacetValue(facet.id, value)}
+                        aria-pressed={s === "include"}
+                        aria-label={`${value}${s ? ` — ${s === "include" ? "included" : "excluded"}` : ""}`}
+                      >
                         <Badge variant="outline" className={`min-h-[36px] px-3 text-sm ${chipButton(!!s, s === "exclude")}`}>
                           {value} <StanceMark s={s} />
                         </Badge>
@@ -313,7 +330,13 @@ export function FilterBar({
                   {freeTags.map((tag) => {
                     const s = state.freeTags.find((t) => t.name === tag)?.stance;
                     return (
-                      <button type="button" key={tag} onClick={() => setFreeTag(tag)} aria-pressed={!!s}>
+                      <button
+                        type="button"
+                        key={tag}
+                        onClick={() => setFreeTag(tag)}
+                        aria-pressed={s === "include"}
+                        aria-label={`${tag}${s ? ` — ${s === "include" ? "included" : "excluded"}` : ""}`}
+                      >
                         <Badge variant="outline" className={`min-h-[36px] px-3 text-sm ${chipButton(!!s, s === "exclude")}`}>
                           {tag} <StanceMark s={s} />
                         </Badge>
