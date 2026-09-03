@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { ArrowUpRight, Ban, Check, X } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useEffect, useRef, useState } from "react";
 import { serializeFilter, type FilterState } from "@/lib/filter";
 import { bulkAssignTagsAction, bulkCollectionAction, bulkDeleteAction, bulkRemoveTagsAction } from "@/app/actions/bulk";
@@ -45,6 +48,8 @@ export function WallGrid({
   const [allSelected, setAllSelected] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [colCount, setColCount] = useState(2);
+  const [bulkFacetId, setBulkFacetId] = useState("");
+  const [bulkCollectionId, setBulkCollectionId] = useState("");
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longFired = useRef(false);
 
@@ -140,22 +145,28 @@ export function WallGrid({
                     e.preventDefault();
                     const fd = new FormData(e.currentTarget);
                     hiddenTarget(fd);
+                    if (bulkFacetId) fd.set("facetId", bulkFacetId);
                     void bulkAssignTagsAction(fd);
                   }}
                   className="flex flex-wrap items-center gap-1.5"
                 >
-                  <select name="facetId" aria-label="Facet" className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs min-h-[32px]">
-                    {facetOptions.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input type="text" name="facetValue" placeholder="facet value" aria-label="Facet value" className="w-28 rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs min-h-[32px]" />
-                  <input type="text" name="freeTagName" placeholder="free tag" aria-label="Free tag" className="w-24 rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs min-h-[32px]" />
-                  <button type="submit" className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs min-h-[32px]">
+                  <Select value={bulkFacetId} onValueChange={setBulkFacetId}>
+                    <SelectTrigger className="h-8 w-[120px] text-xs" aria-label="Facet">
+                      <SelectValue placeholder="Facet" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {facetOptions.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input type="text" name="facetValue" placeholder="facet value" aria-label="Facet value" className="h-8 w-28 rounded text-xs" />
+                  <Input type="text" name="freeTagName" placeholder="free tag" aria-label="Free tag" className="h-8 w-24 rounded text-xs" />
+                  <Button type="submit" variant="outline" size="sm" className="h-8">
                     Assign tags
-                  </button>
+                  </Button>
                 </form>
                 <form
                   action={bulkRemoveTagsAction}
@@ -163,22 +174,28 @@ export function WallGrid({
                     e.preventDefault();
                     const fd = new FormData(e.currentTarget);
                     hiddenTarget(fd);
+                    if (bulkFacetId) fd.set("facetId", bulkFacetId);
                     void bulkRemoveTagsAction(fd);
                   }}
                   className="flex flex-wrap items-center gap-1.5"
                 >
-                  <select name="facetId" aria-label="Facet to remove" className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs min-h-[32px]">
-                    {facetOptions.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input type="text" name="facetValue" placeholder="facet value" aria-label="Facet value to remove" className="w-28 rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs min-h-[32px]" />
-                  <input type="text" name="freeTagName" placeholder="free tag" aria-label="Free tag to remove" className="w-24 rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs min-h-[32px]" />
-                  <button type="submit" className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs min-h-[32px]">
+                  <Select value={bulkFacetId} onValueChange={setBulkFacetId}>
+                    <SelectTrigger className="h-8 w-[120px] text-xs" aria-label="Facet to remove">
+                      <SelectValue placeholder="Facet" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {facetOptions.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input type="text" name="facetValue" placeholder="facet value" aria-label="Facet value to remove" className="h-8 w-28 rounded text-xs" />
+                  <Input type="text" name="freeTagName" placeholder="free tag" aria-label="Free tag to remove" className="h-8 w-24 rounded text-xs" />
+                  <Button type="submit" variant="outline" size="sm" className="h-8">
                     Remove tags
-                  </button>
+                  </Button>
                 </form>
 
                 <form
@@ -192,21 +209,26 @@ export function WallGrid({
                   }}
                   className="flex flex-wrap items-center gap-1.5"
                 >
-                  <select name="collectionId" aria-label="Collection" className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs min-h-[32px]">
-                    {collections.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={bulkCollectionId} onValueChange={setBulkCollectionId}>
+                    <SelectTrigger className="h-8 w-[140px] text-xs" aria-label="Collection">
+                      <SelectValue placeholder="Collection" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {collections.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <input type="hidden" name="op" value="add" />
                   <input type="text" name="newName" placeholder="or new collection" aria-label="New collection name" className="w-36 rounded border border-dashed border-neutral-700 bg-transparent px-2 py-1.5 text-xs min-h-[32px]" />
                   <button type="submit" data-op="add" className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs min-h-[32px]">
                     Add to collection
                   </button>
-                  <button type="submit" data-op="remove" className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs min-h-[32px]">
+                  <Button type="submit" data-op="remove" variant="outline" size="sm" className="h-8">
                     Remove from collection
-                  </button>
+                  </Button>
                 </form>
 
                 <button
