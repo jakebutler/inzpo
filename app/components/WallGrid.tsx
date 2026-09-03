@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowUpRight, Ban, Check, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { serializeFilter, type FilterState } from "@/lib/filter";
 import { bulkAssignTagsAction, bulkCollectionAction, bulkDeleteAction, bulkRemoveTagsAction } from "@/app/actions/bulk";
@@ -330,9 +331,9 @@ export function WallGrid({
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Open source"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-500 bg-black/60 text-xs text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-500 bg-black/60 text-white"
               >
-                ↗
+                <ArrowUpRight className="h-4 w-4" />
               </a>
             ) : null}
           </div>

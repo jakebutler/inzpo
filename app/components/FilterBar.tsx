@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { SlidersHorizontal } from "lucide-react";
+import { Ban, Check, SlidersHorizontal, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,15 +135,16 @@ export function FilterBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheetOpen, JSON.stringify(state)]);
 
-  const stanceMark = (s?: Stance) => (s === "include" ? "✓" : s === "exclude" ? "≠" : "");
+  const StanceMark = ({ s }: { s?: Stance }) =>
+    s === "include" ? <Check className="inline h-3.5 w-3.5" /> : s === "exclude" ? <Ban className="inline h-3.5 w-3.5" /> : null;
 
-  const chips: Array<{ key: string; label: string; onRemove: () => void }> = useMemo(() => {
-    const list: Array<{ key: string; label: string; onRemove: () => void }> = [];
-    if (state.q.trim()) list.push({ key: "q", label: `“${state.q.trim()}”`, onRemove: () => pushState({ ...state, q: "" }) });
+  const chips: Array<{ key: string; label: string; stance?: Stance; onRemove: () => void }> = useMemo(() => {
+    const list: Array<{ key: string; label: string; stance?: Stance; onRemove: () => void }> = [];
+    if (state.q.trim()) list.push({ key: "q", label: `“${state.q.trim()}”`, stance: undefined as Stance | undefined, onRemove: () => pushState({ ...state, q: "" }) });
     for (const [kind, stance] of Object.entries(state.kinds)) {
       list.push({
         key: `kind:${kind}`,
-        label: `${KINDS.find((k) => k.id === kind)?.label ?? kind} ${stanceMark(stance)}`,
+        label: KINDS.find((k) => k.id === kind)?.label ?? kind, stance,
         onRemove: () => {
           const kinds = { ...state.kinds };
           delete kinds[kind];
@@ -154,21 +155,24 @@ export function FilterBar({
     for (const sel of state.facetValues) {
       list.push({
         key: `fv:${sel.facetId}:${sel.value}`,
-        label: `${sel.value} ${stanceMark(sel.stance)}`,
+        label: sel.value,
+        stance: sel.stance,
         onRemove: () => pushState({ ...state, facetValues: state.facetValues.filter((s) => s !== sel) }),
       });
     }
     for (const tag of state.freeTags) {
       list.push({
         key: `ft:${tag.name}`,
-        label: `${tag.name} ${stanceMark(tag.stance)}`,
+        label: tag.name,
+        stance: tag.stance,
         onRemove: () => pushState({ ...state, freeTags: state.freeTags.filter((t) => t !== tag) }),
       });
     }
     for (const c of state.colors) {
       list.push({
         key: `col:${c.family}`,
-        label: `${c.family} ${stanceMark(c.stance)}`,
+        label: c.family,
+        stance: c.stance,
         onRemove: () => pushState({ ...state, colors: state.colors.filter((x) => x !== c) }),
       });
     }
@@ -242,7 +246,7 @@ export function FilterBar({
               {chips.map((chip) => (
                 <button type="button" key={chip.key} onClick={chip.onRemove} title="Tap to remove">
                   <Badge variant="outline" className="min-h-[28px] gap-1 px-2.5 text-xs">
-                    {chip.label} ✕
+                    {chip.label} <StanceMark s={(chip as { stance?: Stance }).stance} /> <X className="h-3 w-3 opacity-60" />
                   </Badge>
                 </button>
               ))}
@@ -273,7 +277,7 @@ export function FilterBar({
                   return (
                     <button type="button" key={k.id} onClick={() => setKind(k.id)} aria-pressed={!!s}>
                       <Badge variant="outline" className={`min-h-[36px] px-3 text-sm ${chipButton(!!s, s === "exclude")}`}>
-                        {k.label} {stanceMark(s)}
+                        {k.label} <StanceMark s={s} />
                       </Badge>
                     </button>
                   );
@@ -290,7 +294,7 @@ export function FilterBar({
                     return (
                       <button type="button" key={value} onClick={() => setFacetValue(facet.id, value)} aria-pressed={!!s}>
                         <Badge variant="outline" className={`min-h-[36px] px-3 text-sm ${chipButton(!!s, s === "exclude")}`}>
-                          {value} {stanceMark(s)}
+                          {value} <StanceMark s={s} />
                         </Badge>
                       </button>
                     );
@@ -308,7 +312,7 @@ export function FilterBar({
                     return (
                       <button type="button" key={tag} onClick={() => setFreeTag(tag)} aria-pressed={!!s}>
                         <Badge variant="outline" className={`min-h-[36px] px-3 text-sm ${chipButton(!!s, s === "exclude")}`}>
-                          {tag} {stanceMark(s)}
+                          {tag} <StanceMark s={s} />
                         </Badge>
                       </button>
                     );
@@ -335,7 +339,11 @@ export function FilterBar({
                       }`}
                       style={{ backgroundColor: FAMILY_SWATCH[family] ?? "#666" }}
                     >
-                      {s ? <span className="text-[10px] font-bold text-neutral-900 mix-blend-difference">{stanceMark(s)}</span> : null}
+                      {s ? (
+                      <span className="flex items-center justify-center text-neutral-900 mix-blend-difference">
+                        {s === "include" ? <Check className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                      </span>
+                    ) : null}
                     </button>
                   );
                 })}

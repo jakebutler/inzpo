@@ -1,10 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { useMemo, useRef, useState } from "react";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
+import { X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import type { AutoTag } from "@/lib/relevance";
+
+gsap.registerPlugin(useGSAP);
 
 export interface TrayFacet {
   id: string;
@@ -17,7 +21,8 @@ export interface TrayInitial {
   freeTags?: string[];
 }
 
-const spring = { type: "spring" as const, stiffness: 420, damping: 32 };
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export function TagTray({
   facets,
@@ -30,7 +35,11 @@ export function TagTray({
   autoTags?: AutoTag[];
   initial?: TrayInitial;
 }) {
-  const autoKeys = useMemo(() => new Set(autoTags.map((t) => `${t.facet.toLowerCase()}:${t.value.toLowerCase()}`)), [autoTags]);
+  const scope = useRef<HTMLDivElement>(null);
+  const autoKeys = useMemo(
+    () => new Set(autoTags.map((t) => `${t.facet.toLowerCase()}:${t.value.toLowerCase()}`)),
+    [autoTags],
+  );
 
   const [selected, setSelected] = useState<Record<string, Set<string>>>(() => {
     const init: Record<string, Set<string>> = {};
@@ -49,6 +58,24 @@ export function TagTray({
 
   const [facetDraft, setFacetDraft] = useState<Record<string, string>>({});
   const [freeDraft, setFreeDraft] = useState("");
+
+  // The authored moment: relevant facets cascade in, auto-selected chips pop last.
+  useGSAP(
+    () => {
+      if (prefersReducedMotion()) {
+        gsap.set("[data-tray-group]", { opacity: 1 });
+        gsap.set("[data-tray-chip]", { opacity: 1, scale: 1 });
+        return;
+      }
+      const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+      tl.from("[data-tray-group]", { opacity: 0, y: 12, duration: 0.28, stagger: 0.06 }).from(
+        "[data-auto-chip]",
+        { opacity: 0, scale: 0.6, duration: 0.32, ease: "back.out(2.2)", stagger: 0.09 },
+        "-=0.15",
+      );
+    },
+    { scope, dependencies: [] },
+  );
 
   function toggleFacetValue(facetId: string, value: string) {
     setSelected((prev) => {
@@ -96,58 +123,42 @@ export function TagTray({
   const relevant = facets.filter((f) => relevantNames.includes(f.name));
   const more = facets.filter((f) => !relevantNames.includes(f.name));
 
-  function facetSection(facet: TrayFacet, index: number) {
+  function facetSection(facet: TrayFacet) {
     const extras = selected[facet.id] ?? new Set<string>();
     const known = new Set(facet.values);
     const custom = [...extras].filter((v) => !known.has(v));
     const autoForFacet = autoTags.filter((t) => t.facet.toLowerCase() === facet.name.toLowerCase());
     return (
-      <motion.fieldset
-        key={facet.id}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring, delay: 0.08 * index }}
-      >
+      <fieldset key={facet.id} data-tray-group>
         <legend className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{facet.name}</legend>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {facet.values.map((value, vi) => {
+          {facet.values.map((value) => {
             const on = extras.has(value);
-            const isAuto = autoKeys.has(`${facet.name.toLowerCase()}:${value.toLowerCase()}`);
-            const delay = 0.08 * index + (isAuto ? 0.35 : 0.02 * vi);
+            const isAuto = autoKeys.has(`${facet.name.toLowerCase()}:${value.toLowerCase()}`) && on;
             return (
-              <motion.button
-                type="button"
-                key={value}
-                onClick={() => toggleFacetValue(facet.id, value)}
-                aria-pressed={on}
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ ...spring, delay }}
-              >
-                <Badge variant={on ? "default" : "outline"} className="min-h-[34px] gap-1 px-3 text-sm">
+              <button type="button" key={value} onClick={() => toggleFacetValue(facet.id, value)} aria-pressed={on}>
+                <Badge
+                  data-auto-chip={isAuto ? "" : undefined}
+                  variant={on ? "default" : "outline"}
+                  className={`min-h-[34px] gap-1 px-3 text-sm ${isAuto ? "ring-1 ring-primary/40" : ""}`}
+                >
                   {value}
-                  {isAuto && on ? (
-                    <span className="rounded-full bg-primary/20 px-1 text-[9px] font-semibold uppercase tracking-wide">
+                  {isAuto ? (
+                    <span className="rounded-full bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide">
                       auto
                     </span>
                   ) : null}
                 </Badge>
-              </motion.button>
+              </button>
             );
           })}
           {custom.map((value) => (
-            <motion.button
-              key={value}
-              type="button"
-              initial={{ scale: 0.7, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={spring}
-              onClick={() => toggleFacetValue(facet.id, value)}
-            >
-              <Badge className="min-h-[34px] px-3 text-sm">
-                {value} ✕
+            <button type="button" key={value} onClick={() => toggleFacetValue(facet.id, value)} aria-pressed>
+              <Badge className="min-h-[34px] gap-1 px-3 text-sm">
+                {value}
+                <X className="h-3 w-3" />
               </Badge>
-            </motion.button>
+            </button>
           ))}
           <Input
             type="text"
@@ -159,7 +170,7 @@ export function TagTray({
                 createFacetValue(facet.id, facetDraft[facet.id] ?? "");
               }
             }}
-            placeholder="＋ new"
+            placeholder="new"
             aria-label={`New ${facet.name} value`}
             className="h-[34px] w-24 rounded-full text-sm"
           />
@@ -169,30 +180,17 @@ export function TagTray({
             auto-selected: {autoForFacet.map((t) => t.value).join(", ")} — tap to remove
           </p>
         ) : null}
-      </motion.fieldset>
+      </fieldset>
     );
   }
 
   return (
-    <div>
+    <div ref={scope}>
       <input type="hidden" name="tags" value={payload} />
       <div className="space-y-4">
-        {relevant.map((facet, i) => facetSection(facet, i))}
+        {relevant.map((facet) => facetSection(facet))}
 
-        <AnimatePresence initial={false}>
-          {showMore ? (
-            <motion.div
-              key="more"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={spring}
-              className="space-y-4 overflow-hidden"
-            >
-              {more.map((facet, i) => facetSection(facet, relevant.length + i))}
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
+        {showMore ? more.map((facet) => facetSection(facet)) : null}
 
         {more.length > 0 ? (
           <button
@@ -200,26 +198,20 @@ export function TagTray({
             onClick={() => setShowMore((v) => !v)}
             className="text-xs text-muted-foreground underline-offset-2 hover:underline"
           >
-            {showMore ? "− fewer tags" : `＋ ${more.length} more tag categories`}
+            {showMore ? "fewer tag categories" : `${more.length} more tag categories`}
           </button>
         ) : null}
 
-        <motion.fieldset initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.1 * relevant.length }}>
+        <fieldset data-tray-group>
           <legend className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Free tags</legend>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {[...freeTags].map((tag) => (
-              <motion.button
-                key={tag}
-                type="button"
-                initial={{ scale: 0.7, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={spring}
-                onClick={() => setFreeTags((prev) => new Set([...prev].filter((t) => t !== tag)))}
-              >
-                <Badge variant="secondary" className="min-h-[34px] px-3 text-sm">
-                  {tag} ✕
+              <button type="button" key={tag} onClick={() => setFreeTags((prev) => new Set([...prev].filter((t) => t !== tag)))}>
+                <Badge variant="secondary" className="min-h-[34px] gap-1 px-3 text-sm">
+                  {tag}
+                  <X className="h-3 w-3" />
                 </Badge>
-              </motion.button>
+              </button>
             ))}
             <Input
               type="text"
@@ -232,12 +224,12 @@ export function TagTray({
                 }
               }}
               onBlur={addFreeTag}
-              placeholder="＋ free tag"
+              placeholder="free tag"
               aria-label="New free tag"
               className="h-[34px] w-28 rounded-full text-sm"
             />
           </div>
-        </motion.fieldset>
+        </fieldset>
       </div>
       <p className="mt-3 text-xs text-muted-foreground" aria-live="polite">
         {totalSelected === 0 ? "Skipping tags is fine — save now, tag later." : `${totalSelected} selected`}

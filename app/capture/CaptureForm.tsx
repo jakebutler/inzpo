@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
-import { Plus } from "lucide-react";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
+import { ArrowUp, Globe, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +13,10 @@ import { TagTray, type TrayFacet } from "./TagTray";
 import { autoTagsFor, relevantFacetsFor } from "@/lib/relevance";
 import type { ItemKind } from "@/lib/db/schema";
 
-const spring = { type: "spring" as const, stiffness: 420, damping: 32 };
+gsap.registerPlugin(useGSAP);
+
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 interface Preview {
   kind: ItemKind;
@@ -30,6 +34,14 @@ const KIND_LABEL: Record<string, string> = {
   video: "Video",
 };
 
+function safeHost(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
 export function CaptureForm({
   facets,
   prefilledUrl,
@@ -44,14 +56,26 @@ export function CaptureForm({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const hasSubstance = !!preview || !!file || !!shareToken;
   const kind: ItemKind = preview?.kind ?? (file && /screenshot/i.test(file.name) ? "screenshot" : file ? "photo" : "url");
   const relevantNames = relevantFacetsFor(kind);
   const autoTags = hasSubstance && !file ? autoTagsFor(kind) : [];
+  const stageRef = useRef<HTMLDivElement>(null);
+
+  // Focal moment: substance arrives → preview card rises, then the tray cascades.
+  useGSAP(
+    () => {
+      if (!hasSubstance) return;
+      if (prefersReducedMotion()) return; // content simply appears
+      gsap.from("[data-stage='preview-card']", { opacity: 0, y: 24, duration: 0.4, ease: "power3.out" });
+      gsap.from("[data-stage='tray-label']", { opacity: 0, y: 10, duration: 0.3, ease: "power3.out", delay: 0.15 });
+    },
+    { scope: stageRef, dependencies: [hasSubstance, preview?.kind, file?.name] },
+  );
 
   function pick(next: File | null) {
     setFile(next);
@@ -91,7 +115,6 @@ export function CaptureForm({
     }, 600);
   }
 
-  // auto-detect from a pasted value even without trailing input events (paste via menu)
   useEffect(() => {
     if (prefilledUrl) onUrlChange(prefilledUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -125,102 +148,80 @@ export function CaptureForm({
         </Button>
       </div>
 
-      <DuplicateNoticeInline url={urlDraft} />
+      <DuplicateNotice url={urlDraft} />
 
-      <AnimatePresence initial={false}>
-        {!hasSubstance ? (
-          <motion.div
-            key="dropzone"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-3 overflow-hidden"
-          >
-            <button
-              type="button"
-              onClick={() => inputRef.current?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragging(false);
-                pick(e.dataTransfer.files?.[0] ?? null);
-              }}
-              className={`flex min-h-[180px] w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${
-                dragging ? "border-ring bg-accent" : "border-border bg-card hover:border-muted-foreground/40"
-              }`}
-            >
-              <span className="text-3xl" aria-hidden>
-                ⬆
-              </span>
-              <span className="text-sm text-muted-foreground">or drop an image here, tap to pick</span>
-            </button>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="preview"
-            initial={{ opacity: 0, y: 16, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={spring}
-            className="mt-3"
-          >
-            <div className="overflow-hidden rounded-2xl border border-border bg-card">
-              {fileUrl ? (
-                <img src={fileUrl} alt="Captured image" className="max-h-72 w-full object-cover" />
-              ) : preview?.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={preview.image} alt="" className="max-h-72 w-full object-cover" />
-              ) : null}
-              <div className="flex items-start justify-between gap-3 p-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {preview?.title ?? file?.name ?? "Untitled"}
-                  </p>
-                  {preview?.host ? <p className="truncate text-xs text-muted-foreground">{preview.host}</p> : null}
-                </div>
-                <Badge variant="secondary" className="shrink-0">
-                  {KIND_LABEL[kind] ?? kind} · auto
-                </Badge>
+      {hasSubstance ? (
+        <div ref={stageRef}>
+          <div data-stage="preview-card" className="mt-3 overflow-hidden rounded-2xl border border-border bg-card">
+            {fileUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={fileUrl} alt="Captured image" className="max-h-72 w-full object-cover" />
+            ) : preview?.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={preview.image} alt="" className="max-h-72 w-full object-cover" />
+            ) : null}
+            <div className="flex items-start justify-between gap-3 p-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{preview?.title ?? file?.name ?? "Untitled"}</p>
+                {preview?.host ? <p className="truncate text-xs text-muted-foreground">{preview.host}</p> : null}
               </div>
+              <Badge variant="secondary" className="shrink-0 gap-1">
+                <Globe className="h-3 w-3" />
+                {KIND_LABEL[kind] ?? kind} · detected
+              </Badge>
             </div>
+          </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ ...spring, delay: 0.12 }}
-              className="mt-5"
-            >
-              <h2 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Tag it — relevant categories first
-              </h2>
-              <TagTray
-                key={`tray-${preview?.title ?? file?.name ?? "x"}`}
-                facets={facets}
-                relevantNames={relevantNames}
-                autoTags={autoTags}
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          <div data-stage="tray" className="mt-5">
+            <h2 data-stage="tray-label" className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Tag it — relevant categories first
+            </h2>
+            <TagTray
+              key={`tray-${preview?.title ?? file?.name ?? "x"}`}
+              facets={facets}
+              relevantNames={relevantNames}
+              autoTags={autoTags}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              pick(e.dataTransfer.files?.[0] ?? null);
+            }}
+            className={`flex min-h-[180px] w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${
+              dragging ? "border-ring bg-accent" : "border-border bg-card hover:border-muted-foreground/40"
+            }`}
+          >
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted">
+              <ArrowUp className="h-5 w-5 text-muted-foreground" />
+            </span>
+            <span className="text-sm text-muted-foreground">or drop an image here, tap to pick</span>
+            {previewLoading ? <span className="text-xs text-muted-foreground">Reading the link…</span> : null}
+          </button>
+        </div>
+      )}
 
-      <Button
-        type="submit"
-        size="lg"
-        className="sticky bottom-4 mt-6 h-12 w-full rounded-xl text-base font-medium shadow-lg shadow-black/40"
-      >
+      <Button type="submit" size="lg" className="sticky bottom-4 mt-6 h-12 w-full rounded-xl text-base font-medium shadow-lg shadow-black/40">
         Save
       </Button>
     </form>
   );
 }
 
-function DuplicateNoticeInline({ url }: { url: string }) {
+function DuplicateNotice({ url }: { url: string }) {
   const [existing, setExisting] = useState<{ itemId: string; title: string | null } | null>(null);
+  const ref = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
     if (!url.trim()) {
@@ -242,31 +243,20 @@ function DuplicateNoticeInline({ url }: { url: string }) {
     return () => clearTimeout(timer);
   }, [url]);
 
-  return (
-    <AnimatePresence>
-      {existing ? (
-        <motion.p
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          role="status"
-          className="mt-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-300"
-        >
-          Already saved{existing.title ? `: “${existing.title}”` : ""} —{" "}
-          <Link href={`/items/${existing.itemId}`} className="underline">
-            View existing
-          </Link>{" "}
-          (saving again is fine)
-        </motion.p>
-      ) : null}
-    </AnimatePresence>
-  );
-}
+  useEffect(() => {
+    if (existing && ref.current && !prefersReducedMotion()) {
+      gsap.from(ref.current, { opacity: 0, y: -8, duration: 0.2, ease: "power3.out" });
+    }
+  }, [existing]);
 
-function safeHost(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return "";
-  }
+  if (!existing) return null;
+  return (
+    <p ref={ref} role="status" className="mt-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+      Already saved{existing.title ? ` “${existing.title}”` : ""} —{" "}
+      <Link href={`/items/${existing.itemId}`} className="underline">
+        View existing
+      </Link>{" "}
+      (saving again is fine)
+    </p>
+  );
 }
