@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import { deleteCollectionAction, renameCollectionAction } from "@/app/actions/collections";
 import { deleteSavedAction, renameSavedAction, saveSearchAction } from "@/app/actions/saved";
 import { serializeFilter, type FilterState } from "@/lib/filter";
@@ -87,9 +88,7 @@ export function SavedPopover({
                     <button type="submit" className="rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-900">
                       Save
                     </button>
-                    <button type="button" onClick={() => setRenaming(null)} className="text-xs text-muted-foreground">
-                      ✕
-                    </button>
+                    <button type="button" onClick={() => setRenaming(null)} className="text-xs text-muted-foreground"><X className="h-3 w-3" /></button>
                   </form>
                 ) : (
                   <>
@@ -114,9 +113,7 @@ export function SavedPopover({
                     </button>
                     <form action={deleteSavedAction}>
                       <input type="hidden" name="id" value={entry.id} />
-                      <button type="submit" className="px-1 text-xs text-muted-foreground hover:text-red-400" aria-label={`Delete ${entry.name}`}>
-                        ✕
-                      </button>
+                      <button type="submit" className="px-1 text-xs text-muted-foreground hover:text-red-400" aria-label={`Delete ${entry.name}`}><X className="h-3 w-3" /></button>
                     </form>
                   </>
                 )}
@@ -136,9 +133,7 @@ export function SavedPopover({
               <button type="submit" className="rounded bg-neutral-100 px-2 py-1.5 text-xs font-medium text-neutral-900">
                 Save
               </button>
-              <button type="button" onClick={() => setNaming(false)} className="text-xs text-muted-foreground">
-                ✕
-              </button>
+              <button type="button" onClick={() => setNaming(false)} className="text-xs text-muted-foreground"><X className="h-3 w-3" /></button>
             </form>
           ) : (
             <button
@@ -171,9 +166,7 @@ export function SavedPopover({
                       type="button"
                       onClick={() => setRenaming(null)}
                       className="text-xs text-muted-foreground"
-                    >
-                      ✕
-                    </button>
+                    ><X className="h-3 w-3" /></button>
                   </form>
                 ) : (
                   <>
@@ -198,9 +191,7 @@ export function SavedPopover({
                     </button>
                     <form action={deleteCollectionAction}>
                       <input type="hidden" name="id" value={col.id} />
-                      <button type="submit" className="px-1 text-xs text-muted-foreground hover:text-red-400" aria-label={`Delete collection ${col.name}`}>
-                        ✕
-                      </button>
+                      <button type="submit" className="px-1 text-xs text-muted-foreground hover:text-red-400" aria-label={`Delete collection ${col.name}`}><X className="h-3 w-3" /></button>
                     </form>
                   </>
                 )}

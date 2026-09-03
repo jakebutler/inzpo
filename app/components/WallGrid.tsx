@@ -119,7 +119,7 @@ export function WallGrid({
         <div className="sticky top-0 z-20 border-b border-neutral-800 bg-neutral-950 p-3">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2">
             <button type="button" onClick={exit} className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm min-h-[36px]">
-              ✕ Exit selection
+              <X className="h-4 w-4" /> Exit selection
             </button>
             <button
               type="button"

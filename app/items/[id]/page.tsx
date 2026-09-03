@@ -6,7 +6,7 @@ import { getItemCollections, listCollectionOptions } from "@/lib/item-collection
 import { DeleteButton } from "../DeleteButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, X } from "lucide-react";
 import { addToCollectionAction, removeFromCollectionAction } from "@/app/actions/collections";
 import { saveExtractedAsPaletteAction } from "@/app/actions/palettes";
 import { getOrigin, getDerivedItems } from "@/lib/palettes";
@@ -244,7 +244,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
             <input
               type="text"
               name="newName"
-              placeholder="＋ new collection"
+              placeholder="new collection"
               aria-label="New collection name"
               className="w-40 rounded-full border border-dashed border-neutral-700 bg-transparent px-3 py-1.5 text-sm min-h-[36px] outline-none focus:border-neutral-500"
             />

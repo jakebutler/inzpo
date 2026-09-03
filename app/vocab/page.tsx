@@ -91,7 +91,7 @@ export default async function VocabPage() {
               <input
                 type="text"
                 name="value"
-                placeholder={`＋ new ${facet.name} value`}
+                placeholder={`new ${facet.name} value`}
                 aria-label={`New ${facet.name} value`}
                 className="w-44 rounded border border-dashed border-neutral-700 bg-transparent px-2 py-1 text-xs"
               />

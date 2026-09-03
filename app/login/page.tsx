@@ -1,4 +1,5 @@
 import { login } from "./actions";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export default async function LoginPage({
   const next = typeof params.next === "string" ? params.next : "/";
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center p-6">
+    <main className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
       <form action={login} className="w-full max-w-sm">
         <input type="hidden" name="next" value={next} />
         <h1 className="text-xl font-semibold tracking-tight">Inzpo</h1>
@@ -23,17 +24,14 @@ export default async function LoginPage({
           autoFocus
           required
           placeholder="Passphrase"
-          className="mt-6 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-3 text-base outline-none focus:border-neutral-500"
+          className="mt-6 w-full rounded-lg border border-input bg-card px-4 py-3 text-base outline-none focus:border-neutral-500"
         />
         {params.error ? (
-          <p className="mt-2 text-sm text-red-400">Incorrect passphrase.</p>
+          <p className="mt-2 text-sm text-destructive">Incorrect passphrase.</p>
         ) : null}
-        <button
-          type="submit"
-          className="mt-4 w-full rounded-lg bg-neutral-100 px-4 py-3 text-base font-medium text-neutral-900 hover:bg-white min-h-[44px]"
-        >
+        <Button type="submit" className="mt-4 min-h-[44px] w-full rounded-lg text-base font-medium">
           Sign in
-        </button>
+        </Button>
       </form>
     </main>
   );
