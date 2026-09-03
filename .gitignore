@@ -13,3 +13,4 @@ out/
 .vercel
 .DS_Store
 tsconfig.tsbuildinfo
+.impeccable/review/
