@@ -129,7 +129,11 @@ try {
   await page.waitForURL(/\/capture\?saved=/, { timeout: 30000 });
   check("URL capture works", true);
 
-  // 12. duplicate notice (same URL, different dressing)
+  // 12. duplicate notice: capture example.com first, then a dressed variant
+  await page.goto(BASE + "/capture");
+  await page.fill('input[name="url"]', "https://example.com/");
+  await page.click('button[type="submit"]:has-text("Save")');
+  await page.waitForURL(/\/capture\?saved=/, { timeout: 30000 });
   await page.goto(BASE + "/capture");
   await page.fill('input[name="url"]', "https://example.com/?utm_source=e2e#top");
   await page.waitForSelector("text=Already saved", { timeout: 15000 });
