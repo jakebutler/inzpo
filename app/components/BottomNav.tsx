@@ -36,7 +36,7 @@ export function BottomNav() {
         >
           <Plus className="h-7 w-7" />
         </Link>
-        {item("/vocab", "Tags", Tags)}
+        {item("/vocab", "Vocab", Tags)}
       </div>
     </nav>
   );

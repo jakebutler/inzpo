@@ -44,8 +44,8 @@ export default async function VocabPage() {
 
       <div className="mx-auto max-w-3xl p-4 pb-16">
         <p className="text-xs text-muted-foreground">
-          Six fixed Facets — the user curates vocabularies, not new Facets. Renames and merges propagate into {saved.length} saved
-          search{saved.length === 1 ? "" : "es"} automatically. Remove is only possible while a value is unused.
+          Six fixed Facets — the user curates vocabularies, not new Facets. Renames and merges propagate into {saved.length} smart
+          collection{saved.length === 1 ? "" : "s"} automatically. Remove is only possible while a value is unused.
         </p>
 
         {facets.map((facet) => (
