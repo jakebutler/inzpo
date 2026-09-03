@@ -72,7 +72,7 @@ try {
 
   // 6. card exists on the wall with the tag chip, and the media proxy serves the image
   await page.goto(BASE + "/");
-  await page.waitForSelector("a figcaption:has-text('minimal')", { timeout: 15000 });
+  await page.waitForSelector('figcaption:has-text("minimal")', { timeout: 15000 });
   check("card on wall tagged minimal", true);
   const imgOk = await page.evaluate(() => {
     const img = document.querySelector("figure img");

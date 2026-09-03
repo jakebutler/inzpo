@@ -192,7 +192,8 @@ export function FilterBar({
   }, [state, facets]);
 
   return (
-    <div className="sticky top-0 z-20 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur">
+    <>
+      <div className="sticky top-0 z-20 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur">
       <div className="mx-auto max-w-6xl px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="text-lg font-semibold tracking-tight mr-1">Inzpo</span>
@@ -255,6 +256,8 @@ export function FilterBar({
           </div>
         ) : null}
       </div>
+
+    </div>
 
       {sheetOpen ? (
         <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/60" onClick={() => setSheetOpen(false)}>
@@ -384,6 +387,6 @@ export function FilterBar({
           </div>
         </div>
       ) : null}
-    </div>
+    </>
   );
 }
