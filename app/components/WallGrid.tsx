@@ -277,6 +277,12 @@ export function WallGrid({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-4 columns-2 md:columns-3 lg:columns-4 gap-4 [&>*]:mb-4">
+      {items.length === 0 ? (
+        <div className="col-span-full flex flex-col items-center justify-center gap-3 py-32 text-center">
+          <p className="text-neutral-300">Nothing matches.</p>
+          <p className="text-sm text-neutral-500">Adjust the filters, or capture something new.</p>
+        </div>
+      ) : null}
       {items.map((item) => (
         <figure key={item.id} className="group relative break-inside-avoid overflow-hidden rounded-xl bg-neutral-900">
           <Link

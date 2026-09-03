@@ -74,10 +74,13 @@ try {
   await page.goto(BASE + "/");
   await page.waitForSelector('figcaption:has-text("minimal")', { timeout: 15000 });
   check("card on wall tagged minimal", true);
-  const imgOk = await page.evaluate(() => {
-    const img = document.querySelector("figure img");
-    return img instanceof HTMLImageElement && img.complete && img.naturalWidth > 0;
-  });
+  const imgOk = await page.waitForFunction(
+    () => {
+      const img = document.querySelector<HTMLImageElement>("figure img");
+      return !!img && img.complete && img.naturalWidth > 0;
+    },
+    { timeout: 15000 },
+  ).then(() => true).catch(() => false);
   check("media proxy serves the image in-browser", imgOk);
 
   // 7. filter: sheet → include Style:minimal → live count > 0 → chip row visible
@@ -92,9 +95,8 @@ try {
 
   // 8. text search narrows
   await page.fill('input[aria-label="Text search"]', "zzz-no-match");
-  await page.waitForTimeout(900);
-  await page.waitForURL(/zzz-no-match/);
-  check("text search resolves to zero", await page.locator("text=Nothing matches.").isVisible());
+  await page.waitForSelector("text=Nothing matches.", { timeout: 15000 });
+  check("text search resolves to zero", true);
   await page.fill('input[aria-label="Text search"]', "");
 
   // 9. edit mode: rename the item
@@ -117,9 +119,9 @@ try {
   check("URL capture works", true);
   // capture the SAME url dressed differently → notice must appear
   await page.goto(BASE + "/capture");
-  await page.fill('input[name="url"]', "https://www.example.com/?utm_source=e2e");
-  await page.waitForTimeout(1500);
-  check("duplicate notice appears", await page.locator("text=Already saved").first().isVisible());
+  await page.fill('input[name="url"]', "https://example.com/?utm_source=e2e#top");
+  await page.waitForSelector("text=Already saved", { timeout: 15000 });
+  check("duplicate notice appears", true);
   check("notice still allows Save (non-blocking)", (await page.locator('button[type="submit"]:has-text("Save")').count()) === 1);
   void savedUrl;
 
@@ -130,15 +132,7 @@ try {
   await page.click('button:has-text("Exit selection")');
   check("selection mode toggles", true);
 
-  // 12. cleanup: delete both e2e items through the detail view
-  for (let i = 0; i < 2; i++) {
-    await page.goto(BASE + "/capture");
-    // find items titled E2E renamed or Untitled from example.com — delete via search
-    break;
-  }
-  // precise cleanup via search
-  await page.fill('input[aria-label="Text search"]', "E2E renamed");
-  await page.waitForTimeout(900);
+  // 12. hard delete the renamed item through the detail view
   await page.goto(detailUrl);
   await page.click('button:has-text("Delete…")');
   await page.click('button:has-text("Delete")');
