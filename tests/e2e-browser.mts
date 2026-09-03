@@ -135,7 +135,7 @@ try {
   // 12. hard delete the renamed item through the detail view
   await page.goto(detailUrl);
   await page.click('button:has-text("Delete…")');
-  await page.click('button:has-text("Delete")');
+  await page.click('form button[type="submit"]:has-text("Delete")');
   await page.waitForURL(`${BASE}/`);
   check("hard delete returns to wall", true);
 } catch (err) {
