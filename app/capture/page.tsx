@@ -22,10 +22,11 @@ const ERRORS: Record<string, string> = {
 export default async function CapturePage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; url?: string; shareToken?: string }>;
 }) {
   const params = await searchParams;
   const facets = await loadTrayFacets();
+  const prefilledUrl = params.url ?? "";
 
   let savedTitle: string | null = null;
   if (params.saved) {
@@ -53,9 +54,16 @@ export default async function CapturePage({
             type="url"
             name="url"
             inputMode="url"
+            defaultValue={prefilledUrl}
             placeholder="Paste a link…"
             className="w-full rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-base outline-none focus:border-neutral-500 min-h-[44px]"
           />
+          {params.shareToken ? <input type="hidden" name="shareToken" value={params.shareToken} /> : null}
+          {params.shareToken ? (
+            <p className="mt-2 rounded-lg border border-sky-500/50 bg-sky-500/10 px-3 py-2 text-sm text-sky-300">
+              Shared image recovered after sign-in — tag it and press Save.
+            </p>
+          ) : null}
           <DuplicateNotice />
           <p className="mt-2 text-center text-xs text-neutral-500">— or —</p>
           <div className="mt-2">

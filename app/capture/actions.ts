@@ -6,11 +6,33 @@ import { createImageItem } from "@/lib/items";
 import { createLinkedItem } from "@/lib/capture-url";
 import { attachTags, parseTagSelection } from "@/lib/ontology";
 import { isHttpUrl } from "@/lib/url";
+import { r2, GetObjectCommand, DeleteObjectCommand } from "@/lib/r2";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { items } from "@/lib/db/schema";
 
 export async function capture(formData: FormData): Promise<void> {
   const file = formData.get("image");
   const rawUrl = ((formData.get("url") as string) ?? "").trim();
+  const shareToken = ((formData.get("shareToken") as string) ?? "").trim();
   const tags = parseTagSelection(formData.get("tags"));
+
+  // a stashed cold-start share image: only if it is still pending (tmp/ prefix) and survives the login
+  if (shareToken.startsWith("tmp/") && !shareToken.includes("..")) {
+    try {
+      const result = await r2().send(new GetObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: shareToken }));
+      const buffer = Buffer.from(await result.Body!.transformToByteArray());
+      const pending = await db.select({ id: items.id }).from(items).where(eq(items.id, shareToken)).limit(1);
+      void pending;
+      const itemId = await createImageItem({ buffer, filename: "shared-image" });
+      await attachTags(itemId, tags);
+      await r2().send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: shareToken }));
+      revalidatePath("/");
+      redirect(`/capture?saved=${itemId}`);
+    } catch {
+      redirect("/capture?error=capture-failed");
+    }
+  }
 
   if (file instanceof File && file.size > 0) {
     const buffer = Buffer.from(await file.arrayBuffer());
