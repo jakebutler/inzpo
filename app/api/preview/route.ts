@@ -35,14 +35,11 @@ export async function POST(request: NextRequest) {
         import("metascraper-description"),
         import("metascraper-image"),
       ]);
-      const scrape = metascraper([
-        // @ts-expect-error
-        titleBundle.default(),
-        // @ts-expect-error
-        descriptionBundle.default(),
-        // @ts-expect-error
-        imageBundle.default(),
-      ]);
+      const rules = [titleBundle, descriptionBundle, imageBundle].map((m) => {
+        const mod = m as unknown as { default?: () => unknown };
+        return typeof m === "function" ? (m as () => unknown)() : (mod.default as () => unknown)();
+      });
+      const scrape = metascraper(rules as Parameters<typeof metascraper>[0]);
       const meta = await scrape({ url: page.finalUrl, html: page.html });
       title = meta.title || null;
       description = meta.description || null;
