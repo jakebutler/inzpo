@@ -40,7 +40,7 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
 
         <form action={updateItem} className="mt-6 pb-4">
           <input type="hidden" name="itemId" value={id} />
-          <label className="block text-xs uppercase tracking-wide text-neutral-500" htmlFor="title">
+          <label className="block text-xs uppercase tracking-wide text-muted-foreground" htmlFor="title">
             Title
           </label>
           <input
@@ -52,7 +52,7 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
             className="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm min-h-[36px] outline-none focus:border-neutral-500"
           />
 
-          <label className="mt-4 block text-xs uppercase tracking-wide text-neutral-500" htmlFor="note">
+          <label className="mt-4 block text-xs uppercase tracking-wide text-muted-foreground" htmlFor="note">
             Note
           </label>
           <textarea
@@ -65,8 +65,8 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
 
           {item.source ? (
             <fieldset className="mt-4 rounded-lg border border-neutral-800 bg-neutral-900 p-3">
-              <legend className="px-1 text-xs uppercase tracking-wide text-neutral-500">Source (the copy)</legend>
-              <label className="block text-xs text-neutral-500" htmlFor="sourceUrl">
+              <legend className="px-1 text-xs uppercase tracking-wide text-muted-foreground">Source (the copy)</legend>
+              <label className="block text-xs text-muted-foreground" htmlFor="sourceUrl">
                 URL
               </label>
               <input
@@ -76,7 +76,7 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
                 defaultValue={item.source.url}
                 className="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs outline-none focus:border-neutral-500"
               />
-              <label className="mt-2 block text-xs text-neutral-500" htmlFor="sourceTitle">
+              <label className="mt-2 block text-xs text-muted-foreground" htmlFor="sourceTitle">
                 Title
               </label>
               <input
@@ -86,7 +86,7 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
                 defaultValue={item.source.title ?? ""}
                 className="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs outline-none focus:border-neutral-500"
               />
-              <label className="mt-2 block text-xs text-neutral-500" htmlFor="sourceDescription">
+              <label className="mt-2 block text-xs text-muted-foreground" htmlFor="sourceDescription">
                 Description
               </label>
               <textarea
@@ -109,13 +109,13 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
 
           {item.kind === "palette" ? (
             <div className="mt-4">
-              <h2 className="mb-2 text-xs uppercase tracking-wide text-neutral-500">Palette colors</h2>
+              <h2 className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Palette colors</h2>
               <PaletteColorEditor itemId={item.id} initialColors={item.colors.map((c) => c.hex)} />
             </div>
           ) : null}
 
           {substanceLocked && item.kind !== "palette" ? (
-            <p className="mt-4 text-xs text-neutral-500">
+            <p className="mt-4 text-xs text-muted-foreground">
               {item.kind === "article"
                 ? "The archived copy is capture-time substance — it is not editable."
                 : "Palette colors are edited with the color editor below."}

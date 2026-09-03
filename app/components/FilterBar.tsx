@@ -266,6 +266,9 @@ export function FilterBar({
         <SheetContent side="bottom" className="max-h-[82vh] overflow-y-auto rounded-t-2xl p-4">
           <SheetHeader className="border-b border-border pb-3">
             <SheetTitle>Filters</SheetTitle>
+            <p className="text-xs text-muted-foreground">
+              Tap once to include, again to exclude, again to clear. Chip rows above remove a filter directly.
+            </p>
           </SheetHeader>
 
           <div className="space-y-5 py-4">

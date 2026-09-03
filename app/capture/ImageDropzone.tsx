@@ -49,7 +49,7 @@ export function ImageDropzone() {
               ⬆
             </span>
             <span className="text-neutral-300">Drop an image here, or tap to pick</span>
-            <span className="text-xs text-neutral-500">PNG · JPEG · WebP · GIF · AVIF</span>
+            <span className="text-xs text-muted-foreground">PNG · JPEG · WebP · GIF · AVIF</span>
           </>
         )}
       </button>

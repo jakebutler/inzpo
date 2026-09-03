@@ -63,7 +63,7 @@ export default async function Wall({
       />
 
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 pt-3">
-        <span className="text-xs text-neutral-500">
+        <span className="text-xs text-muted-foreground">
           {count} item{count === 1 ? "" : "s"}
           {collectionId ? (
             <>

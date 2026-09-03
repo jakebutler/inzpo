@@ -62,15 +62,16 @@ export function TagTray({
   // The authored moment: relevant facets cascade in, auto-selected chips pop last.
   useGSAP(
     () => {
-      if (prefersReducedMotion()) {
-        gsap.set("[data-tray-group]", { opacity: 1 });
-        gsap.set("[data-tray-chip]", { opacity: 1, scale: 1 });
-        return;
-      }
+      if (prefersReducedMotion()) return;
       const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
-      tl.from("[data-tray-group]", { opacity: 0, y: 12, duration: 0.28, stagger: 0.06 }).from(
+      tl.fromTo(
+        "[data-tray-group]",
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.28, stagger: 0.06 },
+      ).fromTo(
         "[data-auto-chip]",
-        { opacity: 0, scale: 0.6, duration: 0.32, ease: "back.out(2.2)", stagger: 0.09 },
+        { opacity: 0, scale: 0.6 },
+        { opacity: 1, scale: 1, duration: 0.32, ease: "back.out(2.2)", stagger: 0.09 },
         "-=0.15",
       );
     },

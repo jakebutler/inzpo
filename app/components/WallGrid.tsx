@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowUpRight, Ban, Check, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { serializeFilter, type FilterState } from "@/lib/filter";
 import { bulkAssignTagsAction, bulkCollectionAction, bulkDeleteAction, bulkRemoveTagsAction } from "@/app/actions/bulk";
 
@@ -44,8 +44,20 @@ export function WallGrid({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [allSelected, setAllSelected] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [colCount, setColCount] = useState(2);
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longFired = useRef(false);
+
+  useEffect(() => {
+    const queries: Array<[MediaQueryList, number]> = [
+      [window.matchMedia("(min-width: 1024px)"), 4],
+      [window.matchMedia("(min-width: 768px)"), 3],
+    ];
+    const update = () => setColCount(queries.find(([q]) => q.matches)?.[1] ?? 2);
+    update();
+    queries.forEach(([q]) => q.addEventListener("change", update));
+    return () => queries.forEach(([q]) => q.removeEventListener("change", update));
+  }, []);
 
   const f = serializeFilter(state);
   const selectedCount = allSelected ? totalCount : selected.size;
@@ -313,7 +325,7 @@ export function WallGrid({
               <span className="flex h-32 items-center justify-center px-3 text-center text-neutral-500">{item.title ?? "Untitled"}</span>
             )}
           </Link>
-          <div className="pointer-events-none absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 max-md:pointer-events-auto max-md:opacity-100">
+          <div className="pointer-events-none absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 ">
             <button
               type="button"
               aria-label="Select"

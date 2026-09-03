@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Pencil, Plus, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { freeTags } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
@@ -37,12 +38,12 @@ export default async function VocabPage() {
           <Link href="/" className="text-sm text-neutral-400 hover:text-neutral-200">
             ← Wall
           </Link>
-          <span className="text-sm text-neutral-500">Vocabulary manager</span>
+          <span className="text-sm text-muted-foreground">Vocabulary manager</span>
         </div>
       </div>
 
       <div className="mx-auto max-w-3xl p-4 pb-16">
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-muted-foreground">
           Six fixed Facets — the user curates vocabularies, not new Facets. Renames and merges propagate into {saved.length} saved
           search{saved.length === 1 ? "" : "es"} automatically. Remove is only possible while a value is unused.
         </p>
@@ -55,7 +56,7 @@ export default async function VocabPage() {
               {facet.values.map((v) => (
                 <li key={v.id} className="flex flex-wrap items-center gap-2 rounded px-2 py-1 hover:bg-neutral-900">
                   <span className="min-w-28 text-sm">{v.value}</span>
-                  <span className="text-xs text-neutral-500">{v.usage} item{v.usage === 1 ? "" : "s"}</span>
+                  <span className="text-xs text-muted-foreground">{v.usage} item{v.usage === 1 ? "" : "s"}</span>
                   <form action={renameFacetValueAction} className="ml-auto flex items-center gap-1">
                     <input type="hidden" name="facetId" value={facet.id} />
                     <input type="hidden" name="oldValue" value={v.value} />
@@ -66,8 +67,8 @@ export default async function VocabPage() {
                       aria-label={`Rename ${v.value}`}
                       className="w-28 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs"
                     />
-                    <button type="submit" className="rounded border border-neutral-700 px-2 py-1 text-xs hover:border-neutral-500">
-                      ✎
+                    <button type="submit" aria-label="Rename" className="flex h-9 w-9 items-center justify-center rounded border border-neutral-700 hover:border-neutral-500">
+                      <Pencil className="h-3.5 w-3.5" />
                     </button>
                   </form>
                   <form action={removeFacetValueAction}>
@@ -76,7 +77,7 @@ export default async function VocabPage() {
                       type="submit"
                       disabled={v.usage > 0}
                       title={v.usage > 0 ? `Still used by ${v.usage} items — merge instead` : "Remove (unused)"}
-                      className="rounded border border-neutral-700 px-2 py-1 text-xs text-red-400 disabled:opacity-30"
+                      className="min-h-[36px] rounded border border-neutral-700 px-2 py-1 text-xs text-red-400 disabled:opacity-30"
                     >
                       remove
                     </button>
@@ -101,7 +102,7 @@ export default async function VocabPage() {
 
             <form action={mergeFacetValuesAction} className="mt-3 rounded-lg border border-neutral-800 p-2">
               <input type="hidden" name="facetId" value={facet.id} />
-              <p className="text-xs text-neutral-500">Merge: pick the survivor, tick values to fold into it.</p>
+              <p className="text-xs text-muted-foreground">Merge: pick the survivor, tick values to fold into it.</p>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <select name="survivorId" aria-label="Survivor" className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs">
                   {facet.values.map((v) => (
@@ -116,7 +117,7 @@ export default async function VocabPage() {
                     {v.value}
                   </label>
                 ))}
-                <button type="submit" className="rounded border border-neutral-700 px-2 py-1 text-xs hover:border-neutral-500">
+                <button type="submit" className="min-h-[36px] rounded border border-neutral-700 px-2 py-1 text-xs hover:border-neutral-500">
                   merge
                 </button>
               </div>
@@ -130,7 +131,7 @@ export default async function VocabPage() {
             {tags.map((tag) => (
               <li key={tag.id} className="flex flex-wrap items-center gap-2 rounded px-2 py-1 hover:bg-neutral-900">
                 <span className="min-w-28 text-sm">{tag.name}</span>
-                <span className="text-xs text-neutral-500">{tag.usage} item{tag.usage === 1 ? "" : "s"}</span>
+                <span className="text-xs text-muted-foreground">{tag.usage} item{tag.usage === 1 ? "" : "s"}</span>
                 <form action={renameFreeTagAction} className="ml-auto flex items-center gap-1">
                   <input type="hidden" name="id" value={tag.id} />
                   <input
@@ -150,7 +151,7 @@ export default async function VocabPage() {
                     type="submit"
                     disabled={tag.usage > 0}
                     title={tag.usage > 0 ? `Still used by ${tag.usage} items` : "Remove (unused)"}
-                    className="rounded border border-neutral-700 px-2 py-1 text-xs text-red-400 disabled:opacity-30"
+                    className="min-h-[36px] rounded border border-neutral-700 px-2 py-1 text-xs text-red-400 disabled:opacity-30"
                   >
                     remove
                   </button>
@@ -164,13 +165,13 @@ export default async function VocabPage() {
                       </option>
                     ))}
                   </select>
-                  <button type="submit" className="rounded border border-sky-500/50 px-2 py-1 text-xs text-sky-300">
+                  <button type="submit" className="flex min-h-[36px] items-center rounded border border-sky-500/50 px-2 py-1 text-xs text-sky-300">
                     promote
                   </button>
                 </form>
               </li>
             ))}
-            {tags.length === 0 ? <li className="text-xs text-neutral-600">No free tags yet.</li> : null}
+            {tags.length === 0 ? <li className="text-xs text-muted-foreground">No free tags yet.</li> : null}
           </ul>
         </section>
       </div>

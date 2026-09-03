@@ -161,7 +161,7 @@ export function PaletteColorEditor({ itemId, initialColors }: { itemId: string; 
 
       {/* numeric entry */}
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <label className="text-xs text-neutral-500">
+        <label className="text-xs text-muted-foreground">
           HEX
           <input
             type="text"
@@ -176,7 +176,7 @@ export function PaletteColorEditor({ itemId, initialColors }: { itemId: string; 
           />
         </label>
         {(["r", "g", "b"] as const).map((ch, i) => (
-          <label key={ch} className="text-xs text-neutral-500">
+          <label key={ch} className="text-xs text-muted-foreground">
             {ch.toUpperCase()}
             <input
               type="number"
@@ -196,7 +196,7 @@ export function PaletteColorEditor({ itemId, initialColors }: { itemId: string; 
           </label>
         ))}
         {(["c", "m", "y", "k"] as const).map((ch) => (
-          <label key={ch} className="text-xs text-neutral-500">
+          <label key={ch} className="text-xs text-muted-foreground">
             {ch.toUpperCase()} %
             <input
               type="number"
@@ -213,7 +213,7 @@ export function PaletteColorEditor({ itemId, initialColors }: { itemId: string; 
 
       {/* family presets */}
       <div className="mt-3">
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-muted-foreground">
           Family: <span className="text-neutral-300">{hexToFamily(active)}</span> — presets:
         </p>
         <div className="mt-1.5 flex flex-wrap gap-1.5">

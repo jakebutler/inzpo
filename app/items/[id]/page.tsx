@@ -6,7 +6,7 @@ import { getItemCollections, listCollectionOptions } from "@/lib/item-collection
 import { DeleteButton } from "../DeleteButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { addToCollectionAction, removeFromCollectionAction } from "@/app/actions/collections";
 import { saveExtractedAsPaletteAction } from "@/app/actions/palettes";
 import { getOrigin, getDerivedItems } from "@/lib/palettes";
@@ -50,8 +50,8 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
             ← Wall
           </Link>
           <div className="flex items-center gap-3">
-            <Link href={`/items/${item.id}/edit`} className="text-sm text-neutral-300 hover:text-white">
-              ✎ Edit
+            <Link href={`/items/${item.id}/edit`} className="flex min-h-[36px] items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+              <Pencil className="h-3.5 w-3.5" /> Edit
             </Link>
             <span className="rounded-full border border-neutral-700 px-2.5 py-1 text-xs uppercase tracking-wide text-neutral-400">
               {KIND_LABEL[item.kind] ?? item.kind}
@@ -71,7 +71,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
 
         <div className="mt-4">
           <h1 className="text-xl font-semibold tracking-tight">{item.title ?? "Untitled"}</h1>
-          <p className="mt-1 text-sm text-neutral-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             Captured {item.createdAt.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
           </p>
         </div>
@@ -80,7 +80,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
 
         {item.source ? (
           <section className="mt-6 rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-            <h2 className="text-xs uppercase tracking-wide text-neutral-500">Source</h2>
+            <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Source</h2>
             <a
               href={item.source.url}
               target="_blank"
@@ -111,7 +111,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
 
         {articleHtml ? (
           <section className="mt-6 rounded-xl border border-neutral-800 bg-neutral-900 p-6">
-            <h2 className="text-xs uppercase tracking-wide text-neutral-500">Archived copy</h2>
+            <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Archived copy</h2>
             <div
               className="article-reader mt-3 max-w-prose text-[15px] leading-relaxed text-neutral-200 [&_a]:text-sky-400 [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-neutral-600 [&_blockquote]:pl-4 [&_code]:rounded [&_code]:bg-neutral-800 [&_code]:px-1 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:font-semibold [&_li]:ml-5 [&_ol]:list-decimal [&_p]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-neutral-800 [&_pre]:p-3 [&_ul]:list-disc"
               dangerouslySetInnerHTML={{ __html: articleHtml }}
@@ -121,7 +121,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
 
         {item.colors.length > 0 ? (
           <section className="mt-6">
-            <h2 className="text-xs uppercase tracking-wide text-neutral-500">Colors</h2>
+            <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Colors</h2>
             <div className="mt-2 flex flex-wrap gap-2">
               {item.colors.map((c) => (
                 <span
@@ -141,11 +141,11 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
 
         {facetGroups.size > 0 || tags.freeTags.length > 0 ? (
           <section className="mt-6">
-            <h2 className="text-xs uppercase tracking-wide text-neutral-500">Tags</h2>
+            <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Tags</h2>
             <div className="mt-2 space-y-3">
               {[...facetGroups.entries()].map(([facet, values]) => (
                 <div key={facet} className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs uppercase tracking-wide text-neutral-500 w-24">{facet}</span>
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground w-24">{facet}</span>
                   {values.map((v) => (
                     <Badge key={v} variant="outline" className="px-3 py-1.5 text-sm">
                       {v}
@@ -155,7 +155,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
               ))}
               {tags.freeTags.length > 0 ? (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs uppercase tracking-wide text-neutral-500 w-24">Free</span>
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground w-24">Free</span>
                   {tags.freeTags.map((t) => (
                     <Badge key={t} variant="secondary" className="px-3 py-1.5 text-sm">
                       {t}
@@ -178,7 +178,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
 
         {originId || derived.length > 0 ? (
           <section className="mt-6">
-            <h2 className="text-xs uppercase tracking-wide text-neutral-500">Origin</h2>
+            <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Origin</h2>
             <div className="mt-2 space-y-1 text-sm">
               {originId ? (
                 <p className="text-neutral-300">
@@ -206,7 +206,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
         ) : null}
 
         <section className="mt-6">
-          <h2 className="text-xs uppercase tracking-wide text-neutral-500">Collections</h2>
+          <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Collections</h2>
           {memberships.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {memberships.map((m) => (
@@ -215,7 +215,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
                   <form action={removeFromCollectionAction}>
                     <input type="hidden" name="itemId" value={item.id} />
                     <input type="hidden" name="collectionId" value={m.id} />
-                    <button type="submit" className="rounded-full px-2 text-xs text-neutral-500 hover:text-red-400" aria-label={`Remove from ${m.name}`}>
+                    <button type="submit" className="rounded-full px-2 text-xs text-muted-foreground hover:text-red-400" aria-label={`Remove from ${m.name}`}>
                       ✕
                     </button>
                   </form>
@@ -223,7 +223,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
               ))}
             </div>
           ) : (
-            <p className="mt-1 text-xs text-neutral-600">Not in any collection yet.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Not in any collection yet.</p>
           )}
           <form action={addToCollectionAction} className="mt-2 flex flex-wrap items-center gap-1.5">
             <input type="hidden" name="itemId" value={item.id} />
@@ -258,7 +258,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
           {item.source ? (
             <Button asChild variant="ghost" size="sm">
               <a href={item.source.url} target="_blank" rel="noopener noreferrer">
-                Open source ↗
+                Open source
               </a>
             </Button>
           ) : (

@@ -212,9 +212,11 @@ export function CaptureForm({
         </div>
       )}
 
-      <Button type="submit" size="lg" className="sticky bottom-4 mt-6 h-12 w-full rounded-xl text-base font-medium shadow-lg shadow-black/40">
-        Save
-      </Button>
+      <div className="sticky bottom-0 -mx-6 mt-6 border-t border-border bg-background/95 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+        <Button type="submit" size="lg" className="h-12 w-full rounded-xl text-base font-medium">
+          Save
+        </Button>
+      </div>
     </form>
   );
 }

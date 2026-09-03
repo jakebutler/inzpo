@@ -70,8 +70,8 @@ export function SavedPopover({
 
       {open ? (
         <div className="absolute right-0 z-30 mt-2 max-h-[75vh] w-72 overflow-y-auto rounded-xl border border-neutral-700 bg-neutral-950 p-3 shadow-xl">
-          <h3 className="text-xs uppercase tracking-wide text-neutral-500">Smart collections</h3>
-          {entries.length === 0 ? <p className="mt-1 text-xs text-neutral-600">None yet.</p> : null}
+          <h3 className="text-xs uppercase tracking-wide text-muted-foreground">Smart collections</h3>
+          {entries.length === 0 ? <p className="mt-1 text-xs text-muted-foreground">None yet.</p> : null}
           <ul className="mt-1 space-y-1">
             {entries.map((entry) => (
               <li key={entry.id} className="flex items-center gap-1">
@@ -87,7 +87,7 @@ export function SavedPopover({
                     <button type="submit" className="rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-900">
                       Save
                     </button>
-                    <button type="button" onClick={() => setRenaming(null)} className="text-xs text-neutral-500">
+                    <button type="button" onClick={() => setRenaming(null)} className="text-xs text-muted-foreground">
                       ✕
                     </button>
                   </form>
@@ -102,19 +102,19 @@ export function SavedPopover({
                       className="flex flex-1 items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-neutral-900 min-h-[32px]"
                     >
                       <span className="truncate">{entry.name}</span>
-                      <span className="ml-2 text-xs text-neutral-500">{counts[entry.id] ?? "…"}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">{counts[entry.id] ?? "…"}</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setRenaming(entry.id)}
-                      className="px-1 text-xs text-neutral-500 hover:text-neutral-300"
+                      className="px-1 text-xs text-muted-foreground hover:text-neutral-300"
                       aria-label={`Rename ${entry.name}`}
                     >
                       ✎
                     </button>
                     <form action={deleteSavedAction}>
                       <input type="hidden" name="id" value={entry.id} />
-                      <button type="submit" className="px-1 text-xs text-neutral-500 hover:text-red-400" aria-label={`Delete ${entry.name}`}>
+                      <button type="submit" className="px-1 text-xs text-muted-foreground hover:text-red-400" aria-label={`Delete ${entry.name}`}>
                         ✕
                       </button>
                     </form>
@@ -136,7 +136,7 @@ export function SavedPopover({
               <button type="submit" className="rounded bg-neutral-100 px-2 py-1.5 text-xs font-medium text-neutral-900">
                 Save
               </button>
-              <button type="button" onClick={() => setNaming(false)} className="text-xs text-neutral-500">
+              <button type="button" onClick={() => setNaming(false)} className="text-xs text-muted-foreground">
                 ✕
               </button>
             </form>
@@ -150,8 +150,8 @@ export function SavedPopover({
             </button>
           )}
 
-          <h3 className="mt-4 text-xs uppercase tracking-wide text-neutral-500">Collections</h3>
-          {collections.length === 0 ? <p className="mt-1 text-xs text-neutral-600">None yet — add Items from their detail view.</p> : null}
+          <h3 className="mt-4 text-xs uppercase tracking-wide text-muted-foreground">Collections</h3>
+          {collections.length === 0 ? <p className="mt-1 text-xs text-muted-foreground">None yet — add Items from their detail view.</p> : null}
           <ul className="mt-1 space-y-1">
             {collections.map((col) => (
               <li key={col.id} className="flex items-center gap-1">
@@ -170,7 +170,7 @@ export function SavedPopover({
                     <button
                       type="button"
                       onClick={() => setRenaming(null)}
-                      className="text-xs text-neutral-500"
+                      className="text-xs text-muted-foreground"
                     >
                       ✕
                     </button>
@@ -186,19 +186,19 @@ export function SavedPopover({
                       className="flex flex-1 items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-neutral-900 min-h-[32px]"
                     >
                       <span className="truncate">{col.name}</span>
-                      <span className="ml-2 text-xs text-neutral-500">{col.count}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">{col.count}</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setRenaming(`c:${col.id}`)}
-                      className="px-1 text-xs text-neutral-500 hover:text-neutral-300"
+                      className="px-1 text-xs text-muted-foreground hover:text-neutral-300"
                       aria-label={`Rename collection ${col.name}`}
                     >
                       ✎
                     </button>
                     <form action={deleteCollectionAction}>
                       <input type="hidden" name="id" value={col.id} />
-                      <button type="submit" className="px-1 text-xs text-neutral-500 hover:text-red-400" aria-label={`Delete collection ${col.name}`}>
+                      <button type="submit" className="px-1 text-xs text-muted-foreground hover:text-red-400" aria-label={`Delete collection ${col.name}`}>
                         ✕
                       </button>
                     </form>
