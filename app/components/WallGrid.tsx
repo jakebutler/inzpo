@@ -289,11 +289,24 @@ export function WallGrid({
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-4 columns-2 md:columns-3 lg:columns-4 gap-4 [&>*]:mb-4">
+    <div>
+      <div className="mx-auto max-w-6xl px-4 pt-2 md:hidden">
+        <button
+          type="button"
+          onClick={() => setSelectMode(true)}
+          className="min-h-[36px] w-full rounded-lg border border-border text-xs text-muted-foreground"
+        >
+          Select items
+        </button>
+      </div>
+      <div className="mx-auto max-w-6xl px-4 py-4">
+      <div className="grid grid-cols-2 gap-4 items-start md:grid-cols-3 lg:grid-cols-4">
+      {Array.from({ length: colCount }, (_, c) => (
+        <div key={c} className="flex flex-col gap-4">
       {items.length === 0 ? (
         <div className="col-span-full flex flex-col items-center justify-center gap-3 py-32 text-center">
           <p className="text-neutral-300">Nothing matches.</p>
-          <p className="text-sm text-neutral-500">Adjust the filters, or capture something new.</p>
+          <p className="text-sm text-muted-foreground">Adjust the filters, or capture something new.</p>
         </div>
       ) : null}
       {items.map((item) => (
@@ -377,7 +390,11 @@ export function WallGrid({
             ) : null}
           </figcaption>
         </figure>
+        ))}
+        </div>
       ))}
+      </div>
+      </div>
     </div>
   );
 }

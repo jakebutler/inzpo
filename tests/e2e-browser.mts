@@ -114,7 +114,7 @@ try {
 
   // 10. edit mode rename
   await page.goto(detailUrl);
-  await page.click("a:has-text('✎ Edit')");
+  await page.click('a:has-text("Edit")');
   await page.waitForURL(/\/edit/);
   await page.fill("#title", "E2E renamed item");
   await page.click('button:has-text("Done")');
@@ -127,7 +127,17 @@ try {
   await page.waitForSelector('span:has-text("Article · detected")', { timeout: 30000 });
   check("URL preview card shows auto-detected kind", true);
   await page.waitForSelector('span:text-is("auto")', { timeout: 15000 });
-  check("auto-selected tag marker animates in", true);
+  const autoChipVisible = await page
+    .waitForFunction(
+      () => {
+        const el = document.querySelector('[data-auto-chip]');
+        return !!el && Number(getComputedStyle(el).opacity) > 0.95;
+      },
+      { timeout: 8000 },
+    )
+    .then(() => true)
+    .catch(() => false);
+  check("auto chip fully visible after cascade (computed opacity 1)", autoChipVisible);
   await page.click('button[type="submit"]:has-text("Save")');
   await page.waitForURL(/\/capture\?saved=/, { timeout: 30000 });
   touchedIds.push(page.url().match(/saved=([^&]+)/)?.[1] ?? "");
@@ -147,10 +157,10 @@ try {
 
   // 13. selection mode toggle
   await page.goto(BASE + "/");
-  await page.click('button[aria-label="Select"] >> nth=0');
-  await page.waitForTimeout(200);
+  await page.click('button:has-text("Select items")');
+  await page.waitForSelector('button:has-text("Exit selection")', { timeout: 15000 });
   await page.click('button:has-text("Exit selection")');
-  check("selection mode toggles", true);
+  check("selection mode toggles (visible mobile entry)", true);
 
   // 14. hard delete the renamed item
   await page.goto(detailUrl);
