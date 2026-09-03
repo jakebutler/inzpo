@@ -1,12 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 import { fetchPage } from "@/lib/fetch-url";
-import { extractOgType, bodyTextLength, guessLinkedKind, matchOembedProvider } from "@/lib/kind-guess";
-import { normalizeUrl, isHttpUrl } from "@/lib/url";
+import { extractOgType, bodyTextLength, guessLinkedKind } from "@/lib/kind-guess";
+import { isHttpUrl } from "@/lib/url";
 import { relevantFacetsFor } from "@/lib/relevance";
 import type { ItemKind } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
+
+function ogContent(html: string, property: string): string | null {
+  const m =
+    html.match(new RegExp(`<meta[^>]+property=["']${property}["'][^>]+content=["']([^"']+)["']`, "i")) ??
+    html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${property}["']`, "i"));
+  if (!m) return null;
+  return m[1].replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#x27;/g, "'");
+}
+
+function safeHost(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
 
 export async function POST(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
@@ -28,34 +44,19 @@ export async function POST(request: NextRequest) {
 
   try {
     const page = await fetchPage(rawUrl);
-    try {
-      const [{ default: metascraper }, titleBundle, descriptionBundle, imageBundle] = await Promise.all([
-        import("metascraper"),
-        import("metascraper-title"),
-        import("metascraper-description"),
-        import("metascraper-image"),
-      ]);
-      const rules = [titleBundle, descriptionBundle, imageBundle].map((m) => {
-        const mod = m as unknown as { default?: () => unknown };
-        return typeof m === "function" ? (m as () => unknown)() : (mod.default as () => unknown)();
-      });
-      const scrape = metascraper(rules as Parameters<typeof metascraper>[0]);
-      const meta = await scrape({ url: page.finalUrl, html: page.html });
-      title = meta.title || null;
-      description = meta.description || null;
-      image = meta.image || null;
-    } catch {
-      // metadata best-effort
-    }
+    // Quick OG-tag parse for the capture preview; the authoritative metascraper
+    // extraction runs in createLinkedItem at Save.
+    title = ogContent(page.html, "og:title");
+    description = ogContent(page.html, "og:description");
+    image = ogContent(page.html, "og:image");
     kind = guessLinkedKind({
       url: rawUrl,
       ogType: extractOgType(page.html),
       textLength: bodyTextLength(page.html),
     });
     host = safeHost(page.finalUrl);
-    host = safeHost(page.finalUrl);
   } catch {
-    return NextResponse.json({ ok: true, kind, title: null, description: null, image: null, host, relevant: relevantFacetsFor(kind) });
+    // unfetchable preview still returns a valid response (metadata-only capture)
   }
 
   return NextResponse.json({
@@ -67,12 +68,4 @@ export async function POST(request: NextRequest) {
     host,
     relevant: relevantFacetsFor(kind),
   });
-}
-
-function safeHost(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return "";
-  }
 }
