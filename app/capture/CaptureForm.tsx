@@ -132,6 +132,7 @@ export function CaptureForm({
       />
       {shareToken ? <input type="hidden" name="shareToken" value={shareToken} /> : null}
 
+      <div className="relative">
       <div className="flex gap-2">
         <Input
           type="url"
@@ -149,6 +150,7 @@ export function CaptureForm({
       </div>
 
       <DuplicateNotice url={urlDraft} />
+      </div>
 
       {hasSubstance ? (
         <div ref={stageRef}>
@@ -253,7 +255,7 @@ function DuplicateNotice({ url }: { url: string }) {
 
   if (!existing) return null;
   return (
-    <p ref={ref} role="status" className="mt-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+    <p ref={ref} role="status" className="absolute inset-x-0 top-full z-10 mt-2 rounded-lg border border-amber-500/50 bg-card px-3 py-2 text-sm text-amber-300 shadow-lg">
       Already saved{existing.title ? ` “${existing.title}”` : ""} —{" "}
       <Link href={`/items/${existing.itemId}`} className="underline">
         View existing
