@@ -37,11 +37,11 @@ export async function POST(request: NextRequest) {
       ]);
       const scrape = metascraper([
         // @ts-expect-error
-        titleBundle(),
+        titleBundle.default(),
         // @ts-expect-error
-        descriptionBundle(),
+        descriptionBundle.default(),
         // @ts-expect-error
-        imageBundle(),
+        imageBundle.default(),
       ]);
       const meta = await scrape({ url: page.finalUrl, html: page.html });
       title = meta.title || null;

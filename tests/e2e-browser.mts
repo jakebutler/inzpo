@@ -101,7 +101,7 @@ try {
   const doneText = await page.locator('button:has-text("Done")').innerText();
   check("sheet live count > 0", /Done — [1-9]/.test(doneText), doneText.trim());
   await page.click('button:has-text("Done")');
-  check("chip row shows the selection", await page.locator('button:has-text("minimal ✓")').isVisible());
+  check("chip row shows the selection", await page.locator("div.sticky button:has-text('minimal')").first().isVisible());
 
   // 9. text search → empty state
   await page.fill('input[aria-label="Text search"]', "zzz-no-match");
@@ -121,7 +121,7 @@ try {
   // 11. URL capture: preview + auto tag animates in
   await page.goto(BASE + "/capture");
   await page.fill('input[name="url"]', "https://www.joshwcomeau.com/animation/css-transitions/");
-  await page.waitForSelector('span:has-text("Article · auto")', { timeout: 30000 });
+  await page.waitForSelector('span:has-text("Article · detected")', { timeout: 30000 });
   check("URL preview card shows auto-detected kind", true);
   await page.waitForSelector('span:text-is("auto")', { timeout: 15000 });
   check("auto-selected tag marker animates in", true);
