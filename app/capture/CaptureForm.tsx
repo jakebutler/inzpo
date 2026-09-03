@@ -99,6 +99,14 @@ export function CaptureForm({
 
   return (
     <form action={capture} className="pb-4">
+      <input
+        ref={inputRef}
+        type="file"
+        name="image"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => pick(e.target.files?.[0] ?? null)}
+      />
       {shareToken ? <input type="hidden" name="shareToken" value={shareToken} /> : null}
 
       <div className="flex gap-2">
@@ -128,14 +136,6 @@ export function CaptureForm({
             exit={{ opacity: 0, height: 0 }}
             className="mt-3 overflow-hidden"
           >
-            <input
-              ref={inputRef}
-              type="file"
-              name="image"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => pick(e.target.files?.[0] ?? null)}
-            />
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
