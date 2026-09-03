@@ -5,9 +5,9 @@ import { freeTags } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
 import { getFacetsWithValues } from "@/lib/ontology";
 import { listSavedSearches } from "@/lib/saved-searches";
+import { MergeForm } from "./MergeForm";
 import {
   createFacetValueAction,
-  mergeFacetValuesAction,
   promoteFreeTagAction,
   removeFacetValueAction,
   removeFreeTagAction,
@@ -100,28 +100,10 @@ export default async function VocabPage() {
               </button>
             </form>
 
-            <form action={mergeFacetValuesAction} className="mt-3 rounded-lg border border-neutral-800 p-2">
-              <input type="hidden" name="facetId" value={facet.id} />
-              <p className="text-xs text-muted-foreground">Merge: pick the survivor, tick values to fold into it.</p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <select name="survivorId" aria-label="Survivor" className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs">
-                  {facet.values.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.value}
-                    </option>
-                  ))}
-                </select>
-                {facet.values.map((v) => (
-                  <label key={v.id} className="flex items-center gap-1 text-xs text-neutral-400">
-                    <input type="checkbox" name="mergeIds" value={v.id} className="accent-neutral-400" />
-                    {v.value}
-                  </label>
-                ))}
-                <button type="submit" className="min-h-[36px] rounded border border-neutral-700 px-2 py-1 text-xs hover:border-neutral-500">
-                  merge
-                </button>
-              </div>
-            </form>
+            <MergeForm
+              facetId={facet.id}
+              values={facet.values.map((v) => ({ id: v.id, value: v.value, usage: v.usage }))}
+            />
           </section>
         ))}
 
