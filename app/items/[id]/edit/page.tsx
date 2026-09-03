@@ -100,7 +100,11 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
           ) : null}
 
           <div className="mt-4">
-            <TagTray facets={trayFacets} initial={{ facetValues: initialFacetValues, freeTags: tags.freeTags }} />
+            <TagTray
+              facets={trayFacets}
+              relevantNames={trayFacets.map((f) => f.name)}
+              initial={{ facetValues: initialFacetValues, freeTags: tags.freeTags }}
+            />
           </div>
 
           {item.kind === "palette" ? (

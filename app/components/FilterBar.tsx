@@ -2,6 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { SlidersHorizontal } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import {
   activeFilterCount,
   EMPTY_FILTER,
@@ -67,28 +74,18 @@ export function FilterBar({
 }) {
   const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [qDraft, setQDraft] = useState(state.q);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const countRef = useRef<number>(matchCount);
-  countRef.current = matchCount;
-
   const [sheetCount, setSheetCount] = useState<number | null>(null);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeCount = activeFilterCount(state);
 
-  function apply(next: FilterState) {
+  function pushState(next: FilterState) {
     router.push(`/?f=${serializeFilter(next)}`, { scroll: false });
   }
 
-  function pushState(next: FilterState) {
-    apply(next);
-  }
-
   function pushQ(value: string) {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      pushState({ ...state, q: value });
-    }, 350);
+    if (debounce.current) clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => pushState({ ...state, q: value }), 350);
   }
 
   function setKind(kind: string) {
@@ -103,27 +100,23 @@ export function FilterBar({
     const existing = state.facetValues.find((s) => s.facetId === facetId && s.value === value);
     const rest = state.facetValues.filter((s) => !(s.facetId === facetId && s.value === value));
     const stance = cycle(existing?.stance);
-    const facetValues = stance ? [...rest, { facetId, value, stance }] : rest;
-    pushState({ ...state, facetValues });
+    pushState({ ...state, facetValues: stance ? [...rest, { facetId, value, stance }] : rest });
   }
 
   function setFreeTag(name: string) {
     const existing = state.freeTags.find((t) => t.name === name);
     const rest = state.freeTags.filter((t) => t.name !== name);
     const stance = cycle(existing?.stance);
-    const freeTags = stance ? [...rest, { name, stance }] : rest;
-    pushState({ ...state, freeTags });
+    pushState({ ...state, freeTags: stance ? [...rest, { name, stance }] : rest });
   }
 
   function setColor(family: string) {
     const existing = state.colors.find((c) => c.family === family);
     const rest = state.colors.filter((c) => c.family !== family);
     const stance = cycle(existing?.stance);
-    const colors = stance ? [...rest, { family, stance }] : rest;
-    pushState({ ...state, colors });
+    pushState({ ...state, colors: stance ? [...rest, { family, stance }] : rest });
   }
 
-  // live match count while the sheet is open
   useEffect(() => {
     if (!sheetOpen) {
       setSheetCount(null);
@@ -136,10 +129,7 @@ export function FilterBar({
       body: JSON.stringify({ f: serializeFilter(state) }),
       signal: controller.signal,
     })
-      .then(async (res) => {
-        const body = (await res.json()) as { count: number };
-        setSheetCount(body.count);
-      })
+      .then(async (res) => setSheetCount(((await res.json()) as { count: number }).count))
       .catch(() => {});
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -149,9 +139,7 @@ export function FilterBar({
 
   const chips: Array<{ key: string; label: string; onRemove: () => void }> = useMemo(() => {
     const list: Array<{ key: string; label: string; onRemove: () => void }> = [];
-    if (state.q.trim()) {
-      list.push({ key: "q", label: `“${state.q.trim()}”`, onRemove: () => pushState({ ...state, q: "" }) });
-    }
+    if (state.q.trim()) list.push({ key: "q", label: `“${state.q.trim()}”`, onRemove: () => pushState({ ...state, q: "" }) });
     for (const [kind, stance] of Object.entries(state.kinds)) {
       list.push({
         key: `kind:${kind}`,
@@ -164,14 +152,11 @@ export function FilterBar({
       });
     }
     for (const sel of state.facetValues) {
-      const facet = facets.find((f) => f.id === sel.facetId);
       list.push({
         key: `fv:${sel.facetId}:${sel.value}`,
         label: `${sel.value} ${stanceMark(sel.stance)}`,
-        onRemove: () =>
-          pushState({ ...state, facetValues: state.facetValues.filter((s) => s !== sel) }),
+        onRemove: () => pushState({ ...state, facetValues: state.facetValues.filter((s) => s !== sel) }),
       });
-      void facet;
     }
     for (const tag of state.freeTags) {
       list.push({
@@ -191,202 +176,183 @@ export function FilterBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, facets]);
 
+  const stanceClass = (s?: Stance) =>
+    s === "include"
+      ? "bg-primary text-primary-foreground border-transparent"
+      : s === "exclude"
+        ? "border-muted-foreground/60 text-muted-foreground line-through"
+        : "bg-transparent text-foreground";
+
+  const chipButton = (active: boolean, excluded: boolean) =>
+    `min-h-[36px] cursor-pointer rounded-full px-3 text-sm ${
+      active
+        ? excluded
+          ? "border-muted-foreground/60 text-muted-foreground line-through"
+          : ""
+        : "bg-transparent text-foreground"
+    }`;
+
   return (
     <>
-      <div className="sticky top-0 z-20 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur">
-      <div className="mx-auto max-w-6xl px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-semibold tracking-tight mr-1">Inzpo</span>
-          <input
-            type="search"
-            defaultValue={state.q}
-            onChange={(e) => pushQ(e.target.value)}
-            placeholder="Search…"
-            aria-label="Text search"
-            className="flex-1 min-w-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm min-h-[36px] outline-none focus:border-neutral-500"
-          />
-          <button
-            type="button"
-            onClick={() => setSheetOpen(true)}
-            className="relative rounded-lg border border-neutral-700 bg-neutral-900 px-3 text-sm min-h-[36px] hover:border-neutral-500"
-            aria-label="Filters"
-          >
-            Filters
-            {activeCount > 0 ? (
-              <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-neutral-100 px-1 text-[10px] font-semibold text-neutral-900">
-                {activeCount}
-              </span>
-            ) : null}
-          </button>
-          <select
-            value={state.sort}
-            onChange={(e) => pushState({ ...state, sort: e.target.value as SortChoice })}
-            aria-label="Sort"
-            className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 text-sm min-h-[36px] outline-none"
-          >
-            {SORT_CHOICES.map((s) => (
-              <option key={s} value={s}>
-                {s === "newest" ? "Newest" : s === "oldest" ? "Oldest" : s === "title" ? "Title A–Z" : "Shuffle"}
-              </option>
-            ))}
-          </select>
-          {savedSlot}
-        </div>
+      <div className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
+        <div className="mx-auto max-w-6xl px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="mr-1 text-lg font-semibold tracking-tight">Inzpo</span>
+            <Input
+              type="search"
+              defaultValue={state.q}
+              onChange={(e) => pushQ(e.target.value)}
+              placeholder="Search…"
+              aria-label="Text search"
+              className="h-9 min-w-0 flex-1"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSheetOpen(true)}
+              aria-label="Filters"
+              className="relative h-9"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              Filters
+              {activeCount > 0 ? (
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                  {activeCount}
+                </span>
+              ) : null}
+            </Button>
+            <Select value={state.sort} onValueChange={(v) => pushState({ ...state, sort: v as SortChoice })}>
+              <SelectTrigger className="h-9 w-[110px] text-sm" aria-label="Sort">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_CHOICES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s === "newest" ? "Newest" : s === "oldest" ? "Oldest" : s === "title" ? "Title A–Z" : "Shuffle"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {savedSlot}
+          </div>
 
-        {activeCount > 0 ? (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {chips.map((chip) => (
+          {activeCount > 0 ? (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {chips.map((chip) => (
+                <button type="button" key={chip.key} onClick={chip.onRemove} title="Tap to remove">
+                  <Badge variant="outline" className="min-h-[28px] gap-1 px-2.5 text-xs">
+                    {chip.label} ✕
+                  </Badge>
+                </button>
+              ))}
               <button
                 type="button"
-                key={chip.key}
-                onClick={chip.onRemove}
-                className="rounded-full border border-neutral-600 bg-neutral-900 px-3 py-1 text-xs min-h-[28px] text-neutral-200 hover:border-neutral-400"
-                title="Tap to remove"
+                onClick={() => pushState({ ...EMPTY_FILTER, sort: state.sort })}
+                className="min-h-[28px] rounded-full px-2 text-xs text-muted-foreground hover:text-foreground"
               >
-                {chip.label} ✕
+                Clear all
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => pushState({ ...EMPTY_FILTER, sort: state.sort })}
-              className="rounded-full px-2 py-1 text-xs min-h-[28px] text-neutral-500 hover:text-neutral-300"
-            >
-              Clear all
-            </button>
-          </div>
-        ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
 
-    </div>
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="bottom" className="max-h-[82vh] overflow-y-auto rounded-t-2xl p-4">
+          <SheetHeader className="border-b border-border pb-3">
+            <SheetTitle>Filters</SheetTitle>
+          </SheetHeader>
 
-      {sheetOpen ? (
-        <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/60" onClick={() => setSheetOpen(false)}>
-          <div
-            className="w-full max-w-xl rounded-t-2xl border border-neutral-700 bg-neutral-950 max-h-[82vh] overflow-y-auto p-4 pb-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky -top-4 -mx-4 -mt-4 mb-3 flex items-center justify-between border-b border-neutral-800 bg-neutral-950 px-4 py-3">
-              <span className="text-sm font-medium">Filters</span>
-              <button
-                type="button"
-                onClick={() => setSheetOpen(false)}
-                className="rounded-lg bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 min-h-[36px]"
-              >
-                Done{sheetCount !== null ? ` — ${sheetCount} item${sheetCount === 1 ? "" : "s"} match` : ""}
-              </button>
-            </div>
-
-            <div className="space-y-5 pb-6">
-              <section className="scroll-mt-24">
-                <h3 className="text-xs uppercase tracking-wide text-neutral-500">Kind</h3>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {KINDS.map((k) => {
-                    const s = state.kinds[k.id];
-                    return (
-                      <button
-                        type="button"
-                        key={k.id}
-                        onClick={() => setKind(k.id)}
-                        aria-pressed={!!s}
-                        className={`rounded-full border px-3 py-1.5 text-sm min-h-[36px] ${
-                          s === "include"
-                            ? "border-neutral-100 bg-neutral-100 text-neutral-900"
-                            : s === "exclude"
-                              ? "border-neutral-500 bg-transparent text-neutral-400 line-through"
-                              : "border-neutral-700 bg-neutral-900 text-neutral-300"
-                        }`}
-                      >
+          <div className="space-y-5 py-4">
+            <section className="scroll-mt-24">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Kind</h3>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {KINDS.map((k) => {
+                  const s = state.kinds[k.id];
+                  return (
+                    <button type="button" key={k.id} onClick={() => setKind(k.id)} aria-pressed={!!s}>
+                      <Badge variant="outline" className={`min-h-[36px] px-3 text-sm ${chipButton(!!s, s === "exclude")}`}>
                         {k.label} {stanceMark(s)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
+                      </Badge>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
 
-              {facets.map((facet) => (
-                <section key={facet.id} className="scroll-mt-24">
-                  <h3 className="text-xs uppercase tracking-wide text-neutral-500">{facet.name}</h3>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {facet.values.map((value) => {
-                      const s = state.facetValues.find((x) => x.facetId === facet.id && x.value === value)?.stance;
-                      return (
-                        <button
-                          type="button"
-                          key={value}
-                          onClick={() => setFacetValue(facet.id, value)}
-                          aria-pressed={!!s}
-                          className={`rounded-full border px-3 py-1.5 text-sm min-h-[36px] ${
-                            s === "include"
-                              ? "border-neutral-100 bg-neutral-100 text-neutral-900"
-                              : s === "exclude"
-                                ? "border-neutral-500 bg-transparent text-neutral-400 line-through"
-                                : "border-neutral-700 bg-neutral-900 text-neutral-300"
-                          }`}
-                        >
-                          {value} {stanceMark(s)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-              ))}
-
-              {freeTags.length > 0 ? (
-                <section className="scroll-mt-24">
-                  <h3 className="text-xs uppercase tracking-wide text-neutral-500">Free tags</h3>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {freeTags.map((tag) => {
-                      const s = state.freeTags.find((t) => t.name === tag)?.stance;
-                      return (
-                        <button
-                          type="button"
-                          key={tag}
-                          onClick={() => setFreeTag(tag)}
-                          aria-pressed={!!s}
-                          className={`rounded-full border px-3 py-1.5 text-sm min-h-[36px] ${
-                            s === "include"
-                              ? "border-sky-300 bg-sky-300 text-neutral-900"
-                              : s === "exclude"
-                                ? "border-neutral-500 bg-transparent text-neutral-400 line-through"
-                                : "border-neutral-700 bg-neutral-900 text-neutral-300"
-                          }`}
-                        >
-                          {tag} {stanceMark(s)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-              ) : null}
-
-              <section className="scroll-mt-24">
-                <h3 className="text-xs uppercase tracking-wide text-neutral-500">Colors</h3>
-                <div className="mt-1.5 flex flex-wrap gap-2">
-                  {families.map((family) => {
-                    const s = state.colors.find((c) => c.family === family)?.stance;
+            {facets.map((facet) => (
+              <section key={facet.id} className="scroll-mt-24">
+                <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{facet.name}</h3>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {facet.values.map((value) => {
+                    const s = state.facetValues.find((x) => x.facetId === facet.id && x.value === value)?.stance;
                     return (
-                      <button
-                        type="button"
-                        key={family}
-                        onClick={() => setColor(family)}
-                        aria-pressed={!!s}
-                        aria-label={`${family} ${s ?? ""}`}
-                        title={`${family}${s ? " " + s : ""}`}
-                        className={`h-9 w-9 rounded-full border-2 ${
-                          s === "include" ? "border-neutral-100" : s === "exclude" ? "border-neutral-500 opacity-40" : "border-neutral-700"
-                        }`}
-                        style={{ backgroundColor: FAMILY_SWATCH[family] ?? "#666" }}
-                      >
-                        {s ? <span className="text-[10px] font-bold text-neutral-900 mix-blend-difference">{stanceMark(s)}</span> : null}
+                      <button type="button" key={value} onClick={() => setFacetValue(facet.id, value)} aria-pressed={!!s}>
+                        <Badge variant="outline" className={`min-h-[36px] px-3 text-sm ${chipButton(!!s, s === "exclude")}`}>
+                          {value} {stanceMark(s)}
+                        </Badge>
                       </button>
                     );
                   })}
                 </div>
               </section>
-            </div>
+            ))}
+
+            {freeTags.length > 0 ? (
+              <section className="scroll-mt-24">
+                <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Free tags</h3>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {freeTags.map((tag) => {
+                    const s = state.freeTags.find((t) => t.name === tag)?.stance;
+                    return (
+                      <button type="button" key={tag} onClick={() => setFreeTag(tag)} aria-pressed={!!s}>
+                        <Badge variant="outline" className={`min-h-[36px] px-3 text-sm ${chipButton(!!s, s === "exclude")}`}>
+                          {tag} {stanceMark(s)}
+                        </Badge>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            <section className="scroll-mt-24">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Colors</h3>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {families.map((family) => {
+                  const s = state.colors.find((c) => c.family === family)?.stance;
+                  return (
+                    <button
+                      type="button"
+                      key={family}
+                      onClick={() => setColor(family)}
+                      aria-pressed={!!s}
+                      aria-label={`${family} ${s ?? ""}`}
+                      title={`${family}${s ? " " + s : ""}`}
+                      className={`h-9 w-9 rounded-full border-2 ${
+                        s === "include" ? "border-primary" : s === "exclude" ? "border-muted-foreground opacity-40" : "border-border"
+                      }`}
+                      style={{ backgroundColor: FAMILY_SWATCH[family] ?? "#666" }}
+                    >
+                      {s ? <span className="text-[10px] font-bold text-neutral-900 mix-blend-difference">{stanceMark(s)}</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
           </div>
-        </div>
-      ) : null}
+
+          <SheetFooter>
+            <Button type="button" onClick={() => setSheetOpen(false)} className="w-full" size="lg">
+              Done{sheetCount !== null ? ` — ${sheetCount} item${sheetCount === 1 ? "" : "s"} match` : ""}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </>
   );
+}
+
+function stanceMark(s?: Stance) {  return s === "include" ? "✓" : s === "exclude" ? "≠" : "";
 }

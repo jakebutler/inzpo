@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { capture } from "./actions";
-import { ImageDropzone } from "./ImageDropzone";
-import { TagTray } from "./TagTray";
-import { loadTrayFacets } from "./tray";
-import { DuplicateNotice } from "./DuplicateNotice";
+import { CaptureForm } from "./CaptureForm";
 import { SavedToast } from "./SavedToast";
+import { loadTrayFacets } from "./tray";
 import { db } from "@/lib/db";
 import { items } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -26,7 +24,6 @@ export default async function CapturePage({
 }) {
   const params = await searchParams;
   const facets = await loadTrayFacets();
-  const prefilledUrl = params.url ?? "";
 
   let savedTitle: string | null = null;
   if (params.saved) {
@@ -34,56 +31,32 @@ export default async function CapturePage({
     savedTitle = rows[0]?.title ?? null;
   }
 
-  // Total reset: the tray and dropzone remount fresh on every visit — nothing carries over.
-  const resetKey = params.saved ?? params.error ?? "fresh";
-
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100">
+    <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-xl p-6">
         <div className="flex items-center justify-between">
-          <Link href="/" className="text-sm text-neutral-400 hover:text-neutral-200">
+          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
             ← Wall
           </Link>
-          <span className="text-sm text-neutral-500">Capture</span>
+          <span className="text-sm text-muted-foreground">Capture</span>
         </div>
 
         {params.saved ? <SavedToast itemId={params.saved} title={savedTitle} /> : null}
 
-        <form action={capture} className="mt-6 pb-4">
-          <input
-            type="url"
-            name="url"
-            inputMode="url"
-            defaultValue={prefilledUrl}
-            placeholder="Paste a link…"
-            className="w-full rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-base outline-none focus:border-neutral-500 min-h-[44px]"
-          />
-          {params.shareToken ? <input type="hidden" name="shareToken" value={params.shareToken} /> : null}
-          {params.shareToken ? (
-            <p className="mt-2 rounded-lg border border-sky-500/50 bg-sky-500/10 px-3 py-2 text-sm text-sky-300">
-              Shared image recovered after sign-in — tag it and press Save.
-            </p>
-          ) : null}
-          <DuplicateNotice />
-          <p className="mt-2 text-center text-xs text-neutral-500">— or —</p>
-          <div className="mt-2">
-            <ImageDropzone key={`drop-${resetKey}`} />
-          </div>
-          {params.error ? (
-            <p className="mt-2 text-sm text-red-400">{ERRORS[params.error] ?? "Something went wrong."}</p>
-          ) : null}
+        <h1 className="mt-6 text-xl font-semibold tracking-tight">Capture</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Paste a link or drop an image. Inzpo detects what it is — tag if you feel like it.
+        </p>
 
-          <div className="mt-6">
-            <TagTray key={`tray-${resetKey}`} facets={facets} />
-          </div>
+        {params.error ? (
+          <p className="mt-3 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-red-400">
+            {ERRORS[params.error] ?? "Something went wrong."}
+          </p>
+        ) : null}
 
-          <button
-            type="submit"
-            className="mt-8 w-full rounded-lg bg-neutral-100 px-4 py-3 text-base font-medium text-neutral-900 hover:bg-white min-h-[44px] sticky bottom-4 shadow-lg shadow-black/40"
-          >
-            Save
-          </button>
-        </form>
+        <div className="mt-5">
+          <CaptureForm facets={facets} prefilledUrl={params.url ?? ""} shareToken={params.shareToken ?? null} />
+        </div>
       </div>
     </main>
   );

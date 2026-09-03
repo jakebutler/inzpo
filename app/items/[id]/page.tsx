@@ -4,6 +4,9 @@ import { getItemDetail, getArticleHtml } from "@/lib/items";
 import { getItemTags } from "@/lib/ontology";
 import { getItemCollections, listCollectionOptions } from "@/lib/item-collections";
 import { DeleteButton } from "../DeleteButton";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import { addToCollectionAction, removeFromCollectionAction } from "@/app/actions/collections";
 import { saveExtractedAsPaletteAction } from "@/app/actions/palettes";
 import { getOrigin, getDerivedItems } from "@/lib/palettes";
@@ -144,9 +147,9 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
                 <div key={facet} className="flex flex-wrap items-center gap-1.5">
                   <span className="text-xs uppercase tracking-wide text-neutral-500 w-24">{facet}</span>
                   {values.map((v) => (
-                    <span key={v} className="rounded-full border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm">
+                    <Badge key={v} variant="outline" className="px-3 py-1.5 text-sm">
                       {v}
-                    </span>
+                    </Badge>
                   ))}
                 </div>
               ))}
@@ -154,9 +157,9 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-xs uppercase tracking-wide text-neutral-500 w-24">Free</span>
                   {tags.freeTags.map((t) => (
-                    <span key={t} className="rounded-full border border-sky-500/50 bg-sky-500/10 px-3 py-1.5 text-sm text-sky-300">
+                    <Badge key={t} variant="secondary" className="px-3 py-1.5 text-sm">
                       {t}
-                    </span>
+                    </Badge>
                   ))}
                 </div>
               ) : null}
@@ -253,14 +256,11 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
 
         <section className="mt-8 flex items-center justify-between border-t border-neutral-800 pt-4 pb-8">
           {item.source ? (
-            <a
-              href={item.source.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-neutral-300 hover:text-white min-h-[36px] flex items-center"
-            >
-              Open source ↗
-            </a>
+            <Button asChild variant="ghost" size="sm">
+              <a href={item.source.url} target="_blank" rel="noopener noreferrer">
+                Open source ↗
+              </a>
+            </Button>
           ) : (
             <span />
           )}

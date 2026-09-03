@@ -8,6 +8,9 @@ import { listSavedSearches } from "@/lib/saved-searches";
 import { listCollections, collectionExists } from "@/lib/collections";
 import { FilterBar } from "./components/FilterBar";
 import { WallGrid } from "./components/WallGrid";
+import { BottomNav } from "./components/BottomNav";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import { SavedPopover } from "./components/SavedPopover";
 import { LogoutButton } from "./components/LogoutButton";
 import Link from "next/link";
@@ -34,6 +37,11 @@ export default async function Wall({
 
   const savedSlot = (
     <div className="flex items-center gap-2">
+      <Button asChild size="sm" className="hidden md:inline-flex">
+        <a href="/capture">
+          <Plus className="h-4 w-4" /> Capture
+        </a>
+      </Button>
       <SavedPopover
         state={state}
         entries={saved.map((s) => ({ id: s.id, name: s.name, f: serializeFilter(s.state) }))}
@@ -78,6 +86,8 @@ export default async function Wall({
         </div>
       </div>
 
+      <div className="pb-24 md:pb-8" />
+      <BottomNav />
       <WallGrid
         items={wallItems.map((w) => ({
           id: w.id,

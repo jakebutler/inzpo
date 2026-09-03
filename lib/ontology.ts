@@ -74,9 +74,19 @@ export async function ensureFreeTag(name: string): Promise<string> {
   return row[0].id;
 }
 
+async function facetIdForName(name: string): Promise<string | null> {
+  const rows = await db.select({ id: facets.id }).from(facets).where(sql`lower(${facets.name}) = lower(${name})`).limit(1);
+  return rows[0]?.id ?? null;
+}
+
 export async function attachTags(itemId: string, selection: TagSelection): Promise<void> {
-  for (const { facetId, value } of selection.facetValues) {
-    const valueId = await ensureFacetValue(facetId, value);
+  for (const entry of selection.facetValues) {
+    let facetId = entry.facetId;
+    if (!facetId && entry.facet) {
+      facetId = (await facetIdForName(entry.facet)) ?? undefined;
+    }
+    if (!facetId) continue;
+    const valueId = await ensureFacetValue(facetId, entry.value);
     await db.insert(itemFacetValues).values({ itemId, facetValueId: valueId }).onConflictDoNothing();
   }
   for (const name of selection.freeTags) {
