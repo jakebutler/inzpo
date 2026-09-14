@@ -6,7 +6,8 @@ import { getItemCollections, listCollectionOptions } from "@/lib/item-collection
 import { DeleteButton } from "../DeleteButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pencil, Plus, X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
+import { BottomNav } from "@/app/components/BottomNav";
 import { addToCollectionAction, removeFromCollectionAction } from "@/app/actions/collections";
 import { saveExtractedAsPaletteAction } from "@/app/actions/palettes";
 import { getOrigin, getDerivedItems } from "@/lib/palettes";
@@ -43,10 +44,10 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100">
+    <main className="min-h-screen bg-background text-foreground">
       <div className="sticky top-0 z-10 border-b border-neutral-800 bg-neutral-950/90 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-          <Link href="/" className="text-sm text-neutral-400 hover:text-neutral-200">
+          <Link href="/" className="inline-flex min-h-[36px] items-center text-sm text-muted-foreground hover:text-foreground">
             ← Wall
           </Link>
           <div className="flex items-center gap-3">
@@ -184,13 +185,13 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
                 <p className="text-neutral-300">
                   Derived from{" "}
                   <Link href={`/items/${originId}`} className="text-sky-400 hover:underline">
-                    {originId === item.id ? "this item" : "its source item"}
+                    {originId === item.id ? "this Item" : "its Origin Item"}
                   </Link>
                 </p>
               ) : null}
               {derived.length > 0 ? (
                 <p className="text-neutral-400">
-                  {derived.length === 1 ? "A palette is derived from this item: " : `${derived.length} derived items: `}
+                  {derived.length === 1 ? "A Palette carries this Item as its Origin: " : `${derived.length} Items carry this Item as their Origin: `}
                   {derived.map((d, i) => (
                     <span key={d.id}>
                       {i > 0 ? ", " : ""}
@@ -215,15 +216,15 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
                   <form action={removeFromCollectionAction}>
                     <input type="hidden" name="itemId" value={item.id} />
                     <input type="hidden" name="collectionId" value={m.id} />
-                    <button type="submit" className="rounded-full px-2 text-xs text-muted-foreground hover:text-red-400" aria-label={`Remove from ${m.name}`}>
-                      ✕
+                    <button type="submit" className="flex h-8 w-8 items-center justify-center rounded-full text-xs text-muted-foreground hover:text-red-400" aria-label={`Remove from ${m.name}`}>
+                      <X className="h-3 w-3" />
                     </button>
                   </form>
                 </span>
               ))}
             </div>
           ) : (
-            <p className="mt-1 text-xs text-muted-foreground">Not in any collection yet.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Not in any Collection yet — add one below.</p>
           )}
           <form action={addToCollectionAction} className="mt-2 flex flex-wrap items-center gap-1.5">
             <input type="hidden" name="itemId" value={item.id} />
@@ -266,7 +267,9 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
           )}
           <DeleteButton itemId={item.id} title={item.title} />
         </section>
+        <div className="pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0" />
       </div>
+      <BottomNav />
     </main>
   );
 }
