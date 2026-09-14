@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { mergeFacetValuesAction } from "./actions";
+import { ActionForm } from "@/app/components/ActionForm";
 
 export interface MergeValue {
   id: string;
@@ -28,7 +29,19 @@ export function MergeForm({ facetId, values }: { facetId: string; values: MergeV
   }
 
   return (
-    <form action={mergeFacetValuesAction} className="mt-3 rounded-lg border border-neutral-800 p-2">
+    <ActionForm
+      action={mergeFacetValuesAction}
+      success={
+        survivor
+          ? `Merged into “${survivor.value}” — ${itemsAffected} Item${itemsAffected === 1 ? "" : "s"} now carry it.`
+          : "Vocabulary values merged."
+      }
+      onDone={() => {
+        setChecked(new Set());
+        setSurvivorId("");
+      }}
+      className="mt-3 rounded-lg border border-neutral-800 p-2"
+    >
       <input type="hidden" name="facetId" value={facetId} />
       <p className="text-xs text-muted-foreground">Merge: pick the survivor, tick values to fold into it.</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
@@ -71,6 +84,6 @@ export function MergeForm({ facetId, values }: { facetId: string; values: MergeV
           ? `Folding ${folded.map((v) => v.value).join(", ")} into “${survivor.value}” — ${itemsAffected} item${itemsAffected === 1 ? "" : "s"} will carry the survivor.`
           : "Pick a survivor and tick values to see the outcome."}
       </p>
-    </form>
+    </ActionForm>
   );
 }
