@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Ban, Check, X } from "lucide-react";
+import { ArrowUpRight, Check, Square, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useEffect, useRef, useState } from "react";
-import { serializeFilter, type FilterState } from "@/lib/filter";
+import { activeFilterCount, serializeFilter, type FilterState } from "@/lib/filter";
 import { bulkAssignTagsAction, bulkCollectionAction, bulkDeleteAction, bulkRemoveTagsAction } from "@/app/actions/bulk";
 
 export interface WallCard {
@@ -121,8 +121,8 @@ export function WallGrid({
       <div>
         <div className="sticky top-0 z-20 border-b border-neutral-800 bg-neutral-950 p-3">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2">
-            <button type="button" onClick={exit} className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm min-h-[36px]">
-              <X className="h-4 w-4" /> Exit selection
+            <button type="button" onClick={exit} className="inline-flex items-center gap-1 rounded-lg border border-neutral-700 px-3 py-1.5 text-sm min-h-[36px]">
+              <X className="h-4 w-4" aria-hidden /> Exit selection
             </button>
             <button
               type="button"
@@ -254,7 +254,7 @@ export function WallGrid({
               </div>
 
               {confirmingDelete && !allSelected ? (
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-red-500/60 bg-red-500/10 p-2">
+                <div role="alertdialog" aria-label="Confirm delete" className="flex flex-wrap items-center gap-2 rounded-lg border border-red-500/60 bg-red-500/10 p-2">
                   <span className="text-sm text-red-300">
                     Delete {selected.size} item{selected.size === 1 ? "" : "s"}? This cannot be undone.
                   </span>
@@ -284,13 +284,23 @@ export function WallGrid({
             return (
               <div
                 key={item.id}
+                role="checkbox"
+                tabIndex={0}
+                aria-checked={on}
+                aria-label={item.title ?? "Untitled"}
                 onPointerDown={() => startLongPress(item.id)}
                 onPointerUp={cancelLongPress}
                 onPointerLeave={cancelLongPress}
                 onClick={() => {
                   if (!longFired.current) toggle(item.id);
                 }}
-                className={`relative cursor-pointer break-inside-avoid overflow-hidden rounded-xl ${on ? "ring-2 ring-neutral-100" : ""}`}
+                onKeyDown={(e) => {
+                  if (e.key === " " || e.key === "Enter") {
+                    e.preventDefault();
+                    toggle(item.id);
+                  }
+                }}
+                className={`relative cursor-pointer break-inside-avoid overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${on ? "ring-2 ring-neutral-100" : ""}`}
               >
                 {item.displayKey ? (
                   <img src={`/media/${item.displayKey}`} alt="" className="w-full object-cover" loading="lazy" />
@@ -298,11 +308,12 @@ export function WallGrid({
                   <span className="flex h-24 items-center justify-center bg-neutral-900 px-3 text-center text-neutral-500">{item.title ?? "Untitled"}</span>
                 )}
                 <span
-                  className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-xs ${
+                  aria-hidden
+                  className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full ${
                     on ? "bg-neutral-100 text-neutral-900" : "border border-neutral-400 bg-black/40 text-transparent"
                   }`}
                 >
-                  ✓
+                  <Check className="h-3.5 w-3.5" />
                 </span>
               </div>
             );
@@ -325,9 +336,23 @@ export function WallGrid({
       </div>
       <div className="mx-auto max-w-6xl px-4 py-4">
       {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-32 text-center">
-          <p className="text-neutral-300">Nothing matches.</p>
-          <p className="text-sm text-muted-foreground">Adjust the filters, or capture something new.</p>
+        <div className="flex flex-col items-center justify-center gap-3 py-32 text-center" role="status">
+          {activeFilterCount(state) > 0 ? (
+            <>
+              <p className="text-foreground">Nothing matches the Filter bar.</p>
+              <p className="text-sm text-muted-foreground">Loosen a filter, or clear them all.</p>
+            </>
+          ) : (
+            <>
+              <p className="text-foreground">The Wall is empty.</p>
+              <p className="text-sm text-muted-foreground">
+                <Link href="/capture" className="underline underline-offset-2 hover:text-foreground">
+                  Capture something
+                </Link>{" "}
+                to begin.
+              </p>
+            </>
+          )}
         </div>
       ) : null}
       <div className="grid grid-cols-2 gap-4 items-start md:grid-cols-3 lg:grid-cols-4">
@@ -362,24 +387,24 @@ export function WallGrid({
               <span className="flex h-32 items-center justify-center px-3 text-center text-neutral-500">{item.title ?? "Untitled"}</span>
             )}
           </Link>
-          <div className="pointer-events-none absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 ">
+          <div className="pointer-events-none absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
             <button
               type="button"
-              aria-label="Select"
+              aria-label={`Select ${item.title ?? "Untitled"}`}
               onClick={() => {
                 setSelectMode(true);
                 setSelected((prev) => new Set(prev).add(item.id));
               }}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-500 bg-black/60 text-xs text-white"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-500 bg-black/60 text-white focus-visible:pointer-events-auto focus-visible:opacity-100"
             >
-              ▢
+              <Square className="h-4 w-4" />
             </button>
             {item.sourceUrl ? (
               <a
                 href={item.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Open source"
+                aria-label={`Open source of ${item.title ?? "Untitled"}`}
                 className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-500 bg-black/60 text-white"
               >
                 <ArrowUpRight className="h-4 w-4" />

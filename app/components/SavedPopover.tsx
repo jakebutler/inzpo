@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import { deleteCollectionAction, renameCollectionAction } from "@/app/actions/collections";
 import { deleteSavedAction, renameSavedAction, saveSearchAction } from "@/app/actions/saved";
 import { serializeFilter, type FilterState } from "@/lib/filter";
@@ -58,6 +58,15 @@ export function SavedPopover({
     if (naming) nameRef.current?.focus();
   }, [naming]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   return (
     <div className="relative">
       <button
@@ -65,14 +74,16 @@ export function SavedPopover({
         onClick={() => setOpen((v) => !v)}
         className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 text-sm min-h-[36px] hover:border-neutral-500"
         aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-controls="saved-popover"
       >
         Saved
       </button>
 
       {open ? (
-        <div className="absolute right-0 z-30 mt-2 max-h-[75vh] w-72 overflow-y-auto rounded-xl border border-neutral-700 bg-neutral-950 p-3 shadow-xl">
+        <div id="saved-popover" role="dialog" aria-label="Saved" className="absolute right-0 z-30 mt-2 max-h-[75vh] w-72 overflow-y-auto rounded-xl border border-neutral-700 bg-neutral-950 p-3 shadow-xl">
           <h3 className="text-xs uppercase tracking-wide text-muted-foreground">Smart collections</h3>
-          {entries.length === 0 ? <p className="mt-1 text-xs text-muted-foreground">None yet.</p> : null}
+          {entries.length === 0 ? <p className="mt-1 text-xs text-muted-foreground">None yet — save the current Filter bar as one below.</p> : null}
           <ul className="mt-1 space-y-1">
             {entries.map((entry) => (
               <li key={entry.id} className="flex items-center gap-1">
@@ -83,12 +94,13 @@ export function SavedPopover({
                       ref={nameRef}
                       name="name"
                       defaultValue={entry.name}
+                      aria-label="Smart collection name"
                       className="flex-1 rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs"
                     />
                     <button type="submit" className="rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-900">
                       Save
                     </button>
-                    <button type="button" onClick={() => setRenaming(null)} className="text-xs text-muted-foreground"><X className="h-3 w-3" /></button>
+                    <button type="button" onClick={() => setRenaming(null)} aria-label="Cancel rename" className="flex h-8 w-8 items-center justify-center text-xs text-muted-foreground"><X className="h-3 w-3" /></button>
                   </form>
                 ) : (
                   <>
@@ -106,14 +118,14 @@ export function SavedPopover({
                     <button
                       type="button"
                       onClick={() => setRenaming(entry.id)}
-                      className="px-1 text-xs text-muted-foreground hover:text-neutral-300"
+                      className="flex h-8 w-8 items-center justify-center text-xs text-muted-foreground hover:text-neutral-300"
                       aria-label={`Rename ${entry.name}`}
                     >
-                      ✎
+                      <Pencil className="h-3 w-3" />
                     </button>
                     <form action={deleteSavedAction}>
                       <input type="hidden" name="id" value={entry.id} />
-                      <button type="submit" className="px-1 text-xs text-muted-foreground hover:text-red-400" aria-label={`Delete ${entry.name}`}><X className="h-3 w-3" /></button>
+                      <button type="submit" className="flex h-8 w-8 items-center justify-center text-xs text-muted-foreground hover:text-red-400" aria-label={`Delete Smart collection ${entry.name}`}><X className="h-3 w-3" /></button>
                     </form>
                   </>
                 )}
@@ -128,12 +140,13 @@ export function SavedPopover({
                 ref={nameRef}
                 name="name"
                 placeholder="Name this search"
+                aria-label="Smart collection name"
                 className="flex-1 rounded border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs"
               />
               <button type="submit" className="rounded bg-neutral-100 px-2 py-1.5 text-xs font-medium text-neutral-900">
                 Save
               </button>
-              <button type="button" onClick={() => setNaming(false)} className="text-xs text-muted-foreground"><X className="h-3 w-3" /></button>
+              <button type="button" onClick={() => setNaming(false)} aria-label="Cancel" className="flex h-8 w-8 items-center justify-center text-xs text-muted-foreground"><X className="h-3 w-3" /></button>
             </form>
           ) : (
             <button
@@ -157,6 +170,7 @@ export function SavedPopover({
                       ref={nameRef}
                       name="name"
                       defaultValue={col.name}
+                      aria-label="Collection name"
                       className="flex-1 rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs"
                     />
                     <button type="submit" className="rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-900">
@@ -165,7 +179,8 @@ export function SavedPopover({
                     <button
                       type="button"
                       onClick={() => setRenaming(null)}
-                      className="text-xs text-muted-foreground"
+                      aria-label="Cancel rename"
+                      className="flex h-8 w-8 items-center justify-center text-xs text-muted-foreground"
                     ><X className="h-3 w-3" /></button>
                   </form>
                 ) : (
@@ -184,14 +199,14 @@ export function SavedPopover({
                     <button
                       type="button"
                       onClick={() => setRenaming(`c:${col.id}`)}
-                      className="px-1 text-xs text-muted-foreground hover:text-neutral-300"
+                      className="flex h-8 w-8 items-center justify-center text-xs text-muted-foreground hover:text-neutral-300"
                       aria-label={`Rename collection ${col.name}`}
                     >
-                      ✎
+                      <Pencil className="h-3 w-3" />
                     </button>
                     <form action={deleteCollectionAction}>
                       <input type="hidden" name="id" value={col.id} />
-                      <button type="submit" className="px-1 text-xs text-muted-foreground hover:text-red-400" aria-label={`Delete collection ${col.name}`}><X className="h-3 w-3" /></button>
+                      <button type="submit" className="flex h-8 w-8 items-center justify-center text-xs text-muted-foreground hover:text-red-400" aria-label={`Delete collection ${col.name}`}><X className="h-3 w-3" /></button>
                     </form>
                   </>
                 )}
