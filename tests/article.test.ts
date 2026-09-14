@@ -30,6 +30,23 @@ describe("sanitizeArticleHtml", () => {
     expect(out).toContain("https://ok.com");
   });
 
+  it("neutralizes comment and CDATA parser differentials", () => {
+    // each of these re-parses differently in browsers than in linkedom unless comments are gone entirely
+    const payloads = [
+      "<![CDATA[--><img src=x onerror=alert(1)>]]>",
+      "<!-- a --!><img src=x onerror=alert(1)> -->",
+      "<!--<!--><img src=x onerror=alert(1)>-->",
+      "<?xml --><img src=x onerror=alert(1)>",
+    ];
+    for (const p of payloads) {
+      const out = sanitizeArticleHtml(`<p>before</p>${p}<p>after</p>`);
+      expect(out).not.toContain("<!--");
+      expect(out).not.toMatch(/<img|onerror/i);
+      expect(out).toContain("before");
+      expect(out).toContain("after");
+    }
+  });
+
   it("survives XSS payload classics", () => {
     const payloads = [
       '<img src=x onerror=alert(1)>',
