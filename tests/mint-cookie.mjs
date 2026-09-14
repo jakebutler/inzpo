@@ -10,5 +10,5 @@ const token = await new SignJWT({ sub: "owner" })
   .setProtectedHeader({ alg: "HS256" })
   .setIssuedAt()
   .setExpirationTime(Math.floor(Date.now() / 1000) + 7200)
-  .sign(new TextEncoder().encode(process.env.AUTH_SESSION_SECRET!));
+  .sign(new TextEncoder().encode(process.env.AUTH_SESSION_SECRET));
 process.stdout.write(`inzpo_session=${token}`);
