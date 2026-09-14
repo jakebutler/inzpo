@@ -16,17 +16,19 @@ export async function capture(formData: FormData): Promise<void> {
 
   // a stashed cold-start share image: only if it is still pending (tmp/ prefix) and survives the login
   if (shareToken.startsWith("tmp/") && !shareToken.includes("..")) {
+    let itemId: string;
     try {
       const result = await r2().send(new GetObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: shareToken }));
       const buffer = Buffer.from(await result.Body!.transformToByteArray());
-      const itemId = await createImageItem({ buffer, filename: "shared-image" });
+      itemId = await createImageItem({ buffer, filename: "shared-image" });
       await attachTags(itemId, tags);
       await r2().send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: shareToken }));
       revalidatePath("/");
-      redirect(`/capture?saved=${itemId}`);
     } catch {
       redirect("/capture?error=capture-failed");
     }
+    // outside the try: redirect() throws NEXT_REDIRECT and must not be caught as a failure
+    redirect(`/capture?saved=${itemId}`);
   }
 
   if (file instanceof File && file.size > 0) {
