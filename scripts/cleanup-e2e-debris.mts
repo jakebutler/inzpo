@@ -1,3 +1,5 @@
+import type { SQL } from "drizzle-orm";
+
 if (!process.env.DATABASE_URL) {
   const fs = await import("node:fs");
   for (const line of fs.readFileSync(new URL("../.env", import.meta.url), "utf8").split("\n")) {
@@ -16,15 +18,15 @@ const { deleteItem: _d } = { deleteItem: null };
 void _d;
 
 // 1. leaked items from crashed e2e runs
-const patterns: Array<[string, string]> = [
-  [`kind = 'photo' and title in ('one', 'two', 'three')`, "one/two/three photos"],
-  [`title like 'inzpo e2e%'`, "browser e2e photos"],
-  [`kind = 'article' and title like 'An Interactive Guide%'`, "leaked article"],
-  [`kind = 'video' and title like 'Rick Astley%'`, "leaked video"],
-  [`id in (select item_id from item_sources where url_normalized = 'https://example.com')`, "example.com captures"],
+const patterns: Array<[string, SQL]> = [
+  ["one/two/three photos", sql`kind = 'photo' and title in ('one', 'two', 'three')`],
+  ["browser e2e photos", sql`title like 'inzpo e2e%'`],
+  ["leaked article", sql`kind = 'article' and title like 'An Interactive Guide%'`],
+  ["leaked video", sql`kind = 'video' and title like 'Rick Astley%'`],
+  ["example.com captures", sql`id in (select item_id from item_sources where url_normalized = 'https://example.com')`],
 ];
-for (const [cond, label] of patterns) {
-  const rows = await db.execute(sql`select id, title from items i where ${sql.raw(cond)}`);
+for (const [label, cond] of patterns) {
+  const rows = await db.execute(sql`select id, title from items i where ${cond}`);
   for (const row of rows.rows as Array<{ id: string; title: string }>) {
     await deleteItem(row.id);
     console.log(`deleted [${label}]:`, (row.title ?? "Untitled").slice(0, 50));
