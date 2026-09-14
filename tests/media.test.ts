@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { processImage, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
+import { processImage, exceedsPixelBudget, MAX_INPUT_PIXELS, MAX_INPUT_DIMENSION, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
 import { MEDIA_VARIANTS } from "@/lib/r2";
 
 async function testImage(width: number, height: number, format: "png" | "jpeg" = "png"): Promise<Buffer> {
@@ -35,6 +35,39 @@ describe("processImage", () => {
 
   it("rejects non-images", async () => {
     await expect(processImage(Buffer.from("definitely not an image"), "x")).rejects.toThrow();
+  });
+});
+
+describe("pixel budget caps", () => {
+  it("rejects inputs over the pixel budget", () => {
+    expect(exceedsPixelBudget(6325, 6325)).toBe(true);
+    expect(exceedsPixelBudget(100_000, 401)).toBe(true);
+    expect(exceedsPixelBudget(6324, 6324)).toBe(false);
+  });
+
+  it("rejects inputs over the per-side cap regardless of pixel count", () => {
+    expect(exceedsPixelBudget(MAX_INPUT_DIMENSION + 1, 100)).toBe(true);
+    expect(exceedsPixelBudget(100, MAX_INPUT_DIMENSION + 1)).toBe(true);
+    expect(exceedsPixelBudget(MAX_INPUT_DIMENSION, 1000)).toBe(false);
+    expect(MAX_INPUT_PIXELS).toBe(40_000_000);
+    expect(MAX_INPUT_DIMENSION).toBe(12_000);
+  });
+
+  it("processImage rejects an oversized sharp-generated buffer", async () => {
+    const bomb = await sharp({ create: { width: 6500, height: 6500, channels: 3, background: { r: 0, g: 0, b: 0 } } }).png().toBuffer();
+    await expect(processImage(bomb, "x")).rejects.toThrow(/too large/i);
+  });
+
+  it("processImage rejects a one-sided oversized buffer under the pixel budget", async () => {
+    const wide = await sharp({ create: { width: 12_001, height: 50, channels: 3, background: { r: 0, g: 0, b: 0 } } }).png().toBuffer();
+    await expect(processImage(wide, "x")).rejects.toThrow(/too large/i);
+  });
+
+  it("processImage still accepts an image just under both caps", async () => {
+    const ok = await sharp({ create: { width: 6000, height: 4000, channels: 3, background: { r: 120, g: 40, b: 200 } } }).png().toBuffer();
+    const result = await processImage(ok, "x");
+    expect(result.width).toBe(6000);
+    expect(result.height).toBe(4000);
   });
 });
 

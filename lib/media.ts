@@ -5,6 +5,14 @@ import { MEDIA_VARIANTS, variantKey, type MediaVariant } from "@/lib/r2";
 const SUPPORTED = new Set(["jpeg", "png", "webp", "gif", "avif", "tiff"]);
 const EXT: Record<string, string> = { jpeg: "jpg" };
 
+// decompression-bomb caps (review M3): 40 MP pixel budget, 12000 px per side
+export const MAX_INPUT_PIXELS = 40_000_000;
+export const MAX_INPUT_DIMENSION = 12_000;
+
+export function exceedsPixelBudget(width: number, height: number): boolean {
+  return width * height > MAX_INPUT_PIXELS || width > MAX_INPUT_DIMENSION || height > MAX_INPUT_DIMENSION;
+}
+
 export interface ProcessedImage {
   width: number;
   height: number;
@@ -18,9 +26,13 @@ export interface ProcessedImage {
 }
 
 export async function processImage(input: Buffer, itemId: string): Promise<ProcessedImage> {
+  // header-only read; the size check below must run before any pixel work
   const meta = await sharp(input, { failOn: "error" }).metadata();
   if (!meta.width || !meta.height || !meta.format || !SUPPORTED.has(meta.format)) {
     throw new Error(`Unsupported media: format=${meta.format}`);
+  }
+  if (exceedsPixelBudget(meta.width, meta.height)) {
+    throw new Error(`Image too large: ${meta.width}x${meta.height} (max ${MAX_INPUT_PIXELS / 1_000_000}MP, ${MAX_INPUT_DIMENSION}px per side)`);
   }
   const ext = EXT[meta.format] ?? meta.format;
   const mime = `image/${meta.format === "jpeg" ? "jpeg" : meta.format}`;
@@ -29,12 +41,12 @@ export async function processImage(input: Buffer, itemId: string): Promise<Proce
   const variants = {} as ProcessedImage["variants"];
   for (const v of MEDIA_VARIANTS) {
     const width = parseInt(v.slice(1), 10);
-    const pipeline = sharp(input).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 82 });
+    const pipeline = sharp(input, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS }).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 82 });
     const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
     variants[v] = { key: variantKey(itemId, v), buffer: data, width: info.width, height: info.height };
   }
 
-  const placeholderBuffer = await sharp(input)
+  const placeholderBuffer = await sharp(input, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
     .rotate()
     .resize({ width: 24, withoutEnlargement: true })
     .webp({ quality: 40 })
