@@ -17,35 +17,41 @@ export function sanitizeArticleHtml(html: string): string {
   if (!body) return "";
 
   function walk(node: Element) {
-    for (const child of [...node.children]) {
-      const tag = child.tagName.toLowerCase();
+    for (const child of [...node.childNodes]) {
+      if (child.nodeType !== 1) {
+        // comments, CDATA and PIs serialize into markup browsers re-parse differently — keep only text
+        if (child.nodeType !== 3) child.remove();
+        continue;
+      }
+      const el = child as Element;
+      const tag = el.tagName.toLowerCase();
       if (DROP_TAGS.has(tag)) {
-        child.remove();
+        el.remove();
         continue;
       }
       // sanitize the subtree first so unwrapping never reintroduces dirty nodes
-      walk(child);
+      walk(el);
       if (tag === "a") {
-        const href = child.getAttribute("href") ?? "";
-        for (const attr of [...child.attributes]) {
-          child.removeAttribute(attr.name);
+        const href = el.getAttribute("href") ?? "";
+        for (const attr of [...el.attributes]) {
+          el.removeAttribute(attr.name);
         }
         if (/^https?:\/\//i.test(href)) {
-          child.setAttribute("href", href);
-          child.setAttribute("rel", "noopener nofollow");
-          child.setAttribute("target", "_blank");
+          el.setAttribute("href", href);
+          el.setAttribute("rel", "noopener nofollow");
+          el.setAttribute("target", "_blank");
         }
       } else {
-        for (const attr of [...child.attributes]) {
-          child.removeAttribute(attr.name);
+        for (const attr of [...el.attributes]) {
+          el.removeAttribute(attr.name);
         }
       }
       if (!ALLOWED_TAGS.has(tag)) {
-        const parent = child.parentNode;
+        const parent = el.parentNode;
         if (parent) {
-          while (child.firstChild) parent.insertBefore(child.firstChild, child);
+          while (el.firstChild) parent.insertBefore(el.firstChild, el);
         }
-        child.remove();
+        el.remove();
       }
     }
   }
