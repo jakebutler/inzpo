@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { capture } from "./actions";
 import { CaptureForm } from "./CaptureForm";
 import { SavedToast } from "./SavedToast";
 import { loadTrayFacets } from "./tray";
@@ -49,7 +48,7 @@ export default async function CapturePage({
         </p>
 
         {params.error ? (
-          <p className="mt-3 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-red-400">
+          <p role="alert" className="mt-3 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {ERRORS[params.error] ?? "Something went wrong."}
           </p>
         ) : null}

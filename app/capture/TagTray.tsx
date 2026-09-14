@@ -154,7 +154,7 @@ export function TagTray({
             );
           })}
           {custom.map((value) => (
-            <button type="button" key={value} onClick={() => toggleFacetValue(facet.id, value)} aria-pressed>
+            <button type="button" key={value} onClick={() => toggleFacetValue(facet.id, value)} aria-pressed aria-label={`Remove ${facet.name} value ${value}`}>
               <Badge className="min-h-[34px] gap-1 px-3 text-sm">
                 {value}
                 <X className="h-3 w-3" />
@@ -197,9 +197,10 @@ export function TagTray({
           <button
             type="button"
             onClick={() => setShowMore((v) => !v)}
-            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+            aria-expanded={showMore}
+            className="min-h-[36px] text-xs text-muted-foreground underline-offset-2 hover:underline"
           >
-            {showMore ? "fewer tag categories" : `${more.length} more tag categories`}
+            {showMore ? "Fewer Facets" : `${more.length} more Facets`}
           </button>
         ) : null}
 
@@ -207,7 +208,7 @@ export function TagTray({
           <legend className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Free tags</legend>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {[...freeTags].map((tag) => (
-              <button type="button" key={tag} onClick={() => setFreeTags((prev) => new Set([...prev].filter((t) => t !== tag)))}>
+              <button type="button" key={tag} aria-label={`Remove free tag ${tag}`} onClick={() => setFreeTags((prev) => new Set([...prev].filter((t) => t !== tag)))}>
                 <Badge variant="secondary" className="min-h-[34px] gap-1 px-3 text-sm">
                   {tag}
                   <X className="h-3 w-3" />
