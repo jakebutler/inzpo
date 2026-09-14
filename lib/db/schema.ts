@@ -5,6 +5,7 @@ import {
   timestamp,
   jsonb,
   uniqueIndex,
+  index,
   primaryKey,
 } from "drizzle-orm/pg-core";
 
@@ -14,15 +15,19 @@ export type ItemKind = (typeof ITEM_KINDS)[number];
 export const LINKED_KINDS = ["url", "article", "video"] as const;
 export const IMAGE_KINDS = ["screenshot", "photo"] as const;
 
-export const items = pgTable("items", {
-  id: text("id").primaryKey(),
-  kind: text("kind").notNull().$type<ItemKind>(),
-  title: text("title"),
-  note: text("note"),
-  captureState: text("capture_state").notNull().default("ready"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const items = pgTable(
+  "items",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull().$type<ItemKind>(),
+    title: text("title"),
+    note: text("note"),
+    captureState: text("capture_state").notNull().default("ready"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("items_capture_state_created_at_idx").on(t.captureState, t.createdAt.desc())],
+);
 
 export const itemSources = pgTable("item_sources", {
   itemId: text("item_id")
@@ -36,7 +41,7 @@ export const itemSources = pgTable("item_sources", {
   oembedHtml: text("oembed_html"),
   articleKey: text("article_key"),
   articleBytes: integer("article_bytes"),
-});
+}, (t) => [index("item_sources_url_normalized_idx").on(t.urlNormalized)]);
 
 export const mediaAssets = pgTable("media_assets", {
   id: text("id").primaryKey(),
@@ -53,7 +58,10 @@ export const mediaAssets = pgTable("media_assets", {
   variants: jsonb("variants").$type<Record<string, string>>().notNull(),
   placeholder: text("placeholder"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("media_assets_item_id_idx").on(t.itemId),
+  index("media_assets_original_key_idx").on(t.originalKey),
+]);
 
 export const itemColors = pgTable("item_colors", {
   id: text("id").primaryKey(),
@@ -64,7 +72,7 @@ export const itemColors = pgTable("item_colors", {
   family: text("family").notNull(),
   origin: text("origin").notNull(),
   position: integer("position").notNull().default(0),
-});
+}, (t) => [index("item_colors_item_id_family_idx").on(t.itemId, t.family)]);
 
 export const facets = pgTable("facets", {
   id: text("id").primaryKey(),
@@ -95,7 +103,11 @@ export const itemFacetValues = pgTable(
       .notNull()
       .references(() => facetValues.id, { onDelete: "cascade" }),
   },
-  (t) => [primaryKey({ columns: [t.itemId, t.facetValueId] })],
+  (t) => [
+    primaryKey({ columns: [t.itemId, t.facetValueId] }),
+    index("item_facet_values_item_id_idx").on(t.itemId),
+    index("item_facet_values_facet_value_id_idx").on(t.facetValueId),
+  ],
 );
 
 export const freeTags = pgTable("free_tags", {
@@ -114,7 +126,11 @@ export const itemFreeTags = pgTable(
       .notNull()
       .references(() => freeTags.id, { onDelete: "cascade" }),
   },
-  (t) => [primaryKey({ columns: [t.itemId, t.freeTagId] })],
+  (t) => [
+    primaryKey({ columns: [t.itemId, t.freeTagId] }),
+    index("item_free_tags_item_id_idx").on(t.itemId),
+    index("item_free_tags_free_tag_id_idx").on(t.freeTagId),
+  ],
 );
 
 export const collections = pgTable("collections", {
@@ -135,7 +151,10 @@ export const collectionItems = pgTable(
       .references(() => items.id, { onDelete: "cascade" }),
     position: integer("position").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.collectionId, t.itemId] })],
+  (t) => [
+    primaryKey({ columns: [t.collectionId, t.itemId] }),
+    index("collection_items_item_id_idx").on(t.itemId),
+  ],
 );
 
 export const smartCollections = pgTable("smart_collections", {
@@ -146,11 +165,15 @@ export const smartCollections = pgTable("smart_collections", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const origins = pgTable("origins", {
-  derivedItemId: text("derived_item_id")
-    .primaryKey()
-    .references(() => items.id, { onDelete: "cascade" }),
-  originItemId: text("origin_item_id")
-    .notNull()
-    .references(() => items.id, { onDelete: "cascade" }),
-});
+export const origins = pgTable(
+  "origins",
+  {
+    derivedItemId: text("derived_item_id")
+      .primaryKey()
+      .references(() => items.id, { onDelete: "cascade" }),
+    originItemId: text("origin_item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+  },
+  (t) => [index("origins_origin_item_id_idx").on(t.originItemId)],
+);
