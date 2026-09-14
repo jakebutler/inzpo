@@ -7,6 +7,7 @@ import { sql } from "drizzle-orm";
 import { getFacetsWithValues } from "@/lib/ontology";
 import { listSavedSearches } from "@/lib/saved-searches";
 import { MergeForm } from "./MergeForm";
+import { ActionForm } from "@/app/components/ActionForm";
 import {
   createFacetValueAction,
   promoteFreeTagAction,
@@ -59,7 +60,7 @@ export default async function VocabPage() {
                 <li key={v.id} className="flex flex-wrap items-center gap-2 rounded px-2 py-1 hover:bg-neutral-900">
                   <span className="min-w-28 text-sm">{v.value}</span>
                   <span className="text-xs text-muted-foreground">{v.usage} item{v.usage === 1 ? "" : "s"}</span>
-                  <form action={renameFacetValueAction} className="ml-auto flex items-center gap-1">
+                  <ActionForm action={renameFacetValueAction} success="Vocabulary value renamed — every Item carrying it follows." className="ml-auto flex items-center gap-1">
                     <input type="hidden" name="facetId" value={facet.id} />
                     <input type="hidden" name="oldValue" value={v.value} />
                     <input
@@ -72,8 +73,8 @@ export default async function VocabPage() {
                     <button type="submit" aria-label={`Rename ${v.value}`} className="flex h-9 w-9 items-center justify-center rounded border border-neutral-700 hover:border-neutral-500">
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
-                  </form>
-                  <form action={removeFacetValueAction}>
+                  </ActionForm>
+                  <ActionForm action={removeFacetValueAction} success="Vocabulary value removed.">
                     <input type="hidden" name="id" value={v.id} />
                     <button
                       type="submit"
@@ -83,12 +84,12 @@ export default async function VocabPage() {
                     >
                       remove
                     </button>
-                  </form>
+                  </ActionForm>
                 </li>
               ))}
             </ul>
 
-            <form action={createFacetValueAction} className="mt-2 flex items-center gap-1">
+            <ActionForm action={createFacetValueAction} success={`${facet.name} value added to the Vocabulary.`} className="mt-2 flex items-center gap-1">
               <input type="hidden" name="facetId" value={facet.id} />
               <input
                 type="text"
@@ -100,7 +101,7 @@ export default async function VocabPage() {
               <button type="submit" className="min-h-[36px] rounded border border-neutral-700 px-2 py-1 text-xs hover:border-neutral-500">
                 create
               </button>
-            </form>
+            </ActionForm>
 
             <MergeForm
               facetId={facet.id}
@@ -116,7 +117,7 @@ export default async function VocabPage() {
               <li key={tag.id} className="flex flex-wrap items-center gap-2 rounded px-2 py-1 hover:bg-neutral-900">
                 <span className="min-w-28 text-sm">{tag.name}</span>
                 <span className="text-xs text-muted-foreground">{tag.usage} item{tag.usage === 1 ? "" : "s"}</span>
-                <form action={renameFreeTagAction} className="ml-auto flex items-center gap-1">
+                <ActionForm action={renameFreeTagAction} success="Free tag renamed — every Item carrying it follows." className="ml-auto flex items-center gap-1">
                   <input type="hidden" name="id" value={tag.id} />
                   <input
                     type="text"
@@ -128,8 +129,8 @@ export default async function VocabPage() {
                   <button type="submit" aria-label={`Rename ${tag.name}`} className="flex h-9 w-9 items-center justify-center rounded border border-neutral-700 hover:border-neutral-500">
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
-                </form>
-                <form action={removeFreeTagAction}>
+                </ActionForm>
+                <ActionForm action={removeFreeTagAction} success="Free tag removed.">
                   <input type="hidden" name="id" value={tag.id} />
                   <button
                     type="submit"
@@ -139,8 +140,8 @@ export default async function VocabPage() {
                   >
                     remove
                   </button>
-                </form>
-                <form action={promoteFreeTagAction} className="flex items-center gap-1">
+                </ActionForm>
+                <ActionForm action={promoteFreeTagAction} success="Free tag promoted into the Vocabulary — the tag dissolved." className="flex items-center gap-1">
                   <input type="hidden" name="id" value={tag.id} />
                   <select name="facetId" aria-label={`Promote ${tag.name} to facet`} className="min-h-[36px] rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs">
                     {facets.map((f) => (
@@ -152,7 +153,7 @@ export default async function VocabPage() {
                   <button type="submit" className="flex min-h-[36px] items-center rounded border border-sky-500/50 px-2 py-1 text-xs text-sky-300">
                     promote
                   </button>
-                </form>
+                </ActionForm>
               </li>
             ))}
             {tags.length === 0 ? <li className="text-xs text-muted-foreground">No free tags yet.</li> : null}

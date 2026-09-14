@@ -7,7 +7,7 @@ Lenses: accessibility, mobile at 390px, empty/loading/error states, UX copy
 **open**. Fixes are local, do not touch server actions or data flow, and do
 not change the visual direction.
 
-Totals: P0 0 found · P1 17 found, 16 fixed · P2 16 found, 7 fixed.
+Totals: P0 0 found · P1 17 found, 16 fixed · P2 16 found, 9 fixed.
 
 ## Capture (`app/capture/*`)
 
@@ -45,7 +45,7 @@ Totals: P0 0 found · P1 17 found, 16 fixed · P2 16 found, 7 fixed.
 | W13 | P2 | consistency | Dead `stanceMark()` helper in FilterBar; `main` used raw `neutral-*` instead of tokens. | fixed |
 | W14 | P2 | consistency | Secondary "Vocabulary / + Capture" text links duplicate BottomNav on mobile and the header button on desktop. | open |
 | W15 | P2 | mobile | Selection-mode sticky bar and FilterBar are both `sticky top-0 z-20`; they stack rather than replace. | open |
-| W16 | P2 | states | Bulk actions (assign/remove tags, collection add/remove) have no pending or success feedback. | open |
+| W16 | P2 | states | Bulk actions (assign/remove tags, collection add/remove) have no pending or success feedback. | fixed: triggering button shows a pending label, the whole bar disables and dims while running, sonner success/error toasts report the outcome |
 | W17 | P2 | copy | BottomNav label "Vocab" vs page title "Vocabulary manager". | fixed: "Vocabulary" |
 
 ## Item detail and edit (`app/items/[id]/*`)
@@ -68,7 +68,7 @@ Totals: P0 0 found · P1 17 found, 16 fixed · P2 16 found, 7 fixed.
 | V2 | P2 | states | A facet with zero values rendered an empty list. | fixed: "No values yet — create one below." |
 | V3 | P2 | copy | Intro said "the user curates"; glossary says Owner / Vocabulary. | fixed |
 | V4 | P2 | a11y | Merge checkboxes were default-size with tiny labels. | fixed: 16px boxes, 36px label rows |
-| V5 | P2 | states | Rename/create/merge forms have no pending feedback. | open |
+| V5 | P2 | states | Rename/create/merge forms have no pending feedback. | fixed: new `ActionForm` wrapper — controls disabled and form dimmed while the action runs, outcome toasted, inputs reset after success |
 | V6 | P2 | copy | Lowercase button labels ("create", "remove", "merge") differ from Title case elsewhere. | open |
 
 Merge preview (critique P1) is present in `MergeForm.tsx` and reads correctly.
@@ -98,3 +98,5 @@ Merge preview (critique P1) is present in `MergeForm.tsx` and reads correctly.
 ## Verification
 
 `npm run typecheck` clean, `npm run lint` clean (pre-existing `tests/mint-cookie.mjs` parse error fixed in its own commit), `npm test` 83/83 passing.
+
+Pass 2 (Radix Popover swap W7/W8; pending + success feedback W16/V5): `npm run typecheck` clean, `npm run lint` clean, `npm test` 83/83 passing.

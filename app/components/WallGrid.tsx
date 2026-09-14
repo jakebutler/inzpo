@@ -5,7 +5,8 @@ import { ArrowUpRight, Check, Square, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import { activeFilterCount, serializeFilter, type FilterState } from "@/lib/filter";
 import { bulkAssignTagsAction, bulkCollectionAction, bulkDeleteAction, bulkRemoveTagsAction } from "@/app/actions/bulk";
 
@@ -54,6 +55,23 @@ export function WallGrid({
   const [bulkCollectionId, setBulkCollectionId] = useState("");
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longFired = useRef(false);
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function run(key: string, action: (fd: FormData) => Promise<void>, fd: FormData, success: string, after?: () => void) {
+    setPendingKey(key);
+    startTransition(async () => {
+      try {
+        await action(fd);
+        toast.success(success);
+        after?.();
+      } catch {
+        toast.error("That didn't go through — the Items are unchanged.");
+      } finally {
+        setPendingKey(null);
+      }
+    });
+  }
 
   useEffect(() => {
     const queries: Array<[MediaQueryList, number]> = [
@@ -140,16 +158,20 @@ export function WallGrid({
           </div>
 
           {selectedCount > 0 ? (
-            <div className="mx-auto mt-2 max-w-6xl space-y-2">
+            <fieldset disabled={pending} aria-busy={pending || undefined} className="mx-auto mt-2 max-w-6xl space-y-2 disabled:opacity-60">
               <div className="flex flex-wrap items-center gap-2">
                 <form
                   action={bulkAssignTagsAction}
                   onSubmit={(e) => {
                     e.preventDefault();
                     const fd = new FormData(e.currentTarget);
+                    if (!String(fd.get("facetValue") ?? "").trim() && !String(fd.get("freeTagName") ?? "").trim()) {
+                      toast.error("Type a facet value or a free tag first.");
+                      return;
+                    }
                     hiddenTarget(fd);
                     if (bulkFacetId) fd.set("facetId", bulkFacetId);
-                    void bulkAssignTagsAction(fd);
+                    run("assign", bulkAssignTagsAction, fd, `Tags assigned to ${selectedCount} Item${selectedCount === 1 ? "" : "s"}.`);
                   }}
                   className="flex flex-wrap items-center gap-1.5"
                 >
@@ -168,7 +190,7 @@ export function WallGrid({
                   <Input type="text" name="facetValue" placeholder="facet value" aria-label="Facet value" className="h-8 w-28 rounded text-xs" />
                   <Input type="text" name="freeTagName" placeholder="free tag" aria-label="Free tag" className="h-8 w-24 rounded text-xs" />
                   <Button type="submit" variant="outline" size="sm" className="h-8">
-                    Assign tags
+                    {pendingKey === "assign" ? "Assigning…" : "Assign tags"}
                   </Button>
                 </form>
                 <form
@@ -176,9 +198,13 @@ export function WallGrid({
                   onSubmit={(e) => {
                     e.preventDefault();
                     const fd = new FormData(e.currentTarget);
+                    if (!String(fd.get("facetValue") ?? "").trim() && !String(fd.get("freeTagName") ?? "").trim()) {
+                      toast.error("Type a facet value or a free tag first.");
+                      return;
+                    }
                     hiddenTarget(fd);
                     if (bulkFacetId) fd.set("facetId", bulkFacetId);
-                    void bulkRemoveTagsAction(fd);
+                    run("remove", bulkRemoveTagsAction, fd, `Tags removed from ${selectedCount} Item${selectedCount === 1 ? "" : "s"}.`);
                   }}
                   className="flex flex-wrap items-center gap-1.5"
                 >
@@ -197,7 +223,7 @@ export function WallGrid({
                   <Input type="text" name="facetValue" placeholder="facet value" aria-label="Facet value to remove" className="h-8 w-28 rounded text-xs" />
                   <Input type="text" name="freeTagName" placeholder="free tag" aria-label="Free tag to remove" className="h-8 w-24 rounded text-xs" />
                   <Button type="submit" variant="outline" size="sm" className="h-8">
-                    Remove tags
+                    {pendingKey === "remove" ? "Removing…" : "Remove tags"}
                   </Button>
                 </form>
 
@@ -206,9 +232,23 @@ export function WallGrid({
                   onSubmit={(e) => {
                     e.preventDefault();
                     const fd = new FormData(e.currentTarget);
+                    const op = (e.nativeEvent as SubmitEvent).submitter?.getAttribute("data-op") ?? "add";
+                    if (op === "add" && !bulkCollectionId && !String(fd.get("newName") ?? "").trim()) {
+                      toast.error("Pick a Collection or name a new one first.");
+                      return;
+                    }
+                    if (op === "remove" && !bulkCollectionId) {
+                      toast.error("Pick a Collection first.");
+                      return;
+                    }
                     hiddenTarget(fd);
-                    fd.set("op", (e.nativeEvent as SubmitEvent).submitter?.getAttribute("data-op") ?? "add");
-                    void bulkCollectionAction(fd);
+                    fd.set("op", op);
+                    run(
+                      op === "remove" ? "col-remove" : "col-add",
+                      bulkCollectionAction,
+                      fd,
+                      op === "remove" ? "Items removed from the Collection." : "Items added to the Collection.",
+                    );
                   }}
                   className="flex flex-wrap items-center gap-1.5"
                 >
@@ -227,10 +267,10 @@ export function WallGrid({
                   <input type="hidden" name="op" value="add" />
                   <input type="text" name="newName" placeholder="or new collection" aria-label="New collection name" className="w-36 rounded border border-dashed border-neutral-700 bg-transparent px-2 py-1.5 text-xs min-h-[32px]" />
                   <button type="submit" data-op="add" className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs min-h-[32px]">
-                    Add to collection
+                    {pendingKey === "col-add" ? "Adding…" : "Add to collection"}
                   </button>
                   <Button type="submit" data-op="remove" variant="outline" size="sm" className="h-8">
-                    Remove from collection
+                    {pendingKey === "col-remove" ? "Removing…" : "Remove from collection"}
                   </Button>
                 </form>
 
@@ -241,7 +281,7 @@ export function WallGrid({
                       withConfirm(`Delete all ${totalCount} items? This cannot be undone.`, () => {
                         const fd = new FormData();
                         hiddenTarget(fd);
-                        void bulkDeleteAction(fd);
+                        run("delete", bulkDeleteAction, fd, `${totalCount} Item${totalCount === 1 ? "" : "s"} deleted.`, exit);
                       });
                     } else {
                       setConfirmingDelete(true);
@@ -266,15 +306,21 @@ export function WallGrid({
                     onClick={() => {
                       const fd = new FormData();
                       for (const id of selected) fd.append("ids", id);
-                      void bulkDeleteAction(fd).then(() => exit());
+                      run("delete", bulkDeleteAction, fd, `${selected.size} Item${selected.size === 1 ? "" : "s"} deleted.`, exit);
                     }}
                     className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-medium text-white min-h-[32px]"
                   >
-                    Delete {selected.size} item{selected.size === 1 ? "" : "s"}
+                    {pendingKey === "delete" ? (
+                      "Deleting…"
+                    ) : (
+                      <>
+                        Delete {selected.size} item{selected.size === 1 ? "" : "s"}
+                      </>
+                    )}
                   </button>
                 </div>
               ) : null}
-            </div>
+            </fieldset>
           ) : null}
         </div>
 
