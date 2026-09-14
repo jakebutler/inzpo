@@ -7,7 +7,7 @@ Lenses: accessibility, mobile at 390px, empty/loading/error states, UX copy
 **open**. Fixes are local, do not touch server actions or data flow, and do
 not change the visual direction.
 
-Totals: P0 0 found · P1 17 found, 15 fixed · P2 16 found, 7 fixed.
+Totals: P0 0 found · P1 17 found, 16 fixed · P2 16 found, 7 fixed.
 
 ## Capture (`app/capture/*`)
 
@@ -36,8 +36,8 @@ Totals: P0 0 found · P1 17 found, 15 fixed · P2 16 found, 7 fixed.
 | W4 | P1 | a11y | Hover-only card actions (Select / Open source) were unreachable by keyboard (`opacity-0`, `pointer-events-none`). | fixed: `group-focus-within` + `focus-visible` reveal; labels now include the item title |
 | W5 | P1 | states | Empty state said "Nothing matches" even for an empty library. | fixed: filter-aware copy ("Nothing matches the Filter bar" vs "The Wall is empty" + Capture link), `role="status"` |
 | W6 | P1 | a11y | Filters button did not announce the active-filter count badge; no `aria-expanded`. | fixed |
-| W7 | P1 | a11y | SavedPopover is a hand-rolled popover: no Escape, no `role`, no `aria-controls`. | partially fixed: Escape closes, `role="dialog"`, `aria-haspopup/controls`; outside-click and focus trap still open (would need Radix Popover swap) |
-| W8 | P1 | control | Deleting a Smart collection / Collection is one click with no confirm or undo. | open (data-flow) |
+| W7 | P1 | a11y | SavedPopover is a hand-rolled popover: no Escape, no `role`, no `aria-controls`. | fixed: swapped to the shadcn/Radix `Popover` — Escape, outside-click dismiss, focus restore, `role="dialog"` and `aria-controls` all come from Radix |
+| W8 | P1 | control | Deleting a Smart collection / Collection is one click with no confirm or undo. | confirm added: `AlertDialog` inside the Saved popover (delete only fires after confirm); undo still open (data-flow) |
 | W9 | P1 | control | Bulk delete and item delete have no undo (critique carry-over). | open (data-flow) |
 | W10 | P2 | consistency | Color swatch `aria-label` was `"red include"` while chips say "— included". | fixed: unified wording; `aria-pressed` now means include only, like chips |
 | W11 | P2 | consistency | Glyph characters (▢ ✓ ✎) instead of lucide icons in WallGrid/SavedPopover. | fixed: `Square`, `Check`, `Pencil` |
