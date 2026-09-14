@@ -6,8 +6,8 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ArrowUp, Globe, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SubmitButton } from "@/app/components/SubmitButton";
 import { capture } from "./actions";
 import { TagTray, type TrayFacet } from "./TagTray";
 import { autoTagsFor, relevantFacetsFor } from "@/lib/relevance";
@@ -142,11 +142,12 @@ export function CaptureForm({
           value={urlDraft}
           onChange={(e) => onUrlChange(e.target.value)}
           placeholder="Paste a link to capture it…"
+          aria-label="Link to capture"
           className="h-12 rounded-xl text-base"
         />
-        <Button type="submit" size="lg" className="h-12 rounded-xl px-4" aria-label="Capture">
+        <SubmitButton size="lg" className="h-12 rounded-xl px-4" aria-label="Capture" pendingLabel={<Plus className="h-5 w-5 animate-pulse" />}>
           <Plus className="h-5 w-5" />
-        </Button>
+        </SubmitButton>
       </div>
 
       <DuplicateNotice url={urlDraft} />
@@ -176,7 +177,7 @@ export function CaptureForm({
 
           <div data-stage="tray" className="mt-5">
             <h2 data-stage="tray-label" className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Tag it — relevant categories first
+              Tag it — relevant Facets first
             </h2>
             <TagTray
               key={`tray-${preview?.title ?? file?.name ?? "x"}`}
@@ -191,6 +192,7 @@ export function CaptureForm({
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
+            aria-label="Pick an image to capture, or drop one here"
             onDragOver={(e) => {
               e.preventDefault();
               setDragging(true);
@@ -209,15 +211,15 @@ export function CaptureForm({
               <ArrowUp className="h-5 w-5 text-muted-foreground" />
             </span>
             <span className="text-sm text-muted-foreground">or drop an image here, tap to pick</span>
-            {previewLoading ? <span className="text-xs text-muted-foreground">Reading the link…</span> : null}
+            <span className="text-xs text-muted-foreground" aria-live="polite">{previewLoading ? "Reading the link…" : ""}</span>
           </button>
         </div>
       )}
 
       <div className="sticky bottom-0 -mx-6 mt-6 border-t border-border bg-background/95 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
-        <Button type="submit" size="lg" className="h-12 w-full rounded-xl text-base font-medium">
+        <SubmitButton size="lg" className="h-12 w-full rounded-xl text-base font-medium" pendingLabel="Saving…">
           Save
-        </Button>
+        </SubmitButton>
       </div>
     </form>
   );
