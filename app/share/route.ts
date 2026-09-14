@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { items } from "@/lib/db/schema";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
+import { clientKey, recordShareUpload, shareUploadLimited } from "@/lib/auth/ratelimit";
 import { createImageItem } from "@/lib/items";
 import { createLinkedItem } from "@/lib/capture-url";
 import { newId } from "@/lib/ids";
@@ -10,9 +11,15 @@ import { r2, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@/l
 
 export const dynamic = "force-dynamic";
 
+const MAX_STASH_BYTES = 10 * 1024 * 1024;
+
 async function authed(request: NextRequest): Promise<boolean> {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   return !!token && (await verifySessionToken(token));
+}
+
+function clientIp(request: NextRequest): string | null {
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
 }
 
 function firstHttpUrl(...candidates: Array<string | null | undefined>): string | null {
@@ -42,9 +49,15 @@ export async function POST(request: NextRequest) {
     let stashedKey: string | null = null;
 
     if (contentType.includes("multipart/form-data")) {
+      const key = clientKey(clientIp(request));
+      // reject before parsing the body — the cost is the point
+      if (shareUploadLimited(key)) {
+        return new NextResponse("Too many requests", { status: 429 });
+      }
       const fd = await request.formData();
       const file = fd.get("image");
-      if (file instanceof File && file.size > 0 && file.type.startsWith("image/") && file.size <= 25 * 1024 * 1024) {
+      if (file instanceof File && file.size > 0 && file.type.startsWith("image/") && file.size <= MAX_STASH_BYTES) {
+        recordShareUpload(key);
         stashedKey = await saveStashedImage(Buffer.from(await file.arrayBuffer()), file.type);
       }
       url = url ?? (fd.get("url") as string | null);
