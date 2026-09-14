@@ -15,7 +15,8 @@ export function BottomNav() {
     return (
       <Link
         href={href}
-        className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] ${
+        aria-current={active ? "page" : undefined}
+        className={`flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] ${
           active ? "text-foreground" : "text-muted-foreground"
         }`}
       >
@@ -26,7 +27,7 @@ export function BottomNav() {
   };
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur md:hidden">
+    <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
       <div className="mx-auto flex max-w-md items-end justify-around px-4">
         {item("/", "Wall", Images)}
         <Link
@@ -36,7 +37,7 @@ export function BottomNav() {
         >
           <Plus className="h-7 w-7" />
         </Link>
-        {item("/vocab", "Vocab", Tags)}
+        {item("/vocab", "Vocabulary", Tags)}
       </div>
     </nav>
   );

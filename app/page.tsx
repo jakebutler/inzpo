@@ -52,7 +52,7 @@ export default async function Wall({
   );
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100">
+    <main className="min-h-screen bg-background text-foreground">
       <FilterBar
         state={state}
         facets={facets.map((f) => ({ id: f.id, name: f.name, values: f.values.map((v) => v.value) }))}
@@ -69,24 +69,23 @@ export default async function Wall({
             <>
               {" "}
               in{" "}
-              <Link href="/" className="text-neutral-300 underline decoration-neutral-600">
+              <Link href="/" className="text-foreground underline decoration-muted-foreground/60">
                 {collections.find((c) => c.id === collectionId)?.name ?? "collection"}
               </Link>{" "}
-              — <Link href="/">clear scope</Link>
+              — <Link href="/" className="underline decoration-muted-foreground/60 hover:text-foreground">clear scope</Link>
             </>
           ) : null}
         </span>
         <div className="flex items-center gap-4">
-          <Link href="/vocab" className="text-xs text-neutral-400 hover:text-neutral-200">
+          <Link href="/vocab" className="inline-flex min-h-[36px] items-center text-xs text-muted-foreground hover:text-foreground">
             Vocabulary
           </Link>
-          <Link href="/capture" className="text-xs text-neutral-400 hover:text-neutral-200">
+          <Link href="/capture" className="inline-flex min-h-[36px] items-center text-xs text-muted-foreground hover:text-foreground">
             + Capture
           </Link>
         </div>
       </div>
 
-      <div className="pb-24 md:pb-8" />
       <BottomNav />
       <WallGrid
         items={wallItems.map((w) => ({
@@ -106,6 +105,7 @@ export default async function Wall({
         facetOptions={facets.map((f) => ({ id: f.id, name: f.name }))}
         collectionId={collectionId}
       />
+      <div className="pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-8" />
     </main>
   );
 }

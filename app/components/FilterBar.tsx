@@ -215,7 +215,8 @@ export function FilterBar({
               variant="outline"
               size="sm"
               onClick={() => setSheetOpen(true)}
-              aria-label="Filters"
+              aria-label={activeCount > 0 ? `Filters, ${activeCount} active` : "Filters"}
+              aria-expanded={sheetOpen}
               className="relative h-9"
             >
               <SlidersHorizontal className="h-4 w-4" />
@@ -251,7 +252,7 @@ export function FilterBar({
                 aria-label={`Remove filter: ${chip.label}`}
               >
                   <Badge variant="outline" className="min-h-[28px] gap-1 px-2.5 text-xs">
-                    {chip.label} <StanceMark s={(chip as { stance?: Stance }).stance} /> <X className="h-3 w-3 opacity-60" />
+                    {chip.label} <StanceMark s={(chip as { stance?: Stance }).stance} /> <X className="h-3 w-3 opacity-60" aria-hidden />
                   </Badge>
                 </button>
               ))}
@@ -272,7 +273,7 @@ export function FilterBar({
           <SheetHeader className="border-b border-border pb-3">
             <SheetTitle>Filters</SheetTitle>
             <p className="text-xs text-muted-foreground">
-              Tap once to include, again to exclude, again to clear. Chip rows above remove a filter directly.
+              Tap a chip once to include it, again to exclude it, again to clear it. The chips under the search box remove a filter directly.
             </p>
           </SheetHeader>
 
@@ -357,9 +358,9 @@ export function FilterBar({
                       type="button"
                       key={family}
                       onClick={() => setColor(family)}
-                      aria-pressed={!!s}
-                      aria-label={`${family} ${s ?? ""}`}
-                      title={`${family}${s ? " " + s : ""}`}
+                      aria-pressed={s === "include"}
+                      aria-label={`${family}${s ? ` — ${s === "include" ? "included" : "excluded"}` : ""}`}
+                      title={`${family}${s ? ` — ${s === "include" ? "included" : "excluded"}` : ""}`}
                       className={`h-9 w-9 rounded-full border-2 ${
                         s === "include" ? "border-primary" : s === "exclude" ? "border-muted-foreground opacity-40" : "border-border"
                       }`}
@@ -386,7 +387,4 @@ export function FilterBar({
       </Sheet>
     </>
   );
-}
-
-function stanceMark(s?: Stance) {  return s === "include" ? "✓" : s === "exclude" ? "≠" : "";
 }
