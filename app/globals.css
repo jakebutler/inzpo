@@ -127,3 +127,16 @@
     @apply font-sans;
     }
 }
+
+/* Honor reduced motion for CSS-driven motion (tw-animate-css sheets/popovers, transitions).
+   GSAP moments already check prefers-reduced-motion in JS. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
