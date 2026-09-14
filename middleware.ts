@@ -13,5 +13,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|share|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.svg).*)"],
+  matcher: ["/((?!login|share|api/reaper|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.svg).*)"],
 };
