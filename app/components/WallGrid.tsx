@@ -36,12 +36,14 @@ export function WallGrid({
   totalCount,
   collections,
   facetOptions,
+  collectionId,
 }: {
   items: WallCard[];
   state: FilterState;
   totalCount: number;
   collections: Array<{ id: string; name: string }>;
   facetOptions: Array<{ id: string; name: string }>;
+  collectionId: string | null;
 }) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -97,6 +99,7 @@ export function WallGrid({
     if (allSelected) {
       fd.set("all", "1");
       fd.set("f", f);
+      if (collectionId) fd.set("c", collectionId);
     } else {
       for (const id of selected) fd.append("ids", id);
     }
@@ -237,8 +240,7 @@ export function WallGrid({
                     if (allSelected) {
                       withConfirm(`Delete all ${totalCount} items? This cannot be undone.`, () => {
                         const fd = new FormData();
-                        fd.set("all", "1");
-                        fd.set("f", f);
+                        hiddenTarget(fd);
                         void bulkDeleteAction(fd);
                       });
                     } else {

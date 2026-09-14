@@ -7,14 +7,16 @@ import type { TagSelection } from "@/lib/tags";
 import { deleteItem } from "@/lib/items";
 import { buildWallQuery } from "@/lib/wall-query";
 import { parseFilterParam } from "@/lib/filter";
-import { addToCollection, createCollection, removeFromCollection } from "@/lib/collections";
+import { addToCollection, collectionExists, createCollection, removeFromCollection } from "@/lib/collections";
 import { sql } from "drizzle-orm";
 
 async function resolveIds(formData: FormData): Promise<string[]> {
   const all = formData.get("all") === "1";
   if (all) {
     const state = parseFilterParam(formData.get("f") as string | null);
-    const { where } = buildWallQuery(state);
+    const c = formData.get("c");
+    const collectionId = typeof c === "string" && (await collectionExists(c)) ? c : null;
+    const { where } = buildWallQuery(state, collectionId);
     const rows = await db.execute(sql`select i.id from items i where ${where}`);
     return (rows.rows as Array<{ id: string }>).map((x) => x.id);
   }
