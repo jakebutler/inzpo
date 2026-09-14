@@ -46,14 +46,14 @@ export function MergeForm({ facetId, values }: { facetId: string; values: MergeV
           ))}
         </select>
         {values.map((v) => (
-          <label key={v.id} className="flex items-center gap-1 text-xs text-muted-foreground">
+          <label key={v.id} className="flex min-h-[36px] items-center gap-1.5 px-1 text-xs text-muted-foreground">
             <input
               type="checkbox"
               name="mergeIds"
               value={v.id}
               checked={checked.has(v.id)}
               onChange={() => toggle(v.id)}
-              className="accent-neutral-400"
+              className="h-4 w-4 accent-neutral-400"
             />
             {v.value}
           </label>

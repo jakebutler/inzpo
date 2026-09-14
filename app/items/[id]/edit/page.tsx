@@ -7,6 +7,7 @@ import { updateItem } from "./actions";
 import { PaletteColorEditor } from "./PaletteColorEditor";
 import { TagTray } from "@/app/capture/TagTray";
 import { loadTrayFacets } from "@/app/capture/tray";
+import { SubmitButton } from "@/app/components/SubmitButton";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
   const substanceLocked = item.kind === "article" || item.kind === "palette";
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100">
+    <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-xl p-6">
         <div className="flex items-center justify-between">
           <Link href={`/items/${id}`} className="text-sm text-neutral-400 hover:text-neutral-200">
@@ -122,13 +123,10 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
             </p>
           ) : null}
 
-          <div className="mt-6 flex gap-2 sticky bottom-4">
-            <button
-              type="submit"
-              className="flex-1 rounded-lg bg-neutral-100 px-4 py-3 text-base font-medium text-neutral-900 hover:bg-white min-h-[44px] shadow-lg shadow-black/40"
-            >
+          <div className="sticky bottom-0 -mx-6 mt-6 flex gap-2 border-t border-border bg-background/95 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+            <SubmitButton size="lg" className="min-h-[44px] flex-1 rounded-lg text-base font-medium" pendingLabel="Saving…">
               Done
-            </button>
+            </SubmitButton>
             <Link
               href={`/items/${id}`}
               className="flex items-center justify-center rounded-lg border border-neutral-700 px-4 py-3 text-base min-h-[44px]"

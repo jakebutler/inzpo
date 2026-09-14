@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Pencil, Plus, X } from "lucide-react";
+import { Pencil } from "lucide-react";
+import { BottomNav } from "@/app/components/BottomNav";
 import { db } from "@/lib/db";
 import { freeTags } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
@@ -32,7 +33,7 @@ export default async function VocabPage() {
   const saved = await listSavedSearches();
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100">
+    <main className="min-h-screen bg-background text-foreground">
       <div className="sticky top-0 z-10 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
           <Link href="/" className="text-sm text-neutral-400 hover:text-neutral-200">
@@ -42,9 +43,9 @@ export default async function VocabPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-3xl p-4 pb-16">
+      <div className="mx-auto max-w-3xl p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-16">
         <p className="text-xs text-muted-foreground">
-          Six fixed Facets — the user curates vocabularies, not new Facets. Renames and merges propagate into {saved.length} smart
+          Six fixed Facets — the Owner curates Vocabularies, not new Facets. Renames and merges propagate into {saved.length} smart
           collection{saved.length === 1 ? "" : "s"} automatically. Remove is only possible while a value is unused.
         </p>
 
@@ -53,6 +54,7 @@ export default async function VocabPage() {
             <h2 className="text-sm font-medium">{facet.name}</h2>
 
             <ul className="mt-2 space-y-1">
+              {facet.values.length === 0 ? <li className="px-2 text-xs text-muted-foreground">No values yet — create one below.</li> : null}
               {facet.values.map((v) => (
                 <li key={v.id} className="flex flex-wrap items-center gap-2 rounded px-2 py-1 hover:bg-neutral-900">
                   <span className="min-w-28 text-sm">{v.value}</span>
@@ -67,7 +69,7 @@ export default async function VocabPage() {
                       aria-label={`Rename ${v.value}`}
                       className="w-28 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs"
                     />
-                    <button type="submit" aria-label="Rename" className="flex h-9 w-9 items-center justify-center rounded border border-neutral-700 hover:border-neutral-500">
+                    <button type="submit" aria-label={`Rename ${v.value}`} className="flex h-9 w-9 items-center justify-center rounded border border-neutral-700 hover:border-neutral-500">
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                   </form>
@@ -95,7 +97,7 @@ export default async function VocabPage() {
                 aria-label={`New ${facet.name} value`}
                 className="w-44 rounded border border-dashed border-neutral-700 bg-transparent px-2 py-1 text-xs"
               />
-              <button type="submit" className="rounded border border-neutral-700 px-2 py-1 text-xs hover:border-neutral-500">
+              <button type="submit" className="min-h-[36px] rounded border border-neutral-700 px-2 py-1 text-xs hover:border-neutral-500">
                 create
               </button>
             </form>
@@ -123,8 +125,8 @@ export default async function VocabPage() {
                     aria-label={`Rename ${tag.name}`}
                     className="w-28 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs"
                   />
-                  <button type="submit" className="rounded border border-neutral-700 px-2 py-1 text-xs hover:border-neutral-500">
-                    ✎
+                  <button type="submit" aria-label={`Rename ${tag.name}`} className="flex h-9 w-9 items-center justify-center rounded border border-neutral-700 hover:border-neutral-500">
+                    <Pencil className="h-3.5 w-3.5" />
                   </button>
                 </form>
                 <form action={removeFreeTagAction}>
@@ -140,7 +142,7 @@ export default async function VocabPage() {
                 </form>
                 <form action={promoteFreeTagAction} className="flex items-center gap-1">
                   <input type="hidden" name="id" value={tag.id} />
-                  <select name="facetId" aria-label={`Promote ${tag.name} to facet`} className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs">
+                  <select name="facetId" aria-label={`Promote ${tag.name} to facet`} className="min-h-[36px] rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs">
                     {facets.map((f) => (
                       <option key={f.id} value={f.id}>
                         {f.name}
@@ -157,6 +159,7 @@ export default async function VocabPage() {
           </ul>
         </section>
       </div>
+      <BottomNav />
     </main>
   );
 }
