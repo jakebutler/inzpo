@@ -104,6 +104,7 @@ export default async function Wall({
         totalCount={count}
         collections={collections.map((c) => ({ id: c.id, name: c.name }))}
         facetOptions={facets.map((f) => ({ id: f.id, name: f.name }))}
+        collectionId={collectionId}
       />
     </main>
   );
