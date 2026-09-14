@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { facetValues, freeTags, itemFacetValues, itemFreeTags, smartCollections } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
@@ -35,9 +35,15 @@ export async function renameFacetValue(facetId: string, oldValue: string, newVal
   }));
 }
 
+/** Parameterised id membership test — ids are bound values, never interpolated into SQL text. */
+export function facetValueIdsIn(ids: string[]): SQL {
+  return inArray(facetValues.id, ids);
+}
+
 export async function mergeFacetValues(facetId: string, survivorId: string, mergeValueIds: string[]): Promise<void> {
+  if (mergeValueIds.length === 0) return;
   const all = [survivorId, ...mergeValueIds];
-  const values = await db.select().from(facetValues).where(sql`${facetValues.id} = any(${sql.raw(`array['${all.join("','")}']::text[]`)})`);
+  const values = await db.select().from(facetValues).where(facetValueIdsIn(all));
   const survivor = values.find((v) => v.id === survivorId);
   if (!survivor) throw new Error("Survivor not found");
   const survivorLower = survivor.value.toLowerCase();
