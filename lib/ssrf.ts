@@ -1,7 +1,7 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
-function isPrivateIp(ip: string): boolean {
+export function isPrivateIp(ip: string): boolean {
   if (isIP(ip) === 6) {
     const lower = ip.toLowerCase();
     if (lower === "::1" || lower === "::") return true;
@@ -22,17 +22,29 @@ function isPrivateIp(ip: string): boolean {
   return false;
 }
 
-export async function assertPublicHost(hostname: string): Promise<void> {
+// Pure selection: validate every resolved address, pin the first as the one
+// the connection is allowed to use (review M1 — DNS-rebinding TOCTOU).
+export function pinAddress(hostname: string, results: ReadonlyArray<{ address: string }>): string {
+  if (results.length === 0) throw new Error(`Host does not resolve: ${hostname}`);
+  for (const { address } of results) {
+    if (isPrivateIp(address)) throw new Error(`Blocked private address for ${hostname}`);
+  }
+  return results[0].address;
+}
+
+// Resolve once; the returned address is what fetch must actually connect to.
+export async function resolvePublicHost(hostname: string): Promise<string> {
   if (isIP(hostname) !== 0) {
     if (isPrivateIp(hostname)) throw new Error(`Blocked private address: ${hostname}`);
-    return;
+    return hostname;
   }
   if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".internal")) {
     throw new Error(`Blocked internal host: ${hostname}`);
   }
   const results = await lookup(hostname, { all: true, verbatim: true });
-  if (results.length === 0) throw new Error(`Host does not resolve: ${hostname}`);
-  for (const { address } of results) {
-    if (isPrivateIp(address)) throw new Error(`Blocked private address for ${hostname}`);
-  }
+  return pinAddress(hostname, results);
+}
+
+export async function assertPublicHost(hostname: string): Promise<void> {
+  await resolvePublicHost(hostname);
 }

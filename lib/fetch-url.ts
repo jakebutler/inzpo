@@ -4,30 +4,53 @@ const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36 Inzpo/1.0 (+https://github.com/jakebutler/inzpo)";
 const MAX_REDIRECTS = 5;
 
-import { assertPublicHost } from "@/lib/ssrf";
+import { Agent, fetch as undiciFetch } from "undici";
+import type { Response as UndiciResponse } from "undici";
+import type { LookupFunction } from "node:net";
+import { isIP } from "node:net";
+import { resolvePublicHost, isPrivateIp } from "@/lib/ssrf";
 
 export interface FetchedPage {
   finalUrl: string;
   html: string;
 }
 
-async function fetchCapped(url: string, accept: string): Promise<Response> {
+// Pin the connection to the address we validated: the custom lookup ignores
+// DNS and answers with the pre-checked IP, so fetch cannot re-resolve.
+function pinnedLookup(ip: string): LookupFunction {
+  const family = isIP(ip) === 6 ? 6 : 4;
+  return (hostname, options, callback) => {
+    if (options.all) {
+      callback(null, [{ address: ip, family }]);
+    } else {
+      callback(null, ip, family);
+    }
+  };
+}
+
+async function fetchCapped(url: string, accept: string): Promise<UndiciResponse> {
   let current = url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const parsed = new URL(current);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("Blocked non-http URL");
-    await assertPublicHost(parsed.hostname);
+    const pinned = await resolvePublicHost(parsed.hostname);
+    if (isPrivateIp(pinned)) throw new Error(`Blocked private address: ${pinned}`);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    let res: Response;
+    const agent = new Agent({ connect: { lookup: pinnedLookup(pinned) } });
+    let res: UndiciResponse;
     try {
-      res = await fetch(current, {
+      // undici's own fetch: the dispatcher option is honored natively, and the
+      // Agent never crosses versions with the runtime's built-in undici
+      res = await undiciFetch(current, {
         redirect: "manual",
         signal: controller.signal,
         headers: { "User-Agent": UA, Accept: accept },
+        dispatcher: agent,
       });
     } finally {
       clearTimeout(timer);
+      void agent.close();
     }
     if (res.status >= 300 && res.status < 400) {
       const location = res.headers.get("location");
@@ -41,7 +64,7 @@ async function fetchCapped(url: string, accept: string): Promise<Response> {
   throw new Error("Too many redirects");
 }
 
-async function readCapped(res: Response): Promise<Buffer> {
+async function readCapped(res: UndiciResponse): Promise<Buffer> {
   const reader = res.body?.getReader();
   if (!reader) return Buffer.alloc(0);
   const chunks: Buffer[] = [];
