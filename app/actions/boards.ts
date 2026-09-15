@@ -14,6 +14,8 @@ import {
   validatePlacements,
   type BoardPresetName,
 } from "@/lib/boards";
+import { addItemsToBoard, removeFromBoard } from "@/lib/item-boards";
+import { resolveIds } from "./bulk";
 
 function str(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -69,4 +71,48 @@ export async function deleteBoardAction(fd: FormData) {
   await deleteBoard(id);
   revalidatePath("/boards");
   redirect("/boards");
+}
+
+export async function bulkBoardAction(fd: FormData): Promise<void> {
+  const ids = await resolveIds(fd);
+  if (ids.length === 0) return;
+  let boardId = str(fd, "boardId");
+  const newName = str(fd, "newName").trim();
+  if (!boardId && newName.length > 0) boardId = await createBoard("16:9", newName);
+  if (!boardId) return;
+  await addItemsToBoard(boardId, ids);
+  revalidatePath("/");
+  revalidatePath("/boards");
+  revalidatePath(`/boards/${boardId}`);
+}
+
+export async function addItemToBoardAction(fd: FormData): Promise<void> {
+  const itemId = str(fd, "itemId");
+  const boardId = str(fd, "boardId");
+  if (!itemId || !boardId) return;
+  await addItemsToBoard(boardId, [itemId]);
+  revalidatePath(`/items/${itemId}`);
+  revalidatePath("/boards");
+  revalidatePath(`/boards/${boardId}`);
+}
+
+export async function removeItemFromBoardAction(fd: FormData): Promise<void> {
+  const itemId = str(fd, "itemId");
+  const boardId = str(fd, "boardId");
+  if (!itemId || !boardId) return;
+  await removeFromBoard(boardId, itemId);
+  revalidatePath(`/items/${itemId}`);
+  revalidatePath("/boards");
+  revalidatePath(`/boards/${boardId}`);
+}
+
+export async function createBoardWithItemAction(fd: FormData): Promise<void> {
+  const itemId = str(fd, "itemId");
+  const newName = str(fd, "newName").trim();
+  if (!itemId || newName.length === 0) return;
+  const boardId = await createBoard("16:9", newName);
+  await addItemsToBoard(boardId, [itemId]);
+  revalidatePath(`/items/${itemId}`);
+  revalidatePath("/boards");
+  revalidatePath(`/boards/${boardId}`);
 }

@@ -10,7 +10,7 @@ import { parseFilterParam } from "@/lib/filter";
 import { addToCollection, collectionExists, createCollection, removeFromCollection } from "@/lib/collections";
 import { sql } from "drizzle-orm";
 
-async function resolveIds(formData: FormData): Promise<string[]> {
+export async function resolveIds(formData: FormData): Promise<string[]> {
   const all = formData.get("all") === "1";
   if (all) {
     const state = parseFilterParam(formData.get("f") as string | null);
