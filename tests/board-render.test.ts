@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { chooseVariantKey, hostOf, isLightBackground, renderBoardToBuffer, tileForPlacement } from "@/lib/board-render";
+import { exportDimensions, validateExportParams, withinExportBounds } from "@/lib/board-render";
 import type { PlacementData } from "@/lib/boards";
 
 function placementData(overrides: Partial<PlacementData>): PlacementData {
@@ -119,5 +120,43 @@ describe("renderBoardToBuffer", () => {
     const meta = await sharp(buf).metadata();
     expect(meta.width).toBe(100);
     expect(meta.height).toBe(50);
+  });
+});
+
+describe("exportDimensions", () => {
+  it("scales and rounds canvas dimensions", () => {
+    expect(exportDimensions({ canvasW: 1600, canvasH: 900 }, 1)).toEqual({ width: 1600, height: 900 });
+    expect(exportDimensions({ canvasW: 1600, canvasH: 900 }, 2)).toEqual({ width: 3200, height: 1800 });
+    expect(exportDimensions({ canvasW: 901, canvasH: 333 }, 0.5)).toEqual({ width: 451, height: 167 });
+  });
+});
+
+describe("validateExportParams", () => {
+  it("accepts only png|webp at scale 1|2", () => {
+    expect(validateExportParams("png", "1")).toEqual({ format: "png", scale: 1 });
+    expect(validateExportParams("png", "2")).toEqual({ format: "png", scale: 2 });
+    expect(validateExportParams("webp", "1")).toEqual({ format: "webp", scale: 1 });
+    expect(validateExportParams("webp", "2")).toEqual({ format: "webp", scale: 2 });
+  });
+  it("rejects anything outside the whitelist", () => {
+    expect(validateExportParams("svg", "1")).toBeNull();
+    expect(validateExportParams("jpg", "2")).toBeNull();
+    expect(validateExportParams("PNG", "1")).toBeNull();
+    expect(validateExportParams("png", "3")).toBeNull();
+    expect(validateExportParams("png", "0")).toBeNull();
+    expect(validateExportParams("png", "1.0")).toBeNull();
+    expect(validateExportParams("png", "abc")).toBeNull();
+    expect(validateExportParams(null, "1")).toBeNull();
+    expect(validateExportParams("png", null)).toBeNull();
+    expect(validateExportParams(null, null)).toBeNull();
+  });
+});
+
+describe("withinExportBounds", () => {
+  it("caps the longest side at 4096", () => {
+    expect(withinExportBounds({ width: 3200, height: 3200 })).toBe(true);
+    expect(withinExportBounds({ width: 4096, height: 4096 })).toBe(true);
+    expect(withinExportBounds({ width: 4097, height: 100 })).toBe(false);
+    expect(withinExportBounds({ width: 100, height: 4097 })).toBe(false);
   });
 });

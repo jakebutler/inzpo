@@ -11,6 +11,7 @@ const { createImageItem } = await import("../lib/items");
 const { createBoard, getBoardDetail, listBoards, savePlacements, updateBoardMeta, deleteBoard, validatePlacements } = await import("../lib/boards");
 const { packGridFull } = await import("../lib/board-arrange");
 const { renderBoardToBuffer, tileForPlacement } = await import("../lib/board-render");
+const { exportDimensions, validateExportParams, withinExportBounds } = await import("../lib/board-render");
 const { db } = await import("../lib/db");
 const { itemColors, itemSources, items } = await import("../lib/db/schema");
 const { eq, inArray } = await import("drizzle-orm");
@@ -22,6 +23,7 @@ function img(r: number, g: number, b: number) {
 
 const itemIds: string[] = [];
 let boardId = "";
+let exportBoardId = "";
 
 try {
   const a = await createImageItem({ buffer: await img(120, 80, 40), filename: "board-e2e-a.png" });
@@ -94,8 +96,40 @@ try {
   if (survivors.length !== itemIds.length - 1) throw new Error("board deletion touched items");
   console.log("✓ deleting a board leaves Items intact");
 
+  exportBoardId = await createBoard("1:1", "E2E export board");
+  const palId = itemIds[itemIds.length - 1];
+  await savePlacements(exportBoardId, validatePlacements(
+    [{ itemId: palId, x: 400, y: 400, w: 800, h: 800, z: 0, showLabel: true }],
+    { w: 1600, h: 1600 },
+  ));
+  const exportDetail = await getBoardDetail(exportBoardId);
+  if (!exportDetail || exportDetail.placements.length !== 1) throw new Error("export board placements missing");
+  if (!withinExportBounds({ width: 3200, height: 3200 }) || withinExportBounds({ width: 4097, height: 1 })) {
+    throw new Error("export bounds wrong");
+  }
+  const exportTiles = exportDetail.placements.map((p) => ({ rect: { x: p.x, y: p.y, w: p.w, h: p.h }, spec: tileForPlacement(p) }));
+  const exportLabels = exportDetail.placements
+    .filter((p) => p.showLabel)
+    .map((p) => ({ rect: { x: p.x, y: p.y, w: p.w, h: p.h }, text: p.title ?? "Untitled" }));
+  for (const scale of [1, 2] as const) {
+    const out = await renderBoardToBuffer(exportDetail, exportTiles, { scale, labels: exportLabels });
+    if (out.subarray(0, 4).toString("latin1") !== "\x89PNG") throw new Error(`scale ${scale}: export is not a PNG`);
+    const want = exportDimensions(exportDetail, scale);
+    const m = await sharp(out).metadata();
+    if (m.width !== want.width || m.height !== want.height) {
+      throw new Error(`scale ${scale}: export dims ${m.width}x${m.height}, expected ${want.width}x${want.height}`);
+    }
+  }
+  if (validateExportParams("svg", "1") !== null) throw new Error("export params accepted svg");
+  if (validateExportParams("png", "3") !== null) throw new Error("export params accepted scale 3");
+  console.log("✓ export renders PNG at scale 1 and 2 with guarded params");
+
+  await deleteBoard(exportBoardId);
+  exportBoardId = "";
+
   console.log("boards e2e passed");
 } finally {
   if (boardId) await deleteBoard(boardId).catch(() => {});
+  if (exportBoardId) await deleteBoard(exportBoardId).catch(() => {});
   if (itemIds.length > 0) await db.delete(items).where(inArray(items.id, itemIds)).catch(() => {});
 }
