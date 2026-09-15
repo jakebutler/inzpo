@@ -138,3 +138,11 @@ other dimension. Its reach: titles, notes, facet values, free tags, copied
 source titles and descriptions, and source URLs. Matching is plain —
 substrings, no query syntax, no relevance ranking. Article body text lies
 beyond its reach in v1.
+
+**Reference board** — A composition of Items laid out on one canvas and
+exportable as a single image: the visual asset Inzpo produces. A board is
+not an Item — it is composed from the library, never captured into it.
+Items reach a board through placements — position, size, and stack order —
+and a board may auto-arrange them or take hand placement. Deleting an Item
+removes its placements and touches nothing else; deleting a board frees its
+Items. The export renders from stored media alone, never from the source.
