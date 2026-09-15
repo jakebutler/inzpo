@@ -87,7 +87,7 @@ describe("renderBoardToBuffer", () => {
   }
 
   it("composites image, palette, and fallback tiles onto the background", async () => {
-    const buf = await renderBoardToBuffer(
+    const { buffer: buf } = await renderBoardToBuffer(
       board,
       [
         { rect: { x: 10, y: 10, w: 80, h: 60 }, spec: { type: "image", variantKey: "k" } },
@@ -106,17 +106,38 @@ describe("renderBoardToBuffer", () => {
     const tiles: import("@/lib/board-render").RenderTile[] = [
       { rect: { x: 10, y: 10, w: 80, h: 60 }, spec: { type: "image", variantKey: "k" } },
     ];
-    const without = await renderBoardToBuffer(board, tiles, { scale: 1, loadImage: async () => redImage() });
-    const withLabel = await renderBoardToBuffer(board, tiles, {
-      scale: 1,
-      loadImage: async () => redImage(),
-      labels: [{ rect: { x: 10, y: 10, w: 80, h: 60 }, text: "A label that is fairly long and should truncate" }],
-    });
+    const without = (await renderBoardToBuffer(board, tiles, { scale: 1, loadImage: async () => redImage() })).buffer;
+    const withLabel = (
+      await renderBoardToBuffer(board, tiles, {
+        scale: 1,
+        loadImage: async () => redImage(),
+        labels: [{ rect: { x: 10, y: 10, w: 80, h: 60 }, text: "A label that is fairly long and should truncate" }],
+      })
+    ).buffer;
     expect(withLabel.byteLength).not.toBe(without.byteLength);
   });
 
+  it("flags degraded and renders the fallback tile when an image is missing", async () => {
+    const result = await renderBoardToBuffer(
+      board,
+      [
+        {
+          rect: { x: 10, y: 10, w: 80, h: 60 },
+          spec: { type: "image", variantKey: "missing" },
+          fallback: { title: "Missing item", host: "example.com" },
+        },
+      ],
+      { scale: 1, loadImage: async () => null },
+    );
+    expect(result.degraded).toBe(true);
+    const meta = await sharp(result.buffer).metadata();
+    expect(meta.width).toBe(200);
+    const clean = await renderBoardToBuffer(board, [], { scale: 1 });
+    expect(clean.degraded).toBe(false);
+  });
+
   it("scales the canvas at fractional scale", async () => {
-    const buf = await renderBoardToBuffer(board, [], { scale: 0.5 });
+    const { buffer: buf } = await renderBoardToBuffer(board, [], { scale: 0.5 });
     const meta = await sharp(buf).metadata();
     expect(meta.width).toBe(100);
     expect(meta.height).toBe(50);

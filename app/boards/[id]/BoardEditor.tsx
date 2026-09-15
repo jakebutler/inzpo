@@ -90,6 +90,8 @@ interface DragState {
   startY: number;
   orig: { x: number; y: number; w: number; h: number };
   moved: boolean;
+  dx?: number;
+  dy?: number;
 }
 
 type Gesture =
@@ -132,7 +134,6 @@ export function BoardEditor({
   const [snapOn, setSnapOn] = useState(true);
   const [zoomPct, setZoomPct] = useState(100);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [, startSave] = useTransition();
   const [metaBusy, startMeta] = useTransition();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -146,6 +147,9 @@ export function BoardEditor({
   const justDragged = useRef(false);
   const gesture = useRef<Gesture>({ kind: "none" });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const editsRef = useRef(0);
+  const boardIdRef = useRef(board.id);
   const spaceHeld = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -197,8 +201,29 @@ export function BoardEditor({
       if (zoomLabelTimer.current) clearTimeout(zoomLabelTimer.current);
       if (dragWriteRaf.current !== null) cancelAnimationFrame(dragWriteRaf.current);
       dragWriteRaf.current = null;
-      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (saveTimer.current) {
+        // Flush a debounced save that never fired so navigating away can't lose edits.
+        clearTimeout(saveTimer.current);
+        const fd = new FormData();
+        fd.set("id", boardIdRef.current);
+        fd.set(
+          "placements",
+          JSON.stringify(
+            itemsRef.current.map((p, i) => ({
+              itemId: p.itemId,
+              x: p.x,
+              y: p.y,
+              w: p.w,
+              h: p.h,
+              z: i,
+              showLabel: p.showLabel,
+            })),
+          ),
+        );
+        void savePlacementsAction(fd).catch(() => {});
+      }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -293,13 +318,14 @@ export function BoardEditor({
   }
 
   function persist(immediate = false) {
+    editsRef.current += 1;
     if (saveTimer.current) {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
     const send = () => {
       const fd = new FormData();
-      fd.set("id", board.id);
+      fd.set("id", boardIdRef.current);
       fd.set(
         "placements",
         JSON.stringify(
@@ -314,11 +340,13 @@ export function BoardEditor({
           })),
         ),
       );
+      const seq = editsRef.current;
       setSaveState("saving");
-      startSave(async () => {
+      // Chained sends: saves never overlap, so the server can't apply them out of order.
+      saveChainRef.current = saveChainRef.current.then(async () => {
         try {
           await savePlacementsAction(fd);
-          setSaveState("saved");
+          if (seq === editsRef.current && !saveTimer.current) setSaveState("saved");
         } catch {
           setSaveState("error");
           toast.error("Couldn't save the board — your layout is kept here.");
@@ -509,7 +537,9 @@ export function BoardEditor({
       setPopoverOpen(false);
     }
     if (!d.moved) return;
-    scheduleDragWrite(d, (e.clientX - d.startX) / vp.current.scale, (e.clientY - d.startY) / vp.current.scale);
+    d.dx = (e.clientX - d.startX) / vp.current.scale;
+    d.dy = (e.clientY - d.startY) / vp.current.scale;
+    scheduleDragWrite(d, d.dx, d.dy);
   }
 
   function onPlacementPointerUp(e: React.PointerEvent<HTMLElement>) {
@@ -518,12 +548,16 @@ export function BoardEditor({
     if (!d || d.pointerId !== e.pointerId) return;
     justDragged.current = d.moved;
     if (!d.moved) return;
-    const el = buttonRefs.current.get(d.id);
-    if (!el) return;
+    // Compute the final rect from pointer deltas, not from styles: a queued drag-write
+    // frame may not have painted yet (stale-style reads were possible at high pointer speeds).
+    if (dragWriteRaf.current !== null) {
+      cancelAnimationFrame(dragWriteRaf.current);
+      dragWriteRaf.current = null;
+    }
     if (d.mode === "move") {
-      commitRect(d.id, { x: parseFloat(el.style.left) || d.orig.x, y: parseFloat(el.style.top) || d.orig.y });
+      commitRect(d.id, { x: d.orig.x + (d.dx ?? 0), y: d.orig.y + (d.dy ?? 0) });
     } else {
-      commitRect(d.id, { w: parseFloat(el.style.width) || d.orig.w, h: parseFloat(el.style.height) || d.orig.h });
+      commitRect(d.id, { w: d.orig.w + (d.dx ?? 0), h: d.orig.h + (d.dy ?? 0) });
     }
   }
 

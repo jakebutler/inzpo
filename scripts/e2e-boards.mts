@@ -58,7 +58,7 @@ try {
   if (!palette || palette.type !== "palette" || palette.colors.length !== 3) throw new Error("palette tile wrong");
   console.log("✓ placement tiles resolve per kind");
 
-  const buf = await renderBoardToBuffer(
+  const { buffer: buf } = await renderBoardToBuffer(
     detail,
     detail.placements.map((p) => ({ rect: { x: p.x, y: p.y, w: p.w, h: p.h }, spec: tileForPlacement(p) })),
     {
@@ -112,7 +112,7 @@ try {
     .filter((p) => p.showLabel)
     .map((p) => ({ rect: { x: p.x, y: p.y, w: p.w, h: p.h }, text: p.title ?? "Untitled" }));
   for (const scale of [1, 2] as const) {
-    const out = await renderBoardToBuffer(exportDetail, exportTiles, { scale, labels: exportLabels });
+    const { buffer: out } = await renderBoardToBuffer(exportDetail, exportTiles, { scale, labels: exportLabels });
     if (out.subarray(0, 4).toString("latin1") !== "\x89PNG") throw new Error(`scale ${scale}: export is not a PNG`);
     const want = exportDimensions(exportDetail, scale);
     const m = await sharp(out).metadata();

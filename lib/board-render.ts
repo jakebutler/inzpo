@@ -13,6 +13,8 @@ export type TileSpec =
 export interface RenderTile {
   rect: Rect;
   spec: TileSpec;
+  /** Used to render an honest fallback tile when the image bytes can't be loaded. */
+  fallback?: { title: string; host: string | null };
 }
 
 export interface LabelSpec {
@@ -25,6 +27,12 @@ export interface RenderOptions {
   labels?: LabelSpec[];
   format?: "png" | "webp";
   loadImage?: (key: string) => Promise<Buffer | null>;
+}
+
+export interface RenderResult {
+  buffer: Buffer;
+  /** True when at least one image tile couldn't be loaded — callers should not cache the output. */
+  degraded: boolean;
 }
 
 const VARIANT_WIDTHS: Record<string, number> = { w1600: 1600, w640: 640, w256: 256 };
@@ -140,13 +148,14 @@ export async function renderBoardToBuffer(
   board: { canvasW: number; canvasH: number; background: string },
   tiles: RenderTile[],
   opts: RenderOptions,
-): Promise<Buffer> {
+): Promise<RenderResult> {
   const scale = opts.scale;
   const W = Math.max(1, Math.round(board.canvasW * scale));
   const H = Math.max(1, Math.round(board.canvasH * scale));
   const onLight = isLightBackground(board.background);
   const loadImage = opts.loadImage ?? defaultLoadImage;
   const composites: sharp.OverlayOptions[] = [];
+  let degraded = false;
 
   for (const t of tiles) {
     const left = Math.round(t.rect.x * scale);
@@ -158,9 +167,15 @@ export async function renderBoardToBuffer(
     const clipH = Math.min(height, H - top);
     if (t.spec.type === "image") {
       const buf = await loadImage(t.spec.variantKey);
-      if (!buf) continue;
-      const img = await sharp(buf).resize(clipW, clipH, { fit: "cover" }).png().toBuffer();
-      composites.push({ input: img, left, top });
+      if (buf) {
+        const img = await sharp(buf).resize(clipW, clipH, { fit: "cover" }).png().toBuffer();
+        composites.push({ input: img, left, top });
+      } else {
+        degraded = true;
+        if (t.fallback) {
+          composites.push({ input: Buffer.from(await fallbackSvg(t.fallback, clipW, clipH, onLight)), left, top });
+        }
+      }
     } else if (t.spec.type === "palette") {
       composites.push({ input: Buffer.from(paletteSvg(t.spec.colors, clipW, clipH)), left, top });
     } else {
@@ -174,9 +189,11 @@ export async function renderBoardToBuffer(
 
   let pipeline = sharp({ create: { width: W, height: H, channels: 3, background: board.background } });
   if (composites.length > 0) pipeline = pipeline.composite(composites);
-  return opts.format === "webp"
-    ? pipeline.webp({ quality: 90 }).toBuffer()
-    : pipeline.png({ compressionLevel: 9 }).toBuffer();
+  const buffer =
+    opts.format === "webp"
+      ? await pipeline.webp({ quality: 90 }).toBuffer()
+      : await pipeline.png({ compressionLevel: 9 }).toBuffer();
+  return { buffer, degraded };
 }
 
 const MAX_EXPORT_SIDE = 4096;

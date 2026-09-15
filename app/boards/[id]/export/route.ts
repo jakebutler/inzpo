@@ -3,6 +3,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 import { getBoardDetail } from "@/lib/boards";
 import {
   exportDimensions,
+  hostOf,
   renderBoardToBuffer,
   tileForPlacement,
   validateExportParams,
@@ -42,16 +43,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     );
   }
 
-  const tiles = board.placements.map((p) => ({
-    rect: { x: p.x, y: p.y, w: p.w, h: p.h },
-    spec: tileForPlacement(p),
-  }));
+  const tiles = board.placements.map((p) => {
+    const spec = tileForPlacement(p);
+    return {
+      rect: { x: p.x, y: p.y, w: p.w, h: p.h },
+      spec,
+      fallback: { title: p.title ?? "Untitled", host: hostOf(p.sourceUrl) },
+    };
+  });
   const labels = board.placements
     .filter((p) => p.showLabel)
     .map((p) => ({ rect: { x: p.x, y: p.y, w: p.w, h: p.h }, text: p.title ?? "Untitled" }));
 
   try {
-    const buf = await renderBoardToBuffer(
+    const { buffer: buf } = await renderBoardToBuffer(
       { canvasW: board.canvasW, canvasH: board.canvasH, background: board.background },
       tiles,
       { scale: opts.scale, labels, format: opts.format },
