@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BOARD_PRESETS, BOARD_PRESET_LABELS, listBoards } from "@/lib/boards";
 import { createBoardAction } from "@/app/actions/boards";
+import { BottomNav } from "@/app/components/BottomNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -75,6 +76,7 @@ export default async function BoardsPage() {
           </Button>
         </form>
       </div>
+      <BottomNav />
     </main>
   );
 }

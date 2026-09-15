@@ -3,12 +3,14 @@ import { notFound } from "next/navigation";
 import { getItemDetail, getArticleHtml } from "@/lib/items";
 import { getItemTags } from "@/lib/ontology";
 import { getItemCollections, listCollectionOptions } from "@/lib/item-collections";
+import { getItemBoards, getBoards } from "@/lib/item-boards";
 import { DeleteButton } from "../DeleteButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Pencil, X } from "lucide-react";
 import { BottomNav } from "@/app/components/BottomNav";
 import { addToCollectionAction, removeFromCollectionAction } from "@/app/actions/collections";
+import { addItemToBoardAction, createBoardWithItemAction, removeItemFromBoardAction } from "@/app/actions/boards";
 import { saveExtractedAsPaletteAction } from "@/app/actions/palettes";
 import { getOrigin, getDerivedItems } from "@/lib/palettes";
 
@@ -28,12 +30,15 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
   const item = await getItemDetail(id);
   if (!item) notFound();
   const tags = await getItemTags(id);
-  const [memberships, options, articleHtml] = await Promise.all([
+  const [memberships, options, articleHtml, boardMemberships, boardOptions] = await Promise.all([
     getItemCollections(id),
     listCollectionOptions(),
     item.hasArticle ? getArticleHtml(id) : Promise.resolve(null),
+    getItemBoards(id),
+    getBoards(),
   ]);
   const joinable = options.filter((o) => !memberships.some((m) => m.id === o.id));
+  const joinableBoards = boardOptions.filter((o) => !boardMemberships.some((m) => m.id === o.id));
   const [originId, derived] = await Promise.all([getOrigin(id), getDerivedItems(id)]);
 
   const embedSrc = item.oembedHtml?.match(/src=["']([^"']+)["']/i)?.[1] ?? null;
@@ -253,6 +258,65 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
               Add
             </button>
           </form>
+        </section>
+
+        <section className="mt-6">
+          <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Boards</h2>
+          {boardMemberships.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {boardMemberships.map((m) => (
+                <span key={m.id} className="flex items-center gap-1 rounded-full border border-neutral-700 bg-neutral-900 py-1 pl-3 pr-1 text-sm">
+                  <Link href={`/boards/${m.id}`} className="hover:underline">
+                    {m.name}
+                  </Link>
+                  <form action={removeItemFromBoardAction}>
+                    <input type="hidden" name="itemId" value={item.id} />
+                    <input type="hidden" name="boardId" value={m.id} />
+                    <button type="submit" className="flex h-8 w-8 items-center justify-center rounded-full text-xs text-muted-foreground hover:text-red-400" aria-label={`Remove from ${m.name}`}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </form>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">Not on any Board yet — add one below.</p>
+          )}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <form action={addItemToBoardAction} className="flex flex-wrap items-center gap-1.5">
+              <input type="hidden" name="itemId" value={item.id} />
+              {joinableBoards.length > 0 ? (
+                <select
+                  name="boardId"
+                  aria-label="Add to board"
+                  className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm min-h-[36px]"
+                >
+                  <option value="">Add to board…</option>
+                  {joinableBoards.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              <button type="submit" className="rounded-full border border-neutral-700 px-3 py-1.5 text-sm min-h-[36px] hover:border-neutral-500">
+                Add
+              </button>
+            </form>
+            <form action={createBoardWithItemAction} className="flex flex-wrap items-center gap-1.5">
+              <input type="hidden" name="itemId" value={item.id} />
+              <input
+                type="text"
+                name="newName"
+                placeholder="new board"
+                aria-label="New board name"
+                className="w-40 rounded-full border border-dashed border-neutral-700 bg-transparent px-3 py-1.5 text-sm min-h-[36px] outline-none focus:border-neutral-500"
+              />
+              <button type="submit" className="rounded-full border border-neutral-700 px-3 py-1.5 text-sm min-h-[36px] hover:border-neutral-500">
+                New board
+              </button>
+            </form>
+          </div>
         </section>
 
         <section className="mt-8 flex items-center justify-between border-t border-neutral-800 pt-4 pb-8">

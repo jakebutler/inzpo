@@ -9,6 +9,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { activeFilterCount, serializeFilter, type FilterState } from "@/lib/filter";
 import { bulkAssignTagsAction, bulkCollectionAction, bulkDeleteAction, bulkRemoveTagsAction } from "@/app/actions/bulk";
+import { bulkBoardAction } from "@/app/actions/boards";
+import { ActionForm } from "@/app/components/ActionForm";
 
 export interface WallCard {
   id: string;
@@ -36,6 +38,7 @@ export function WallGrid({
   state,
   totalCount,
   collections,
+  boards,
   facetOptions,
   collectionId,
 }: {
@@ -43,6 +46,7 @@ export function WallGrid({
   state: FilterState;
   totalCount: number;
   collections: Array<{ id: string; name: string }>;
+  boards: Array<{ id: string; name: string }>;
   facetOptions: Array<{ id: string; name: string }>;
   collectionId: string | null;
 }) {
@@ -53,6 +57,7 @@ export function WallGrid({
   const [colCount, setColCount] = useState(2);
   const [bulkFacetId, setBulkFacetId] = useState("");
   const [bulkCollectionId, setBulkCollectionId] = useState("");
+  const [bulkBoardId, setBulkBoardId] = useState("");
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longFired = useRef(false);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
@@ -273,6 +278,53 @@ export function WallGrid({
                     {pendingKey === "col-remove" ? "Removing…" : "Remove from collection"}
                   </Button>
                 </form>
+
+                {boards.length > 0 ? (
+                  <ActionForm
+                    action={bulkBoardAction}
+                    success={`Item${selectedCount === 1 ? "" : "s"} added to the board.`}
+                    prepare={(fd) => {
+                      hiddenTarget(fd);
+                      fd.set("boardId", bulkBoardId);
+                      setPendingKey("board-add");
+                    }}
+                    onDone={() => setPendingKey(null)}
+                    onError={() => setPendingKey(null)}
+                    className="flex items-center gap-1.5"
+                  >
+                    <Select value={bulkBoardId} onValueChange={setBulkBoardId}>
+                      <SelectTrigger className="h-8 w-[140px] text-xs" aria-label="Board">
+                        <SelectValue placeholder="Board" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {boards.map((b) => (
+                          <SelectItem key={b.id} value={b.id}>
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button type="submit" variant="outline" size="sm" className="h-8" disabled={!bulkBoardId} title={bulkBoardId ? undefined : "Pick a board first"}>
+                      {pendingKey === "board-add" ? "Adding…" : "Add to board"}
+                    </Button>
+                  </ActionForm>
+                ) : null}
+                <ActionForm
+                  action={bulkBoardAction}
+                  success={`Board created with ${selectedCount} Item${selectedCount === 1 ? "" : "s"}.`}
+                  prepare={(fd) => {
+                    hiddenTarget(fd);
+                    setPendingKey("board-new");
+                  }}
+                  onDone={() => setPendingKey(null)}
+                  onError={() => setPendingKey(null)}
+                  className="flex items-center gap-1.5"
+                >
+                  <input type="text" name="newName" placeholder="or new board" aria-label="New board name" className="w-36 rounded border border-dashed border-neutral-700 bg-transparent px-2 py-1.5 text-xs min-h-[32px]" />
+                  <button type="submit" className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs min-h-[32px]">
+                    {pendingKey === "board-new" ? "Creating…" : "New board"}
+                  </button>
+                </ActionForm>
 
                 <button
                   type="button"

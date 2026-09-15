@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Images, Plus, Tags } from "lucide-react";
+import { Images, LayoutGrid, Plus, Tags } from "lucide-react";
 
 const HIDDEN_ON = ["/capture", "/login"];
 
@@ -11,7 +11,10 @@ export function BottomNav() {
   if (HIDDEN_ON.some((p) => pathname.startsWith(p))) return null;
 
   const item = (href: string, label: string, Icon: typeof Images) => {
-    const active = pathname === href || (href === "/" && pathname.startsWith("/items"));
+    const active =
+      pathname === href ||
+      (href === "/" && pathname.startsWith("/items")) ||
+      (href === "/boards" && pathname.startsWith("/boards"));
     return (
       <Link
         href={href}
@@ -37,6 +40,7 @@ export function BottomNav() {
         >
           <Plus className="h-7 w-7" />
         </Link>
+        {item("/boards", "Boards", LayoutGrid)}
         {item("/vocab", "Vocabulary", Tags)}
       </div>
     </nav>
