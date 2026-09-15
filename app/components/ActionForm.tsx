@@ -18,6 +18,7 @@ export function ActionForm({
   className,
   children,
   onDone,
+  onError,
 }: {
   action: (fd: FormData) => Promise<void>;
   success: string;
@@ -26,6 +27,7 @@ export function ActionForm({
   className?: string;
   children: ReactNode;
   onDone?: () => void;
+  onError?: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   return (
@@ -45,6 +47,7 @@ export function ActionForm({
             onDone?.();
           } catch {
             toast.error(failure ?? "That didn't go through — try again.");
+            onError?.();
           }
         });
       }}

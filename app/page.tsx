@@ -6,11 +6,12 @@ import { parseFilterParam, serializeFilter } from "@/lib/filter";
 import { COLOR_FAMILIES } from "@/lib/colors";
 import { listSavedSearches } from "@/lib/saved-searches";
 import { listCollections, collectionExists } from "@/lib/collections";
+import { getBoards } from "@/lib/item-boards";
 import { FilterBar } from "./components/FilterBar";
 import { WallGrid } from "./components/WallGrid";
 import { BottomNav } from "./components/BottomNav";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { LayoutGrid, Plus } from "lucide-react";
 import { SavedPopover } from "./components/SavedPopover";
 import { LogoutButton } from "./components/LogoutButton";
 import Link from "next/link";
@@ -26,13 +27,14 @@ export default async function Wall({
   const state = parseFilterParam(params.f ?? null);
   const collectionId = typeof params.c === "string" && (await collectionExists(params.c)) ? params.c : null;
 
-  const [wallItems, count, facets, tags, saved, collections] = await Promise.all([
+  const [wallItems, count, facets, tags, saved, collections, boards] = await Promise.all([
     getWallItems(state, collectionId),
     countWallItems(state, collectionId),
     getFacetsWithValues(),
     db.select({ name: freeTags.name }).from(freeTags).orderBy(freeTags.name),
     listSavedSearches(),
     listCollections(),
+    getBoards(),
   ]);
 
   const savedSlot = (
@@ -41,6 +43,11 @@ export default async function Wall({
         <a href="/capture">
           <Plus className="h-4 w-4" /> Capture
         </a>
+      </Button>
+      <Button asChild size="sm" variant="outline" className="hidden md:inline-flex">
+        <Link href="/boards">
+          <LayoutGrid className="h-4 w-4" /> Boards
+        </Link>
       </Button>
       <SavedPopover
         state={state}
@@ -102,6 +109,7 @@ export default async function Wall({
         state={state}
         totalCount={count}
         collections={collections.map((c) => ({ id: c.id, name: c.name }))}
+        boards={boards}
         facetOptions={facets.map((f) => ({ id: f.id, name: f.name }))}
         collectionId={collectionId}
       />
