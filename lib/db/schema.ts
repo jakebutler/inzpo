@@ -3,6 +3,7 @@ import {
   text,
   integer,
   timestamp,
+  boolean,
   jsonb,
   uniqueIndex,
   index,
@@ -176,4 +177,39 @@ export const origins = pgTable(
       .references(() => items.id, { onDelete: "cascade" }),
   },
   (t) => [index("origins_origin_item_id_idx").on(t.originItemId)],
+);
+
+export const boards = pgTable("boards", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull().default("Untitled board"),
+  background: text("background").notNull().default("#0a0a0a"),
+  canvasW: integer("canvas_w").notNull(),
+  canvasH: integer("canvas_h").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const boardPlacements = pgTable(
+  "board_placements",
+  {
+    id: text("id").primaryKey(),
+    boardId: text("board_id")
+      .notNull()
+      .references(() => boards.id, { onDelete: "cascade" }),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    x: integer("x").notNull(),
+    y: integer("y").notNull(),
+    w: integer("w").notNull(),
+    h: integer("h").notNull(),
+    z: integer("z").notNull().default(0),
+    showLabel: boolean("show_label").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("board_placements_board_item_uq").on(t.boardId, t.itemId),
+    index("board_placements_board_id_idx").on(t.boardId),
+  ],
 );
