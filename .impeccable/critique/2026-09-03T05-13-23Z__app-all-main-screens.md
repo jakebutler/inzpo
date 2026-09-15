@@ -8,6 +8,7 @@ p1_count: 2
 target_identity: "file:/Volumes/rexy/GitHub/inzpo-app/app/ (all main screens)"
 timestamp: 2026-09-03T05-13-23Z
 slug: app-all-main-screens
+closed: true
 ---
 # Inzpo UX Critique — Wall + Capture + Detail + Vocab (as-assessed scores)
 
