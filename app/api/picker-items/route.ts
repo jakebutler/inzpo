@@ -11,11 +11,16 @@ export async function POST(request: NextRequest) {
     return new NextResponse(null, { status: 401 });
   }
 
+  const declaredLength = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declaredLength) && declaredLength > 64_000) {
+    return NextResponse.json({ error: "request too large" }, { status: 413 });
+  }
   const body = (await request.json().catch(() => null)) as { f?: string; exclude?: string[] } | null;
   const state = parseFilterParam(body?.f ?? null);
-  const exclude = new Set(
-    Array.isArray(body?.exclude) ? body.exclude.filter((id): id is string => typeof id === "string") : [],
-  );
+  const excludeList = Array.isArray(body?.exclude)
+    ? body.exclude.filter((id): id is string => typeof id === "string").slice(0, 100)
+    : [];
+  const exclude = new Set(excludeList);
 
   const [rows, total] = await Promise.all([getWallItems(state), countWallItems(state)]);
   const items = rows

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 import { getBoardDetail } from "@/lib/boards";
-import { renderBoardToBuffer, tileForPlacement } from "@/lib/board-render";
+import { hostOf, renderBoardToBuffer, tileForPlacement } from "@/lib/board-render";
 
 export const dynamic = "force-dynamic";
 
@@ -21,25 +21,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const w = Number.isFinite(wRaw) ? Math.max(64, Math.min(Math.round(wRaw), 1600)) : 800;
   const scale = Math.min(1, w / board.canvasW);
 
-  const tiles = board.placements.map((p) => ({
-    rect: { x: p.x, y: p.y, w: p.w, h: p.h },
-    spec: tileForPlacement(p),
-  }));
+  const tiles = board.placements.map((p) => {
+    const spec = tileForPlacement(p);
+    return {
+      rect: { x: p.x, y: p.y, w: p.w, h: p.h },
+      spec,
+      fallback: { title: p.title ?? "Untitled", host: hostOf(p.sourceUrl) },
+    };
+  });
   const labels = board.placements
     .filter((p) => p.showLabel)
     .map((p) => ({ rect: { x: p.x, y: p.y, w: p.w, h: p.h }, text: p.title ?? "Untitled" }));
 
   try {
-    const buf = await renderBoardToBuffer(
+    const { buffer, degraded } = await renderBoardToBuffer(
       { canvasW: board.canvasW, canvasH: board.canvasH, background: board.background },
       tiles,
       { scale, labels },
     );
-    return new NextResponse(new Uint8Array(buf), {
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "image/png",
-        "Content-Length": String(buf.byteLength),
-        "Cache-Control": "private, max-age=3600",
+        "Content-Length": String(buffer.byteLength),
+        "Cache-Control": degraded ? "no-store" : "private, max-age=3600",
         "X-Content-Type-Options": "nosniff",
         "Content-Security-Policy": CSP,
       },

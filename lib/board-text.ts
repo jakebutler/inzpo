@@ -64,9 +64,10 @@ function shapeText(font: ParsedFont, text: string, x: number, y: number, size: n
 
 function fitText(font: ParsedFont, text: string, size: number, maxWidth?: number): string {
   if (!maxWidth || measure(font, text, size) <= maxWidth) return text;
-  let t = text;
-  while (t.length > 1 && measure(font, `${t}…`, size) > maxWidth) t = t.slice(0, -1);
-  return t === text ? text : `${t}…`;
+  const avg = measure(font, text, size) / Math.max(1, text.length);
+  let t = text.slice(0, Math.max(1, Math.floor((maxWidth / (avg || 1)) - 1)));
+  while (t.length > 1 && measure(font, `${t}…`, size) > maxWidth) t = t.slice(0, Math.max(1, Math.floor(t.length * 0.9)));
+  return `${t}…`;
 }
 
 export async function textPathsSvg(specs: TextSpec[]): Promise<string> {

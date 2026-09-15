@@ -53,9 +53,12 @@ export async function savePlacementsAction(fd: FormData) {
   if (!id) return;
   const board = await getBoardMeta(id);
   if (!board) return;
+  const rawJson = str(fd, "placements");
+  // 100 placements of bounded ints never approach this; reject before parsing untrusted JSON.
+  if (rawJson.length > 64_000) return;
   let raw: unknown;
   try {
-    raw = JSON.parse(str(fd, "placements"));
+    raw = JSON.parse(rawJson);
   } catch {
     return;
   }
