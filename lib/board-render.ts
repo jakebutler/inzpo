@@ -178,3 +178,23 @@ export async function renderBoardToBuffer(
     ? pipeline.webp({ quality: 90 }).toBuffer()
     : pipeline.png({ compressionLevel: 9 }).toBuffer();
 }
+
+const MAX_EXPORT_SIDE = 4096;
+
+export const EXPORT_SCALES = [1, 2] as const;
+export const EXPORT_FORMATS = ["png", "webp"] as const;
+
+export function exportDimensions(board: { canvasW: number; canvasH: number }, scale: number): { width: number; height: number } {
+  return { width: Math.round(board.canvasW * scale), height: Math.round(board.canvasH * scale) };
+}
+
+export function validateExportParams(format: string | null, scale: string | null): { format: "png" | "webp"; scale: 1 | 2 } | null {
+  const f = EXPORT_FORMATS.find((x) => x === format);
+  const s = EXPORT_SCALES.find((x) => String(x) === scale);
+  if (!f || s === undefined) return null;
+  return { format: f, scale: s };
+}
+
+export function withinExportBounds(dims: { width: number; height: number }): boolean {
+  return dims.width <= MAX_EXPORT_SIDE && dims.height <= MAX_EXPORT_SIDE;
+}
