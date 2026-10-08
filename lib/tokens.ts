@@ -40,6 +40,21 @@ export function filledRoles(roles: RoleColors): ColorRole[] {
   return COLOR_ROLES.filter((role) => roles[role] !== null);
 }
 
+/** Pin badges follow filled roles in position order, matching the 3×2 grid. */
+export function pinNumbers(
+  colors: ReadonlyArray<{ role?: ColorRole | null; position?: number }>,
+): Partial<Record<ColorRole, number>> {
+  const pins: Partial<Record<ColorRole, number>> = {};
+  const ordered = [...colors].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+  let n = 1;
+  for (const color of ordered) {
+    if (!color.role) continue;
+    pins[color.role] = n;
+    n += 1;
+  }
+  return pins;
+}
+
 function nearestFilledHex(roles: RoleColors, index: number): string | null {
   for (let distance = 1; distance < COLOR_ROLES.length; distance++) {
     const left = COLOR_ROLES[index - distance];

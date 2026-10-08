@@ -7,6 +7,7 @@ import { BottomNav } from "./components/BottomNav";
 import { Button } from "@/components/ui/button";
 import { LayoutGrid, Plus } from "lucide-react";
 import { LogoutButton } from "./components/LogoutButton";
+import { ExportKitButton } from "./components/ExportKitButton";
 import { requireOwnerId } from "@/lib/auth/owner";
 import Link from "next/link";
 
@@ -33,8 +34,11 @@ export default async function Wall({
     <main className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <h1 className="text-sm font-medium">Wall</h1>
+          <h1 className="text-sm font-medium">
+            {collectionId ? collections.find((c) => c.id === collectionId)?.name ?? "Collection" : "Wall"}
+          </h1>
           <div className="flex items-center gap-2">
+            {collectionId && wallItems[0] ? <ExportKitButton itemId={wallItems[0].id} /> : null}
             <Button asChild size="sm" className="hidden md:inline-flex">
               <a href="/capture">
                 <Plus className="h-4 w-4" /> Snap

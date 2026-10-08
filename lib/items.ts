@@ -3,7 +3,10 @@ import { db } from "@/lib/db";
 import { itemColors, items, mediaAssets, type ColorRole, type ItemKind } from "@/lib/db/schema";
 import { assertItemOwned, ownerClause } from "@/lib/auth/owner";
 import { newId } from "@/lib/ids";
-import { itemPrefix, originalKey, PutObjectCommand, GetObjectCommand, deletePrefix, r2 } from "@/lib/r2";
+import { itemPrefix, originalKey, PutObjectCommand, GetObjectCommand, deletePrefix, r2, tileKey, textureMetaKey } from "@/lib/r2";
+import { chooseTextureCrop, makeSeamlessTile } from "@/lib/texture";
+import { startBriefJob } from "@/lib/brief";
+import { EMPTY_FILTER } from "@/lib/filter";
 import { processImage, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
 import { extractPalette } from "@/lib/palette-extract";
 import { buildWallQuery } from "@/lib/wall-query";
@@ -63,7 +66,7 @@ export interface ItemDetail {
   source: { url: string; title: string | null; description: string | null } | null;
   oembedHtml: string | null;
   hasArticle: boolean;
-  media: { originalKey: string; displayKey: string | null; placeholder: string | null; mime: string; width: number; height: number } | null;
+  media: { originalKey: string; displayKey: string | null; placeholder: string | null; mime: string; width: number; height: number; tileKey: string | null } | null;
   colors: Array<{
     hex: string;
     family: string;
@@ -92,6 +95,7 @@ export async function getItemDetail(ownerId: string, id: string): Promise<ItemDe
       articleKey: sql<string | null>`(select s.article_key from item_sources s where s.item_id = items.id)`,
       originalKey: sql<string | null>`(select m.original_key from media_assets m where m.item_id = items.id limit 1)`,
       displayKey: sql<string | null>`(select v.value from media_assets m, jsonb_each_text(m.variants) v where m.item_id = items.id and v.key = 'w1600' limit 1)`,
+      tileKey: sql<string | null>`(select v.value from media_assets m, jsonb_each_text(m.variants) v where m.item_id = items.id and v.key = 'tile' limit 1)`,
       placeholder: sql<string | null>`(select m.placeholder from media_assets m where m.item_id = items.id limit 1)`,
       mime: sql<string | null>`(select m.mime from media_assets m where m.item_id = items.id limit 1)`,
       width: sql<number | null>`(select m.width from media_assets m where m.item_id = items.id limit 1)`,
@@ -145,6 +149,7 @@ export async function getItemDetail(ownerId: string, id: string): Promise<ItemDe
             mime: row.mime,
             width: row.width,
             height: row.height,
+            tileKey: row.tileKey,
           }
         : null,
     colors,
@@ -195,6 +200,28 @@ export async function createImageItem(input: {
       );
       variantMap[name] = variant.key;
     }
+    const crop = await chooseTextureCrop(processed.original);
+    if (!crop.flat) {
+      const tile = await makeSeamlessTile(processed.original, crop);
+      const key = tileKey(id);
+      await client.send(
+        new PutObjectCommand({
+          Bucket: process.env.R2_BUCKET!,
+          Key: key,
+          Body: tile,
+          ContentType: "image/png",
+        }),
+      );
+      variantMap.tile = key;
+      await client.send(
+        new PutObjectCommand({
+          Bucket: process.env.R2_BUCKET!,
+          Key: textureMetaKey(id),
+          Body: JSON.stringify({ ...crop, step: 0 }),
+          ContentType: "application/json",
+        }),
+      );
+    }
     await db.insert(mediaAssets).values({
       id: newId(),
       itemId: id,
@@ -228,12 +255,18 @@ export async function createImageItem(input: {
     }
 
     await db.update(items).set({ captureState: "ready" }).where(eq(items.id, id));
+    await startBriefJob(input.ownerId, id);
     return id;
   } catch (err) {
     await deletePrefix(itemPrefix(id)).catch(() => {});
     await db.delete(items).where(eq(items.id, id));
     throw err;
   }
+}
+
+export async function getLatestKit(ownerId: string): Promise<WallItem | null> {
+  const rows = await getWallItems(ownerId, EMPTY_FILTER, null);
+  return rows[0] ?? null;
 }
 
 export async function getArticleHtml(ownerId: string, itemId: string): Promise<string | null> {

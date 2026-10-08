@@ -12,9 +12,13 @@ import { addItemToBoardAction, createBoardWithItemAction, removeItemFromBoardAct
 import { saveExtractedAsPaletteAction } from "@/app/actions/palettes";
 import { getOrigin, getDerivedItems } from "@/lib/palettes";
 import { requireOwnerId } from "@/lib/auth/owner";
-import { kitFromColors } from "@/lib/mascot";
-import { BriefSlot } from "@/app/components/BriefSlot";
+import { KitResult } from "@/app/components/KitResult";
+import { SaveBar } from "@/app/components/SaveBar";
+import { ExportKitButton } from "@/app/components/ExportKitButton";
 import { TokenEditor } from "@/app/components/TokenEditor";
+import { BriefSlot } from "@/app/components/BriefSlot";
+import { kitFromColors } from "@/lib/mascot";
+import { listCollections } from "@/lib/collections";
 
 export const dynamic = "force-dynamic";
 
@@ -27,11 +31,43 @@ const KIND_LABEL: Record<string, string> = {
   video: "Video",
 };
 
-export default async function ItemDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ItemDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ c?: string; saved?: string }>;
+}) {
   const ownerId = await requireOwnerId();
   const { id } = await params;
+  const query = await searchParams;
   const item = await getItemDetail(ownerId, id);
   if (!item) notFound();
+  const collections = await listCollections(ownerId);
+  const isKit = item.kind === "photo" || item.kind === "screenshot";
+  if (isKit) {
+    return (
+      <main className="min-h-screen bg-background text-foreground">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/90 px-4 py-3 backdrop-blur">
+          <Link href={query.c ? `/?c=${query.c}` : "/"} className="text-sm text-muted-foreground">
+            ← {query.c ? collections.find((c) => c.id === query.c)?.name ?? "Collection" : "Wall"}
+          </Link>
+          {query.c ? <ExportKitButton itemId={item.id} /> : null}
+        </div>
+        <KitResult
+          itemId={item.id}
+          title={item.title}
+          imageSrc={item.media?.displayKey ? `/media/${item.media.displayKey}` : null}
+          width={item.media?.width ?? 390}
+          height={item.media?.height ?? 488}
+          colors={item.colors}
+          tileSrc={item.media?.tileKey ? `/media/${item.media.tileKey}` : null}
+          saved={query.saved === "1"}
+        />
+        <SaveBar itemId={item.id} collections={collections.map((c) => ({ id: c.id, name: c.name }))} />
+      </main>
+    );
+  }
   const [memberships, options, articleHtml, boardMemberships, boardOptions] = await Promise.all([
     getItemCollections(ownerId, id),
     listCollectionOptions(ownerId),

@@ -3,11 +3,9 @@
 import { useRef, useState } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
-import { ArrowUp } from "lucide-react";
-import { SubmitButton } from "@/app/components/SubmitButton";
 import { CaptureMascotLayer } from "@/app/components/CaptureMascotLayer";
 import { prepareUploadFile } from "@/lib/client-image";
-import { MOTION, prefersReducedMotion } from "@/lib/motion";
+import { MOTION, MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { capture } from "./actions";
 
 gsap.registerPlugin(useGSAP);
@@ -24,8 +22,9 @@ export function CaptureForm({
   const [uploadKey, setUploadKey] = useState<string | null>(shareToken);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const libraryRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const hasSubstance = !!file || !!shareToken;
 
@@ -75,6 +74,7 @@ export function CaptureForm({
       });
       if (!put.ok) throw new Error("Upload failed");
       setUploadKey(signed.key);
+      queueMicrotask(() => formRef.current?.requestSubmit());
     } catch {
       setUploadError("That photo could not be uploaded. Try another.");
       setUploadKey(null);
@@ -84,10 +84,18 @@ export function CaptureForm({
   }
 
   return (
-    <form action={capture} className="pb-4">
+    <form ref={formRef} action={capture} className="pb-4">
       <CaptureMascotLayer firstOpen={firstOpen} hasSubstance={hasSubstance} uploading={uploading} />
       <input
-        ref={inputRef}
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => void pick(e.target.files?.[0] ?? null)}
+      />
+      <input
+        ref={libraryRef}
         type="file"
         accept="image/*,.heic,.heif"
         className="hidden"
@@ -110,50 +118,24 @@ export function CaptureForm({
               <img src={fileUrl} alt="Captured image" className="max-h-72 w-full object-cover" />
             ) : null}
             <div className="p-3">
-              <p className="truncate text-sm font-medium">{file?.name ?? "Shared photo"}</p>
+              <p className="truncate text-sm font-medium">{uploading ? "Uploading…" : file?.name ?? "Shared photo"}</p>
             </div>
           </div>
         </div>
-      ) : (
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            aria-label="Pick a photo"
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragging(true);
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragging(false);
-              void pick(e.dataTransfer.files?.[0] ?? null);
-            }}
-            className={`flex min-h-[180px] w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${
-              dragging ? "border-ring bg-accent" : "border-border bg-card hover:border-muted-foreground/40"
-            }`}
-          >
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted">
-              <ArrowUp className="h-5 w-5 text-muted-foreground" />
-            </span>
-            <span className="text-sm text-muted-foreground">Pick a photo, or drop one here</span>
-          </button>
-        </div>
-      )}
+      ) : null}
 
-      <div className="sticky bottom-0 -mx-6 mt-6 border-t border-border bg-background/95 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
-        <SubmitButton
-          size="lg"
-          className="h-14 w-full rounded-xl text-base font-medium"
-          pendingLabel="Saving…"
-          disabled={uploading || (!uploadKey && !shareToken && !file)}
-        >
-          Snap something
-        </SubmitButton>
+      <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-xl border-t border-border bg-background/95 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
         <button
           type="button"
-          onClick={() => inputRef.current?.click()}
+          onClick={() => cameraRef.current?.click()}
+          className="h-14 w-full rounded-xl bg-primary text-base font-medium text-primary-foreground"
+          style={{ transitionDuration: `${MOTION_CSS.tapMs}ms` }}
+        >
+          Snap something
+        </button>
+        <button
+          type="button"
+          onClick={() => libraryRef.current?.click()}
           className="mt-2 min-h-11 w-full text-sm text-muted-foreground"
         >
           Pick a photo

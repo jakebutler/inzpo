@@ -1,9 +1,25 @@
 "use client";
 
 import { MascotStage } from "@/app/components/MascotStage";
-import { HANDOFF_KITS } from "@/lib/mascot";
+import { KitCard } from "@/app/components/KitCard";
+import { TokenEditor } from "@/app/components/TokenEditor";
+import { BriefSlot } from "@/app/components/BriefSlot";
+import { SaveBar } from "@/app/components/SaveBar";
+import { ExportKitButton } from "@/app/components/ExportKitButton";
+import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
+import { HANDOFF_KITS, type MascotKit } from "@/lib/mascot";
 import { LINKS_UNSUPPORTED_MESSAGE } from "@/lib/links";
 import { MOTION, MOTION_CSS } from "@/lib/motion";
+
+function colorsFromKit(kit: MascotKit) {
+  return COLOR_ROLES.filter((role) => kit[role]).map((role, i) => ({
+    hex: kit[role]!,
+    role,
+    position: i,
+    pinX: 0.22 + (i % 3) * 0.28,
+    pinY: 0.22 + Math.floor(i / 3) * 0.36,
+  }));
+}
 
 export function QaStates({ issue, state }: { issue: string; state: string }) {
   return (
@@ -118,6 +134,140 @@ export function QaStates({ issue, state }: { issue: string; state: string }) {
             </div>
             <p className="mt-3 text-xs text-muted-foreground">No contrast line — text is empty.</p>
           </div>
+        ) : null}
+        {state === "first-kit" ? (
+          <div>
+            <p className="mt-8 text-sm text-muted-foreground">Steal the colors off anything</p>
+            <div className="mt-6">
+              <KitCard title="Sample kit" />
+            </div>
+            <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-[390px] border-t border-border bg-background/95 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+              <button type="button" className="h-14 w-full rounded-xl bg-primary text-base font-medium text-primary-foreground">
+                Snap something
+              </button>
+              <button type="button" className="mt-2 min-h-11 w-full text-sm text-muted-foreground">
+                Pick a photo
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {state === "result-kit" ? (
+          <div className="-mx-4 pb-28">
+            <div className="relative w-full overflow-hidden bg-[#6b6656]" style={{ aspectRatio: "4 / 5" }}>
+              {colorsFromKit(HANDOFF_KITS.IMG_6505).map((c, i) => (
+                <span
+                  key={c.role}
+                  className="absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-[10px] text-white"
+                  style={{ left: `${c.pinX * 100}%`, top: `${c.pinY * 100}%` }}
+                >
+                  {i + 1}
+                </span>
+              ))}
+            </div>
+            <div className="px-4 pt-4">
+              <TokenEditor itemId="qa" imageSrc={null} colors={colorsFromKit(HANDOFF_KITS.IMG_6505)} />
+              <BriefSlot status="pending" kit={HANDOFF_KITS.IMG_6505} note={null} />
+              <section className="mt-6">
+                <div
+                  className="h-40 overflow-hidden rounded-xl border border-border"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(45deg, #6b6656 25%, #d1cda4 25%, #d1cda4 50%, #6b6656 50%, #6b6656 75%, #d1cda4 75%)",
+                    backgroundSize: "256px 256px",
+                  }}
+                  aria-label="Texture tile"
+                />
+                <button type="button" className="mt-2 min-h-11 text-sm text-muted-foreground">
+                  Move crop
+                </button>
+              </section>
+            </div>
+            <SaveBar itemId="qa" collections={[{ id: "c1", name: "Street walks" }]} />
+          </div>
+        ) : null}
+        {state === "result-empty" ? (
+          <div className="-mx-4 pb-28">
+            <div className="relative w-full overflow-hidden bg-[#384b5f]" style={{ aspectRatio: "4 / 5" }}>
+              {colorsFromKit(HANDOFF_KITS.IMG_6208).map((c, i) => (
+                <span
+                  key={c.role}
+                  className="absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-[10px] text-white"
+                  style={{ left: `${c.pinX * 100}%`, top: `${c.pinY * 100}%` }}
+                >
+                  {i + 1}
+                </span>
+              ))}
+            </div>
+            <div className="px-4 pt-4">
+              <TokenEditor itemId="qa" imageSrc={null} colors={colorsFromKit(HANDOFF_KITS.IMG_6208)} />
+              <BriefSlot status="pending" kit={HANDOFF_KITS.IMG_6208} note={null} />
+            </div>
+          </div>
+        ) : null}
+        {state === "result-flat" ? (
+          <div className="-mx-4 pb-16">
+            <div className="relative w-full bg-[#d1cda4]" style={{ aspectRatio: "4 / 5" }} />
+            <div className="px-4 pt-4">
+              <TokenEditor
+                itemId="qa"
+                imageSrc={null}
+                colors={[{ hex: "#d1cda4", role: "background" as ColorRole, position: 0, pinX: 0.5, pinY: 0.5 }]}
+              />
+              <BriefSlot
+                status="pending"
+                kit={{ ...HANDOFF_KITS.IMG_6505, primary: null, secondary: null, accent: null, surface: null, text: null, background: "#d1cda4" }}
+                note={null}
+              />
+            </div>
+          </div>
+        ) : null}
+        {state === "save-sheet" ? (
+          <div className="pb-28">
+            <p className="mt-8 text-sm">Last-used collection is preselected. Tap the name for the sheet.</p>
+            <SaveBar
+              itemId="qa"
+              collections={[
+                { id: "c1", name: "Street walks" },
+                { id: "c2", name: "Murals" },
+              ]}
+              defaultOpen
+            />
+          </div>
+        ) : null}
+        {state === "kit-saved" ? (
+          <div className="pb-16">
+            <p className="mt-4 text-sm" role="status">
+              Saved. Baku is full.
+            </p>
+            <BriefSlot status="ready" kit={HANDOFF_KITS.IMG_6505} note="Warm stone and shade from a late walk." />
+            <header className="mt-6 flex items-center justify-between border-t border-border pt-3">
+              <p className="text-sm font-medium">Street walks</p>
+              <ExportKitButton itemId="qa" />
+            </header>
+          </div>
+        ) : null}
+        {state === "kit-edit" ? (
+          <TokenEditor itemId="qa" imageSrc={null} colors={colorsFromKit(HANDOFF_KITS.IMG_6505)} initialOpen="primary" />
+        ) : null}
+        {state === "kit-export" ? (
+          <header className="mt-8 flex items-center justify-between">
+            <h1 className="text-sm font-medium">Street walks</h1>
+            <ExportKitButton itemId="qa" />
+          </header>
+        ) : null}
+        {state === "kit-chips" ? (
+          <div className="pb-8">
+            <TokenEditor
+              itemId="qa"
+              imageSrc={null}
+              colors={colorsFromKit(HANDOFF_KITS.IMG_6208)}
+              namedHexes={["#e8c36a"]}
+            />
+            <BriefSlot status="ready" kit={HANDOFF_KITS.IMG_6208} note="Blue shade and a dropped gold." />
+          </div>
+        ) : null}
+        {state === "brief-pending" ? (
+          <BriefSlot status="pending" kit={HANDOFF_KITS.IMG_6505} note={null} />
         ) : null}
         <dl className="mt-10 space-y-1 text-xs text-muted-foreground" data-motion>
           <div>tap {MOTION.tap.duration}s {MOTION.tap.ease} ({MOTION_CSS.tapMs}ms)</div>

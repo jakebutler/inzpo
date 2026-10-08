@@ -1,12 +1,14 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createImageItem } from "@/lib/items";
 import { r2, GetObjectCommand, DeleteObjectCommand } from "@/lib/r2";
 import { requireOwnerId } from "@/lib/auth/owner";
 import { isReadableUploadKey, MAX_UPLOAD_BYTES } from "@/lib/uploads";
 import { LINKS_UNSUPPORTED_ERROR } from "@/lib/links";
+import { runBriefJob } from "@/lib/brief";
 
 export async function capture(formData: FormData): Promise<void> {
   const ownerId = await requireOwnerId();
@@ -29,7 +31,10 @@ export async function capture(formData: FormData): Promise<void> {
     } catch {
       redirect("/capture?error=capture-failed");
     }
-    redirect(`/capture?saved=${itemId}`);
+    after(() => {
+      void runBriefJob(itemId);
+    });
+    redirect(`/items/${itemId}`);
   }
 
   if (file instanceof File && file.size > 0 && file.size <= MAX_UPLOAD_BYTES) {
@@ -41,7 +46,10 @@ export async function capture(formData: FormData): Promise<void> {
       redirect("/capture?error=bad-image");
     }
     revalidatePath("/");
-    redirect(`/capture?saved=${itemId}`);
+    after(() => {
+      void runBriefJob(itemId);
+    });
+    redirect(`/items/${itemId}`);
   }
 
   if (rawUrl.length > 0) {

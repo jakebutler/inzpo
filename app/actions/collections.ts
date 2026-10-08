@@ -5,17 +5,22 @@ import { redirect } from "next/navigation";
 import { addToCollection, createCollection, deleteCollection, removeFromCollection, renameCollection } from "@/lib/collections";
 import { requireOwnerId } from "@/lib/auth/owner";
 
-export async function addToCollectionAction(formData: FormData): Promise<void> {
+export async function addToCollectionAndReturnId(formData: FormData): Promise<string | null> {
   const ownerId = await requireOwnerId();
   const itemId = formData.get("itemId");
   const collectionId = formData.get("collectionId");
   const newName = ((formData.get("newName") as string) ?? "").trim();
-  if (typeof itemId !== "string") return;
+  if (typeof itemId !== "string") return null;
   let cid: string | null = typeof collectionId === "string" && collectionId ? collectionId : null;
   if (!cid && newName.length > 0) cid = await createCollection(ownerId, newName);
   if (cid) await addToCollection(ownerId, cid, itemId);
   revalidatePath(`/items/${itemId}`);
   revalidatePath("/");
+  return cid;
+}
+
+export async function addToCollectionAction(formData: FormData): Promise<void> {
+  await addToCollectionAndReturnId(formData);
 }
 
 export async function removeFromCollectionAction(formData: FormData): Promise<void> {

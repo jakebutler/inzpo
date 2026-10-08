@@ -135,3 +135,48 @@ export async function chooseTextureCrop(input: Buffer): Promise<TextureCrop> {
     flat: std < FLAT_STD,
   };
 }
+
+/** Mirror-blend a square crop into a seamless tile PNG. */
+export async function makeSeamlessTile(input: Buffer, crop: TextureCrop): Promise<Buffer> {
+  const meta = await sharp(input).metadata();
+  const w = meta.width ?? 1;
+  const h = meta.height ?? 1;
+  const side = Math.max(8, Math.round(Math.min(w, h) * crop.size));
+  const left = Math.max(0, Math.min(w - side, Math.round(crop.x * w)));
+  const top = Math.max(0, Math.min(h - side, Math.round(crop.y * h)));
+  const square = await sharp(input)
+    .extract({ left, top, width: Math.min(side, w - left), height: Math.min(side, h - top) })
+    .resize(256, 256, { fit: "fill" })
+    .png()
+    .toBuffer();
+  const flop = await sharp(square).flop().png().toBuffer();
+  const flip = await sharp(square).flip().png().toBuffer();
+  const both = await sharp(square).flop().flip().png().toBuffer();
+  return sharp({
+    create: { width: 512, height: 512, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite([
+      { input: square, left: 0, top: 0 },
+      { input: flop, left: 256, top: 0 },
+      { input: flip, left: 0, top: 256 },
+      { input: both, left: 256, top: 256 },
+    ])
+    .png()
+    .toBuffer();
+}
+
+export function nudgeCrop(crop: TextureCrop, step = 0): TextureCrop {
+  const offsets: Array<[number, number]> = [
+    [0.12, 0],
+    [0, 0.12],
+    [-0.12, 0],
+    [0, -0.12],
+    [0.08, 0.08],
+  ];
+  const [dx, dy] = offsets[step % offsets.length]!;
+  return {
+    ...crop,
+    x: Math.max(0, Math.min(1 - crop.size, crop.x + dx)),
+    y: Math.max(0, Math.min(1 - crop.size, crop.y + dy)),
+  };
+}

@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { isHexColor, normalizeHex } from "@/lib/colors";
 import { MOTION_CSS } from "@/lib/motion";
-import { moveRole, rolesFromColors, setRoleColor } from "@/lib/tokens";
+import { moveRole, pinNumbers, rolesFromColors, setRoleColor } from "@/lib/tokens";
 import { sampleImageAverage } from "@/lib/client-eyedropper";
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -18,27 +18,18 @@ type ColorRow = {
   position?: number;
 };
 
-function pinNumbers(colors: ColorRow[]): Partial<Record<ColorRole, number>> {
-  const pins: Partial<Record<ColorRole, number>> = {};
-  const ordered = [...colors].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-  let n = 1;
-  for (const c of ordered) {
-    if (c.role) {
-      pins[c.role] = n;
-      n += 1;
-    }
-  }
-  return pins;
-}
-
 export function TokenEditor({
   itemId,
   imageSrc,
   colors,
+  namedHexes = [],
+  initialOpen = null,
 }: {
   itemId: string;
   imageSrc: string | null;
   colors: ColorRow[];
+  namedHexes?: string[];
+  initialOpen?: ColorRole | null;
 }) {
   const [roles, setRoles] = useState(() => rolesFromColors(colors));
   const [pins, setPins] = useState<Partial<Record<ColorRole, { pinX: number; pinY: number }>>>(() => {
@@ -48,12 +39,18 @@ export function TokenEditor({
     }
     return next;
   });
-  const [open, setOpen] = useState<ColorRole | null>(null);
+  const [open, setOpen] = useState<ColorRole | null>(initialOpen);
   const [hexDraft, setHexDraft] = useState("");
   const [pending, startTransition] = useTransition();
   const imgRef = useRef<HTMLImageElement>(null);
   const numbers = useMemo(() => pinNumbers(colors), [colors]);
   const contrast = textOnBackgroundContrast(roles);
+  const filledHex = new Set(
+    Object.values(roles)
+      .filter((hex): hex is string => typeof hex === "string")
+      .map((hex) => hex.toLowerCase()),
+  );
+  const chips = namedHexes.filter((hex) => !filledHex.has(hex.toLowerCase()));
 
   function openRole(role: ColorRole) {
     setOpen(role);
@@ -134,6 +131,24 @@ export function TokenEditor({
         <p className="mt-3 text-xs tabular-nums text-muted-foreground">
           Text on background {contrast.toFixed(1)}:1
         </p>
+      ) : null}
+      {chips.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {chips.map((hex) => (
+            <button
+              key={hex}
+              type="button"
+              className="rounded-full border border-dashed border-border px-3 py-2 text-xs"
+              onClick={() => {
+                const empty = COLOR_ROLES.find((role) => !roles[role]);
+                if (!empty) return;
+                commit(setRoleColor(roles, empty, hex));
+              }}
+            >
+              add this swatch {hex}
+            </button>
+          ))}
+        </div>
       ) : null}
       {pending ? <p className="mt-1 text-[11px] text-muted-foreground">Saving…</p> : null}
 

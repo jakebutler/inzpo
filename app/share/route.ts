@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { clientKey, recordShareUpload, shareUploadLimited } from "@/lib/auth/ratelimit";
 import { optionalOwnerId } from "@/lib/auth/owner";
 import { createImageItem } from "@/lib/items";
+import { runBriefJob } from "@/lib/brief";
 import { LINKS_UNSUPPORTED_ERROR } from "@/lib/links";
 import { newId } from "@/lib/ids";
 import { r2, PutObjectCommand } from "@/lib/r2";
@@ -79,7 +80,10 @@ export async function POST(request: NextRequest) {
   if (file) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const itemId = await createImageItem({ ownerId, buffer, filename: file.name || "shared-image" });
-    return NextResponse.redirect(new URL(`/capture?saved=${itemId}`, request.url), 303);
+    after(() => {
+      void runBriefJob(itemId);
+    });
+    return NextResponse.redirect(new URL(`/items/${itemId}`, request.url), 303);
   }
 
   const link = url ?? firstHttpUrl(text ?? "");
