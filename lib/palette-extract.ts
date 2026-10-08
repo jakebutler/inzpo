@@ -231,14 +231,16 @@ export function assignRoles(
   const fields = chromatic.length ? calm : calm.filter((s) => s.lab[0] >= 60);
   const text = selected.find((s) => s.role === "text") ?? suitableText[0];
   const primary = selected.find((s) => s.role === "primary");
-  // Reserve the subject, then use the largest eligible connected region,
-  // rather than compactness/chroma score. Skip conflicts using rounded hex Lab.
+  // Reserve the subject, then prefer the largest eligible L* >= 75 region.
+  // Fall back to the largest light/neutral region if no brighter one clears
+  // the gates, including subject replacement. Check rounded hex Lab.
   const backgrounds = text ? candidates.filter((s) =>
     lightOrNeutral(s) &&
     contrastRatio(s.hex, text.hex) >= TARGET_CONTRAST &&
     !shadows.has(s) &&
     selected.every((t) => t === primary || roleDeltaE(s.lab, t.lab) >= MIN_ROLE_DELTA_E))
-    .sort((a, b) => b.patch - a.patch || b.score - a.score) : [];
+    .sort((a, b) => Number(b.lab[0] >= 75) - Number(a.lab[0] >= 75) ||
+      b.patch - a.patch || b.score - a.score) : [];
   let background: PaletteSwatch | undefined;
   for (const candidate of backgrounds) {
     if (!primary || roleDeltaE(candidate.lab, primary.lab) >= MIN_ROLE_DELTA_E) {

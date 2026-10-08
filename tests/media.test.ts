@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { processImage, exceedsPixelBudget, MAX_INPUT_PIXELS, MAX_INPUT_DIMENSION, MAX_STORE_EDGE, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
+import { processImage, preparePaletteSource, exceedsPixelBudget, MAX_INPUT_PIXELS, MAX_INPUT_DIMENSION, MAX_STORE_EDGE, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
 import { MEDIA_VARIANTS } from "@/lib/r2";
 
 async function testImage(width: number, height: number, format: "png" | "jpeg" = "png"): Promise<Buffer> {
@@ -9,6 +9,25 @@ async function testImage(width: number, height: number, format: "png" | "jpeg" =
 }
 
 describe("processImage", () => {
+  it("shares the exact stored-JPEG/w640 palette source without changing storage encoding", async () => {
+    const input = await sharp(Buffer.from(`<svg width="2400" height="1200" xmlns="http://www.w3.org/2000/svg">
+      <rect width="2400" height="1200" fill="#d0c7b2"/>
+      <path d="M0 0L2400 1200H0Z" fill="#426092"/>
+    </svg>`)).png().toBuffer();
+    const expectedOriginal = await sharp(input, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
+      .rotate().toColourspace("srgb")
+      .resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 88, chromaSubsampling: "4:4:4" }).toBuffer();
+    const expectedPaletteSource = await sharp(expectedOriginal, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
+      .resize({ width: 640, withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+    const prepared = await preparePaletteSource(input);
+    const processed = await processImage(input, "palette-test");
+    expect(prepared.original.equals(expectedOriginal)).toBe(true);
+    expect(prepared.w640.buffer.equals(expectedPaletteSource)).toBe(true);
+    expect(processed.original.equals(prepared.original)).toBe(true);
+    expect(processed.variants.w640).toEqual({ key: "items/palette-test/w640.webp", ...prepared.w640 });
+  });
+
   it("stores a jpeg at most 2000px on the long edge, plus the fixed variant set", async () => {
     const input = await testImage(2000, 1200);
     const id = "01TESTITEM";

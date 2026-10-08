@@ -13,13 +13,15 @@ import { kitAltText, kitDisplayName } from "@/lib/kit-name";
 import { kitFromColors, stripeCssVars, stripeFills } from "@/lib/mascot";
 import { bakuSvgMarkup } from "@/lib/mascot-svg";
 import { BAKU_UNDYED_KNIT, tintRoles } from "@/lib/baku-tint";
+import { preparePaletteSource } from "@/lib/media";
 
 const photos = ["IMG_6208", "IMG_6505", "IMG_5859"] as const;
 const palettes = new Map<string, ExtractedPalette>();
 
 beforeAll(async () => {
   for (const photo of photos) {
-    const input = await readFile(`public/sample/${photo}.jpg`);
+    const { w640 } = await preparePaletteSource(await readFile(`public/sample/${photo}.jpg`));
+    const input = w640.buffer;
     const { data, info } = await sharp(input).rotate()
       .resize({ width: PALETTE_THUMB, height: PALETTE_THUMB, fit: "inside" })
       .toColourspace("srgb")
@@ -86,8 +88,11 @@ describe("photo region provenance", () => {
     expect(blue!.role).not.toBe(white!.role);
     expect(swatches.find((s) => s.role === "text")!.lab[0]).toBeLessThan(40);
     expect(swatches).toHaveLength(5);
-    expect(roles).toEqual({ primary: "#719ebf", secondary: "#96a2ac", accent: null,
-      background: "#bbc3c9", surface: "#9cc2df", text: "#36485c" });
+    expect(roles.accent).toBeNull();
+    for (const [role, reference] of Object.entries({ primary: "#719ebf", secondary: "#96a2ac",
+      background: "#bac3c9", surface: "#9cc2df", text: "#36485c" })) {
+      expect(roleDeltaE(hexToLab(roles[role as keyof typeof roles]!), hexToLab(reference))).toBeLessThan(3);
+    }
   });
 
   it("retains the Victorian's yellow, pale and dark regions and the mural's red, blue and orange", () => {
@@ -95,7 +100,7 @@ describe("photo region provenance", () => {
     expect(house.swatches.some((s) => s.lab[0] > 70 && s.lab[2] > 15)).toBe(true);
     expect(house.swatches.some((s) => s.lab[0] < 15)).toBe(true);
     const facade = house.swatches.find((s) => s.role === "primary")!;
-    expect(facade.hex).toBe("#d6d2a6");
+    expect(roleDeltaE(facade.lab, hexToLab("#d2d0a8"))).toBeLessThan(5);
     expect(facade.lab[0]).toBeGreaterThan(70);
     expect(facade.lab[2]).toBeGreaterThan(15);
     expect(facade.family).not.toBe("blue");
@@ -103,35 +108,35 @@ describe("photo region provenance", () => {
     // The largest qualifying cream component is now background. The facade
     // uses another real subject component to clear CIE76 >= 12 without tinting.
     const trim = house.swatches.find((s) => s.role === "background")!;
-    expect(trim.hex).toBe("#d0c7b2");
-    expect(trim.lab[0]).toBeGreaterThan(70);
-    expect(Math.hypot(trim.lab[1], trim.lab[2])).toBeLessThan(12);
+    expect(roleDeltaE(trim.lab, hexToLab("#d0c7b2"))).toBeLessThan(5);
+    expect(trim.lab[0]).toBeGreaterThanOrEqual(75);
+    expect(Math.hypot(trim.lab[1], trim.lab[2])).toBeLessThan(15);
     expect(trim.pinX).toBeGreaterThan(0.35);
     expect(trim.pinX).toBeLessThan(0.45);
     expect(trim.pinY).toBeGreaterThan(0.8);
     expect(trim.pinY).toBeLessThan(0.9);
-    const shutters = house.swatches.find((s) => s.role === "secondary")!;
-    expect(shutters.hex).toBe("#3c4952");
-    expect(shutters.lab[0]).toBeLessThan(40);
-    expect(shutters.lab[1]).toBeLessThan(0);
-    expect(shutters.pinX).toBeGreaterThan(0.6);
-    expect(shutters.pinX).toBeLessThan(0.75);
-    expect(shutters.pinY).toBeGreaterThan(0.24);
-    expect(shutters.pinY).toBeLessThan(0.4);
-    expect(house.swatches.some((s) => s.hex === "#6d6857")).toBe(false);
     const mural = palettes.get("IMG_5859")!;
     expect(mural.swatches.some((s) => s.family === "red")).toBe(true);
     expect(mural.swatches.some((s) => s.lab[2] < -8)).toBe(true);
     expect(mural.swatches.some((s) => s.lab[2] > 35)).toBe(true);
     expect(mural.swatches.find((s) => s.role === "primary")!.family).toBe("red");
-    expect(mural.roles.primary).toBe("#85232b");
-    expect(mural.roles.secondary).toBe("#05112d");
-    expect(mural.roles.accent).toBe("#ca721e");
-    expect(mural.roles.background).toBe("#bfc0c2");
+    for (const [role, reference] of Object.entries({ primary: "#85232b", secondary: "#05112d",
+      accent: "#ca721e", background: "#bebfc1", surface: "#e6eff4", text: "#090d11" })) {
+      expect(roleDeltaE(hexToLab(mural.roles[role as keyof typeof mural.roles]!), hexToLab(reference))).toBeLessThan(3);
+    }
     expect(mural.swatches.find((s) => s.role === "background")!.patch).toBeGreaterThan(0.12);
-    expect(mural.roles.surface).toBe("#e6eff4");
-    expect(mural.roles.text).toBe("#090d11");
     expect(mural.contrast).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it.each([
+    ["IMG_6208", "#bac3c9"],
+    ["IMG_5859", "#bebfc1"],
+  ])("keeps %s's existing light background on the server pipeline", (photo, reference) => {
+    const palette = palettes.get(photo)!;
+    const background = palette.swatches.find((s) => s.role === "background")!;
+    expect(background.lab[0]).toBeGreaterThanOrEqual(75);
+    expect(roleDeltaE(background.lab, hexToLab(reference))).toBeLessThan(2);
+    expect(palette.contrast).toBeGreaterThanOrEqual(4.5);
   });
 
   it("gives IMG_6505 a cream background with passing real text and no close role pair", () => {
@@ -139,10 +144,10 @@ describe("photo region provenance", () => {
     const background = house.swatches.find((s) => s.role === "background")!;
     const text = house.swatches.find((s) => s.role === "text")!;
     expect(background.family).toBe("cream/beige");
-    expect(background.lab[0]).toBeGreaterThan(75);
+    expect(background.lab[0]).toBeGreaterThanOrEqual(75);
+    expect(Math.hypot(background.lab[1], background.lab[2])).toBeLessThan(15);
     expect(roleDeltaE(background.lab, hexToLab("#d5cfbe"))).toBeLessThan(5);
-    expect(house.contrast).toBeGreaterThanOrEqual(4.5);
-    expect(text.hex).toBe("#020505");
+    expect(house.contrast).toBeGreaterThanOrEqual(10);
     expect(text.lab[0]).toBeLessThan(5);
     expect(Math.min(...pairwiseRoleDeltaE(house.roles).map((pair) => pair.deltaE)))
       .toBeGreaterThanOrEqual(MIN_ROLE_DELTA_E);

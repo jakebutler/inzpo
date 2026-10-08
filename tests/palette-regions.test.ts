@@ -25,6 +25,30 @@ function assertRealAndDistinct(input: PaletteSwatch[], selected: PaletteSwatch[]
 }
 
 describe("background eligibility", () => {
+  it("prefers the largest L* >= 75 region over a larger passing mid-grey", () => {
+    const grey = region("#aeada5", 0.4);
+    const cream = region("#d0c7b2", 0.1);
+    const text = region("#060504", 0.01);
+    const rows = [region("#85232b", 0.3), grey, cream, region("#eeeeee", 0.02), text];
+    expect(grey.lab[0]).toBeLessThan(75);
+    expect(cream.lab[0]).toBeGreaterThanOrEqual(75);
+    expect(contrastRatio(grey.hex, text.hex)).toBeGreaterThanOrEqual(4.5);
+    const selected = assignRoles(rows);
+    expect(selected.find((s) => s.role === "background")).toBe(cream);
+    assertRealAndDistinct(rows, selected);
+  });
+
+  it.each([false, true])("falls back to the largest passing light/neutral when the bright tier is unavailable (conflicting trim: %s)", (conflictingTrim) => {
+    const grey = region("#aeada5", 0.2);
+    const subject = region(conflictingTrim ? "#d2d0a8" : "#85232b", 0.4);
+    const rows = [subject, grey, region("#888888", 0.1), region("#060504", 0.01)];
+    if (conflictingTrim) rows.push(region("#e3d8b6", 0.1));
+    const selected = assignRoles(rows);
+    expect(selected.find((s) => s.role === "primary")).toBe(subject);
+    expect(selected.find((s) => s.role === "background")).toBe(grey);
+    assertRealAndDistinct(rows, selected);
+  });
+
   it("picks the largest passing light/neutral component ahead of a higher score or brighter detail", () => {
     const facade = region("#d2d0a8", 0.4);
     const cream = region("#d5cfbe", 0.2);

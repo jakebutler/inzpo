@@ -7,15 +7,17 @@
     "Every filled hex is the measured RGB mean of one connected photo region. No tinting, padding or DB migration.",
     "Region size is the fraction of the full thumbnail. Share is colour-cluster coverage, not component size.",
     "Pins are normalized region centroids with origin region; a concave region's centroid can lie in a hole.",
-    "Background prefers the largest connected light (L* >= 60) or neutral (C* < 12) real region passing 4.5:1 against the darkest suitable real text region, subject to CIE76 >= 12 from filled roles. A near-duplicate real component of the same subject class may replace primary to release larger trim; otherwise conflicting backgrounds are skipped. If none qualifies, the existing ranking is used.",
+    "Palette input follows the server storage pipeline: sRGB JPEG at <=2000px, q88 4:4:4, then w640 WebP q82. Extraction timings exclude this preparation.",
+    "Among connected light (L* >= 60) or neutral (C* < 12) real regions passing 4.5:1 against the darkest suitable real text region, background first prefers the largest qualifying L* >= 75 region, then the largest qualifying light/neutral region. Shadows are excluded and CIE76 >= 12 from filled roles is required. In either tier, a near-duplicate real component of the same subject class may replace primary to release trim; otherwise conflicting backgrounds are skipped. If neither tier qualifies, the existing ranking is used.",
     "Shadow test: C* < 25, at least 10 L* below a side-adjacent real region of size >= 0.1%, and absolute chroma difference <= 5 C*. Lab hue gap is <= 30 degrees (including wrap) with both C* >= 3, or both regions have C* < 3. The largest light/neutral region (chosen before the contrast gate) is never classified as a shadow if it passes 4.5:1 against suitable text. Shadows are excluded from qualifying backgrounds and may fill any slot only as a last resort after its distinct non-shadow choices are exhausted.",
-    "6505's largest qualifying cream trim is #d0c7b2. The initial facade #d5d2aa is only CIE76 10.47 away, so primary uses the real facade component #d6d2a6 (CIE76 12.35 from the cream). Both remain measured connected-region means, without whitening or recolouring.",
+    "On the server pipeline, 6505's qualifying cream trim is #d0c7b2. The initial facade #d2d0a8 is too close, so primary uses the real facade component #d5cea0 (CIE76 12.34 from the cream). The larger mid-grey #aeada5 is below L* 75 and becomes surface. All remain measured connected-region means, without whitening or recolouring.",
     "Empty roles remain null and display the existing dashed add-a-colour slot."
   ],
   "photos": [
     {
       "photo": "IMG_6208",
       "source": "public/sample/IMG_6208.jpg",
+      "paletteSource": "rasterForStore (sRGB, <=2000px JPEG q88 4:4:4) -> w640 WebP q82",
       "thumbnail": {
         "width": 288,
         "height": 384
@@ -23,28 +25,32 @@
       "roles": [
         {
           "role": "primary",
-          "hex": "#719ebf",
+          "hex": "#709fbf",
+          "lightness": 63.345038253997785,
+          "chroma": 22.709095403448046,
           "empty": false,
-          "regionSize": 0.006709346064814815,
-          "regionPixels": 742,
-          "share": 0.15478515625,
+          "regionSize": 0.005949797453703704,
+          "regionPixels": 658,
+          "share": 0.1501736111111111,
           "pin": [
-            0.810960429769392,
-            0.5494089734950584
+            0.8110382894292469,
+            0.5490240311550152
           ],
           "origin": "region",
           "legacyDerived": false
         },
         {
           "role": "secondary",
-          "hex": "#96a2ac",
+          "hex": "#96a3ac",
+          "lightness": 66.25699042658758,
+          "chroma": 6.783670247122765,
           "empty": false,
-          "regionSize": 0.003644024884259259,
-          "regionPixels": 403,
-          "share": 0.3009711371527778,
+          "regionSize": 0.0025499131944444445,
+          "regionPixels": 282,
+          "share": 0.2605523003472222,
           "pin": [
-            0.38556313757926663,
-            0.7010700992555831
+            0.3630442277383767,
+            0.6993110963356974
           ],
           "origin": "region",
           "legacyDerived": false
@@ -52,6 +58,8 @@
         {
           "role": "accent",
           "hex": null,
+          "lightness": null,
+          "chroma": null,
           "empty": true,
           "regionSize": null,
           "regionPixels": null,
@@ -62,147 +70,154 @@
         },
         {
           "role": "background",
-          "hex": "#bbc3c9",
+          "hex": "#bac3c9",
+          "lightness": 78.27849697140172,
+          "chroma": 4.5038982635598,
           "empty": false,
-          "regionSize": 0.12213360821759259,
-          "regionPixels": 13507,
-          "share": 0.21376772280092593,
+          "regionSize": 0.2139214409722222,
+          "regionPixels": 23658,
+          "share": 0.23668077256944445,
           "pin": [
-            0.5470507062181749,
-            0.9324786838923028
+            0.5320620638074036,
+            0.8880143388776172
           ],
           "origin": "region",
           "legacyDerived": false
         },
         {
           "role": "surface",
-          "hex": "#9cc2df",
+          "hex": "#9cc4e2",
+          "lightness": 77.30400975237927,
+          "chroma": 20.226020250697967,
           "empty": false,
-          "regionSize": 0.003119574652777778,
-          "regionPixels": 345,
-          "share": 0.021195023148148147,
+          "regionSize": 0.002387152777777778,
+          "regionPixels": 264,
+          "share": 0.01025390625,
           "pin": [
-            0.37749597423510467,
-            0.250264190821256
+            0.3253761574074074,
+            0.2533834438131313
           ],
           "origin": "region",
           "legacyDerived": false
         },
         {
           "role": "text",
-          "hex": "#36485c",
+          "hex": "#384a5d",
+          "lightness": 30.7087848108091,
+          "chroma": 13.540680923412824,
           "empty": false,
-          "regionSize": 0.04628725405092592,
-          "regionPixels": 5119,
-          "share": 0.20661530671296297,
+          "regionSize": 0.05905490451388889,
+          "regionPixels": 6531,
+          "share": 0.22864221643518517,
           "pin": [
-            0.30038283301860175,
-            0.7243297030670052
+            0.26020985385937156,
+            0.6977990385596896
           ],
           "origin": "region",
           "legacyDerived": false
         }
       ],
-      "backgroundTextContrast": 5.2549677704044555,
+      "backgroundTextContrast": 5.090490999296006,
       "pairwiseDeltaE": [
         {
           "roleA": "primary",
           "roleB": "secondary",
-          "hexA": "#719ebf",
-          "hexB": "#96a2ac",
-          "deltaE": 16.078677415914576,
-          "deltaE2000": 9.954688351911777
+          "hexA": "#709fbf",
+          "hexB": "#96a3ac",
+          "deltaE": 16.21861548677091,
+          "deltaE2000": 10.055974121078634
         },
         {
           "roleA": "primary",
           "roleB": "background",
-          "hexA": "#719ebf",
-          "hexB": "#bbc3c9",
-          "deltaE": 24.000183864708823,
-          "deltaE2000": 16.56525895379748
+          "hexA": "#709fbf",
+          "hexB": "#bac3c9",
+          "deltaE": 23.57231426003363,
+          "deltaE2000": 16.273751747330166
         },
         {
           "roleA": "primary",
           "roleB": "surface",
-          "hexA": "#719ebf",
-          "hexB": "#9cc2df",
-          "deltaE": 13.947747330710124,
-          "deltaE2000": 10.624402331028634
+          "hexA": "#709fbf",
+          "hexB": "#9cc4e2",
+          "deltaE": 14.182260148964245,
+          "deltaE2000": 10.844912723851305
         },
         {
           "roleA": "primary",
           "roleB": "text",
-          "hexA": "#719ebf",
-          "hexB": "#36485c",
-          "deltaE": 34.52421194962968,
-          "deltaE2000": 32.87591338916333
+          "hexA": "#709fbf",
+          "hexB": "#384a5d",
+          "deltaE": 34.10065658697145,
+          "deltaE2000": 32.60725337360216
         },
         {
           "roleA": "secondary",
           "roleB": "background",
-          "hexA": "#96a2ac",
-          "hexB": "#bbc3c9",
-          "deltaE": 12.665457492197033,
-          "deltaE2000": 9.587054293349432
+          "hexA": "#96a3ac",
+          "hexB": "#bac3c9",
+          "deltaE": 12.2369492711318,
+          "deltaE2000": 9.256164374196707
         },
         {
           "roleA": "secondary",
           "roleB": "surface",
-          "hexA": "#96a2ac",
-          "hexB": "#9cc2df",
-          "deltaE": 16.46778931756693,
-          "deltaE2000": 11.470225397446544
+          "hexA": "#96a3ac",
+          "hexB": "#9cc4e2",
+          "deltaE": 17.434282390972534,
+          "deltaE2000": 11.937581649089502
         },
         {
           "roleA": "secondary",
           "roleB": "text",
-          "hexA": "#96a2ac",
-          "hexB": "#36485c",
-          "deltaE": 36.86245221398724,
-          "deltaE2000": 36.01710681683148
+          "hexA": "#96a3ac",
+          "hexB": "#384a5d",
+          "deltaE": 36.290229774382894,
+          "deltaE2000": 35.6844376440388
         },
         {
           "roleA": "background",
           "roleB": "surface",
-          "hexA": "#bbc3c9",
-          "hexB": "#9cc2df",
-          "deltaE": 15.34444381138892,
-          "deltaE2000": 10.258527251133241
+          "hexA": "#bac3c9",
+          "hexB": "#9cc4e2",
+          "deltaE": 15.797453155021273,
+          "deltaE2000": 10.361126508879009
         },
         {
           "roleA": "background",
           "roleB": "text",
-          "hexA": "#bbc3c9",
-          "hexB": "#36485c",
-          "deltaE": 49.5053891835702,
-          "deltaE2000": 47.07129730664556
+          "hexA": "#bac3c9",
+          "hexB": "#384a5d",
+          "deltaE": 48.48449687256727,
+          "deltaE2000": 45.90245212897647
         },
         {
           "roleA": "surface",
           "roleB": "text",
-          "hexA": "#9cc2df",
-          "hexB": "#36485c",
-          "deltaE": 47.22194522968452,
-          "deltaE2000": 45.77261660191072
+          "hexA": "#9cc4e2",
+          "hexB": "#384a5d",
+          "deltaE": 47.1827548209223,
+          "deltaE2000": 45.150313530212
         }
       ],
-      "minPairwiseDeltaE": 12.665457492197033,
+      "minPairwiseDeltaE": 12.2369492711318,
       "timing": {
         "warmups": 1,
         "runs": 5,
         "samplesMs": [
-          476.7976490000001,
-          329.5262680000001,
-          722.7148089999998,
-          600.925225,
-          522.785425
+          466.4977140000001,
+          584.9726790000002,
+          401.001933,
+          456.4891090000001,
+          323.64933999999994
         ],
-        "medianMs": 522.785425
+        "medianMs": 456.4891090000001
       }
     },
     {
       "photo": "IMG_6505",
       "source": "public/sample/IMG_6505.jpg",
+      "paletteSource": "rasterForStore (sRGB, <=2000px JPEG q88 4:4:4) -> w640 WebP q82",
       "thumbnail": {
         "width": 288,
         "height": 384
@@ -210,42 +225,48 @@
       "roles": [
         {
           "role": "primary",
-          "hex": "#d6d2a6",
+          "hex": "#d5cea0",
+          "lightness": 82.28555081664912,
+          "chroma": 24.301006929278824,
           "empty": false,
-          "regionSize": 0.007505063657407407,
-          "regionPixels": 830,
-          "share": 0.1156322337962963,
+          "regionSize": 0.008915653935185185,
+          "regionPixels": 986,
+          "share": 0.12400535300925926,
           "pin": [
-            0.48102827978580986,
-            0.45668925702811247
+            0.4176808654496281,
+            0.7042289976335362
           ],
           "origin": "region",
           "legacyDerived": false
         },
         {
           "role": "secondary",
-          "hex": "#3c4952",
+          "hex": "#788984",
+          "lightness": 55.63473772661921,
+          "chroma": 7.218288812690025,
           "empty": false,
-          "regionSize": 0.003562644675925926,
-          "regionPixels": 394,
-          "share": 0.042154947916666664,
+          "regionSize": 0.003173828125,
+          "regionPixels": 351,
+          "share": 0.02881763599537037,
           "pin": [
-            0.6755234771573604,
-            0.27210236886632827
+            0.232846628679962,
+            0.3645091405508072
           ],
           "origin": "region",
           "legacyDerived": false
         },
         {
           "role": "accent",
-          "hex": "#426093",
+          "hex": "#426092",
+          "lightness": 40.57207545652036,
+          "chroma": 31.166234977496163,
           "empty": false,
-          "regionSize": 0.022298177083333332,
-          "regionPixels": 2466,
-          "share": 0.032470703125,
+          "regionSize": 0.022316261574074073,
+          "regionPixels": 2468,
+          "share": 0.033031322337962965,
           "pin": [
-            0.0754257907542579,
-            0.06940431535550148
+            0.07528869529983792,
+            0.06964985143165857
           ],
           "origin": "region",
           "legacyDerived": false
@@ -253,186 +274,193 @@
         {
           "role": "background",
           "hex": "#d0c7b2",
+          "lightness": 80.44383808290758,
+          "chroma": 11.646349760096884,
           "empty": false,
-          "regionSize": 0.010615596064814815,
-          "regionPixels": 1174,
-          "share": 0.055998625578703706,
+          "regionSize": 0.010154441550925927,
+          "regionPixels": 1123,
+          "share": 0.06181278935185185,
           "pin": [
-            0.3954192693545334,
-            0.8449877555366269
+            0.39321138814682893,
+            0.8472608711783912
           ],
           "origin": "region",
           "legacyDerived": false
         },
         {
           "role": "surface",
-          "hex": "#afaea6",
+          "hex": "#aeada5",
+          "lightness": 70.59594035704772,
+          "chroma": 4.374463843795967,
           "empty": false,
-          "regionSize": 0.041169343171296294,
-          "regionPixels": 4553,
-          "share": 0.06964337384259259,
+          "regionSize": 0.03966833043981482,
+          "regionPixels": 4387,
+          "share": 0.06767216435185185,
           "pin": [
-            0.6156082985577275,
-            0.9597855580569589
+            0.6029929020084593,
+            0.9586906864979864
           ],
           "origin": "region",
           "legacyDerived": false
         },
         {
           "role": "text",
-          "hex": "#020505",
+          "hex": "#060504",
+          "lightness": 1.4093614389607225,
+          "chroma": 0.4862431272992685,
           "empty": false,
-          "regionSize": 0.013029875578703705,
-          "regionPixels": 1441,
-          "share": 0.10262044270833333,
+          "regionSize": 0.002387152777777778,
+          "regionPixels": 264,
+          "share": 0.11588541666666667,
           "pin": [
-            0.23743638676844783,
-            0.6272517638214203
+            0.24135890151515152,
+            0.5230429292929293
           ],
           "origin": "region",
           "legacyDerived": false
         }
       ],
-      "backgroundTextContrast": 12.17189655458426,
+      "backgroundTextContrast": 12.116135398439473,
       "pairwiseDeltaE": [
         {
           "roleA": "primary",
           "roleB": "secondary",
-          "hexA": "#d6d2a6",
-          "hexB": "#3c4952",
-          "deltaE": 60.93334675534847,
-          "deltaE2000": 53.82831072907526
+          "hexA": "#d5cea0",
+          "hexB": "#788984",
+          "deltaE": 35.423838860045336,
+          "deltaE2000": 26.15250394638306
         },
         {
           "roleA": "primary",
           "roleB": "accent",
-          "hexA": "#d6d2a6",
-          "hexB": "#426093",
-          "deltaE": 69.54202718571283,
-          "deltaE2000": 53.63663135473713
+          "hexA": "#d5cea0",
+          "hexB": "#426092",
+          "deltaE": 69.38078721309365,
+          "deltaE2000": 53.56829055476466
         },
         {
           "roleA": "primary",
           "roleB": "background",
-          "hexA": "#d6d2a6",
+          "hexA": "#d5cea0",
           "hexB": "#d0c7b2",
-          "deltaE": 12.35077969264019,
-          "deltaE2000": 8.073461452731538
+          "deltaE": 13.09149614775321,
+          "deltaE2000": 7.937630264260633
         },
         {
           "roleA": "primary",
           "roleB": "surface",
-          "hexA": "#d6d2a6",
-          "hexB": "#afaea6",
-          "deltaE": 22.528146352091134,
-          "deltaE2000": 14.794824338498257
+          "hexA": "#d5cea0",
+          "hexB": "#aeada5",
+          "deltaE": 23.109618612718364,
+          "deltaE2000": 14.845296280374862
         },
         {
           "roleA": "primary",
           "roleB": "text",
-          "hexA": "#d6d2a6",
-          "hexB": "#020505",
-          "deltaE": 85.51912189960646,
-          "deltaE2000": 76.50669718245398
+          "hexA": "#d5cea0",
+          "hexB": "#060504",
+          "deltaE": 84.32381009802016,
+          "deltaE2000": 74.6980171935825
         },
         {
           "roleA": "secondary",
           "roleB": "accent",
-          "hexA": "#3c4952",
-          "hexB": "#426093",
-          "deltaE": 27.473943735883644,
-          "deltaE2000": 15.446574158141566
+          "hexA": "#788984",
+          "hexB": "#426092",
+          "deltaE": 36.72818787508773,
+          "deltaE2000": 26.204230697716962
         },
         {
           "roleA": "secondary",
           "roleB": "background",
-          "hexA": "#3c4952",
+          "hexA": "#788984",
           "hexB": "#d0c7b2",
-          "deltaE": 53.629661264788176,
-          "deltaE2000": 49.97078738977676
+          "deltaE": 27.994457856323763,
+          "deltaE2000": 23.13653513536846
         },
         {
           "roleA": "secondary",
           "roleB": "surface",
-          "hexA": "#3c4952",
-          "hexB": "#afaea6",
-          "deltaE": 42.29670181205153,
-          "deltaE2000": 41.98225650302375
+          "hexA": "#788984",
+          "hexB": "#aeada5",
+          "deltaE": 16.55366710545393,
+          "deltaE2000": 14.93664278859073
         },
         {
           "roleA": "secondary",
           "roleB": "text",
-          "hexA": "#3c4952",
-          "hexB": "#020505",
-          "deltaE": 29.89963375092775,
-          "deltaE2000": 20.217342916140126
+          "hexA": "#788984",
+          "hexB": "#060504",
+          "deltaE": 54.71682339539762,
+          "deltaE2000": 42.17381811322947
         },
         {
           "roleA": "accent",
           "roleB": "background",
-          "hexA": "#426093",
+          "hexA": "#426092",
           "hexB": "#d0c7b2",
-          "deltaE": 58.842817967757846,
-          "deltaE2000": 45.5374604016359
+          "deltaE": 58.469759849383486,
+          "deltaE2000": 45.42826425423572
         },
         {
           "roleA": "accent",
           "roleB": "surface",
-          "hexA": "#426093",
-          "hexB": "#afaea6",
-          "deltaE": 47.14038558145877,
-          "deltaE2000": 37.28675280565967
+          "hexA": "#426092",
+          "hexB": "#aeada5",
+          "deltaE": 46.504300916997884,
+          "deltaE2000": 36.98968486775347
         },
         {
           "roleA": "accent",
           "roleB": "text",
-          "hexA": "#426093",
-          "hexB": "#020505",
-          "deltaE": 50.51575941557143,
-          "deltaE2000": 33.201182416026015
+          "hexA": "#426092",
+          "hexB": "#060504",
+          "deltaE": 50.33180325754649,
+          "deltaE2000": 33.27382040397283
         },
         {
           "roleA": "background",
           "roleB": "surface",
           "hexA": "#d0c7b2",
-          "hexB": "#afaea6",
-          "deltaE": 12.053719075579354,
-          "deltaE2000": 8.886602481502619
+          "hexB": "#aeada5",
+          "deltaE": 12.344758497748487,
+          "deltaE2000": 9.10530973951144
         },
         {
           "roleA": "background",
           "roleB": "text",
           "hexA": "#d0c7b2",
-          "hexB": "#020505",
-          "deltaE": 80.13967233820786,
-          "deltaE2000": 71.16377286241656
+          "hexB": "#060504",
+          "deltaE": 79.82144768416474,
+          "deltaE2000": 70.98432467559462
         },
         {
           "roleA": "surface",
           "roleB": "text",
-          "hexA": "#afaea6",
-          "hexB": "#020505",
-          "deltaE": 69.91670424401681,
-          "deltaE2000": 58.348713917548764
+          "hexA": "#aeada5",
+          "hexB": "#060504",
+          "deltaE": 69.29967934510321,
+          "deltaE2000": 57.77974575688225
         }
       ],
-      "minPairwiseDeltaE": 12.053719075579354,
+      "minPairwiseDeltaE": 12.344758497748487,
       "timing": {
         "warmups": 1,
         "runs": 5,
         "samplesMs": [
-          374.55337099999997,
-          537.2424879999999,
-          542.0666970000002,
-          322.4055070000004,
-          367.12444499999947
+          487.88226399999985,
+          356.1519069999995,
+          342.51798899999994,
+          342.85294500000055,
+          377.1729639999994
         ],
-        "medianMs": 374.55337099999997
+        "medianMs": 356.1519069999995
       }
     },
     {
       "photo": "IMG_5859",
       "source": "public/sample/IMG_5859.jpg",
+      "paletteSource": "rasterForStore (sRGB, <=2000px JPEG q88 4:4:4) -> w640 WebP q82",
       "thumbnail": {
         "width": 288,
         "height": 384
@@ -440,14 +468,16 @@
       "roles": [
         {
           "role": "primary",
-          "hex": "#85232b",
+          "hex": "#86232c",
+          "lightness": 30.525916881048943,
+          "chroma": 46.540225117087516,
           "empty": false,
-          "regionSize": 0.04854781539351852,
-          "regionPixels": 5369,
-          "share": 0.10227683738425926,
+          "regionSize": 0.04902705439814815,
+          "regionPixels": 5422,
+          "share": 0.0967701099537037,
           "pin": [
-            0.4592258024461414,
-            0.3981139799466071
+            0.4597767838845854,
+            0.39980826570761097
           ],
           "origin": "region",
           "legacyDerived": false
@@ -455,209 +485,219 @@
         {
           "role": "secondary",
           "hex": "#05112d",
+          "lightness": 5.624114131553412,
+          "chroma": 20.89992720739525,
           "empty": false,
-          "regionSize": 0.01727068865740741,
-          "regionPixels": 1910,
-          "share": 0.0863353587962963,
+          "regionSize": 0.017053674768518517,
+          "regionPixels": 1886,
+          "share": 0.06676793981481481,
           "pin": [
-            0.06067662885398487,
-            0.6433559664048866
+            0.06011215682809003,
+            0.6431269883351007
           ],
           "origin": "region",
           "legacyDerived": false
         },
         {
           "role": "accent",
-          "hex": "#ca721e",
+          "hex": "#c9721f",
+          "lightness": 56.63536004740665,
+          "chroma": 63.28835666623905,
           "empty": false,
-          "regionSize": 0.0037525318287037037,
-          "regionPixels": 415,
-          "share": 0.023482711226851853,
+          "regionSize": 0.0035988136574074073,
+          "regionPixels": 398,
+          "share": 0.020968967013888888,
           "pin": [
-            0.659981593038822,
-            0.5516064257028113
+            0.6601497068676717,
+            0.551291614321608
           ],
           "origin": "region",
           "legacyDerived": false
         },
         {
           "role": "background",
-          "hex": "#bfc0c2",
+          "hex": "#bebfc1",
+          "lightness": 77.31610869358914,
+          "chroma": 1.1273001680602834,
           "empty": false,
-          "regionSize": 0.12441225405092593,
-          "regionPixels": 13759,
-          "share": 0.20738389756944445,
+          "regionSize": 0.13852719907407407,
+          "regionPixels": 15320,
+          "share": 0.2243019386574074,
           "pin": [
-            0.5577980271499059,
-            0.14141595955374664
+            0.5177072001015376,
+            0.1449881690600522
           ],
           "origin": "region",
           "legacyDerived": false
         },
         {
           "role": "surface",
-          "hex": "#e6eff4",
+          "hex": "#e7eef2",
+          "lightness": 93.68834219053734,
+          "chroma": 3.165222775918418,
           "empty": false,
-          "regionSize": 0.004701967592592593,
-          "regionPixels": 520,
-          "share": 0.13557038483796297,
+          "regionSize": 0.0048828125,
+          "regionPixels": 540,
+          "share": 0.13013599537037038,
           "pin": [
-            0.07773103632478633,
-            0.16827423878205128
+            0.07766203703703704,
+            0.16921296296296295
           ],
           "origin": "region",
           "legacyDerived": false
         },
         {
           "role": "text",
-          "hex": "#090d11",
+          "hex": "#080c10",
+          "lightness": 3.179391137045144,
+          "chroma": 2.288183187520528,
           "empty": false,
-          "regionSize": 0.001971209490740741,
-          "regionPixels": 218,
-          "share": 0.0863353587962963,
+          "regionSize": 0.0017541956018518518,
+          "regionPixels": 194,
+          "share": 0.06676793981481481,
           "pin": [
-            0.962808995922528,
-            0.5212992163608563
+            0.9627720504009163,
+            0.5222696520618556
           ],
           "origin": "region",
           "legacyDerived": false
         }
       ],
-      "backgroundTextContrast": 10.706729786323217,
+      "backgroundTextContrast": 10.66129311681998,
       "pairwiseDeltaE": [
         {
           "roleA": "primary",
           "roleB": "secondary",
-          "hexA": "#85232b",
+          "hexA": "#86232c",
           "hexB": "#05112d",
-          "deltaE": 59.05766510615366,
-          "deltaE2000": 34.09132383591256
+          "deltaE": 59.165763227021934,
+          "deltaE2000": 34.14450603102888
         },
         {
           "roleA": "primary",
           "roleB": "accent",
-          "hexA": "#85232b",
-          "hexB": "#ca721e",
-          "deltaE": 47.37741459036777,
-          "deltaE2000": 33.622251270065775
+          "hexA": "#86232c",
+          "hexB": "#c9721f",
+          "deltaE": 47.262504480609074,
+          "deltaE2000": 33.59942970045992
         },
         {
           "roleA": "primary",
           "roleB": "background",
-          "hexA": "#85232b",
-          "hexB": "#bfc0c2",
-          "deltaE": 66.58318978320678,
-          "deltaE2000": 51.89321101787071
+          "hexA": "#86232c",
+          "hexB": "#bebfc1",
+          "deltaE": 66.31920508426776,
+          "deltaE2000": 51.464581018721425
         },
         {
           "roleA": "primary",
           "roleB": "surface",
-          "hexA": "#85232b",
-          "hexB": "#e6eff4",
-          "deltaE": 80.7244329784971,
-          "deltaE2000": 61.28860175808773
+          "hexA": "#86232c",
+          "hexB": "#e7eef2",
+          "deltaE": 80.0393940422618,
+          "deltaE2000": 60.475222546150945
         },
         {
           "roleA": "primary",
           "roleB": "text",
-          "hexA": "#85232b",
-          "hexB": "#090d11",
-          "deltaE": 54.74478688521568,
-          "deltaE2000": 31.634845845200566
+          "hexA": "#86232c",
+          "hexB": "#080c10",
+          "deltaE": 55.13093143201164,
+          "deltaE2000": 31.797333818991778
         },
         {
           "roleA": "secondary",
           "roleB": "accent",
           "hexA": "#05112d",
-          "hexB": "#ca721e",
-          "deltaE": 95.26854357469928,
-          "deltaE2000": 55.899380867899964
+          "hexB": "#c9721f",
+          "deltaE": 94.68552952583626,
+          "deltaE2000": 55.74184608821622
         },
         {
           "roleA": "secondary",
           "roleB": "background",
           "hexA": "#05112d",
-          "hexB": "#bfc0c2",
-          "deltaE": 74.73096440927901,
-          "deltaE2000": 66.32022923028659
+          "hexB": "#bebfc1",
+          "deltaE": 74.37972308440776,
+          "deltaE2000": 65.83239017413501
         },
         {
           "roleA": "secondary",
           "roleB": "surface",
           "hexA": "#05112d",
-          "hexB": "#e6eff4",
-          "deltaE": 90.19729441598989,
-          "deltaE2000": 89.30229978695934
+          "hexB": "#e7eef2",
+          "deltaE": 90.0624651216938,
+          "deltaE2000": 89.06937198969587
         },
         {
           "roleA": "secondary",
           "roleB": "text",
           "hexA": "#05112d",
-          "hexB": "#090d11",
-          "deltaE": 18.89447341297298,
-          "deltaE2000": 13.022477263382747
+          "hexB": "#080c10",
+          "deltaE": 19.031622338474264,
+          "deltaE2000": 13.118854586656267
         },
         {
           "roleA": "accent",
           "roleB": "background",
-          "hexA": "#ca721e",
-          "hexB": "#bfc0c2",
-          "deltaE": 68.20554309717689,
-          "deltaE2000": 32.04058880317393
+          "hexA": "#c9721f",
+          "hexB": "#bebfc1",
+          "deltaE": 67.52828178850267,
+          "deltaE2000": 31.883883380516377
         },
         {
           "roleA": "accent",
           "roleB": "surface",
-          "hexA": "#ca721e",
-          "hexB": "#e6eff4",
-          "deltaE": 77.42528994972945,
-          "deltaE2000": 40.656798079919255
+          "hexA": "#c9721f",
+          "hexB": "#e7eef2",
+          "deltaE": 76.08144574216696,
+          "deltaE2000": 39.988736252953686
         },
         {
           "roleA": "accent",
           "roleB": "text",
-          "hexA": "#ca721e",
-          "hexB": "#090d11",
-          "deltaE": 84.9858467832963,
-          "deltaE2000": 50.202730636008845
+          "hexA": "#c9721f",
+          "hexB": "#080c10",
+          "deltaE": 84.52704531187379,
+          "deltaE2000": 50.11821155065653
         },
         {
           "roleA": "background",
           "roleB": "surface",
-          "hexA": "#bfc0c2",
-          "hexB": "#e6eff4",
-          "deltaE": 16.536540795161734,
-          "deltaE2000": 11.15382582912857
+          "hexA": "#bebfc1",
+          "hexB": "#e7eef2",
+          "deltaE": 16.53028307213534,
+          "deltaE2000": 11.039048674381574
         },
         {
           "roleA": "background",
           "roleB": "text",
-          "hexA": "#bfc0c2",
-          "hexB": "#090d11",
-          "deltaE": 74.20136437277498,
-          "deltaE2000": 65.80938905561943
+          "hexA": "#bebfc1",
+          "hexB": "#080c10",
+          "deltaE": 74.14644767364405,
+          "deltaE2000": 65.44680665127916
         },
         {
           "roleA": "surface",
           "roleB": "text",
-          "hexA": "#e6eff4",
-          "hexB": "#090d11",
-          "deltaE": 90.45235374915802,
-          "deltaE2000": 89.97728190588649
+          "hexA": "#e7eef2",
+          "hexB": "#080c10",
+          "deltaE": 90.51822284468476,
+          "deltaE2000": 89.82768518918853
         }
       ],
-      "minPairwiseDeltaE": 16.536540795161734,
+      "minPairwiseDeltaE": 16.53028307213534,
       "timing": {
         "warmups": 1,
         "runs": 5,
         "samplesMs": [
-          569.2461229999999,
-          356.8207259999999,
-          351.07258399999955,
-          333.1522640000003,
-          333.97508800000105
+          383.7882410000002,
+          362.60777599999983,
+          333.55952499999967,
+          353.25568399999975,
+          350.4418420000002
         ],
-        "medianMs": 351.07258399999955
+        "medianMs": 353.25568399999975
       }
     }
   ]
