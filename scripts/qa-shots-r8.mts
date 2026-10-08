@@ -446,7 +446,7 @@ async function main(): Promise<void> {
         report.wall.push({ viewport: vp.name, untitledCount, texts });
         check(`wall ${vp.name} no Untitled kit cards`, untitledCount === 0, untitledCount);
       });
-      await flow(browser, vp, `404 ${vp.name}`, false, async page => {
+      await flow(browser, vp, `404 ${vp.name}`, true, async page => {
         await goto(page, "/does-not-exist-r8");
         check(`404 ${vp.name} status`, states.get(page)?.documentStatus === 404);
         await shot(page, `r8_404_${vp.name}.png`, false, [404]);
