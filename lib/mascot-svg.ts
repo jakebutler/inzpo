@@ -1,6 +1,7 @@
 /** Shared Baku geometry. ViewBox is 64×64; product size is 48px. */
 import { COLOR_ROLES } from "@/lib/db/schema";
 import { emptyRoles, type RoleColors } from "@/lib/tokens";
+import { BAKU_UNDYED_KNIT, tintRoles } from "@/lib/baku-tint";
 
 export const BAKU_VIEWBOX = "0 0 64 64";
 
@@ -46,10 +47,14 @@ const STRIPE_CLASSES = [
 ] as const;
 
 /** Inline SVG placeholder markup (no Rive). Used for size reports and 48px shots. */
-export function bakuSvgMarkup(clipId = "baku-clip", kit: RoleColors = emptyRoles()): string {
-  const stripes = BAKU_STRIPE_DS.flatMap(
-    (d, i) => kit[COLOR_ROLES[i]!] ? [`<path class="${STRIPE_CLASSES[i]}" d="${d}"/>`] : [],
-  ).join("");
+export function bakuSvgMarkup(clipId = "baku-clip", kit: RoleColors = emptyRoles(), revealedCount: number | null = null): string {
+  const colors = tintRoles(kit, revealedCount);
+  const stripes = BAKU_STRIPE_DS.flatMap((d, i) => {
+    const hex = colors[i];
+    if (!hex) return [];
+    const empty = !kit[COLOR_ROLES[i]!];
+    return [`<path class="${STRIPE_CLASSES[i]}" d="${d}"${empty ? ` data-baku-empty="true"` : ""} style="fill:${hex}" fill="${empty ? BAKU_UNDYED_KNIT : hex}"/>`];
+  }).join("");
   const seams = BAKU_SEAM_DS.flatMap((d, i) => kit[COLOR_ROLES[i]!] && kit[COLOR_ROLES[i + 1]!]
     ? [`<path class="baku-seam" d="${d}"/>`] : []).join("");
   return `<svg viewBox="${BAKU_VIEWBOX}" width="48" height="48" focusable="false" aria-hidden="true"><defs><clipPath id="${clipId}"><path d="${BAKU_BODY_D}"/></clipPath></defs><g class="baku-body"><path class="baku-coat" d="${BAKU_BODY_D}"/><g clip-path="url(#${clipId})">${stripes}${seams}</g></g><g class="baku-eyes"><ellipse cx="24.5" cy="19.5" rx="3.15" ry="3.55" fill="#2a2420"/><ellipse cx="39.5" cy="19.5" rx="3.15" ry="3.55" fill="#2a2420"/><circle cx="25.6" cy="18.4" r="0.95" fill="#f3ead8"/><circle cx="40.6" cy="18.4" r="0.95" fill="#f3ead8"/></g><g class="baku-trunk"><path d="${BAKU_TRUNK_D}" fill="var(--baku-cream)"/><ellipse cx="32" cy="55.4" rx="2.3" ry="1.35" fill="#c9b89a"/></g></svg>`;

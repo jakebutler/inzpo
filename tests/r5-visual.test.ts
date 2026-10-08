@@ -216,9 +216,9 @@ describe("r5 shots", () => {
 });
 
 describe("r5 baku v6 art", () => {
-  it("keeps v6 paths, maps error-unreadable to error-photo, and disables tint by default", () => {
+  it("keeps v6 paths, maps error-unreadable to error-photo, and enables tint by default", () => {
     expect(bakuArtPose("error-unreadable")).toBe("error-photo");
-    expect(bakuCanTint("idle")).toBe(false);
+    expect(bakuCanTint("idle")).toBe(true);
     expect(bakuCanTint("empty")).toBe(false);
     expect(bakuCanTint("error-unreadable")).toBe(false);
     expect(bakuDensity(1)).toBe(1);
@@ -281,7 +281,7 @@ describe("r5 baku v6 art", () => {
     }
     expect(existsSync(path.join(dir, "baku-idle-bands@3x.png"))).toBe(true);
     expect(existsSync(path.join(dir, "baku-idle-band1@1x.png"))).toBe(true);
-    expect(existsSync(path.join(dir, "baku-empty-bands@1x.png"))).toBe(false);
+    expect(existsSync(path.join(dir, "baku-empty-bands@1x.png"))).toBe(true);
     expect(src("app/components/Mascot.tsx") + src("app/components/BakuSprite.tsx")).not.toMatch(/baku\/v5/);
   });
 

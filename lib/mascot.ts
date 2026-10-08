@@ -1,5 +1,6 @@
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { emptyRoles, filledRoles, rolesFromColors, type RoleColors } from "@/lib/tokens";
+import { BAKU_UNDYED_KNIT } from "@/lib/baku-tint";
 
 export const MASCOT_POSES = [
   "idle",
@@ -77,7 +78,7 @@ export function emptyKit(): MascotKit {
   return emptyRoles();
 }
 
-/** Cream coat with no stripes. */
+/** No kit colours; knit renderers supply undyed oatmeal. */
 export function creamKit(): MascotKit {
   return emptyKit();
 }
@@ -106,14 +107,11 @@ export function waitBeforeShow(moment: MascotMoment): boolean {
 }
 
 /**
- * error-unreadable and empty (no kit yet) go back to a cream coat.
- * Idle keeps the palette once a kit has been eaten (arrived brief).
+ * Poses without a knit patch go back to a cream coat.
+ * Knit poses preserve the supplied kit, including empty roles.
  */
 export function kitForPose(pose: MascotPose | "404" | "error-photo", kit: MascotKit | null | undefined): MascotKit {
-  if (pose === "error-unreadable" || pose === "empty" || pose === "404" || pose === "error-photo") {
-    return emptyKit();
-  }
-  if (pose === "idle" && !kitHasPalette(kit ?? emptyKit())) {
+  if (pose === "error-unreadable" || pose === "empty" || pose === "error-photo") {
     return emptyKit();
   }
   return kit ?? emptyKit();
@@ -149,12 +147,12 @@ export function stripeCssVars(kit: MascotKit): Record<`--baku-${string}`, string
     "--baku-seam": BAKU_SEAM,
   };
   for (const role of COLOR_ROLES) {
-    if (kit[role]) vars[`--baku-${role}`] = kit[role]!;
+    vars[`--baku-${role}`] = kit[role] || BAKU_UNDYED_KNIT;
   }
   return vars;
 }
 
-/** Filled roles only, in token order. Empty roles do not get a stripe. */
+/** Dyed fills only, in token order. Undyed oatmeal is not a kit colour. */
 export function stripeFills(kit: MascotKit): string[] {
   return filledRoles(kit).map((role) => kit[role]!);
 }

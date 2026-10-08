@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseHTML } from "linkedom";
 import type { Root } from "react-dom/client";
 import { COLOR_ROLES } from "@/lib/db/schema";
-import { HANDOFF_KITS } from "@/lib/mascot";
+import { emptyKit, HANDOFF_KITS } from "@/lib/mascot";
 import { BAKU_ART_POSES, bakuV6BandMaskSrc } from "@/lib/baku-v6";
 import { BAKU_UNDYED_KNIT, shadeRoleColor, tintRoles, tintSpriteWithBands } from "@/lib/baku-tint";
 
@@ -71,15 +71,14 @@ async function unmount(root: Root, act: typeof import("react").act) {
 }
 
 describe("Baku rendering flag", () => {
-  it("renders every pose as a plain colour image by default, with no tint, masks, canvas, or Rive", async () => {
-    const { React, root, document } = await renderEnvironment();
+  it("renders every pose as a plain colour image when disabled with 0", async () => {
+    const { React, root, document } = await renderEnvironment("0");
     const imageLoader = vi.fn();
     vi.stubGlobal("Image", imageLoader);
     const createElement = vi.spyOn(document, "createElement");
     const flags = await import("@/lib/baku-v6");
     const tint = await import("@/lib/baku-tint");
     const tintSpy = vi.spyOn(tint, "tintSpriteWithBands");
-    const rolesSpy = vi.spyOn(tint, "tintRoles");
     const { Mascot } = await import("@/app/components/Mascot");
     const { loadMascotRive } = await import("@/app/components/load-mascot-rive");
     expect(flags.BAKU_TINT_ENABLED).toBe(false);
@@ -104,15 +103,14 @@ describe("Baku rendering flag", () => {
       expect(imageLoader).not.toHaveBeenCalled();
       expect(createElement.mock.calls.some(([tag]) => tag === "canvas")).toBe(false);
       expect(tintSpy).not.toHaveBeenCalled();
-      expect(rolesSpy).not.toHaveBeenCalled();
       expect(loadMascotRive).not.toHaveBeenCalled();
     } finally {
       await unmount(root, React.act);
     }
   });
 
-  it("opts in with 1 and falls back to the colour sprite when the shade asset is missing", async () => {
-    const { React, root, document } = await renderEnvironment("1");
+  it.each(["bands", "shade", "color"])("tints by default and falls back to the colour sprite when %s fails", async (failedAsset) => {
+    const { React, root, document } = await renderEnvironment();
     const requests: string[] = [];
     vi.stubGlobal("Image", class {
       naturalWidth = 48;
@@ -121,7 +119,7 @@ describe("Baku rendering flag", () => {
       onerror?: () => void;
       set src(src: string) {
         requests.push(src);
-        queueMicrotask(() => src.includes("-shade") ? this.onerror?.() : this.onload?.());
+        queueMicrotask(() => src.includes(`-${failedAsset}`) ? this.onerror?.() : this.onload?.());
       }
     });
     const flags = await import("@/lib/baku-v6");
@@ -131,6 +129,11 @@ describe("Baku rendering flag", () => {
     expect(flags.BAKU_TINT_ENABLED).toBe(true);
     expect(flags.bakuCanTint("idle")).toBe(true);
     expect(flags.bakuCanTint("empty")).toBe(false);
+    for (const pose of ["404", "chewing", "error-brief", "idle", "success"] as const) {
+      expect(flags.bakuCanTint(pose)).toBe(true);
+    }
+    expect(flags.bakuCanTint("error-photo")).toBe(false);
+    expect(flags.bakuCanTint("error-unreadable")).toBe(false);
     try {
       await React.act(async () => root.render(React.createElement(BakuSprite, {
         pose: "idle", kit: HANDOFF_KITS.IMG_6208, size: 48, fallback: null,
@@ -142,6 +145,67 @@ describe("Baku rendering flag", () => {
       expect(tintSpy).not.toHaveBeenCalled();
     } finally {
       await unmount(root, React.act);
+    }
+  });
+
+  it.each([undefined, "1", "", "false"])("enables tint unless the flag is exactly 0 (%s)", async (flag) => {
+    vi.resetModules();
+    vi.stubEnv("NEXT_PUBLIC_BAKU_TINT", flag);
+    expect((await import("@/lib/baku-v6")).BAKU_TINT_ENABLED).toBe(true);
+  });
+
+  it("renders empty SVG stripes oatmeal on the first frame and at every reveal count", async () => {
+    const { React, root, document } = await renderEnvironment();
+    vi.stubGlobal("Image", class { set src(_src: string) {} });
+    const { Mascot } = await import("@/app/components/Mascot");
+    try {
+      for (const kit of [emptyKit(), HANDOFF_KITS.IMG_6208]) {
+        for (const revealedCount of [0, 1, 2, 3, 4, 5, 6, null]) {
+          await React.act(async () => root.render(React.createElement(Mascot, {
+            pose: "idle", kit, revealedCount,
+          })));
+          expect(document.querySelector("[data-baku-sprite]")?.getAttribute("data-baku-sprite")).toBe("svg");
+          COLOR_ROLES.forEach((role, i) => {
+            const stripe = document.querySelector(`.baku-stripe-${role}`);
+            if (!kit[role]) {
+              expect(stripe?.getAttribute("fill")).toBe("#E4D9C6");
+              expect(stripe?.getAttribute("style")).toBe("fill:#E4D9C6");
+              expect(stripe?.getAttribute("data-baku-empty")).toBe("true");
+            } else if (revealedCount == null || i < revealedCount) {
+              expect(stripe?.getAttribute("fill")).toBe(kit[role]);
+            } else {
+              expect(stripe).toBeNull();
+            }
+          });
+          expect(document.querySelector("pattern")).toBeNull();
+          expect(document.querySelector("animate")).toBeNull();
+        }
+      }
+    } finally {
+      await unmount(root, React.act);
+    }
+  });
+
+  it("passes oatmeal for empty kit colours if a Rive runtime is available", async () => {
+    const { React, root } = await renderEnvironment();
+    vi.stubGlobal("Image", class { set src(_src: string) {} });
+    const { loadMascotRive } = await import("@/app/components/load-mascot-rive");
+    const render = vi.fn(() => React.createElement("div"));
+    vi.mocked(loadMascotRive).mockResolvedValue({ render });
+    const { Mascot } = await import("@/app/components/Mascot");
+    try {
+      for (const kit of [emptyKit(), HANDOFF_KITS.IMG_6208]) {
+        await React.act(async () => root.render(React.createElement(Mascot, {
+          pose: "idle", kit, snapReady: true, revealedCount: 0,
+        })));
+        expect(render).toHaveBeenLastCalledWith({
+          pose: "idle", size: 48,
+          kit: Object.fromEntries(COLOR_ROLES.map(role => [role, kit[role] ?? BAKU_UNDYED_KNIT])),
+        });
+      }
+    } finally {
+      await unmount(root, React.act);
+      vi.mocked(loadMascotRive).mockReset();
     }
   });
 });

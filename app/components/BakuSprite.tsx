@@ -119,18 +119,19 @@ export function BakuSprite({
   const density = bakuDensity(useDensity() * Math.max(1, size / 48));
   const canTint = bakuCanTint(pose) && !forcePoseAsset;
   const paletteKey = COLOR_ROLES.map((role) => colors[role] ?? "").join(",");
+  const tintKey = `${pose}:${density}:${canTint}:${paletteKey}`;
   const baseSrc = bakuV6ColorSrc(pose, density);
   const squashRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLImageElement>(null);
   const [pngFailed, setPngFailed] = useState(false);
-  const [tinted, setTinted] = useState<string | null>(null);
-  const [tintFailed, setTintFailed] = useState(false);
+  const [tinted, setTinted] = useState<{ key: string; src: string } | null>(null);
+  const [tintFailed, setTintFailed] = useState<string | null>(null);
   const [shadowSrc, setShadowSrc] = useState<string | null>(null);
 
   useEffect(() => {
     setPngFailed(false);
     setTinted(null);
-    setTintFailed(false);
+    setTintFailed(null);
   }, [pose, density, canTint]);
 
   useEffect(() => {
@@ -143,20 +144,20 @@ export function BakuSprite({
     void composeTint(pose, density, roles)
       .then((url) => {
         if (!alive) return;
-        setTinted(url);
-        setTintFailed(false);
+        setTinted({ key: tintKey, src: url });
+        setTintFailed(null);
       })
       .catch(() => {
         if (!alive) return;
         setTinted(null);
-        setTintFailed(true);
+        setTintFailed(tintKey);
       });
     return () => {
       alive = false;
     };
     // paletteKey stands in for kit colors so we do not re-tint every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canTint, pngFailed, pose, density, paletteKey, revealedCount]);
+  }, [canTint, pngFailed, pose, density, paletteKey, tintKey, revealedCount]);
 
   useGSAP(
     () => {
@@ -167,8 +168,11 @@ export function BakuSprite({
     { dependencies: [pose, density, baseSrc] },
   );
 
-  const src = tintFailed ? bakuV6ColorSrc(pose, density) : tinted ?? baseSrc;
-  const showPng = !pngFailed;
+  const tintedSrc = tinted?.key === tintKey ? tinted.src : null;
+  const failedTint = tintFailed === tintKey;
+  const src = failedTint ? baseSrc : tintedSrc ?? baseSrc;
+  // While tint assets load, the SVG already has oatmeal empties on its first frame.
+  const showPng = !pngFailed && (!canTint || tintedSrc != null || failedTint);
 
   useEffect(() => {
     if (!BAKU_TINT_ENABLED || !showPng) {
@@ -189,7 +193,7 @@ export function BakuSprite({
   }, [src, ground, showPng]);
   const failPng = () => {
     if (canTint && src !== bakuV6ColorSrc(pose, density)) {
-      setTintFailed(true);
+      setTintFailed(tintKey);
       return;
     }
     setPngFailed(true);
@@ -204,7 +208,7 @@ export function BakuSprite({
     <div
       data-baku-sprite={showPng ? "png" : "svg"}
       data-baku-v6={showPng ? "1" : "0"}
-      data-baku-tinted={tinted ? "1" : "0"}
+      data-baku-tinted={tintedSrc && !failedTint ? "1" : "0"}
       data-baku-shadow-baked={shadowSrc ? "1" : "0"}
       data-baku-density={density}
       style={{

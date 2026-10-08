@@ -90,7 +90,7 @@ describe("photo region provenance", () => {
     expect(mural.swatches.some((s) => s.lab[2] > 35)).toBe(true);
   });
 
-  it.each(photos)("%s gives Baku exactly as many stripes as filled roles", (photo) => {
+  it.each(photos)("%s gives Baku dyed stripes only for filled roles and oatmeal for the rest", (photo) => {
     const kit = kitFromColors(palettes.get(photo)!.swatches);
     const count = filledRoles(kit).length;
     expect(stripeFills(kit)).toHaveLength(count);
@@ -99,9 +99,11 @@ describe("photo region provenance", () => {
     COLOR_ROLES.forEach((role, i) => {
       expect(tint[i]).toBe(kit[role] ?? BAKU_UNDYED_KNIT);
     });
-    expect(bakuSvgMarkup("test", kit).match(/class="baku-stripe /g)).toHaveLength(count);
+    const markup = bakuSvgMarkup("test", kit);
+    expect(markup.match(/class="baku-stripe /g)).toHaveLength(6);
+    expect(markup.match(/data-baku-empty="true"/g) ?? []).toHaveLength(6 - count);
     for (const role of COLOR_ROLES) {
-      expect(stripeCssVars(kit)[`--baku-${role}`]).toBe(kit[role] ?? undefined);
+      expect(stripeCssVars(kit)[`--baku-${role}`]).toBe(kit[role] ?? BAKU_UNDYED_KNIT);
     }
   });
 });
@@ -148,6 +150,6 @@ describe("empty kits and legible chrome", () => {
     }
     expect(kitDisplayName({ namedColors: [] })).toBe("");
     expect(kitAltText({ namedColors: [] })).toBe("");
-    expect(bakuSvgMarkup()).not.toContain('class="baku-stripe ');
+    expect(bakuSvgMarkup().match(/data-baku-empty="true"/g)).toHaveLength(6);
   });
 });

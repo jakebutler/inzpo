@@ -23,6 +23,7 @@ import {
   waitBeforeShow,
 } from "@/lib/mascot";
 import { BAKU_STRIPE_DS, BAKU_STRIPE_VARS, bakuPlaceholderBytes, bakuSvgMarkup } from "@/lib/mascot-svg";
+import { BAKU_UNDYED_KNIT } from "@/lib/baku-tint";
 
 describe("Baku poses and moments", () => {
   it("has idle, chewing, success, empty, error-brief, and error-unreadable", () => {
@@ -137,6 +138,31 @@ describe("stripe kit", () => {
     expect(kit.secondary).toBeNull();
     expect(kit.accent).toBeNull();
     expect(stripeFills(kit)).toEqual([]);
+  });
+
+  it("preserves entirely and partially empty kits on every knit pose without demo colours", () => {
+    for (const kit of [creamKit(), { ...creamKit(), primary: "#123456" }]) {
+      for (const pose of ["404", "idle", "chewing", "success", "error-brief"] as const) {
+        expect(kitForPose(pose, kit)).toBe(kit);
+        expect(kitHasPalette(kit)).toBe(kit.primary != null);
+        const vars = stripeCssVars(kit);
+        for (const role of COLOR_ROLES) expect(vars[`--baku-${role}`]).toBe(kit[role] ?? BAKU_UNDYED_KNIT);
+      }
+    }
+  });
+
+  it("keeps oatmeal SVG bands visible during reveal with no hatch or stripe animation", () => {
+    for (const kit of [creamKit(), HANDOFF_KITS.IMG_6208]) {
+      for (const count of [0, 2, 4, 6, null]) {
+        const markup = bakuSvgMarkup("test", kit, count);
+        expect(markup.match(/data-baku-empty="true"/g)).toHaveLength(COLOR_ROLES.filter(role => kit[role] == null).length);
+        expect(markup.match(/fill="#E4D9C6"/g)).toHaveLength(COLOR_ROLES.filter(role => kit[role] == null).length);
+        expect(markup).not.toMatch(/pattern|hatch|animate/);
+      }
+    }
+    const css = readFileSync("app/components/mascot.css", "utf8");
+    expect(css).not.toMatch(/\.baku-stripe[^}]*\banimation\s*:/);
+    expect(css).not.toMatch(/pattern|hatch/);
   });
 
   it("renders at 48px", () => {

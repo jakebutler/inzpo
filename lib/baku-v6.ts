@@ -2,8 +2,8 @@ import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import type { MascotPose } from "@/lib/mascot";
 
 export const BAKU_V6_DIR = "/baku/v6";
-/** Opt in only after Designer replaces the band masks and supplies shade sprites. */
-export const BAKU_TINT_ENABLED = process.env.NEXT_PUBLIC_BAKU_TINT === "1";
+/** Designer v6 tint is on by default; explicitly set 0 to use colour sprites. */
+export const BAKU_TINT_ENABLED = process.env.NEXT_PUBLIC_BAKU_TINT !== "0";
 export const BAKU_CROSSFADE_MS = 150;
 export const BAKU_BAND_GRAYS = [40, 80, 120, 160, 200, 240] as const;
 /** Bottom slice of the sprite that holds the pale ground shadow. */
@@ -78,11 +78,11 @@ export function bakuV6BandsSrc(pose: BakuSrcPose, density: BakuDensity = 1): str
   return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}-bands@${densityOrThrow(density)}x.png`;
 }
 
-/** One-band 1-bit mask at 1x, in token order (band1 = primary). */
-export function bakuV6BandMaskSrc(pose: BakuSrcPose, role: ColorRole): string {
+/** One-band 1-bit mask at the sprite density, in token order (band1 = primary). */
+export function bakuV6BandMaskSrc(pose: BakuSrcPose, role: ColorRole, density: BakuDensity = 1): string {
   if (!COLOR_ROLES.includes(role)) throw new Error("Unknown color role");
   const n = COLOR_ROLES.indexOf(role) + 1;
-  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}-band${n}@1x.png`;
+  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}-band${n}@${densityOrThrow(density)}x.png`;
 }
 
 export function bakuV6BandGray(role: ColorRole): number {

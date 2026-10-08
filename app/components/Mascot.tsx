@@ -12,6 +12,7 @@ import {
   type MascotPose,
 } from "@/lib/mascot";
 import { BAKU_TINT_ENABLED, type BakuSrcPose } from "@/lib/baku-v6";
+import { tintRoles } from "@/lib/baku-tint";
 import {
   BAKU_BODY_D,
   BAKU_SEAM_DS,
@@ -38,7 +39,7 @@ export type MascotProps = {
   faceText?: boolean;
   /** Band/page hex under the sprite, used to bake the ground-shadow multiply. */
   ground?: string;
-  /** Skip tinting in the opt-in path. Always uses the colour PNG when tinting is off. */
+  /** Skip tinting. Always uses the colour PNG when tinting is off. */
   forcePoseAsset?: boolean;
 };
 
@@ -72,10 +73,13 @@ export function Mascot({
   }, [snapReady]);
 
   if (BAKU_TINT_ENABLED && rive && pose !== "404" && pose !== "error-photo") {
-    return rive.render({ pose, kit: colors, size });
+    const inks = tintRoles(colors, null);
+    const riveKit = Object.fromEntries(COLOR_ROLES.map((role, i) => [role, inks[i]])) as MascotKit;
+    return rive.render({ pose, kit: riveKit, size });
   }
 
   const vars = stripeCssVars(colors);
+  const inks = tintRoles(colors, revealedCount);
   const style = {
     width: size,
     height: size,
@@ -95,9 +99,10 @@ export function Mascot({
             <g clipPath={`url(#${clipId})`}>
               {BAKU_STRIPE_DS.map((d, i) => {
                 const role = COLOR_ROLES[i];
-                if (!role || !colors[role]) return null;
-                if (revealedCount != null && i >= revealedCount) return null;
-                return <path key={STRIPE_CLASS[i]} className={STRIPE_CLASS[i]} d={d} />;
+                const hex = inks[i];
+                if (!role || !hex) return null;
+                return <path key={STRIPE_CLASS[i]} className={STRIPE_CLASS[i]} d={d}
+                  data-baku-empty={!colors[role] ? "true" : undefined} fill={hex} style={{ fill: hex }} />;
               })}
               {BAKU_SEAM_DS.map((d, i) => {
                 const above = COLOR_ROLES[i];
