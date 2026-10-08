@@ -441,7 +441,7 @@ export function KitResult({
 
   return (
     <>
-    <div ref={stageRef} className="relative w-full" style={wearStyle} data-kit-wear>
+    <div ref={stageRef} className="relative w-full" style={wearStyle} data-kit-wear data-save-content>
       {saved ? <SavedKitHeader title={brief.title ?? title} primaryHex={primaryHex} brief={brief} backHref={backHref} itemId={itemId} /> : null}
       {imageSrc ? (
         <div

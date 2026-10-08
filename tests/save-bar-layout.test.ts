@@ -46,8 +46,9 @@ describe("fixed save bar clearance", () => {
     expect(bar.parentElement!.style.getPropertyValue(SAVE_BAR_HEIGHT_VAR)).toBe("100px");
   });
 
-  it("reserves the measured bar plus the same fade height and a gap, with a safe-area fallback", () => {
-    expect(SAVE_BAR_PAD).toBe(`max(calc(8.5rem + env(safe-area-inset-bottom, 0px)), calc(var(${SAVE_BAR_HEIGHT_VAR}, 0px) + ${SAVE_BAR_FADE_HEIGHT} + 1rem))`);
+  it("reserves exactly the measured bar plus 24px, clearing the 16px fade", () => {
+    expect(SAVE_BAR_FADE_HEIGHT).toBe("16px");
+    expect(SAVE_BAR_PAD).toBe(`calc(var(${SAVE_BAR_HEIGHT_VAR}, calc(5rem + env(safe-area-inset-bottom, 0px))) + 24px)`);
     const bar = readFileSync("app/components/SaveBar.tsx", "utf8");
     expect(bar).toContain("observeSaveBarHeight(barRef.current)");
     expect(bar).toContain("height: SAVE_BAR_FADE_HEIGHT");

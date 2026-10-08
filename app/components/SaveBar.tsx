@@ -95,6 +95,7 @@ export function SaveBar({
   return (
     <div ref={barRef} className="pointer-events-none fixed inset-x-0 bottom-0 z-30" data-save-bar>
       <div
+        data-save-bar-fade
         className="pointer-events-none absolute inset-x-0 bottom-full"
         style={{ height: SAVE_BAR_FADE_HEIGHT, background: "linear-gradient(to bottom, transparent, var(--background))" }}
         aria-hidden

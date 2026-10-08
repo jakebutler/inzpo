@@ -316,6 +316,32 @@ async function savedChecks(page: Page, item: Item): Promise<void> {
   });
 }
 
+async function savedLayoutChecks(page: Page, item: Item): Promise<void> {
+  const label = `${item.photo} ${item.viewport}`;
+  const scroll = async (y: number) => {
+    await page.evaluate(y => window.scrollTo(0, y), y);
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  };
+  await scroll(0);
+  const rest = await page.locator("[data-saved-header]").getAttribute("data-header-scrolled");
+  check(`${label} saved header at rest`, rest === "false", rest);
+  await scroll(200);
+  const scrolled = await page.locator("[data-saved-header]").getAttribute("data-header-scrolled");
+  check(`${label} saved header after 200px scroll`, scrolled === "true", scrolled);
+  const fadeHeight = await page.locator("[data-save-bar-fade]").evaluate(node => node.getBoundingClientRect().height);
+  check(`${label} save bar fade is 16px`, fadeHeight === 16, fadeHeight);
+  await scroll(await page.evaluate(() => document.documentElement.scrollHeight));
+  const clearance = await page.evaluate(() => {
+    const content = document.querySelector("[data-save-content]");
+    const last = content?.lastElementChild;
+    const bottom = last?.getBoundingClientRect().bottom;
+    const fadeTop = document.querySelector("[data-save-bar-fade]")?.getBoundingClientRect().top;
+    return { bottom, fadeTop, pass: bottom !== undefined && fadeTop !== undefined && bottom < fadeTop };
+  });
+  check(`${label} last content clears fade at page end`, clearance.pass, clearance);
+  await scroll(0);
+}
+
 async function upload(page: Page, photo: string, vp: Viewport, item: Item): Promise<void> {
   const prefix = `r8_${photo}_${vp.name}`;
   await goto(page, "/capture");
@@ -427,6 +453,7 @@ async function upload(page: Page, photo: string, vp: Viewport, item: Item): Prom
     await page.waitForURL(url => url.searchParams.get("saved") === "1", { timeout: 60_000 });
     // Caption lasts only two seconds: measure it immediately, before font/screenshot waits.
     await attempt(`${prefix} saved checks`, () => savedChecks(page, item));
+    await attempt(`${prefix} saved layout checks`, () => savedLayoutChecks(page, item));
     await shot(page, `${prefix}_saved.png`);
     await shot(page, `${prefix}_saved_full.png`, true);
     const link = page.locator("[data-save-bar] a");

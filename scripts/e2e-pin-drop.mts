@@ -136,6 +136,7 @@ async function runPinCounts(page: Page, photo: string) {
             return { filledRoles, visiblePins };
           });
           Object.assign(row, counts);
+          await page.screenshot({ path: path.join(OUT, `r8_${photo}_${row.viewport}_${surface}-pins.png`) });
           if (counts.visiblePins !== counts.filledRoles) {
             row.failures.push(`Expected ${counts.filledRoles} visible pins, got ${counts.visiblePins}`);
           }

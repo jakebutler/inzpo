@@ -135,3 +135,20 @@ export function pageChromeColors(roles: RoleColors): { background: string; ink: 
 export function aaPassLabel(ratio: number): "AA" | "Below AA" {
   return ratio >= 4.5 ? "AA" : "Below AA";
 }
+
+/** Solid secondary name ink, keeping AA contrast on the actual page chrome. */
+export function pendingTitleColor(background = PAPER, ink = INK): string {
+  const muted = "#66635c";
+  if (contrastRatio(muted, background) >= 4.5) return muted;
+  const text = gatedTextColor(ink, background);
+  // Mix toward the background only as far as the contrast gate permits.
+  for (let amount = 0.4; amount >= 0; amount -= 0.01) {
+    const channels = [1, 3, 5].map(offset => Math.round(
+      parseInt(text.slice(offset, offset + 2), 16) * (1 - amount) +
+      parseInt(background.slice(offset, offset + 2), 16) * amount,
+    ).toString(16).padStart(2, "0"));
+    const candidate = `#${channels.join("")}`;
+    if (contrastRatio(candidate, background) >= 4.5) return candidate;
+  }
+  return text;
+}

@@ -2,7 +2,7 @@
 
 import { COLOR_ROLES } from "@/lib/db/schema";
 import { EMPTY_ROLE_COPY } from "@/lib/brief-copy";
-import { bandLabelColor, matchesPageBackground } from "@/lib/contrast";
+import { bandLabelColor, matchesPageBackground, pendingTitleColor } from "@/lib/contrast";
 import { PAGE_BAND_HAIRLINE, PAPER } from "@/lib/brand";
 import { emptyRoles, type RoleColors } from "@/lib/tokens";
 import { useKitDisplayName } from "./useKitDisplayName";
@@ -67,7 +67,7 @@ export function BandStripe({
         </figcaption>
       ) : title != null ? (
         <figcaption className="inzpo-kit-stripe-name font-heading whitespace-normal break-words text-balance">
-          <span data-title-pending className="opacity-60">Naming it…</span>
+          <span data-title-pending style={{ color: pendingTitleColor() }}>Naming it…</span>
         </figcaption>
       ) : null}
     </figure>

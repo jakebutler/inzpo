@@ -6,6 +6,9 @@ import { parseHTML } from "linkedom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { kitDisplayName, UNTITLED_KIT } from "@/lib/kit-name";
 import { STALE_PENDING_MS, type BriefState } from "@/lib/brief-state";
+import { contrastRatio } from "@/lib/contrast";
+import { PAPER } from "@/lib/brand";
+import { KitChrome } from "@/app/components/KitChrome";
 import { emptyRoles } from "@/lib/tokens";
 
 const mocks = vi.hoisted(() => ({ refresh: vi.fn(), fetch: vi.fn(), retry: undefined as (() => void) | undefined }));
@@ -109,7 +112,8 @@ describe("kit title placeholders", () => {
       expect(caption.textContent).toBe(name || "Naming it…");
       if (!name) {
         const pending = caption.querySelector("[data-title-pending]")!;
-        expect(pending.classList.contains("opacity-60")).toBe(true);
+        expect(pending.classList.contains("opacity-60")).toBe(false);
+        expect(contrastRatio((pending as HTMLElement).style.color, PAPER)).toBeGreaterThanOrEqual(4.5);
         expect(caption.classList.contains("font-heading")).toBe(true);
         expect(caption.className + pending.className).not.toContain("italic");
         expect(pending.hasAttribute("aria-hidden")).toBe(false);
@@ -142,13 +146,35 @@ describe("kit title placeholders", () => {
       expect(caption.textContent).toBe(name || "Naming it…");
       if (!name) {
         const pending = caption.querySelector("[data-title-pending]")!;
-        expect(pending.classList.contains("opacity-60")).toBe(true);
+        expect(pending.classList.contains("opacity-60")).toBe(false);
+        expect(contrastRatio((pending as HTMLElement).style.color, PAPER)).toBeGreaterThanOrEqual(4.5);
         expect(caption.classList.contains("font-heading")).toBe(true);
         expect(caption.className + pending.className).not.toContain("italic");
         expect(pending.hasAttribute("aria-hidden")).toBe(false);
       }
       expect(document.body.textContent).not.toMatch(/Untitled kit|IMG_6208/);
       if (document.querySelector("img")) expect(document.querySelector("img")?.getAttribute("alt")).toBe(name);
+    }
+  });
+
+  it.each(["#426297", "#BEBEC1", "#1C1B19", "#F3EEE4", "#808080"])("keeps pending saved names at AA on kit background %s", background => {
+    const { document } = parseHTML(renderToStaticMarkup(createElement(KitChrome, {
+      roles: { ...roles, background },
+      children: createElement(SavedKitHeader, { title: null, backHref: "/", brief: { status: "pending", updatedAt: now } }),
+    })));
+    const pending = document.querySelector<HTMLElement>("[data-title-pending]")!;
+    const pageBackground = document.querySelector<HTMLElement>("[data-kit-wear]")!.style.backgroundColor;
+    expect(contrastRatio(pending.style.color, pageBackground)).toBeGreaterThanOrEqual(4.5);
+    expect(pending.className).not.toContain("opacity");
+  });
+
+  it("falls back to the first filled role and then neutral for card media", () => {
+    for (const [kit, colour] of [
+      [{ ...emptyRoles(), secondary: "#a0adbb" }, "#a0adbb"],
+      [emptyRoles(), "var(--muted)"],
+    ] as const) {
+      const { document } = parseHTML(renderToStaticMarkup(createElement(KitCard, { title: null, roles: kit, imageSrc: "photo.jpg" })));
+      expect(document.querySelector<HTMLElement>("[data-card-media]")!.style.backgroundColor).toBe(colour);
     }
   });
 
@@ -205,6 +231,39 @@ describe("client brief transitions", () => {
     await act(async () => root.unmount());
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it("shows the header hairline only after window or container scrolling", async () => {
+    vi.stubGlobal("window", Object.assign(window, { scrollY: 0 }));
+    await act(async () => root.render(createElement(SavedKitHeader, { title: "Blue", backHref: "/" })));
+    const header = document.querySelector("header")!;
+    expect(header.getAttribute("data-header-scrolled")).toBe("false");
+    expect(header.style.boxShadow).toBeFalsy();
+    await act(async () => { window.scrollY = 200; window.dispatchEvent(new window.Event("scroll")); });
+    expect(header.getAttribute("data-header-scrolled")).toBe("true");
+    expect(header.style.boxShadow).toContain("0 1px 0");
+    await act(async () => { window.scrollY = 0; window.dispatchEvent(new window.Event("scroll")); });
+    expect(header.getAttribute("data-header-scrolled")).toBe("false");
+    expect(header.style.boxShadow).toBeFalsy();
+    await act(async () => { header.parentElement!.scrollTop = 200; window.dispatchEvent(new window.Event("scroll")); });
+    expect(header.getAttribute("data-header-scrolled")).toBe("true");
+  });
+
+  it("prefers the uploaded photo while pending, with a coloured loading/error box", async () => {
+    await act(async () => root.render(createElement(KitCard, {
+      title: null, roles, createdAt: new Date(now), imageSrc: "/media/upload/w640.webp",
+    })));
+    const image = document.querySelector("img")!;
+    const media = document.querySelector<HTMLElement>("[data-card-media]")!;
+    expect(document.querySelector("[data-title-pending]")).not.toBeNull();
+    expect(image.getAttribute("src")).toBe("/media/upload/w640.webp");
+    expect(media.style.backgroundColor).toBe(roles.primary);
+    expect(image.style.visibility).not.toBe("hidden");
+    await act(async () => image.dispatchEvent(new window.Event("error")));
+    expect(image.style.visibility).toBe("hidden");
+    expect(media.style.backgroundColor).toBe(roles.primary);
+    await act(async () => image.dispatchEvent(new window.Event("load")));
+    expect(image.style.visibility).not.toBe("hidden");
   });
 
   it("expires a wall pending name while the page remains open", async () => {
