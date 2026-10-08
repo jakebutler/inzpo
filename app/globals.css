@@ -80,6 +80,103 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+    --inzpo-save-bar: 6rem;
+}
+
+@keyframes inzpo-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+[data-photo-fold] {
+  height: 45vh;
+  height: 45svh;
+}
+
+/* Compact palette at viewport height <= COMPACT_MAX_HEIGHT_PX (lib/layout.ts). */
+.inzpo-swatches {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.inzpo-swatch {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: stretch;
+}
+.inzpo-swatch-fill,
+.inzpo-swatch-empty {
+  display: flex;
+  min-height: 4rem;
+  flex: 1;
+  flex-direction: column;
+  border-radius: 0.5rem;
+}
+.inzpo-swatch-fill {
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+}
+.inzpo-swatch-empty {
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+  padding: 0.25rem 0.5rem;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--muted-foreground);
+}
+.inzpo-swatch-empty-mark {
+  display: none;
+  font-size: 1.125rem;
+  line-height: 1;
+}
+.inzpo-swatch-hex {
+  display: none;
+}
+
+@media (max-height: 700px) {
+  .inzpo-swatches {
+    display: flex;
+    gap: 0.25rem;
+  }
+  .inzpo-swatch-fill,
+  .inzpo-swatch-empty {
+    min-height: 2.75rem;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+  }
+  .inzpo-swatch-role,
+  .inzpo-swatch-meta,
+  .inzpo-swatch-empty-copy {
+    display: none;
+  }
+  .inzpo-swatch-empty-mark {
+    display: flex;
+  }
+  .inzpo-swatch-hex {
+    display: block;
+    margin-top: 0.25rem;
+    overflow: visible;
+    text-align: center;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: var(--foreground);
+  }
 }
 
 .dark {

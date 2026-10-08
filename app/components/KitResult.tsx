@@ -7,6 +7,9 @@ import { BriefSlot, type BriefSlotStatus } from "./BriefSlot";
 import { kitFromColors } from "@/lib/mascot";
 import { MOTION_CSS } from "@/lib/motion";
 import { pinNumbers } from "@/lib/tokens";
+import { mapCoverPin } from "@/lib/cover-pin";
+import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
+import { PHOTO_MAX_SVH, SAVE_BAR_PAD } from "@/lib/layout";
 import type { ColorRole } from "@/lib/db/schema";
 
 type ColorRow = {
@@ -28,6 +31,7 @@ export function KitResult({
   colors,
   tileSrc,
   saved,
+  preview,
 }: {
   itemId: string;
   title: string | null;
@@ -37,27 +41,62 @@ export function KitResult({
   colors: ColorRow[];
   tileSrc: string | null;
   saved?: boolean;
+  preview?: {
+    namedColors?: NamedColor[];
+    status?: BriefSlotStatus;
+    text?: string | null;
+    stub?: boolean;
+  };
 }) {
   const router = useRouter();
   const kit = kitFromColors(colors);
   const numbers = useMemo(() => pinNumbers(colors), [colors]);
   const kicked = useRef(false);
-  const [brief, setBrief] = useState<{ status: BriefSlotStatus; text: string | null; namedHexes: string[] }>({
-    status: "pending",
-    text: null,
-    namedHexes: [],
+  const photoRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ w: width, h: height });
+  const [brief, setBrief] = useState<{
+    status: BriefSlotStatus;
+    text: string | null;
+    namedColors: NamedColor[];
+    stub: boolean;
+  }>({
+    status: preview?.status ?? "pending",
+    text: preview?.text ?? null,
+    namedColors: preview?.namedColors ?? [],
+    stub: preview?.stub === true,
   });
   const [moving, setMoving] = useState(false);
-  const aspect = width / Math.max(1, height);
-  const capped = aspect < 4 / 5;
 
   useEffect(() => {
+    const el = photoRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      setBox({ w: el.clientWidth, h: el.clientHeight });
+    });
+    ro.observe(el);
+    setBox({ w: el.clientWidth, h: el.clientHeight });
+    return () => ro.disconnect();
+  }, [imageSrc]);
+
+  useEffect(() => {
+    if (preview) return;
     let alive = true;
     const tick = async () => {
       const res = await fetch(`/api/briefs/${itemId}`, { cache: "no-store" });
       if (!res.ok || !alive) return;
-      const job = (await res.json()) as { status: BriefSlotStatus; text: string | null; namedHexes?: string[] };
-      setBrief({ status: job.status, text: job.text, namedHexes: job.namedHexes ?? [] });
+      const job = (await res.json()) as {
+        status: BriefSlotStatus;
+        text: string | null;
+        namedHexes?: string[];
+        namedColors?: unknown;
+        stub?: boolean;
+      };
+      setBrief({
+        status: job.status,
+        text: job.text,
+        namedColors: parseNamedColors(job.namedColors, job.namedHexes ?? []),
+        stub: job.stub === true,
+      });
       if (job.status === "pending") {
         if (!kicked.current) {
           kicked.current = true;
@@ -70,7 +109,7 @@ export function KitResult({
     return () => {
       alive = false;
     };
-  }, [itemId]);
+  }, [itemId, preview]);
 
   async function moveCrop() {
     setMoving(true);
@@ -83,30 +122,38 @@ export function KitResult({
   }
 
   return (
-    <div className="mx-auto max-w-[390px] pb-28">
+    <div className="mx-auto max-w-[390px]" style={{ paddingBottom: SAVE_BAR_PAD }}>
       {imageSrc ? (
         <div
+          ref={photoRef}
           className="relative w-full overflow-hidden bg-neutral-900"
-          style={{ aspectRatio: capped ? "4 / 5" : `${width} / ${height}` }}
+          data-photo-fold
+          style={{ height: PHOTO_MAX_SVH }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imageSrc} alt={title ?? "Photo"} className="absolute inset-0 h-full w-full object-cover" />
-          {colors.map((c) =>
-            c.role && c.pinX != null && c.pinY != null && numbers[c.role] != null ? (
+          <img src={imageSrc} alt={title ?? "Photo"} className="h-full w-full object-cover" />
+          {colors.map((c) => {
+            if (!c.role || c.pinX == null || c.pinY == null || numbers[c.role] == null) return null;
+            const mapped = mapCoverPin(c.pinX, c.pinY, width, height, box.w, box.h);
+            if (!mapped) return null;
+            return (
               <span
                 key={`${c.role}-${c.position}`}
-                className="absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-[10px] text-white"
-                style={{ left: `${c.pinX * 100}%`, top: `${c.pinY * 100}%` }}
+                className="absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-[11px] text-white"
+                style={{ left: `${mapped.left * 100}%`, top: `${mapped.top * 100}%` }}
               >
                 {numbers[c.role]}
               </span>
-            ) : null,
-          )}
+            );
+          })}
         </div>
       ) : null}
 
       <div className="px-4 pt-4">
-        <TokenEditor itemId={itemId} imageSrc={imageSrc} colors={colors} namedHexes={brief.namedHexes} />
+        <TokenEditor itemId={itemId} imageSrc={imageSrc} colors={colors} namedColors={brief.namedColors} />
+        {brief.stub && brief.status === "ready" ? (
+          <p className="mt-2 text-base text-muted-foreground">Brief is a stub — no DO_INFERENCE_API_KEY.</p>
+        ) : null}
         <BriefSlot
           status={brief.status}
           kit={kit}
@@ -115,8 +162,19 @@ export function KitResult({
             kicked.current = true;
             void fetch(`/api/briefs/${itemId}`, { method: "POST" }).then(async (res) => {
               if (!res.ok) return;
-              const job = (await res.json()) as { status: BriefSlotStatus; text: string | null; namedHexes?: string[] };
-              setBrief({ status: job.status, text: job.text, namedHexes: job.namedHexes ?? [] });
+              const job = (await res.json()) as {
+                status: BriefSlotStatus;
+                text: string | null;
+                namedHexes?: string[];
+                namedColors?: unknown;
+                stub?: boolean;
+              };
+              setBrief({
+                status: job.status,
+                text: job.text,
+                namedColors: parseNamedColors(job.namedColors, job.namedHexes ?? []),
+                stub: job.stub === true,
+              });
             });
           }}
         />
@@ -135,7 +193,7 @@ export function KitResult({
               type="button"
               onClick={() => void moveCrop()}
               disabled={moving}
-              className="mt-2 min-h-11 text-sm text-muted-foreground"
+              className="mt-2 min-h-11 text-base text-muted-foreground"
               style={{ transitionDuration: `${MOTION_CSS.tapMs}ms` }}
             >
               {moving ? "Moving…" : "Move crop"}
@@ -143,7 +201,7 @@ export function KitResult({
           </section>
         ) : null}
         {saved ? (
-          <p className="mt-4 text-sm" role="status" style={{ transitionDuration: `${MOTION_CSS.enterMs}ms` }}>
+          <p className="mt-4 text-base" role="status" style={{ transitionDuration: `${MOTION_CSS.enterMs}ms` }}>
             Saved. Baku is full.
           </p>
         ) : null}

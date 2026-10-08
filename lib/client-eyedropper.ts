@@ -1,5 +1,38 @@
 import { rgbToHex } from "@/lib/colors";
 
+/** Map a pointer on an object-fit: contain image to 0–1 source coordinates. */
+export function pointerOnContainedImage(
+  image: HTMLImageElement,
+  clientX: number,
+  clientY: number,
+): { nx: number; ny: number } | null {
+  const rect = image.getBoundingClientRect();
+  const natW = image.naturalWidth || image.width;
+  const natH = image.naturalHeight || image.height;
+  if (natW <= 0 || natH <= 0 || rect.width <= 0 || rect.height <= 0) return null;
+  const nat = natW / natH;
+  const box = rect.width / rect.height;
+  let contentW: number;
+  let contentH: number;
+  let offsetX: number;
+  let offsetY: number;
+  if (nat > box) {
+    contentW = rect.width;
+    contentH = rect.width / nat;
+    offsetX = 0;
+    offsetY = (rect.height - contentH) / 2;
+  } else {
+    contentH = rect.height;
+    contentW = rect.height * nat;
+    offsetY = 0;
+    offsetX = (rect.width - contentW) / 2;
+  }
+  const x = clientX - rect.left - offsetX;
+  const y = clientY - rect.top - offsetY;
+  if (x < 0 || y < 0 || x > contentW || y > contentH) return null;
+  return { nx: x / contentW, ny: y / contentH };
+}
+
 /** Area-averaged sample around a normalized pin on a displayed image. */
 export function sampleImageAverage(
   image: HTMLImageElement,
