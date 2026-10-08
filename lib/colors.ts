@@ -39,6 +39,11 @@ export function rgbToHex(r: number, g: number, b: number): string {
   );
 }
 
+/** Compact swatch label: hex digits only, no leading '#'. */
+export function hexWithoutHash(hex: string): string {
+  return hex.startsWith("#") ? hex.slice(1) : hex;
+}
+
 export interface Hsl {
   h: number;
   s: number;

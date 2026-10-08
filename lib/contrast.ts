@@ -18,8 +18,34 @@ export function contrastRatio(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-/** Contrast line is shown only when both text and background are filled. */
+/** Contrast ratio, or null unless both text and background are filled. */
 export function textOnBackgroundContrast(roles: RoleColors): number | null {
   if (!roles.text || !roles.background) return null;
   return contrastRatio(roles.text, roles.background);
+}
+
+const WHITE = "#ffffff";
+const BLACK = "#000000";
+
+/** Black or white label ink that meets 4.5:1 on the swatch, preferring the stronger ratio. */
+export function swatchInk(backgroundHex: string): "#ffffff" | "#000000" {
+  const white = contrastRatio(WHITE, backgroundHex);
+  const black = contrastRatio(BLACK, backgroundHex);
+  if (white >= 4.5 && white >= black) return WHITE;
+  if (black >= 4.5 && black > white) return BLACK;
+  return white >= black ? WHITE : BLACK;
+}
+
+export function swatchHairline(backgroundHex: string): string {
+  return swatchInk(backgroundHex) === WHITE ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.35)";
+}
+
+export function contrastLineCopy(roles: RoleColors): string {
+  const hasText = Boolean(roles.text);
+  const hasBg = Boolean(roles.background);
+  if (!hasText && !hasBg) return "Needs text and background colors to check contrast.";
+  if (!hasText) return "Needs a text color to check contrast.";
+  if (!hasBg) return "Needs a background color to check contrast.";
+  const ratio = textOnBackgroundContrast(roles);
+  return `Text on background ${ratio!.toFixed(1)}:1`;
 }
