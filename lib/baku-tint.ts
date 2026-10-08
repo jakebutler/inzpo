@@ -19,6 +19,36 @@ export function multiplyGrayByHex(spriteR: number, spriteG: number, spriteB: num
   return [multiplyChannel(spriteR, r), multiplyChannel(spriteG, g), multiplyChannel(spriteB, b)];
 }
 
+/**
+ * Isolate the ground-shadow slice and multiply it by the band hex.
+ * CSS mix-blend-mode does not survive WebKit/Chromium screenshots, so bake it.
+ */
+export function multiplyShadowPixels(
+  pixels: Uint8ClampedArray,
+  width: number,
+  height: number,
+  channels: number,
+  groundHex: string,
+  clipPct: number,
+): void {
+  if (width < 1 || height < 1 || channels < 3) return;
+  if (!isHexColor(groundHex)) return;
+  const cut = Math.floor((height * (100 - clipPct)) / 100);
+  const { r, g, b } = hexToRgb(groundHex);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * channels;
+      if (y < cut) {
+        if (channels > 3) pixels[i + 3] = 0;
+        continue;
+      }
+      pixels[i] = multiplyChannel(pixels[i] ?? 0, r);
+      pixels[i + 1] = multiplyChannel(pixels[i + 1] ?? 0, g);
+      pixels[i + 2] = multiplyChannel(pixels[i + 2] ?? 0, b);
+    }
+  }
+}
+
 export function tintRoles(kit: MascotKit, revealedCount: number | null): Array<string | null> {
   return COLOR_ROLES.map((role, i) => {
     if (revealedCount != null && i >= revealedCount) return null;

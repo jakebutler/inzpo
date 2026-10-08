@@ -409,6 +409,10 @@ async function main(): Promise<void> {
         .locator('[data-baku-tinted="1"]')
         .waitFor({ timeout: 12_000 })
         .catch(() => undefined);
+      await page
+        .locator('[data-baku-shadow-baked="1"]')
+        .waitFor({ timeout: 8_000 })
+        .catch(() => undefined);
       await page.waitForTimeout(200);
       const box = await page.locator("[data-baku-sprite]").boundingBox();
       widths.push(`${shot.photo} baku ${box ? `${box.width}x${box.height}` : "missing"}`);

@@ -34,6 +34,8 @@ export type MascotProps = {
   revealedCount?: number | null;
   /** Flip so left-facing v6 art looks at the brief/copy. */
   faceText?: boolean;
+  /** Band/page hex under the sprite, used to bake the ground-shadow multiply. */
+  ground?: string;
 };
 
 export function Mascot({
@@ -44,6 +46,7 @@ export function Mascot({
   className,
   revealedCount = null,
   faceText = false,
+  ground,
 }: MascotProps) {
   const rawId = useId().replace(/:/g, "");
   const clipId = `baku-clip-${rawId}`;
@@ -121,7 +124,15 @@ export function Mascot({
       style={style}
       aria-hidden="true"
     >
-      <BakuSprite pose={pose} kit={kit} size={size} revealedCount={revealedCount} faceText={faceText} fallback={svg} />
+      <BakuSprite
+        pose={pose}
+        kit={kit}
+        size={size}
+        revealedCount={revealedCount}
+        faceText={faceText}
+        ground={ground}
+        fallback={svg}
+      />
     </div>
   );
 }

@@ -76,7 +76,7 @@ export function BriefSlot({
               justifyContent: "flex-start",
             }}
           >
-            <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText />
+            <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText ground={pageBackground} />
           </div>
         </div>
       </section>
@@ -96,7 +96,7 @@ export function BriefSlot({
           justifyContent: "flex-start",
         }}
       >
-        <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText />
+        <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText ground={pageBackground} />
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
         {shown ? (

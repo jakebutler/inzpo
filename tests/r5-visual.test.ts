@@ -33,7 +33,7 @@ import {
   bakuV6PoseSrc,
 } from "@/lib/baku-v6";
 import { captureGuardIssues, cssRgbToHex, isAllowedCaptureBackground } from "@/lib/qa-capture-guard";
-import { grayToBandIndex, multiplyGrayByHex, tintRoles } from "@/lib/baku-tint";
+import { grayToBandIndex, multiplyGrayByHex, multiplyShadowPixels, tintRoles } from "@/lib/baku-tint";
 
 function src(rel: string): string {
   return readFileSync(path.join(process.cwd(), rel), "utf8");
@@ -204,6 +204,7 @@ describe("r5 shots", () => {
     expect(shots).toContain("__next_error__");
     expect(shots).toContain("documentStatus");
     expect(shots).toContain("clip:");
+    expect(shots).toContain("data-baku-shadow-baked");
     expect(shots).toContain("empty-collection");
     expect(shots).toContain('state: "pending"');
     expect(shots).toContain("arrived_");
@@ -242,12 +243,19 @@ describe("r5 baku v6 art", () => {
     expect(sprite).toContain("bakuDensity");
     expect(sprite).toContain("scaleX(-1)");
     expect(sprite).toContain("50% 100%");
-    expect(sprite).toContain('mixBlendMode: "multiply"');
+    expect(sprite).toContain("multiplyShadowPixels");
+    expect(sprite).toContain("bakeShadow");
     expect(sprite).toContain("data-baku-shadow");
+    expect(sprite).toContain("data-baku-shadow-baked");
     expect(sprite).toContain("BAKU_SHADOW_CLIP_PCT");
     expect(sprite).toContain('const flip = faceText && showPng ? "scaleX(-1)" : undefined');
     expect(sprite).not.toMatch(/data-baku-sprite[\s\S]{0,400}transform: faceText && showPng/);
-    expect(sprite).toMatch(/data-baku-shadow[\s\S]{0,200}mixBlendMode: "multiply"/);
+    expect(sprite).not.toContain("mixBlendMode");
+    const cream = new Uint8ClampedArray([233, 221, 212, 255]);
+    multiplyShadowPixels(cream, 1, 1, 4, "#384b5f", 100);
+    expect(cream[0]).toBeLessThan(60);
+    expect(cream[1]).toBeLessThan(80);
+    expect(cream[2]).toBeLessThan(90);
     expect(sprite).not.toMatch(/probe\(/);
     expect(src("app/components/mascot.css")).not.toMatch(/width:\s*48px/);
   });

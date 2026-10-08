@@ -149,8 +149,9 @@ describe("stripe kit", () => {
     const sprite = readFileSync(path.join(process.cwd(), "app/components/BakuSprite.tsx"), "utf8");
     expect(brief).toMatch(/size=\{MASCOT_SIZE_BRIEF_PX\}/);
     expect(brief).not.toMatch(/size=\{MASCOT_SIZE_PX\}/);
-    expect(sprite).toContain('mixBlendMode: "multiply"');
+    expect(sprite).toContain("multiplyShadowPixels");
     expect(sprite).toContain("data-baku-shadow");
+    expect(brief).toContain("ground={pageBackground}");
   });
 });
 
