@@ -23,6 +23,7 @@ import { loadFoldKit } from "@/lib/fold-kit";
 import { FOLD_BRIEFS } from "@/lib/fold-briefs";
 import {
   BAKU_ART_POSES,
+  BAKU_SHADOW_CLIP_PCT,
   bakuArtPose,
   bakuCanTint,
   bakuDensity,
@@ -31,6 +32,7 @@ import {
   bakuV6ColorSrc,
   bakuV6PoseSrc,
 } from "@/lib/baku-v6";
+import { captureGuardIssues, cssRgbToHex, isAllowedCaptureBackground } from "@/lib/qa-capture-guard";
 import { grayToBandIndex, multiplyGrayByHex, tintRoles } from "@/lib/baku-tint";
 
 function src(rel: string): string {
@@ -193,7 +195,12 @@ describe("r5 shots", () => {
     expect(shots).toContain('state: "failed"');
     expect(shots).toContain("r5_flow_");
     expect(shots).toContain("brief-closeup");
+    expect(shots).toContain("brief-closeup-navy");
+    expect(shots).toContain("brief-closeup-light");
     expect(shots).toContain("brief-full");
+    expect(shots).toContain("assertCaptureReady");
+    expect(shots).toContain("document.fonts.check");
+    expect(shots).toContain("/_next/static");
     expect(shots).toContain("empty-collection");
     expect(shots).toContain('state: "pending"');
     expect(shots).toContain("arrived_");
@@ -222,15 +229,21 @@ describe("r5 baku v6 art", () => {
     expect(tintRoles(HAND_OFF(), 2).filter(Boolean)).toHaveLength(2);
     expect(MASCOT_SIZE_PX).toBe(48);
     expect(MASCOT_SIZE_BRIEF_PX).toBe(56);
+    expect(BAKU_SHADOW_CLIP_PCT).toBe(10.5);
     const brief = src("app/components/BriefSlot.tsx");
-    expect(brief).toMatch(/size=\{MASCOT_SIZE_PX\}/);
+    expect(brief).toMatch(/size=\{MASCOT_SIZE_BRIEF_PX\}/);
+    expect(brief).not.toMatch(/size=\{MASCOT_SIZE_PX\}/);
     expect(brief).toContain("alignItems: \"flex-end\"");
     const sprite = src("app/components/BakuSprite.tsx");
     expect(sprite).toContain("onError");
     expect(sprite).toContain("bakuDensity");
     expect(sprite).toContain("scaleX(-1)");
     expect(sprite).toContain("50% 100%");
+    expect(sprite).toContain('mixBlendMode: "multiply"');
+    expect(sprite).toContain("data-baku-shadow");
+    expect(sprite).toContain("BAKU_SHADOW_CLIP_PCT");
     expect(sprite).not.toMatch(/probe\(/);
+    expect(src("app/components/mascot.css")).not.toMatch(/width:\s*48px/);
   });
 
   it("installs approved v6 PNGs and keeps review sheets out of public", () => {
@@ -279,6 +292,37 @@ describe("r5 baku v6 art", () => {
 function HAND_OFF() {
   return HANDOFF_KITS.IMG_6505;
 }
+
+describe("r5 capture guard", () => {
+  it("rejects unstyled white pages and missing fonts or CSS", () => {
+    expect(cssRgbToHex("rgb(243, 238, 228)")).toBe("#f3eee4");
+    expect(isAllowedCaptureBackground("#f3eee4", { kitWear: false })).toBe(true);
+    expect(isAllowedCaptureBackground("#ffffff", { kitWear: true })).toBe(false);
+    expect(isAllowedCaptureBackground("#384b5f", { kitWear: true })).toBe(true);
+    expect(
+      captureGuardIssues({
+        staticFails: ["404 /_next/static/css/app/layout.css"],
+        sheetCount: 0,
+        ruleCount: 0,
+        backgroundHex: "#ffffff",
+        kitWear: true,
+        fraunces: false,
+        geist: false,
+      }).length,
+    ).toBeGreaterThan(3);
+    expect(
+      captureGuardIssues({
+        staticFails: [],
+        sheetCount: 2,
+        ruleCount: 40,
+        backgroundHex: "#384b5f",
+        kitWear: true,
+        fraunces: true,
+        geist: true,
+      }),
+    ).toEqual([]);
+  });
+});
 
 describe("r5 briefs from file", () => {
   it("keeps captured model text and wires --from", () => {

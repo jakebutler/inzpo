@@ -22,6 +22,7 @@ import {
 import { FOLD_BRIEFS } from "../lib/fold-briefs.ts";
 import { BRIEF_REQUEST } from "../lib/brief-request.ts";
 import { BAKU_CROSSFADE_MS } from "../lib/baku-v6.ts";
+import { captureGuardIssues, cssRgbToHex } from "../lib/qa-capture-guard.ts";
 
 const ARTIFACTS = "/opt/cursor/artifacts";
 const BASE = process.env.QA_BASE ?? "http://127.0.0.1:3010";
@@ -60,26 +61,88 @@ function urlFor(shot: Shot, photo: string): string {
 /** Pending/failed keep the back button in frame; do not scroll those. */
 const ABOVE_BAR = new Set(["chips", "saved", "empty-roles", "dark"]);
 
+const GUARD = { pass: 0, fail: 0 };
+const PAGE_STATIC_FAILS = new WeakMap<Page, string[]>();
+
+function watchStatic(page: Page): string[] {
+  const existing = PAGE_STATIC_FAILS.get(page);
+  if (existing) return existing;
+  const fails: string[] = [];
+  PAGE_STATIC_FAILS.set(page, fails);
+  page.on("response", (res) => {
+    const url = res.url();
+    const type = res.request().resourceType();
+    if (url.includes("/_next/static") || type === "stylesheet") {
+      if (res.status() !== 200) fails.push(`${res.status()} ${url}`);
+    }
+  });
+  return fails;
+}
+
 async function hideChrome(page: Page): Promise<void> {
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
+}
+
+async function assertCaptureReady(page: Page): Promise<void> {
+  await page.evaluate(() => document.fonts.ready);
+  const raw = await page.evaluate(() => {
+    const sheets = [...document.styleSheets];
+    let ruleCount = 0;
+    for (const sheet of sheets) {
+      try {
+        ruleCount += sheet.cssRules.length;
+      } catch {
+        // cross-origin sheets throw; same-origin hashed CSS must still contribute
+      }
+    }
+    const wear = document.querySelector("[data-kit-wear]");
+    const node = wear ?? document.body;
+    const families = [...document.fonts].map((f) => f.family);
+    return {
+      sheetCount: sheets.length,
+      ruleCount,
+      backgroundColor: getComputedStyle(node).backgroundColor,
+      kitWear: Boolean(wear),
+      fraunces: document.fonts.check("18px Fraunces") || families.some((f) => /fraunces/i.test(f)),
+      geist: document.fonts.check("16px Geist") || families.some((f) => /geist/i.test(f) && !/mono/i.test(f)),
+    };
+  });
+  const issues = captureGuardIssues({
+    staticFails: PAGE_STATIC_FAILS.get(page) ?? [],
+    sheetCount: raw.sheetCount,
+    ruleCount: raw.ruleCount,
+    backgroundHex: cssRgbToHex(raw.backgroundColor),
+    kitWear: raw.kitWear,
+    fraunces: raw.fraunces,
+    geist: raw.geist,
+  });
+  if (issues.length > 0) {
+    GUARD.fail += 1;
+    throw new Error(`capture guard failed:\n${issues.join("\n")}`);
+  }
+  GUARD.pass += 1;
 }
 
 async function recoverPage(page: Page, reduced: boolean): Promise<Page> {
   const browser = page.context().browser();
   const vp = page.viewportSize();
+  const dpr = page.viewportSize() ? 2 : 2;
   try {
     await page.close();
   } catch {
     // already gone
   }
-  return (browser ?? page.context()).newPage({
+  const next = await (browser ?? page.context()).newPage({
     viewport: vp ?? { width: 390, height: 844 },
-    deviceScaleFactor: 2,
+    deviceScaleFactor: dpr,
     reducedMotion: reduced ? "reduce" : "no-preference",
   });
+  watchStatic(next);
+  return next;
 }
 
 async function openShot(page: Page, url: string, reduced: boolean): Promise<Page> {
+  watchStatic(page);
   try {
     await page.goto(url, { waitUntil: "load", timeout: 60_000 });
     return page;
@@ -100,6 +163,7 @@ async function captureShot(
 ): Promise<Page> {
   let current = await openShot(page, url, reduced);
   await hideChrome(current);
+  await assertCaptureReady(current);
   if (aboveBar) await revealAboveSaveBar(current);
   try {
     await current.waitForTimeout(waitMs);
@@ -108,6 +172,7 @@ async function captureShot(
   } catch {
     current = await openShot(await recoverPage(current, reduced), url, reduced);
     await hideChrome(current);
+    await assertCaptureReady(current);
     if (aboveBar) await revealAboveSaveBar(current);
     await current.waitForTimeout(Math.min(waitMs, 400));
     await current.screenshot({ path: dest, animations: reduced ? "disabled" : "allow" });
@@ -145,6 +210,7 @@ async function captureReveal(
       : `${BASE}/dev/fold?state=result&photo=IMG_5859&play=1`;
   let current = await openShot(page, url, false);
   await hideChrome(current);
+  await assertCaptureReady(current);
   try {
     if (atMs <= 0) {
       await current.locator('[data-band-stack][data-revealed="false"]').waitFor({ timeout: 15_000 });
@@ -158,6 +224,7 @@ async function captureReveal(
   } catch {
     current = await openShot(await recoverPage(current, false), url, false);
     await hideChrome(current);
+    await assertCaptureReady(current);
     await current.waitForTimeout(atMs <= 0 ? 40 : atMs);
     await current.screenshot({ path: dest, animations: "allow" });
     return current;
@@ -168,6 +235,7 @@ async function captureEditDrag(page: Page, dest: string): Promise<Page> {
   const url = `${BASE}/dev/fold?state=edit&photo=IMG_5859`;
   let current = await openShot(page, url, false);
   await hideChrome(current);
+  await assertCaptureReady(current);
   try {
     const photo = current.locator("[data-photo-fold] img");
     await photo.waitFor({ timeout: 20_000 });
@@ -185,6 +253,7 @@ async function captureEditDrag(page: Page, dest: string): Promise<Page> {
   } catch {
     current = await openShot(await recoverPage(current, false), url, false);
     await hideChrome(current);
+    await assertCaptureReady(current);
     await current.waitForTimeout(400);
     await current.screenshot({ path: dest, animations: "allow" });
     return current;
@@ -314,24 +383,37 @@ async function main(): Promise<void> {
   }
 
   {
-    const page = await browser.newPage({
-      viewport: { width: 390, height: 844 },
-      deviceScaleFactor: 3,
-      reducedMotion: "no-preference",
-    });
-    await page.goto(`${BASE}/dev/fold?state=result&photo=IMG_5859`, { waitUntil: "load", timeout: 60_000 });
-    await hideChrome(page);
-    await page.locator("[data-brief-slot]").waitFor({ timeout: 20_000 });
-    await page
-      .locator('[data-baku-tinted="1"]')
-      .waitFor({ timeout: 12_000 })
-      .catch(() => undefined);
-    await page.waitForTimeout(200);
-    await page.locator("[data-brief-slot]").screenshot({
-      path: path.join(ARTIFACTS, "r5_IMG_5859_390x844_brief-closeup_motion.png"),
-      animations: "allow",
-    });
-    await page.close();
+    const closeups = [
+      { photo: "IMG_5859", name: "r5_IMG_5859_390x844_brief-closeup_motion.png" },
+      { photo: "IMG_6208", name: "r5_IMG_6208_390x844_brief-closeup-navy_motion.png" },
+      { photo: "IMG_6505", name: "r5_IMG_6505_390x844_brief-closeup-light_motion.png" },
+    ] as const;
+    const widths: string[] = [];
+    for (const shot of closeups) {
+      const page = await browser.newPage({
+        viewport: { width: 390, height: 844 },
+        deviceScaleFactor: 3,
+        reducedMotion: "no-preference",
+      });
+      watchStatic(page);
+      await page.goto(`${BASE}/dev/fold?state=result&photo=${shot.photo}`, { waitUntil: "load", timeout: 60_000 });
+      await hideChrome(page);
+      await assertCaptureReady(page);
+      await page.locator("[data-brief-slot]").waitFor({ timeout: 20_000 });
+      await page
+        .locator('[data-baku-tinted="1"]')
+        .waitFor({ timeout: 12_000 })
+        .catch(() => undefined);
+      await page.waitForTimeout(200);
+      const box = await page.locator("[data-baku-sprite]").boundingBox();
+      widths.push(`${shot.photo} baku ${box ? `${box.width}x${box.height}` : "missing"}`);
+      await page.locator("[data-brief-slot]").screenshot({
+        path: path.join(ARTIFACTS, shot.name),
+        animations: "allow",
+      });
+      await page.close();
+    }
+    await writeFile(path.join(ARTIFACTS, "r5_baku_width.txt"), `${widths.join("\n")}\n`);
   }
 
   for (const reduced of [false, true]) {
@@ -343,8 +425,10 @@ async function main(): Promise<void> {
       recordVideo: { dir: ARTIFACTS, size: { width: 390, height: 844 } },
     });
     const page = await context.newPage();
+    watchStatic(page);
     await page.goto(`${BASE}/dev/fold?state=first&photo=IMG_6505`, { waitUntil: "load", timeout: 60_000 });
     await hideChrome(page);
+    await assertCaptureReady(page);
     await page.waitForTimeout(400);
     await page.goto(`${BASE}/dev/fold?state=result&photo=IMG_6505&play=1`, { waitUntil: "load" });
     await hideChrome(page);
@@ -373,6 +457,9 @@ async function main(): Promise<void> {
   }
 
   await browser.close();
+  const guardLine = `capture guard pass=${GUARD.pass} fail=${GUARD.fail}\n`;
+  await writeFile(path.join(ARTIFACTS, "r5_guard.txt"), guardLine);
+  console.log(guardLine.trim());
   console.log("r5_ fold shots written");
 }
 
