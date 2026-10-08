@@ -21,9 +21,8 @@ import { kitWearStyle } from "@/lib/kit-wear";
 import { layoutPins, mapCoverPinRaw, photoBackZone, pointerOnCoverBox, type CoverWindow } from "@/lib/cover-pin";
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { chipCopy, chipNoun, EMPTY_ROLE_COPY, parseNamedColors, type NamedColor } from "@/lib/brief-copy";
+import { chipCopy, chipNoun, chipsDistinctFromRoles, EMPTY_ROLE_COPY, parseNamedColors, type NamedColor } from "@/lib/brief-copy";
 import { PaletteBands } from "@/app/components/PaletteBands";
-import { chipsDistinctFromRoles } from "@/lib/named-color-snap";
 import { ContrastAa } from "./ContrastAa";
 import { CHIP_SWATCH_PX, INK, PAPER } from "@/lib/brand";
 

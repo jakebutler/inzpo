@@ -1,3 +1,4 @@
+import { hexToLab, MIN_ROLE_DELTA_E, roleDeltaE } from "@/lib/color-distance";
 import { hexToFamily, isHexColor, normalizeHex } from "@/lib/colors";
 
 const STREET =
@@ -125,3 +126,13 @@ export function parseNamedColors(raw: unknown, fallbackHexes: string[] = []): Na
 }
 
 export const EMPTY_ROLE_COPY = (role: string): string => `No ${role} in this one. Add a color.`;
+
+/**
+ * Client-side guard for chips after the kit changes (e.g. a pin dragged onto
+ * the suggested surface): hide a measured chip that is now within CIE76 ΔE 12
+ * of any filled role. Same-source hiding needs the region map and runs at snap time.
+ */
+export function chipsDistinctFromRoles(chips: readonly NamedColor[], filledHexes: Iterable<string>): NamedColor[] {
+  const filled = Array.from(filledHexes, (hex) => hexToLab(hex));
+  return chips.filter((chip) => filled.every((lab) => roleDeltaE(hexToLab(chip.hex), lab) >= MIN_ROLE_DELTA_E));
+}

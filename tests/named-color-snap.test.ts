@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { hexToLab, MIN_ROLE_DELTA_E, roleDeltaE } from "@/lib/color-distance";
-import { chipsDistinctFromRoles, snapNamedColors } from "@/lib/named-color-snap";
+import { snapNamedColors } from "@/lib/named-color-snap";
+import { chipsDistinctFromRoles } from "@/lib/brief-copy";
 import { MIN_ROLE_PATCH } from "@/lib/palette-extract";
 
 function region(hex: string, patch = 0.1, pinX = 0.2, pinY = 0.3) {
