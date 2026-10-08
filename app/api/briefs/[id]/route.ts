@@ -10,7 +10,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
   await assertItemOwned(ownerId, id);
   const job = await readBriefJob(id);
-  return NextResponse.json(job ?? { status: "pending", text: null, namedHexes: [], updatedAt: 0 });
+  return NextResponse.json(
+    job ?? { status: "pending", text: null, namedHexes: [], namedColors: [], stub: false, updatedAt: 0 },
+  );
 }
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

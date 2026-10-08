@@ -287,7 +287,7 @@ export function QaStates({ issue, state }: { issue: string; state: string }) {
               itemId="qa"
               imageSrc={null}
               colors={colorsFromKit(HANDOFF_KITS.IMG_6208)}
-              namedHexes={["#e8c36a"]}
+              namedColors={[{ hex: "#e8c36a", label: "yellow door" }]}
             />
             <BriefSlot status="ready" kit={HANDOFF_KITS.IMG_6208} note="Blue shade and a dropped gold." />
           </div>
