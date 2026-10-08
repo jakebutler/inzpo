@@ -1,5 +1,3 @@
-import { PIN_LEADER_X } from "@/lib/brand";
-
 export type Hairline = { x1: number; y1: number; x2: number; y2: number };
 
 function clamp(n: number, min: number, max: number): number {
@@ -45,18 +43,19 @@ export function segmentsCross(a: Hairline, b: Hairline): boolean {
 
 export type BandBox = { left: number; top: number; right: number; bottom: number; visible: boolean };
 
+/** A visible band's pin leads vertically to the photo edge, never into a band. */
 export function preferredHairline(
-  sampleX: number,
-  sampleY: number,
+  sampleX: number | null,
+  sampleY: number | null,
   band: BandBox,
-  leaderX = PIN_LEADER_X,
+  photoBottom: number,
 ): Hairline | null {
-  if (!band.visible) return null;
+  if (!band.visible || sampleX == null || sampleY == null) return null;
   return {
     x1: sampleX,
-    y1: sampleY,
-    x2: band.left + leaderX,
-    y2: (band.top + band.bottom) / 2,
+    y1: clamp(sampleY, 0, photoBottom),
+    x2: sampleX,
+    y2: photoBottom,
   };
 }
 

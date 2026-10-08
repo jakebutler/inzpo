@@ -21,7 +21,7 @@ import { kitWearStyle } from "@/lib/kit-wear";
 import { claimRevealPlay, type RevealMode } from "@/lib/reveal";
 import { sampledColors } from "@/lib/derived-roles";
 import { pageChromeColors } from "@/lib/contrast";
-import { nearestOnRect, preferredHairline, uncrossHairlines, type BandBox, type Hairline } from "@/lib/hairlines";
+import { preferredHairline, type BandBox, type Hairline } from "@/lib/hairlines";
 import {
   BAND_H_RESULT,
   BAND_STAGGER_S,
@@ -30,7 +30,6 @@ import {
   PHOTO_FOLD_CSS,
   PHOTO_FOLD_PX,
   PIN_HAIRLINE_S,
-  PIN_LEADER_X,
   pinDiscStyle,
 } from "@/lib/brand";
 
@@ -255,33 +254,28 @@ export function KitResult({
     }
     const stackEl = stage.querySelector<HTMLElement>("[data-band-stack]");
     const lines: Array<Hairline | null> = [];
-    const nearest: Array<{ x: number; y: number } | null> = [];
     for (let i = 0; i < COLOR_ROLES.length; i++) {
       const role = COLOR_ROLES[i]!;
       const row = displayColors.find((c) => c.role === role);
       if (!row || row.pinX == null || row.pinY == null) {
         lines.push(null);
-        nearest.push(null);
         continue;
       }
       const mapped = mapCoverPinRaw(row.pinX, row.pinY, width, height, box.w, box.h, crop);
       if (!mapped) {
         lines.push(null);
-        nearest.push(null);
         continue;
       }
       const band = bandBoxFor(bandRefs.current[i] ?? null, stage, stackEl);
       if (!band) {
         lines.push(null);
-        nearest.push(null);
         continue;
       }
       const sampleX = mapped.left * box.w;
       const sampleY = mapped.top * box.h;
-      lines.push(preferredHairline(sampleX, sampleY, band, PIN_LEADER_X));
-      nearest.push(nearestOnRect(sampleX, sampleY, band.left, band.top, band.right, band.bottom));
+      lines.push(preferredHairline(sampleX, sampleY, band, box.h));
     }
-    setLeaders(uncrossHairlines(lines, nearest));
+    setLeaders(lines);
   }
 
   useGSAP(
@@ -466,6 +460,44 @@ export function KitResult({
               draggable={false}
             />
           </div>
+          <svg
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            style={{ overflow: "hidden" }}
+            aria-hidden
+          >
+            {COLOR_ROLES.map((role, i) => {
+              const line = leaders[i];
+              const row = displayColors.find((c) => c.role === role);
+              if (!line || !row) return null;
+              const d = Math.hypot(line.x2 - line.x1, line.y2 - line.y1);
+              const visible = linePulse || focusedRole === role;
+              return (
+                <g key={role} opacity={visible ? 1 : 0}>
+                  <line
+                    x1={line.x1}
+                    y1={line.y1}
+                    x2={line.x2}
+                    y2={line.y2}
+                    stroke={INK}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                  <line
+                    data-pin-line
+                    x1={line.x1}
+                    y1={line.y1}
+                    x2={line.x2}
+                    y2={line.y2}
+                    stroke={PAPER}
+                    strokeWidth="1"
+                    strokeLinecap="round"
+                    strokeDasharray={d}
+                    strokeDashoffset={linePulse ? d : 0}
+                  />
+                </g>
+              );
+            })}
+          </svg>
           {showBack && !saved ? <PhotoBackButton href={backHref} /> : null}
           <div className="pointer-events-none absolute inset-0 overflow-visible">
             {displayColors.map((c) => {
@@ -503,46 +535,6 @@ export function KitResult({
             ) : null}
           </div>
         </div>
-      ) : null}
-      {imageSrc ? (
-        <svg
-          className="pointer-events-none absolute left-0 top-0 w-full overflow-visible"
-          style={{ height: box.h + BAND_H_RESULT * COLOR_ROLES.length }}
-          aria-hidden
-        >
-          {COLOR_ROLES.map((role, i) => {
-            const line = leaders[i];
-            const row = displayColors.find((c) => c.role === role);
-            if (!line || !row) return null;
-            const d = Math.hypot(line.x2 - line.x1, line.y2 - line.y1);
-            const visible = linePulse || focusedRole === role;
-            return (
-              <g key={role} opacity={visible ? 1 : 0}>
-                <line
-                  x1={line.x1}
-                  y1={line.y1}
-                  x2={line.x2}
-                  y2={line.y2}
-                  stroke={INK}
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-                <line
-                  data-pin-line
-                  x1={line.x1}
-                  y1={line.y1}
-                  x2={line.x2}
-                  y2={line.y2}
-                  stroke={PAPER}
-                  strokeWidth="1"
-                  strokeLinecap="round"
-                  strokeDasharray={d}
-                  strokeDashoffset={linePulse ? d : 0}
-                />
-              </g>
-            );
-          })}
-        </svg>
       ) : null}
 
       <TokenEditor

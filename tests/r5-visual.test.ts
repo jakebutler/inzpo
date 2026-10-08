@@ -9,7 +9,6 @@ import {
   PHOTO_FOLD_FLOOR_VH,
   PHOTO_FOLD_RESERVE_PX,
   PAPER,
-  PIN_LEADER_X,
   photoFoldHeight,
 } from "@/lib/brand";
 import { contrastRatio, matchesPageBackground } from "@/lib/contrast";
@@ -145,11 +144,11 @@ describe("r5 pin edge clamp", () => {
 });
 
 describe("r5 hairlines and back", () => {
-  it("tracks the live band left inset and stays off until the band is on screen", () => {
+  it("stops at the photo edge and stays off until the band is on screen", () => {
     const onScreen = { left: 4, top: 70, right: 390, bottom: 110, visible: true };
-    const line = preferredHairline(80, 10, onScreen, PIN_LEADER_X);
-    expect(line).toEqual({ x1: 80, y1: 10, x2: 4 + PIN_LEADER_X, y2: 90 });
-    expect(preferredHairline(80, 10, { ...onScreen, visible: false })).toBeNull();
+    const line = preferredHairline(80, 10, onScreen, 70);
+    expect(line).toEqual({ x1: 80, y1: 10, x2: 80, y2: 70 });
+    expect(preferredHairline(80, 10, { ...onScreen, visible: false }, 70)).toBeNull();
   });
 
   it("uncrosses overlapping leaders by landing on the nearest band point", () => {
