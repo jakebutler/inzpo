@@ -84,7 +84,8 @@ export type KitNameInput = {
 
 /** Stable colour-only name, also used to recognise a fallback on a later retry. */
 export function fallbackKitName(primaryHex: string | null | undefined): string {
-  return titleCase(primaryFamily(primaryHex) ?? "gray");
+  const family = primaryFamily(primaryHex);
+  return family ? titleCase(family) : UNTITLED_KIT;
 }
 
 export function kitDisplayName(input: KitNameInput, now = Date.now()): string {

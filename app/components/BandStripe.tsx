@@ -66,8 +66,8 @@ export function BandStripe({
           {name}
         </figcaption>
       ) : title != null ? (
-        <figcaption className="inzpo-kit-stripe-name">
-          <span data-title-skeleton aria-hidden="true" className="block h-3 w-32 rounded bg-current opacity-10" />
+        <figcaption className="inzpo-kit-stripe-name font-heading whitespace-normal break-words text-balance">
+          <span data-title-pending className="opacity-60">Naming it…</span>
         </figcaption>
       ) : null}
     </figure>

@@ -71,9 +71,9 @@ function effectiveColor(node: HTMLElement): string {
 
 describe("kit surface copy and honest Aa sample", () => {
   it.each([
-    { background: "#79acd3", text: "#384a5d", expected: INK, label: "fail" },
-    { background: "#202020", text: "#384a5d", expected: PAPER, label: "fail" },
-    { background: "#f3eee4", text: "#384a5d", expected: "#384a5d", label: "AA pass" },
+    { background: "#79acd3", text: "#384a5d", expected: INK, label: "Below AA" },
+    { background: "#202020", text: "#384a5d", expected: PAPER, label: "Below AA" },
+    { background: "#f3eee4", text: "#384a5d", expected: "#384a5d", label: "AA" },
   ])("shares the gate for copy on $background while Aa uses the real $text", async ({ background, text, expected, label }) => {
     const colors = await render(background, text);
     expect(expected).toBe(gatedTextColor(text, background));
@@ -90,7 +90,7 @@ describe("kit surface copy and honest Aa sample", () => {
     expect(sample.style.color).toBe(text);
     expect(sample.parentElement!.style.backgroundColor).toBe(background);
     expect(sample.parentElement!.textContent).toContain(label);
-    expect(document.querySelector('[aria-label="Fix text contrast"]') !== null).toBe(label === "fail");
+    expect(document.querySelector('[aria-label="Fix text contrast"]') !== null).toBe(label === "Below AA");
     expect(document.querySelector("[data-brief-text]")!.className).toContain("text-[18px]");
   });
 
@@ -108,7 +108,7 @@ describe("kit surface copy and honest Aa sample", () => {
   it("updates brief, header, links and save bar through fix, manual edit and editor undo", async () => {
     await render("#79acd3", "#384a5d");
     await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Fix text contrast"]')!.click());
-    expect(document.querySelector("[data-contrast-line]")!.textContent).toContain("7.1:1AA pass");
+    expect(document.querySelector("[data-contrast-line]")!.textContent).toContain("7.1:1AA");
     expect(document.querySelector('[aria-label="Fix text contrast"]')).toBeNull();
     await act(async () => document.querySelector<HTMLButtonElement>('[data-role="text"]')!.click());
     const input = document.querySelector<HTMLInputElement>("#token-hex")!;
@@ -124,7 +124,7 @@ describe("kit surface copy and honest Aa sample", () => {
     await act(async () => undo().click());
     expect(document.querySelector<HTMLElement>("[data-brief-text]")!.style.color).toBe("#1c1b19");
     await act(async () => undo().click());
-    expect(document.querySelector("[data-contrast-line]")!.textContent).toContain("3.8:1failFix");
+    expect(document.querySelector("[data-contrast-line]")!.textContent).toContain("3.8:1Below AAFix");
     expect(document.querySelector<HTMLElement>("[data-brief-text]")!.style.color).toBe(INK);
     expect(document.querySelector<HTMLElement>("[data-test-sheet]")!.style.color).toBe(INK);
     expect(mocks.save).toHaveBeenCalledTimes(4);

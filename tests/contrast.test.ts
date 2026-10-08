@@ -51,10 +51,10 @@ describe("gated kit text", () => {
     expect(gatedTextColor("#bec6cd", darkBg, 4.5)).toBe("#bec6cd");
   });
 
-  it("labels AA pass or fail", async () => {
+  it("labels AA or Below AA", async () => {
     const { aaPassLabel } = await import("@/lib/contrast");
-    expect(aaPassLabel(4.5)).toBe("AA pass");
-    expect(aaPassLabel(4.49)).toBe("fail");
+    expect(aaPassLabel(4.5)).toBe("AA");
+    expect(aaPassLabel(4.49)).toBe("Below AA");
   });
 });
 

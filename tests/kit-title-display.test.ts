@@ -105,8 +105,15 @@ describe("kit title placeholders", () => {
     for (const view of views) {
       const { document } = parseHTML(renderToStaticMarkup(view));
       const caption = document.querySelector("figcaption, h1")!;
-      expect(caption.querySelector("[data-title-skeleton]") !== null).toBe(name === "");
-      expect(caption.textContent).toBe(name);
+      expect(caption.querySelector("[data-title-pending]") !== null).toBe(name === "");
+      expect(caption.textContent).toBe(name || "Naming it…");
+      if (!name) {
+        const pending = caption.querySelector("[data-title-pending]")!;
+        expect(pending.classList.contains("opacity-60")).toBe(true);
+        expect(caption.classList.contains("font-heading")).toBe(true);
+        expect(caption.className + pending.className).not.toContain("italic");
+        expect(pending.hasAttribute("aria-hidden")).toBe(false);
+      }
       expect(caption.textContent).not.toMatch(/Untitled kit|IMG_6208/);
       if (document.querySelector("img")) expect(document.querySelector("img")?.getAttribute("alt")).toBe(name);
     }
@@ -131,8 +138,15 @@ describe("kit title placeholders", () => {
     for (const view of views) {
       const { document } = parseHTML(renderToStaticMarkup(view));
       const caption = document.querySelector("figcaption")!;
-      expect(caption.querySelector("[data-title-skeleton]") !== null).toBe(name === "");
-      expect(caption.textContent).toBe(name);
+      expect(caption.querySelector("[data-title-pending]") !== null).toBe(name === "");
+      expect(caption.textContent).toBe(name || "Naming it…");
+      if (!name) {
+        const pending = caption.querySelector("[data-title-pending]")!;
+        expect(pending.classList.contains("opacity-60")).toBe(true);
+        expect(caption.classList.contains("font-heading")).toBe(true);
+        expect(caption.className + pending.className).not.toContain("italic");
+        expect(pending.hasAttribute("aria-hidden")).toBe(false);
+      }
       expect(document.body.textContent).not.toMatch(/Untitled kit|IMG_6208/);
       if (document.querySelector("img")) expect(document.querySelector("img")?.getAttribute("alt")).toBe(name);
     }
@@ -148,7 +162,15 @@ describe("kit title placeholders", () => {
 
   it("uses the kit-name colour family for muted primary colours", () => {
     expect(kitDisplayName({ title: "IMG_6208", primaryHex: "#a0adbb", brief: { status: "failed", updatedAt: now } })).toBe("Gray");
-    expect(kitDisplayName({ title: UNTITLED_KIT })).toBe("Gray");
+    expect(kitDisplayName({ title: UNTITLED_KIT })).toBe("Untitled kit");
+  });
+
+  it.each([null, { status: "failed" as const, updatedAt: now }, { status: "pending" as const, updatedAt: now - STALE_PENDING_MS }])("uses Untitled kit without any filled role after pending ends (%j)", (brief) => {
+    const { document } = parseHTML(renderToStaticMarkup(createElement(SavedKitHeader, {
+      title: null, brief, backHref: "/",
+    })));
+    expect(document.querySelector("h1")?.textContent).toBe(UNTITLED_KIT);
+    expect(document.querySelector("[data-title-pending]")).toBeNull();
   });
 
   it("keeps an existing title during a pending retry", () => {
@@ -185,13 +207,13 @@ describe("client brief transitions", () => {
     vi.unstubAllGlobals();
   });
 
-  it("expires a wall skeleton while the page remains open", async () => {
+  it("expires a wall pending name while the page remains open", async () => {
     await act(async () => root.render(createElement(KitCard, {
       title: null, roles, createdAt: new Date(now),
     })));
-    expect(document.querySelector("[data-title-skeleton]")).not.toBeNull();
+    expect(document.querySelector("[data-title-pending]")).not.toBeNull();
     await act(async () => { vi.advanceTimersByTime(STALE_PENDING_MS); });
-    expect(document.querySelector("[data-title-skeleton]")).toBeNull();
+    expect(document.querySelector("[data-title-pending]")).toBeNull();
     expect(document.querySelector("figcaption")?.textContent).toBe("Blue");
   });
 
@@ -206,11 +228,11 @@ describe("client brief transitions", () => {
       colors: [{ hex: roles.primary!, role: "primary", position: 0, origin: "sampled" }],
       tileSrc: null, saved: true, initialBrief: { status: "pending", updatedAt: now },
     })));
-    expect(document.querySelector("h1 [data-title-skeleton]")).not.toBeNull();
+    expect(document.querySelector("h1 [data-title-pending]")).not.toBeNull();
     await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
     expect(document.querySelector("[data-slot-status]")?.getAttribute("data-slot-status")).toBe("failed");
     expect(document.querySelector("h1")?.textContent).toBe("Blue");
-    expect(document.querySelector("h1 [data-title-skeleton]")).toBeNull();
+    expect(document.querySelector("h1 [data-title-pending]")).toBeNull();
     expect(mocks.refresh).not.toHaveBeenCalled();
     await act(async () => mocks.retry?.());
     expect(mocks.fetch).toHaveBeenLastCalledWith("/api/briefs/kit?retry=1", { method: "POST" });

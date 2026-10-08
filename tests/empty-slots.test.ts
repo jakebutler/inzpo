@@ -40,15 +40,15 @@ describe("empty slot UI", () => {
 
   it("renders an unnamed empty card with a fallback and six empty slots", () => {
     const { document } = parseHTML(renderToStaticMarkup(createElement(KitCard, { title: "IMG_6208", imageSrc: "photo.jpg" })));
-    expect(document.querySelector("[data-title-skeleton]")).toBeNull();
-    expect(document.querySelector("img")?.getAttribute("alt")).toBe("Gray");
+    expect(document.querySelector("[data-title-pending]")).toBeNull();
+    expect(document.querySelector("img")?.getAttribute("alt")).toBe("Untitled kit");
     expect(document.querySelectorAll(".inzpo-band-empty")).toHaveLength(6);
-    expect(document.body.textContent).not.toContain("Untitled kit");
+    expect(document.querySelector("figcaption")?.textContent).toBe("Untitled kit");
   });
 
   it("asks for missing contrast roles without manufacturing either colour", () => {
     const html = renderToStaticMarkup(createElement(ContrastAa, { roles: emptyRoles() }));
     expect(html).toContain("Needs text and background colors to check contrast.");
-    expect(html).not.toContain("AA pass");
+    expect(html).not.toContain("Below AA");
   });
 });

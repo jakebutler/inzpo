@@ -132,6 +132,6 @@ export function pageChromeColors(roles: RoleColors): { background: string; ink: 
   return { background: PAPER, ink: INK };
 }
 
-export function aaPassLabel(ratio: number): "AA pass" | "fail" {
-  return ratio >= 4.5 ? "AA pass" : "fail";
+export function aaPassLabel(ratio: number): "AA" | "Below AA" {
+  return ratio >= 4.5 ? "AA" : "Below AA";
 }

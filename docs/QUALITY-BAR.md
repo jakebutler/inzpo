@@ -53,3 +53,43 @@ Judged at 390x844, iOS Safari installed to the home screen. Sign-off = zero bloc
 
 ## What I need per screen
 390px stills of every state, a screen recording from an iPhone for each transition, and the actual duration and easing values from the code.
+
+## Phone
+
+### Phone app (Expo) — additions
+
+Every item below is checked on a real iPhone and a real Android phone, not only the simulator. The web checklist above still applies, except where this section overrides it.
+
+#### Safe areas
+- No tappable element sits in the status bar, Dynamic Island, notch, or home-indicator area. The bottom actions sit at least 8pt above the home indicator inset.
+- The photo can bleed under the status bar, but the back button and pins stay inside the top inset.
+- Bottom sheets add the bottom inset to their content padding, so the last row isn't hidden behind the home indicator.
+- Landscape is locked to portrait, or the side insets are respected.
+
+#### Gestures and touch
+- Every touch target is at least 44×44pt, and adjacent targets have at least 8pt between them.
+- Edge swipe back works on every pushed screen (iOS), and the Android system back closes a sheet before leaving the screen.
+- A sheet closes on a pan down, a backdrop tap, and the system back. The 36×4 grabber is visible.
+- A pin drag never fights the sheet's pan or the edge-back swipe. A drag that starts on a pin moves only the pin.
+- Press feedback shows within 1 frame of touch-down. Nothing waits for touch-up to respond.
+
+#### Haptics
+- They follow the budget in `MOTION-NATIVE.md`: shutter press-in (Light), the last band landing (Soft, once), save success or failure, and loupe ticks only when the sampled color changes.
+- Never on navigation, opening a sheet, or per band. At most one per 300ms, except loupe ticks.
+- Nothing depends on haptics alone. Every haptic event also has a visible change.
+
+#### Reduced motion (`useReducedMotion()`)
+- It follows `MOTION-NATIVE.md`: every translate, scale, or squash becomes a 150ms opacity fade. Bands and stripes appear together, with no hop, flash, breathing, or pupil jiggle. Sheets use the stiffer spring.
+- Haptics stay on, except loupe ticks.
+- Check it with the OS setting on, not a dev flag.
+
+#### Dynamic Type and font scaling
+- At the largest standard size (iOS AX1 or Android 200%), no label is clipped, overlaps, or is truncated without a way to read it in full. Kit names wrap to 2 lines.
+- The hex values and band rows can cap their scaling at 1.3× (`maxFontSizeMultiplier`) to protect the layout. Body copy, buttons, and errors are never capped.
+- Buttons grow taller instead of truncating their labels.
+- VoiceOver and TalkBack read each band as its role name, color name, and hex, and read Baku as decorative.
+
+#### States on the phone
+- Offline or a failed upload shows one line of copy and a retry, with no spinner left running.
+- If camera or photo permission is denied, the screen explains why it's needed and links to Settings. It is never a blank screen.
+- After the app is backgrounded mid-upload and reopened, the result still arrives or a retry shows.

@@ -143,9 +143,10 @@ describe("persistKitTitleFromBrief", () => {
     expect(mocks.set).toHaveBeenCalledWith({ title: "Soft Yellow", updatedAt: expect.any(Date) });
   });
 
-  it("persists a fallback when generatedKitTitle returns null", async () => {
+  it("persists Untitled kit when there are no filled roles", async () => {
     existingTitle(null, []);
-    expect(await persistKitTitleFromBrief("kit", { ...ready, text: null, namedColors: [] })).toBe("Gray");
+    expect(await persistKitTitleFromBrief("kit", { ...ready, text: null, namedColors: [] })).toBe("Untitled kit");
+    expect(mocks.set).toHaveBeenCalledWith({ title: "Untitled kit", updatedAt: expect.any(Date) });
   });
 });
 

@@ -102,8 +102,8 @@ describe("generatedKitTitle", () => {
       expect(generatedKitTitle(input)!.split(/\s+/).length).toBeLessThanOrEqual(2);
       expect(fallbackKitName(input.primaryHex).split(/\s+/).length).toBeLessThanOrEqual(2);
     }
-    expect(fallbackKitName(null)).toBe("Gray");
-    expect(fallbackKitName("invalid")).toBe("Gray");
+    expect(fallbackKitName(null)).toBe("Untitled kit");
+    expect(fallbackKitName("invalid")).toBe("Untitled kit");
     expect(generatedKitTitle({ subject: "victorian house" })).toBeNull();
   });
 
@@ -164,7 +164,7 @@ describe("persisted kit names", () => {
     expect(generatedKitTitle(input)).toBe("Soft Yellow");
     expect(kitDisplayName({ ...input, title: null })).toBe("Soft Yellow");
     expect(kitDisplayName({ ...input, title: UNTITLED_KIT })).toBe("Soft Yellow");
-    expect(kitDisplayName({})).toBe("Gray");
+    expect(kitDisplayName({})).toBe("Untitled kit");
   });
 
   it("wires the saved header, Wall and collection cards, and photo to the persisted title", () => {

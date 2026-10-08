@@ -32,7 +32,7 @@ export function SavedKitHeader({
       >
         <ChevronLeft className="h-6 w-6" strokeWidth={2} aria-hidden />
       </Link>
-      <h1 className="font-heading min-w-0 flex-1 whitespace-normal break-words text-balance text-[22px] leading-7">{name || <span data-title-skeleton aria-hidden="true" className="block h-3 w-32 rounded bg-current opacity-10" />}</h1>
+      <h1 className="font-heading min-w-0 flex-1 whitespace-normal break-words text-balance text-[22px] leading-7">{name || <span data-title-pending className="opacity-60">Naming it…</span>}</h1>
       {itemId ? <div className="shrink-0"><ExportKitButton itemId={itemId} /></div> : null}
     </header>
   );

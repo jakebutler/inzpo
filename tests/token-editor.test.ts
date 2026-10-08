@@ -97,11 +97,11 @@ describe("token editor with real and empty roles", () => {
     await render(colors, "text", true);
     const sample = () => document.querySelector<HTMLElement>("[data-contrast-sample]")!;
     expect(sample().style.color).toBe("#384a5d");
-    expect(document.querySelector("[data-contrast-line]")!.textContent).toContain("3.8:1failFix");
+    expect(document.querySelector("[data-contrast-line]")!.textContent).toContain("3.8:1Below AAFix");
     await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Fix text contrast"]')!.click());
     expect(saved()).toMatchObject({ roles: { text: "#252525" }, origins: { text: "fix" }, pins: { text: { pinX: 0.4, pinY: 0.6 } } });
     expect(sample().style.color).toBe("#252525");
-    expect(document.querySelector("[data-contrast-line]")!.textContent).toContain("AA pass");
+    expect(document.querySelector("[data-contrast-line]")!.textContent).toContain("AA");
     expect(document.querySelector('[aria-label="Fix text contrast"]')).toBeNull();
     expect(control((p) => p.id === "token-hex").props.value).toBe("#252525");
     await act(async () => control((p) => p.children === "Undo").props.onClick());
