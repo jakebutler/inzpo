@@ -20,6 +20,7 @@ import {
   VERMILION,
 } from "../lib/brand.ts";
 import { FOLD_BRIEFS } from "../lib/fold-briefs.ts";
+import { BRIEF_REQUEST } from "../lib/brief-request.ts";
 import { BAKU_CROSSFADE_MS } from "../lib/baku-v6.ts";
 
 const ARTIFACTS = "/opt/cursor/artifacts";
@@ -154,10 +155,13 @@ function motionTxt(): string {
       `paper ${PAPER} ink ${INK} vermilion ${VERMILION}`,
       `fonts Fraunces / Geist / Geist Mono via next/font`,
       `brief model ${FOLD_BRIEFS.IMG_6505.model}`,
-      `IMG_6505 brief latency ${FOLD_BRIEFS.IMG_6505.latencyMs ?? "n/a"}ms`,
-      `IMG_6208 brief latency ${FOLD_BRIEFS.IMG_6208.latencyMs ?? "n/a"}ms`,
+      `brief timeout ${BRIEF_REQUEST.timeoutMs}ms max_tokens ${BRIEF_REQUEST.maxTokens} reasoning_effort ${BRIEF_REQUEST.reasoningEffort}`,
+      `IMG_6505 brief latency ${FOLD_BRIEFS.IMG_6505.latencyMs ?? "n/a"}ms outputTokens ${FOLD_BRIEFS.IMG_6505.outputTokens ?? "n/a"}`,
+      `IMG_6208 brief latency ${FOLD_BRIEFS.IMG_6208.latencyMs ?? "n/a"}ms outputTokens ${FOLD_BRIEFS.IMG_6208.outputTokens ?? "n/a"}`,
+      `IMG_5859 brief latency ${FOLD_BRIEFS.IMG_5859.latencyMs ?? "n/a"}ms outputTokens ${FOLD_BRIEFS.IMG_5859.outputTokens ?? "n/a"}`,
       `IMG_6505 brief ${JSON.stringify(FOLD_BRIEFS.IMG_6505.text)}`,
       `IMG_6208 brief ${JSON.stringify(FOLD_BRIEFS.IMG_6208.text)}`,
+      `IMG_5859 brief ${JSON.stringify(FOLD_BRIEFS.IMG_5859.text)}`,
     ].join("\n") + "\n"
   );
 }

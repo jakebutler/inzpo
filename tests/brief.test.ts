@@ -1,8 +1,12 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { BRIEF_PROMPT } from "@/lib/brief-prompt";
+import { FOLD_BRIEFS } from "@/lib/fold-briefs";
 import { describe, expect, it } from "vitest";
 import {
   BRIEF_MAX_DURATION_S,
+  BRIEF_REQUEST,
+  BriefTimeoutError,
   DEFAULT_BRIEF_MODEL,
   briefModelId,
   briefUserContent,
@@ -39,6 +43,9 @@ describe("brief image payload", () => {
       imageUrl: dataUrl,
     });
     expect(body.model).toBe("glm-5.3-flash");
+    expect(body.reasoning_effort).toBe("low");
+    expect(body.max_tokens).toBe(300);
+    expect(body.response_format).toEqual({ type: "json_object" });
     const user = body.messages.find((m) => m.role === "user");
     expect(Array.isArray(user?.content)).toBe(true);
     expect(JSON.stringify(body)).toContain('"type":"image_url"');
@@ -73,6 +80,30 @@ describe("brief model path", () => {
     expect(result.text).toBe("Blue glass over shade.");
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
   });
+
+  it("turns a hung request into BriefTimeoutError so the job can fail", async () => {
+    await expect(
+      requestBriefCompletion({
+        imageUrl: "data:image/webp;base64,AQID",
+        keptHexes: ["#6b6656"],
+        apiKey: "test-key",
+        timeoutMs: 20,
+        fetchImpl: ((_url, init) =>
+          new Promise((_, reject) => {
+            init?.signal?.addEventListener("abort", () => {
+              const err = new Error("Aborted");
+              err.name = "AbortError";
+              reject(err);
+            });
+          })) as typeof fetch,
+      }),
+    ).rejects.toBeInstanceOf(BriefTimeoutError);
+    expect(BRIEF_REQUEST.timeoutMs).toBe(25_000);
+    expect(BRIEF_REQUEST.maxTokens).toBe(300);
+    expect(BRIEF_REQUEST.reasoningEffort).toBe("low");
+    expect(src("lib/brief.ts")).toContain("BriefTimeoutError");
+    expect(src("lib/brief-request.ts")).toContain("BRIEF_REQUEST");
+  });
 });
 
 describe("brief job lifetime", () => {
@@ -94,5 +125,20 @@ describe("brief job lifetime", () => {
   it("does not write env var names into the stub brief", () => {
     expect(src("lib/brief.ts")).not.toContain("DO_INFERENCE_API_KEY]");
     expect(src("lib/brief.ts")).not.toContain("no DO_INFERENCE");
+  });
+});
+
+describe("brief prompt and v3 fixtures", () => {
+  it("asks for one sentence of at most 12 words", () => {
+    expect(BRIEF_PROMPT).toContain("Write one sentence of at most 12 words: cite photo details, then name the mood.");
+    expect(BRIEF_PROMPT).not.toContain("Lead with cited photo details, then a few adjectives.");
+  });
+
+  it("loads the W12-r1 v3 captures", () => {
+    expect(FOLD_BRIEFS.IMG_6505.latencyMs).toBe(14096);
+    expect(FOLD_BRIEFS.IMG_6208.latencyMs).toBe(5177);
+    expect(FOLD_BRIEFS.IMG_5859.latencyMs).toBe(4430);
+    expect(FOLD_BRIEFS.IMG_6505.outputTokens).toBe(93);
+    expect(FOLD_BRIEFS.IMG_6505.text).toContain("Pale butter-yellow");
   });
 });

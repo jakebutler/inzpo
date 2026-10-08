@@ -1,11 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MASCOT_SIZE_BRIEF_PX, MASCOT_SUCCESS_HOLD_MS, MASCOT_COPY, type MascotKit } from "@/lib/mascot";
+import {
+  MASCOT_SIZE_BRIEF_PX,
+  MASCOT_SUCCESS_HOLD_MS,
+  MASCOT_COPY,
+  type MascotKit,
+  type MascotPose,
+} from "@/lib/mascot";
 import { gatedTextColor } from "@/lib/contrast";
-import { INK, PAPER } from "@/lib/brand";
+import { BRIEF_SLOT_MIN_PX, INK, PAPER } from "@/lib/brand";
+import { displayBriefSlot } from "@/lib/brief-display";
+import { MOTION_CSS } from "@/lib/motion";
 import { Mascot } from "./Mascot";
-import { MascotStage } from "./MascotStage";
 
 export type BriefSlotStatus = "pending" | "ready" | "failed";
 
@@ -30,53 +37,82 @@ export function BriefSlot({
   pageBackground?: string;
   pageInk?: string;
 }) {
-  if (hidden && !saved) return null;
   const ink = gatedTextColor(pageInk, pageBackground, 4.5);
-  const mascot = {
-    kit,
-    size: MASCOT_SIZE_BRIEF_PX,
-    snapReady: false,
-    revealedCount: stripeReveal,
-    ink,
-    faceText: true,
-  } as const;
+  const pose: MascotPose = saved ? "success" : status === "failed" ? "error-brief" : status === "pending" ? "chewing" : "idle";
+  const display = status === "pending" && !saved ? MASCOT_COPY.chewing : status === "failed" && !saved ? MASCOT_COPY["error-brief-retry"] : displayBriefSlot(note);
+  const [shown, setShown] = useState(display);
+  const [opacity, setOpacity] = useState(1);
 
-  if (status === "pending" && !saved) {
+  useEffect(() => {
+    if (display === shown) {
+      setOpacity(1);
+      return;
+    }
+    setOpacity(0);
+    const swap = window.setTimeout(() => {
+      setShown(display);
+      setOpacity(1);
+    }, MOTION_CSS.smallMs);
+    return () => window.clearTimeout(swap);
+  }, [display, shown]);
+
+  if (hidden && !saved) {
     return (
-      <section className="px-5 py-5" aria-label="Brief" style={{ minHeight: MASCOT_SIZE_BRIEF_PX }}>
-        <MascotStage moment="brief" {...mascot} />
+      <section
+        className="px-5 py-4"
+        aria-label="Brief"
+        data-brief-slot
+        style={{ minHeight: BRIEF_SLOT_MIN_PX }}
+      >
+        <div className="flex items-start gap-3">
+          <div style={{ width: MASCOT_SIZE_BRIEF_PX, height: MASCOT_SIZE_BRIEF_PX, flex: "0 0 auto" }}>
+            <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText />
+          </div>
+        </div>
       </section>
     );
   }
+
+  const body = (
+    <div className="flex items-start gap-3">
+      <div style={{ width: MASCOT_SIZE_BRIEF_PX, height: MASCOT_SIZE_BRIEF_PX, flex: "0 0 auto" }}>
+        <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText />
+      </div>
+      <div className="min-w-0 flex-1 pt-0.5">
+        {shown ? (
+          <p
+            className="font-heading line-clamp-3 text-[18px] leading-6"
+            style={{
+              color: ink,
+              display: "-webkit-box",
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+              opacity,
+              transition: `opacity ${MOTION_CSS.smallMs}ms ${MOTION_CSS.easeMove}`,
+            }}
+          >
+            {shown}
+          </p>
+        ) : null}
+        {saved ? <SavedCaption ink={ink} /> : null}
+      </div>
+    </div>
+  );
+
   if (status === "failed" && !saved) {
     return (
-      <section className="px-5 py-5" aria-label="Brief" style={{ minHeight: MASCOT_SIZE_BRIEF_PX }}>
-        <MascotStage moment="error-brief" onRetry={onRetry} {...mascot} />
+      <section className="px-5 py-4" aria-label="Brief" data-brief-slot style={{ minHeight: BRIEF_SLOT_MIN_PX }}>
+        <button type="button" onClick={onRetry} className="block w-full text-left" aria-label={MASCOT_COPY["error-brief-retry"]}>
+          {body}
+        </button>
       </section>
     );
   }
-  if (!note && !saved) return null;
+
   return (
-    <section className="px-5 py-5" aria-label="Brief" style={{ minHeight: MASCOT_SIZE_BRIEF_PX }}>
-      <div className="flex items-start gap-3">
-        <div style={{ width: MASCOT_SIZE_BRIEF_PX, height: MASCOT_SIZE_BRIEF_PX, flex: "0 0 auto" }}>
-          <Mascot
-            pose={saved ? "success" : "chewing"}
-            kit={kit}
-            size={MASCOT_SIZE_BRIEF_PX}
-            revealedCount={stripeReveal}
-            faceText
-          />
-        </div>
-        <div className="min-w-0">
-          {note ? (
-            <p className="font-heading text-[22px] leading-7" style={{ color: ink }}>
-              {note}
-            </p>
-          ) : null}
-          {saved ? <SavedCaption ink={ink} /> : null}
-        </div>
-      </div>
+    <section className="px-5 py-4" aria-label="Brief" data-brief-slot style={{ minHeight: BRIEF_SLOT_MIN_PX }}>
+      {body}
     </section>
   );
 }

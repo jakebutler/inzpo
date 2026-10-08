@@ -1,4 +1,4 @@
-import { hexToFamily } from "@/lib/colors";
+import { hexToFamily, isHexColor, normalizeHex } from "@/lib/colors";
 
 const STREET =
   /\b(street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|highway|hwy|address)\b/i;
@@ -75,22 +75,37 @@ export function chipCopy(label: string | null, hex?: string): string {
   return `Baku spotted ${article} ${clean}. Add it?`;
 }
 
+/** Accept `#rrggbb` or `rrggbb`; drop anything that is not a 6-digit hex after normalize. */
+export function namedColorHex(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!isHexColor(trimmed)) return null;
+  const hex = normalizeHex(trimmed);
+  return /^#[0-9a-f]{6}$/.test(hex) ? hex : null;
+}
+
 export function parseNamedColors(raw: unknown, fallbackHexes: string[] = []): NamedColor[] {
   const out: NamedColor[] = [];
   if (Array.isArray(raw)) {
     for (const entry of raw) {
       if (typeof entry === "string") {
-        out.push({ hex: entry, label: null });
+        const hex = namedColorHex(entry);
+        if (hex) out.push({ hex, label: null });
         continue;
       }
       if (entry && typeof entry === "object" && "hex" in entry && typeof (entry as { hex: unknown }).hex === "string") {
+        const hex = namedColorHex((entry as { hex: string }).hex);
+        if (!hex) continue;
         const row = entry as { hex: string; label?: unknown };
-        out.push({ hex: row.hex, label: sanitizeChipLabel(row.label) });
+        out.push({ hex, label: sanitizeChipLabel(row.label) });
       }
     }
   }
   if (out.length === 0) {
-    for (const hex of fallbackHexes) out.push({ hex, label: null });
+    for (const rawHex of fallbackHexes) {
+      const hex = namedColorHex(rawHex);
+      if (hex) out.push({ hex, label: null });
+    }
   }
   return out;
 }

@@ -26,6 +26,17 @@ describe("chip labels", () => {
     ]);
     expect(parseNamedColors(undefined, ["#abc123"])).toEqual([{ hex: "#abc123", label: null }]);
   });
+
+  it("normalizes a hex missing its hash and drops invalid entries", () => {
+    expect(parseNamedColors([{ hex: "c9c9c4", label: "pale mortar" }])).toEqual([
+      { hex: "#c9c9c4", label: "pale mortar" },
+    ]);
+    expect(parseNamedColors([{ hex: "#C9C9C4", label: "pale mortar" }])).toEqual([
+      { hex: "#c9c9c4", label: "pale mortar" },
+    ]);
+    expect(parseNamedColors([{ hex: "not-a-color", label: "fog" }, { hex: "#gg0000", label: "bad" }])).toEqual([]);
+    expect(parseNamedColors(["c9c9c4", "nope"])).toEqual([{ hex: "#c9c9c4", label: null }]);
+  });
 });
 
 describe("empty role copy", () => {

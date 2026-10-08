@@ -8,6 +8,7 @@ import { itemColors } from "@/lib/db/schema";
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
 import {
   BRIEF_IMAGE_EXPIRES_S,
+  BriefTimeoutError,
   briefModelId,
   bytesToDataUrl,
   requestBriefCompletion,
@@ -143,7 +144,10 @@ export async function runBriefJob(itemId: string): Promise<BriefJob> {
     });
     await writeBriefJob(itemId, ready);
     return ready;
-  } catch {
+  } catch (err) {
+    if (err instanceof BriefTimeoutError) {
+      console.error("brief timed out", itemId);
+    }
     const failed = jobPayload({ status: "failed", text: null, namedColors: [], stub: false });
     await writeBriefJob(itemId, failed);
     return failed;

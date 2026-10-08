@@ -1,5 +1,5 @@
 /** Vision brief prompt. Labels must follow the same address/street/plate ban as the paragraph. */
-export const BRIEF_PROMPT = `You describe colors in a photo for a designer. Lead with cited photo details, then a few adjectives. Do not set palette roles.
+export const BRIEF_PROMPT = `You describe colors in a photo for a designer. Write one sentence of at most 12 words: cite photo details, then name the mood. Do not set palette roles.
 
 Forbidden in the paragraph and in every label: house numbers, street names, addresses, license plates, and any digits that could identify a place or vehicle.
 
