@@ -147,7 +147,8 @@ async function signIn(page: Page): Promise<void> {
 }
 
 async function captureRevealFrames(page: Page, url: string, photoId: string): Promise<void> {
-  await page.goto(url, { waitUntil: "commit", timeout: 60_000 });
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await page.locator("[data-photo-fold]").waitFor({ timeout: 15_000 });
   const marks = [0, 100, 300, 600] as const;
   const start = Date.now();
   for (const ms of marks) {
@@ -167,8 +168,8 @@ async function briefReadyMs(page: Page): Promise<number | null> {
     await page.waitForFunction(
       () => {
         const text = document.querySelector("[data-brief-text]")?.textContent?.trim() ?? "";
-        const pending = /chewing/i.test(document.body.innerText) && text.length === 0;
-        return text.length > 0 || !pending;
+        if (text.length === 0) return false;
+        return !/chewing on it/i.test(text);
       },
       { timeout: 30_000 },
     );
@@ -301,8 +302,8 @@ async function main(): Promise<void> {
         mediaCodes[photo.id] = src ?? "missing";
         check(`${photo.id} media`, false, src ?? "no src");
       }
-      const title = await live.locator("[data-saved-header] h1, [data-kit-wear]").first().textContent();
-      check(`${photo.id} not untitled on result`, !/untitled kit/i.test(title ?? ""), title?.slice(0, 80) ?? "");
+      const alt = await live.locator("[data-photo-fold] img").last().getAttribute("alt");
+      check(`${photo.id} photo alt named`, Boolean(alt && alt !== "Photo" && !/untitled/i.test(alt)), alt ?? "");
     } catch (err) {
       check(`${photo.id} reached result`, false, err instanceof Error ? err.message : String(err));
       mediaCodes[photo.id] = "error";
@@ -335,8 +336,8 @@ async function main(): Promise<void> {
 
   await live.goto(`${BASE}/`, { waitUntil: "load", timeout: 60_000 });
   await shot(live, path.join(ARTIFACTS, "r7_wall_390x844_motion.png"), { waitMs: 400 });
-  const wallText = await live.locator("body").innerText();
-  check("wall untitled", !/untitled kit/i.test(wallText), /untitled kit/i.test(wallText) ? "still Untitled kit" : "named");
+  const untitledCount = await live.getByText("Untitled kit").count();
+  check("wall untitled count", untitledCount === 0, String(untitledCount));
 
   const statePath = path.join(ARTIFACTS, "r7_storage.json");
   await auth.storageState({ path: statePath });
