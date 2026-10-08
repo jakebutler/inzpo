@@ -18,7 +18,7 @@ import { isNoopPinDrag, isNoopPinSample, resolvePinDropPoint, type PinDragPoint,
 import { FIX_ORIGIN, REGION_ORIGIN, sampledColors, SAMPLED_ORIGIN } from "@/lib/derived-roles";
 import { pageChromeColors, textContrastFix, textOnBackgroundContrast } from "@/lib/contrast";
 import { kitWearStyle } from "@/lib/kit-wear";
-import { pointerOnCoverBox, type CoverWindow } from "@/lib/cover-pin";
+import { coverPinPlacement, photoBackZone, pointerOnCoverBox, type CoverWindow } from "@/lib/cover-pin";
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { chipCopy, chipNoun, EMPTY_ROLE_COPY, type NamedColor } from "@/lib/brief-copy";
@@ -318,10 +318,14 @@ export function TokenEditor({
       setLoupe({ x: photoBox.w / 2, y: photoBox.h / 2, hex });
       return;
     }
-    const left = ((pin.pinX - crop.vx) / crop.vw) * photoBox.w;
-    const top = ((pin.pinY - crop.vy) / crop.vh) * photoBox.h;
-    setLoupe({ x: left, y: top, hex });
-  }, [simulateLoupe, open, crop, photoBox, imageSize, pins, roles]);
+    const surface = photoRef?.current?.closest<HTMLElement>("[data-photo-fold]");
+    const safeTop = surface?.querySelector<HTMLElement>("[data-safe-top]");
+    const safeTopPx = safeTop ? Number.parseFloat(getComputedStyle(safeTop).paddingTop) || 0 : 0;
+    const avoid = surface?.querySelector("[data-photo-back]") ? photoBackZone(safeTopPx) : null;
+    const placement = coverPinPlacement(pin.pinX, pin.pinY, imageSize.width, imageSize.height,
+      photoBox.w, photoBox.h, crop, avoid);
+    if (placement) setLoupe({ ...placement.disc, hex });
+  }, [simulateLoupe, open, crop, photoBox, imageSize, photoRef, pins, roles]);
 
   const reduced = prefersReducedMotion();
   const { background: editorBackground, ink: editorInk } = showContrast

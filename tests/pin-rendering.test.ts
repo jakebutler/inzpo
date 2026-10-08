@@ -81,7 +81,7 @@ describe.each([null, "primary"] as const)("true pin drawing (open role: %s)", (o
   });
 });
 
-it("freezes the editing crop, hides a pin moved outside it, and reveals its displaced disc on close", async () => {
+it("freezes the editing crop and keeps an off-crop pin visible before and after closing", async () => {
   const { window, document } = parseHTML("<html><body><div id='root'></div></body></html>");
   window.matchMedia = vi.fn().mockReturnValue({ matches: false });
   vi.stubGlobal("window", window);
@@ -122,13 +122,19 @@ it("freezes the editing crop, hides a pin moved outside it, and reveals its disp
     ]));
     expect(editor.props!.crop).toEqual(frozenCrop);
     expect(image.style.objectPosition).toBe(frozenPosition);
-    expect(document.querySelector('[data-pin="primary"]')).toBeNull();
-    expect(document.querySelector('[data-pin-hit="primary"]')).toBeNull();
+    const offcropDisc = document.querySelector<HTMLElement>('[data-pin="primary"]')!;
+    expect(offcropDisc.getAttribute("data-pin-displaced")).toBe("true");
+    expect(offcropDisc.getAttribute("data-pin-offcrop")).toBe("true");
+    expect(offcropDisc.dataset.pinY).toBe("0.005");
+    expect(parseFloat(offcropDisc.style.top)).toBe(11 + PIN_DISC_RADIUS_PX);
+    expect(document.querySelector<HTMLElement>('[data-pin-hit="primary"]')!.style.top).toBe(offcropDisc.style.top);
+    expect(Number(document.querySelector('[data-pin-tick="primary"]')!.getAttribute("y2"))).toBeCloseTo(0);
     await act(async () => editor.props!.onOpenChange!(null));
     expect(image.style.objectPosition).not.toBe(frozenPosition);
     const disc = document.querySelector<HTMLElement>('[data-pin="primary"]')!;
     expect(parseFloat(disc.style.top)).toBe(11 + PIN_DISC_RADIUS_PX);
-    expect(disc.dataset.pinDisplaced).toBe("true");
+    expect(disc.getAttribute("data-pin-displaced")).toBe("true");
+    expect(disc.hasAttribute("data-pin-offcrop")).toBe(false);
     expect(disc.dataset.pinY).toBe("0.005");
   } finally {
     await act(async () => root.unmount());

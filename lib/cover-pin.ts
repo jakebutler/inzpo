@@ -103,12 +103,41 @@ function insideZone(x: number, y: number, zone: PinExclusion): boolean {
 export function pinPlacement(x: number, y: number, boxW: number, boxH: number, avoid?: PinExclusion | null) {
   const disc = clampPinCenter(x, y, boxW, boxH, avoid);
   const displaced = disc.x !== x || disc.y !== y;
+  const offcrop = x < 0 || x > boxW || y < 0 || y > boxH;
+  // Stop off-crop ticks at the photo boundary along the ray to the TRUE point.
+  // The inset leaves at least 11px exposed beyond the disc's ink ring.
+  const dx = x - disc.x;
+  const dy = y - disc.y;
+  const t = offcrop ? Math.min(1,
+    dx < 0 ? -disc.x / dx : dx > 0 ? (boxW - disc.x) / dx : Infinity,
+    dy < 0 ? -disc.y / dy : dy > 0 ? (boxH - disc.y) / dy : Infinity,
+  ) : 1;
   return {
     disc,
     hit: disc,
     displaced,
-    tick: displaced ? { x1: disc.x, y1: disc.y, x2: x, y2: y } satisfies Hairline : null,
+    offcrop,
+    tick: displaced ? {
+      x1: disc.x, y1: disc.y,
+      x2: offcrop ? disc.x + dx * t : x,
+      y2: offcrop ? disc.y + dy * t : y,
+    } satisfies Hairline : null,
   };
+}
+
+/** Place every stored sample visibly, without changing its source coordinates. */
+export function coverPinPlacement(
+  pinX: number,
+  pinY: number,
+  imageW: number,
+  imageH: number,
+  boxW: number,
+  boxH: number,
+  win?: CoverWindow | null,
+  avoid?: PinExclusion | null,
+) {
+  const mapped = mapCoverPinRaw(pinX, pinY, imageW, imageH, boxW, boxH, win);
+  return mapped ? pinPlacement(mapped.left * boxW, mapped.top * boxH, boxW, boxH, avoid) : null;
 }
 
 /** Map a 0–1 source pin onto an object-fit: cover box. Null if the pin was cropped away. */

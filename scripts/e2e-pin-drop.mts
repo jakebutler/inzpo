@@ -30,7 +30,12 @@ type Row = {
   before?: Saved; saved?: Saved; frame?: Frame; drawnAfterDrop?: Point;
   events?: PinEvent[]; actionStatuses?: number[];
 };
+type PinCountRow = {
+  photo: string; viewport: string; surface: "result" | "editor";
+  filledRoles: number | null; visiblePins: number | null; pass: boolean; failures: string[];
+};
 const rows: Row[] = [];
+const pinCounts: PinCountRow[] = [];
 const itemUrls: Partial<Record<Input, Record<string, string>>> = {};
 const setupFailures: string[] = [];
 
@@ -57,11 +62,20 @@ function table() {
     ...rows.map(r => `| ${r.photo} | ${r.input} | ${r.role} / ${r.drop} ${r.kind} | ${pair(r.releaseCss)} | ${pair(r.releaseSource)} | ${pair(r.savedSource)} | ${r.savedHex ?? "unavailable"} | ${r.sourcePixelHex ?? "unavailable"} | ${r.pass ? "PASS" : "FAIL"} |`),
   ].join("\n");
 }
+function pinCountTable() {
+  return [
+    "| Photo | Viewport | Surface | Filled roles | Visible pins | Result |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...pinCounts.map(r => `| ${r.photo} | ${r.viewport} | ${r.surface} | ${r.filledRoles ?? "unavailable"} | ${r.visiblePins ?? "unavailable"} | ${r.pass ? "PASS" : "FAIL"} |`),
+  ].join("\n");
+}
 async function writeResults() {
-  await writeFile(path.join(OUT, "r8_pin-drop.json"), JSON.stringify({ base: BASE, itemUrls, rows, setupFailures }, null, 2) + "\n");
-  await writeFile(path.join(OUT, "r8_pin-drop.md"), table() + "\n\n" +
+  await writeFile(path.join(OUT, "r8_pin-drop.json"), JSON.stringify({ base: BASE, itemUrls, rows, pinCounts, setupFailures }, null, 2) + "\n");
+  await writeFile(path.join(OUT, "r8_pin-drop.md"), table() + "\n\n## Pin count\n\n" + pinCountTable() + "\n\n" +
     "Source positions are checked using the crop visible BEFORE the drop. The pin disc is also checked before closing the editor; edge-zone discs must be inset with a tick to the true sample, and subsequent same-spot and move drops start from that displaced disc. Closing can pan the crop; reload must preserve the sampled source pixel. Same-spot drops preserve the previous values and send no save action.\n\n" +
-    [...setupFailures, ...rows.flatMap(r => r.failures.map(f => `${r.photo} ${r.input} drop ${r.drop}: ${f}`))].map(f => `- ${f}`).join("\n") + "\n");
+    [...setupFailures, ...rows.flatMap(r => r.failures.map(f => `${r.photo} ${r.input} drop ${r.drop}: ${f}`)),
+      ...pinCounts.flatMap(r => r.failures.map(f => `${r.photo} ${r.viewport} ${r.surface} pin count: ${f}`)),
+    ].map(f => `- ${f}`).join("\n") + "\n");
 }
 
 async function signIn(page: Page) {
@@ -86,6 +100,69 @@ async function ready(page: Page) {
   });
   await page.evaluate(() => document.fonts.ready);
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
+}
+
+async function runPinCounts(page: Page, photo: string) {
+  const originalViewport = page.viewportSize()!;
+  try {
+    for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }]) {
+      for (const surface of ["result", "editor"] as const) {
+        const row: PinCountRow = { photo, viewport: `${viewport.width}x${viewport.height}`, surface,
+          filledRoles: null, visiblePins: null, pass: false, failures: [] };
+        pinCounts.push(row);
+        try {
+          await page.setViewportSize(viewport);
+          await ready(page);
+          if (surface === "editor") {
+            await page.locator('[data-band-stack] [data-role][data-hex]:not([data-hex=""])').first().click();
+            await page.locator("#token-hex").waitFor({ state: "visible" });
+          }
+          // Allow the measured photo box and sheet transition to settle.
+          await page.waitForTimeout(250);
+          const counts = await page.evaluate(() => {
+            const photo = document.querySelector<HTMLElement>("[data-photo-fold]");
+            if (!photo) throw new Error("Photo box missing");
+            const box = photo.getBoundingClientRect();
+            const bands = Array.from(document.querySelectorAll<HTMLElement>("[data-band-stack] [data-role]"));
+            const filledRoles = bands.filter(band => /^#[0-9a-f]{6}$/i.test(
+              (band.dataset.hex ?? band.querySelector("[data-swatch-hex]")?.textContent ?? "").trim(),
+            )).length;
+            const visiblePins = Array.from(photo.querySelectorAll<HTMLElement>("[data-pin]")).filter(pin => {
+              const rect = pin.getBoundingClientRect();
+              return pin.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) &&
+                rect.width > 0 && rect.height > 0 &&
+                rect.left >= box.left && rect.top >= box.top && rect.right <= box.right && rect.bottom <= box.bottom;
+            }).length;
+            return { filledRoles, visiblePins };
+          });
+          Object.assign(row, counts);
+          if (counts.visiblePins !== counts.filledRoles) {
+            row.failures.push(`Expected ${counts.filledRoles} visible pins, got ${counts.visiblePins}`);
+          }
+        } catch (error) {
+          row.failures.push(error instanceof Error ? error.message.split("\n")[0]! : String(error));
+        } finally {
+          if (surface === "editor") {
+            try {
+              if (await page.locator("#token-hex").isVisible()) {
+                await page.locator('[role="dialog"] [data-slot="sheet-close"]').click();
+                await page.locator("#token-hex").waitFor({ state: "hidden" });
+              }
+            } catch (error) {
+              row.failures.push(error instanceof Error ? error.message.split("\n")[0]! : String(error));
+              await page.reload({ waitUntil: "load" }).catch(() => undefined);
+            }
+          }
+          row.pass = row.failures.length === 0;
+          console.log(pinCountTable().split("\n").at(-1));
+          await writeResults();
+        }
+      }
+    }
+  } finally {
+    await page.setViewportSize(originalViewport);
+    await ready(page);
+  }
 }
 
 async function readSaved(page: Page, role: string): Promise<Saved> {
@@ -345,6 +422,9 @@ async function main() {
             }
             itemUrls[input]![photo] = page.url();
             await ready(page);
+            // Count the original samples before any of the existing 42 drops.
+            // Reuse this page/context for both viewports to keep memory bounded.
+            if (input === "mouse") await runPinCounts(page, photo);
             const role = await page.locator("[data-pin]").first().getAttribute("data-pin");
             if (!role) throw new Error("Photo has no role with a pin");
             for (let n = 1; n <= 7; n++) await runDrop(page, cdp, photo, input, role, n);
@@ -363,8 +443,9 @@ async function main() {
     await browser.close();
   }
   const failed = rows.filter(r => !r.pass).length;
-  console.log(`${rows.length - failed}/${rows.length} drops passed; ${setupFailures.length} setup failures. Reports: ${OUT}/r8_pin-drop.{json,md}`);
-  if (failed || setupFailures.length || rows.length !== 42) process.exitCode = 1;
+  const pinCountFailed = pinCounts.filter(r => !r.pass).length;
+  console.log(`${rows.length - failed}/${rows.length} drops passed; ${pinCounts.length - pinCountFailed}/${pinCounts.length} pin counts passed; ${setupFailures.length} setup failures. Reports: ${OUT}/r8_pin-drop.{json,md}`);
+  if (failed || pinCountFailed || setupFailures.length || rows.length !== 42 || pinCounts.length !== 12) process.exitCode = 1;
 }
 
 main().catch(async error => {

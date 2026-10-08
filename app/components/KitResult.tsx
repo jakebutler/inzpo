@@ -13,7 +13,7 @@ import { kitFromColors } from "@/lib/mascot";
 import { MOTION, MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { rolesFromColors } from "@/lib/tokens";
-import { coverWindowForPins, mapCoverPin, objectPositionCss, photoBackZone, pinPlacement, PIN_HIT_SIZE_PX } from "@/lib/cover-pin";
+import { coverWindowForPins, coverPinPlacement, objectPositionCss, photoBackZone, PIN_HIT_SIZE_PX } from "@/lib/cover-pin";
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
 import { useKitDisplayName } from "./useKitDisplayName";
 import { SavedKitHeader } from "./SavedKitHeader";
@@ -185,11 +185,11 @@ export function KitResult({
   const backZone = showBack && !saved && backHref ? photoBackZone(safeTop) : null;
   const drawnPins = displayColors.flatMap((color) => {
     if (!color.role || color.pinX == null || color.pinY == null) return [];
-    const mapped = mapCoverPin(color.pinX, color.pinY, width, height, box.w, box.h, crop);
-    if (!mapped) return [];
+    const placed = coverPinPlacement(color.pinX, color.pinY, width, height, box.w, box.h, crop, backZone);
+    if (!placed) return [];
     const placement = dragPin?.role === color.role
-      ? { disc: dragPin, hit: dragPin, displaced: false, tick: null }
-      : pinPlacement(mapped.left * box.w, mapped.top * box.h, box.w, box.h, backZone);
+      ? { disc: dragPin, hit: dragPin, displaced: false, offcrop: false, tick: null }
+      : placed;
     return [{ color, ...placement }];
   });
   // The reveal ticker keeps its callback for the life of the photo. Read the
@@ -532,12 +532,13 @@ export function KitResult({
           </svg>
           {showBack && !saved ? <PhotoBackButton href={backHref} /> : null}
           <div className="pointer-events-none absolute inset-0 overflow-visible">
-            {drawnPins.map(({ color: c, disc, hit, displaced }) => {
+            {drawnPins.map(({ color: c, disc, hit, displaced, offcrop }) => {
               return (
                 <Fragment key={`${c.role}-${c.position}`}>
                   <span
                     data-pin={c.role}
                     data-pin-displaced={displaced ? "true" : undefined}
+                    data-pin-offcrop={offcrop ? "true" : undefined}
                     data-pin-x={c.pinX}
                     data-pin-y={c.pinY}
                     data-origin={c.origin ?? "extracted"}
