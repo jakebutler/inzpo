@@ -9,6 +9,25 @@ const STREET =
   /\b(street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|highway|hwy|address)\b/i;
 const COLOR_WORDS =
   /\b(red|orange|yellow|gold|green|teal|blue|purple|pink|brown|black|white|gray|grey|cream|beige)\b/i;
+const COLOR_NAMES: Record<string, string[]> = {
+  red: ["red", "crimson", "scarlet", "ruby"],
+  orange: ["orange", "tangerine", "apricot", "amber", "rust"],
+  yellow: ["yellow", "mustard", "canary", "gold"],
+  blue: ["blue", "navy", "cobalt", "azure", "indigo"],
+  green: ["green", "sage", "olive", "emerald"],
+  teal: ["teal", "turquoise", "aqua", "cyan"],
+  purple: ["purple", "violet", "lavender", "lilac", "plum", "mauve", "amethyst"],
+  pink: ["pink", "rose", "blush", "coral", "fuchsia", "magenta"],
+  brown: ["brown", "chocolate", "chestnut", "sepia"],
+  cream: ["cream", "beige", "ivory", "ecru"],
+  gray: ["gray", "grey", "silver", "slate", "charcoal", "ash", "graphite"],
+  black: ["black", "ebony", "onyx", "jet"],
+  white: ["white", "alabaster"],
+};
+
+function colorFamily(word: string): string | undefined {
+  return Object.keys(COLOR_NAMES).find((family) => COLOR_NAMES[family].includes(word));
+}
 const STOPWORDS = new Set([
   "the",
   "a",
@@ -36,13 +55,6 @@ export function isCameraFilename(filename: string | null | undefined): boolean {
   return CAMERA_FILE.test(base);
 }
 
-function looksLikeDeviceTitle(title: string): boolean {
-  const trimmed = title.trim();
-  if (CAMERA_FILE.test(trimmed)) return true;
-  if (/^img[\s_-]*\d+/i.test(trimmed)) return true;
-  return false;
-}
-
 function titleCase(value: string): string {
   return value
     .split(/\s+/)
@@ -61,14 +73,16 @@ function colorWordFrom(namedColors: NamedColor[] | undefined): string | null {
   return family;
 }
 
-function subjectFromBrief(briefText: string | null | undefined): string | null {
+function subjectFromBrief(briefText: string | null | undefined, color: string | null): string | null {
   if (!briefText) return null;
   const cleaned = briefText.replace(/[^\p{L}\s]/gu, " ").replace(/\s+/g, " ").trim();
   if (!cleaned) return null;
+  const family = color ? colorFamily(color) : null;
   const words = cleaned.split(" ").filter(
     (word) =>
       word.length > 2 &&
-      !COLOR_WORDS.test(word) &&
+      (!COLOR_WORDS.test(word) ||
+        (word.toLowerCase() !== color && colorFamily(word.toLowerCase()) === family)) &&
       !STREET.test(word) &&
       !STOPWORDS.has(word.toLowerCase()),
   );
@@ -93,16 +107,9 @@ export function kitDisplayName(input: {
   namedColors?: NamedColor[];
   pending?: boolean;
 }): string {
-  if (input.pending) return UNTITLED_KIT;
   const title = input.title?.trim() ?? "";
-  if (title && !looksLikeDeviceTitle(title) && !/\d/.test(title) && !STREET.test(title)) {
-    return title;
-  }
-  const color = colorWordFrom(input.namedColors);
-  const subject = subjectFromBrief(input.briefText) ?? subjectFromChips(input.namedColors);
-  if (color && subject && subject !== color) return titleCase(`${color} ${subject}`);
-  if (subject) return titleCase(subject);
-  return UNTITLED_KIT;
+  // Display only the persisted title, even while a brief is loading or retrying.
+  return title && !isCameraFilename(title) ? title : UNTITLED_KIT;
 }
 
 export function generatedKitTitle(input: {
@@ -110,20 +117,23 @@ export function generatedKitTitle(input: {
   briefText?: string | null;
   namedColors?: NamedColor[];
 }): string | null {
-  const name = kitDisplayName({ ...input, pending: false });
-  if (!name || name === UNTITLED_KIT) return null;
-  return name;
+  const existing = kitDisplayName({ title: input.title });
+  if (existing !== UNTITLED_KIT) return existing;
+  const color = colorWordFrom(input.namedColors);
+  const subject = subjectFromBrief(input.briefText, color) ?? subjectFromChips(input.namedColors);
+  const words = [...new Set(subject?.split(/\s+/).filter(Boolean) ?? [])];
+  if (color && !words.some((word) => colorFamily(word) === colorFamily(color))) {
+    words.push(color);
+  }
+  return words.length ? titleCase(words.join(" ")) : null;
 }
 
-/** Short photo alt from the kit name; never a camera filename or Untitled kit. */
+/** Photo alt uses the same persisted title as the visible kit name. */
 export function kitAltText(input: {
   title?: string | null;
   briefText?: string | null;
   namedColors?: NamedColor[];
   pending?: boolean;
 }): string {
-  if (input.pending) return "Photo";
-  const name = kitDisplayName({ ...input, pending: false });
-  if (name === UNTITLED_KIT) return "Photo";
-  return name;
+  return kitDisplayName(input);
 }

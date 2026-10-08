@@ -15,7 +15,7 @@ import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { rolesFromColors } from "@/lib/tokens";
 import { clampPinCenter, coverWindowForPins, mapCoverPinRaw, objectPositionCss } from "@/lib/cover-pin";
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
-import { kitAltText, kitDisplayName } from "@/lib/kit-name";
+import { kitDisplayName } from "@/lib/kit-name";
 import { SAVE_BAR_PAD } from "@/lib/layout";
 import { kitWearStyle } from "@/lib/kit-wear";
 import { claimRevealPlay, type RevealMode } from "@/lib/reveal";
@@ -172,12 +172,7 @@ export function KitResult({
   const reduced = prefersReducedMotion();
   const pageBg = roles.background ?? PAPER;
   const pageInk = roles.text ?? INK;
-  const displayTitle = kitDisplayName({
-    title,
-    briefText: brief.text,
-    namedColors: brief.namedColors,
-    pending: brief.status === "pending" || brief.stub,
-  });
+  const displayTitle = kitDisplayName({ title });
   const crop = useMemo(() => {
     // Keep the photo under the user's pointer fixed throughout the edit session.
     // Recompute for a resized box, but do not pan in response to a sampled pin.
@@ -225,6 +220,7 @@ export function KitResult({
       const res = await fetch(`/api/briefs/${itemId}`, { cache: "no-store" });
       if (!res.ok || !alive) return;
       const job = (await res.json()) as {
+        title?: string | null;
         status: BriefSlotStatus;
         text: string | null;
         namedHexes?: string[];
@@ -237,6 +233,7 @@ export function KitResult({
         namedColors: parseNamedColors(job.namedColors, job.namedHexes ?? []),
         stub: job.stub === true,
       });
+      if (job.title && job.title !== title) router.refresh();
       if (job.status === "pending") {
         if (!kicked.current) {
           kicked.current = true;
@@ -249,7 +246,7 @@ export function KitResult({
     return () => {
       alive = false;
     };
-  }, [itemId, preview]);
+  }, [itemId, preview, router, title]);
 
   function syncHairlines() {
     const stage = stageRef.current;
@@ -456,12 +453,7 @@ export function KitResult({
             <img
               ref={imgRef}
               src={imageSrc}
-              alt={kitAltText({
-                title,
-                briefText: brief.text,
-                namedColors: brief.namedColors,
-                pending: brief.status === "pending" || brief.stub,
-              })}
+              alt={displayTitle}
               className="relative h-full w-full object-cover"
               style={{
                 filter: "none",
@@ -601,6 +593,7 @@ export function KitResult({
                 return;
               }
               const job = (await res.json()) as {
+                title?: string | null;
                 status: BriefSlotStatus;
                 text: string | null;
                 namedHexes?: string[];
@@ -613,6 +606,7 @@ export function KitResult({
                 namedColors: parseNamedColors(job.namedColors, job.namedHexes ?? []),
                 stub: job.stub === true,
               });
+              if (job.title && job.title !== title) router.refresh();
             });
           }}
         />

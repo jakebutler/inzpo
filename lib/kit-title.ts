@@ -23,11 +23,11 @@ function shouldKeepExistingTitle(title: string | null | undefined): boolean {
 export async function persistKitTitleFromBrief(itemId: string, job: BriefTitleSource): Promise<string | null> {
   if (typeof itemId !== "string" || itemId.length === 0) return null;
   if (job.status !== "ready" || job.stub) return null;
-  const name = generatedKitTitle({ briefText: job.text, namedColors: job.namedColors });
-  if (!name) return null;
   const rows = await db.select({ title: items.title }).from(items).where(eq(items.id, itemId)).limit(1);
   const current = rows[0]?.title ?? null;
   if (shouldKeepExistingTitle(current)) return current!.trim();
+  const name = generatedKitTitle({ briefText: job.text, namedColors: job.namedColors });
+  if (!name) return null;
   if (current?.trim() === name) return name;
   await db.update(items).set({ title: name, updatedAt: new Date() }).where(eq(items.id, itemId));
   return name;
