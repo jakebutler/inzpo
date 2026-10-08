@@ -161,23 +161,28 @@ export function BakuSprite({
       <div ref={squashRef} className="relative h-full w-full">
         {showPng ? (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={src}
-              alt=""
-              width={size}
-              height={size}
+            {/* Blend the wrapper, not the img: WebKit skips mix-blend-mode on transformed replaced elements. */}
+            <div
               data-baku-shadow
-              className="pointer-events-none absolute inset-0 block h-full w-full"
-              style={{
-                mixBlendMode: "multiply",
-                clipPath: shadowClip,
-                transform: flip,
-                transformOrigin: "50% 100%",
-              }}
-              draggable={false}
-              onError={failPng}
-            />
+              className="pointer-events-none absolute inset-0"
+              style={{ mixBlendMode: "multiply" }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src}
+                alt=""
+                width={size}
+                height={size}
+                className="block h-full w-full"
+                style={{
+                  clipPath: shadowClip,
+                  transform: flip,
+                  transformOrigin: "50% 100%",
+                }}
+                draggable={false}
+                onError={failPng}
+              />
+            </div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={bodyRef}

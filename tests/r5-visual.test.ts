@@ -203,6 +203,7 @@ describe("r5 shots", () => {
     expect(shots).toContain("/_next/static");
     expect(shots).toContain("__next_error__");
     expect(shots).toContain("documentStatus");
+    expect(shots).toContain("clip:");
     expect(shots).toContain("empty-collection");
     expect(shots).toContain('state: "pending"');
     expect(shots).toContain("arrived_");
@@ -246,6 +247,7 @@ describe("r5 baku v6 art", () => {
     expect(sprite).toContain("BAKU_SHADOW_CLIP_PCT");
     expect(sprite).toContain('const flip = faceText && showPng ? "scaleX(-1)" : undefined');
     expect(sprite).not.toMatch(/data-baku-sprite[\s\S]{0,400}transform: faceText && showPng/);
+    expect(sprite).toMatch(/data-baku-shadow[\s\S]{0,200}mixBlendMode: "multiply"/);
     expect(sprite).not.toMatch(/probe\(/);
     expect(src("app/components/mascot.css")).not.toMatch(/width:\s*48px/);
   });

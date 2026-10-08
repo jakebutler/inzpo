@@ -412,10 +412,19 @@ async function main(): Promise<void> {
       await page.waitForTimeout(200);
       const box = await page.locator("[data-baku-sprite]").boundingBox();
       widths.push(`${shot.photo} baku ${box ? `${box.width}x${box.height}` : "missing"}`);
-      await page.locator("[data-brief-slot]").screenshot({
-        path: path.join(ARTIFACTS, shot.name),
-        animations: "allow",
-      });
+      const slot = await page.locator("[data-brief-slot]").boundingBox();
+      if (slot) {
+        await page.screenshot({
+          path: path.join(ARTIFACTS, shot.name),
+          animations: "allow",
+          clip: { x: slot.x, y: slot.y, width: slot.width, height: slot.height },
+        });
+      } else {
+        await page.locator("[data-brief-slot]").screenshot({
+          path: path.join(ARTIFACTS, shot.name),
+          animations: "allow",
+        });
+      }
       await page.close();
     }
     await writeFile(path.join(ARTIFACTS, "r5_baku_width.txt"), `${widths.join("\n")}\n`);
