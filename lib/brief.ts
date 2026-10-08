@@ -1,11 +1,17 @@
 import { eq } from "drizzle-orm";
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import { r2, briefKey } from "@/lib/r2";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { r2, briefKey, variantKey } from "@/lib/r2";
 import { assertItemOwned } from "@/lib/auth/owner";
 import { db } from "@/lib/db";
 import { itemColors } from "@/lib/db/schema";
-import { BRIEF_PROMPT } from "@/lib/brief-prompt";
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
+import {
+  BRIEF_IMAGE_EXPIRES_S,
+  briefModelId,
+  buildBriefChatBody,
+  bytesToDataUrl,
+} from "@/lib/brief-request";
 
 export type BriefStatus = "pending" | "ready" | "failed";
 
@@ -72,6 +78,30 @@ async function filledHexes(itemId: string): Promise<Set<string>> {
   return new Set(rows.map((r) => r.hex.toLowerCase()));
 }
 
+/** w640 as a data URL, or a short-lived signed GET if the object cannot be read into memory. */
+export async function w640ImageUrl(itemId: string): Promise<string | null> {
+  if (typeof itemId !== "string" || itemId.length === 0) return null;
+  const bucket = process.env.R2_BUCKET;
+  if (!bucket) return null;
+  const key = variantKey(itemId, "w640");
+  try {
+    const result = await r2().send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    const body = result.Body;
+    if (!body) throw new Error("empty object");
+    const bytes = await body.transformToByteArray();
+    const mime = result.ContentType?.startsWith("image/") ? result.ContentType : "image/webp";
+    return bytesToDataUrl(bytes, mime);
+  } catch {
+    try {
+      return await getSignedUrl(r2(), new GetObjectCommand({ Bucket: bucket, Key: key }), {
+        expiresIn: BRIEF_IMAGE_EXPIRES_S,
+      });
+    } catch {
+      return null;
+    }
+  }
+}
+
 function stubJob(filled: Set<string>): BriefJob {
   const dropped: NamedColor[] = [];
   const candidate = { hex: "#e8c36a", label: "yellow door" };
@@ -88,7 +118,7 @@ function stubJob(filled: Set<string>): BriefJob {
 export async function runBriefJob(itemId: string): Promise<BriefJob> {
   const key = process.env.DO_INFERENCE_API_KEY;
   const base = process.env.DO_INFERENCE_BASE_URL ?? "https://inference.do-ai.run/v1";
-  const model = process.env.BRIEF_MODEL ?? process.env.BRIEF_MODEL_URL ?? "openai/glm-5.3-flash";
+  const model = briefModelId();
   const filled = await filledHexes(itemId).catch(() => new Set<string>());
   if (!key) {
     const stub = stubJob(filled);
@@ -96,20 +126,21 @@ export async function runBriefJob(itemId: string): Promise<BriefJob> {
     return stub;
   }
   try {
+    const imageUrl = await w640ImageUrl(itemId);
+    if (!imageUrl) throw new Error("brief image missing");
     const res = await fetch(`${base.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${key}`,
       },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: BRIEF_PROMPT },
-          { role: "user", content: `Palette hexes already kept: ${[...filled].join(", ") || "(none)"}.` },
-        ],
-        response_format: { type: "json_object" },
-      }),
+      body: JSON.stringify(
+        buildBriefChatBody({
+          model,
+          keptHexes: [...filled],
+          imageUrl,
+        }),
+      ),
     });
     if (!res.ok) throw new Error("brief failed");
     const body = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };

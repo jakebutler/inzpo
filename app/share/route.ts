@@ -3,11 +3,13 @@ import { clientKey, recordShareUpload, shareUploadLimited } from "@/lib/auth/rat
 import { optionalOwnerId } from "@/lib/auth/owner";
 import { createImageItem } from "@/lib/items";
 import { runBriefJob } from "@/lib/brief";
+import { BRIEF_MAX_DURATION_S } from "@/lib/brief-request";
 import { LINKS_UNSUPPORTED_ERROR } from "@/lib/links";
 import { newId } from "@/lib/ids";
 import { r2, PutObjectCommand } from "@/lib/r2";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = BRIEF_MAX_DURATION_S;
 
 const MAX_STASH_BYTES = 10 * 1024 * 1024;
 
@@ -80,8 +82,8 @@ export async function POST(request: NextRequest) {
   if (file) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const itemId = await createImageItem({ ownerId, buffer, filename: file.name || "shared-image" });
-    after(() => {
-      void runBriefJob(itemId);
+    after(async () => {
+      await runBriefJob(itemId);
     });
     return NextResponse.redirect(new URL(`/items/${itemId}`, request.url), 303);
   }

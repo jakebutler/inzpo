@@ -31,8 +31,8 @@ export async function capture(formData: FormData): Promise<void> {
     } catch {
       redirect("/capture?error=capture-failed");
     }
-    after(() => {
-      void runBriefJob(itemId);
+    after(async () => {
+      await runBriefJob(itemId);
     });
     redirect(`/items/${itemId}`);
   }
@@ -46,8 +46,8 @@ export async function capture(formData: FormData): Promise<void> {
       redirect("/capture?error=bad-image");
     }
     revalidatePath("/");
-    after(() => {
-      void runBriefJob(itemId);
+    after(async () => {
+      await runBriefJob(itemId);
     });
     redirect(`/items/${itemId}`);
   }
