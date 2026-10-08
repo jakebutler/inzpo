@@ -27,8 +27,10 @@ describe("ownerIdsFor", () => {
 
 describe("classifyAuthError", () => {
   it("maps restricted sign-up and missing identifiers to the allowlist line", () => {
+    expect(ALLOWLIST_MESSAGE).toBe("That email isn't on the invite list yet.");
     expect(classifyAuthError({ code: "sign_up_restricted" })).toBe("allowlist");
     expect(classifyAuthError({ code: "not_allowed_access" })).toBe("allowlist");
+    expect(classifyAuthError({ message: "identifier not on allowlist" })).toBe("allowlist");
     expect(messageForAuthError("allowlist")).toBe(ALLOWLIST_MESSAGE);
     expect(ALLOWLIST_MESSAGE.toLowerCase()).not.toContain("@");
     expect(messageForAuthError("invite-only")).toBe(INVITE_ONLY_MESSAGE);
@@ -36,6 +38,7 @@ describe("classifyAuthError", () => {
   });
 
   it("maps captcha failures to a reload line, not the generic retry", () => {
+    expect(CAPTCHA_MESSAGE).toBe("We couldn't verify you're human. Reload the page and try again.");
     expect(classifyAuthError({ code: "captcha_invalid" })).toBe("captcha");
     expect(classifyAuthError({ errors: [{ code: "form_captcha_invalid" }] })).toBe("captcha");
     expect(messageForAuthError(classifyAuthError({ code: "captcha_invalid" }))).toBe(CAPTCHA_MESSAGE);
