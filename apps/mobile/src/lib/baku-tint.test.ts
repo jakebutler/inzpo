@@ -1,5 +1,5 @@
 import { COLOR_ROLES, emptyRoles, type RoleColors } from '@inzpo/shared';
-import { hexToRgb01, OATMEAL, stripeColors, tintPixel } from './baku-tint';
+import { dyeCoverage, hexToRgb01, OATMEAL, OATMEAL_RGB, STRIPE_FEATHER, stripeColors, tintPixel } from './baku-tint';
 
 const roles: RoleColors = {
   primary: '#ff0000', secondary: '#00ff00', accent: '#0000ff',
@@ -12,22 +12,52 @@ test('hex conversion supports shared role hex formats', () => {
 });
 
 test('stripe order follows COLOR_ROLES', () => {
-  expect(stripeColors(roles, 6).map((stripe) => stripe.color))
+  expect(stripeColors(roles))
     .toEqual(COLOR_ROLES.map((role) => hexToRgb01(roles[role]!)));
 });
 
-test('empty roles use oatmeal through the same tint formula', () => {
-  stripeColors(emptyRoles(), 6).forEach((stripe) => {
-    expect(stripe).toEqual({ color: hexToRgb01(OATMEAL), revealed: 1 });
-    expect(tintPixel([0.5, 0.5, 0.5, 1], 128, 1, stripe.color)).toEqual([...hexToRgb01(OATMEAL), 1]);
+test('empty roles stay oatmeal regardless of dye progress', () => {
+  stripeColors(emptyRoles()).forEach((color) => {
+    expect(color).toEqual(hexToRgb01(OATMEAL));
+    for (const progress of [0, 0.5, 1]) {
+      expect(tintPixel([0.5, 0.5, 0.5, 1], 128, 1, color, progress)).toEqual([...OATMEAL_RGB, 1]);
+    }
   });
 });
 
-test('unrevealed stripes have zero coverage, even if a role is empty', () => {
-  expect(stripeColors(emptyRoles(), 2).map((stripe) => stripe.revealed)).toEqual([1, 1, 0, 0, 0, 0]);
-  const stripe = stripeColors(roles, 0)[0];
+test('undyed stripes shade oatmeal instead of retaining base gray', () => {
   const base = [0.3, 0.4, 0.5, 0.7] as const;
-  expect(tintPixel(base, 200, stripe.revealed, stripe.color)).toEqual(base);
+  const role = stripeColors(roles)[0];
+  expect(tintPixel(base, 128, 1, role, 0)).toEqual([...OATMEAL_RGB, base[3]]);
+  expect(tintPixel(base, 64, 1, role, 0)).toEqual([...OATMEAL_RGB.map((c) => c / 2), base[3]]);
+  expect(tintPixel(base, 128, 0, role, 0)).toEqual(base);
+});
+
+test('dye blends oatmeal and role before multiplying shade and clamping', () => {
+  const role = [0, 0, 0] as const;
+  expect(tintPixel([0, 0, 0, 0.5], 255, 1, role, 0.5))
+    .toEqual([...OATMEAL_RGB.map((c) => c * 255 / 256), 0.5]);
+});
+
+test('edge dye moves top to bottom, with a smooth feather and exact endpoints', () => {
+  expect(dyeCoverage(0.4, 0.3, 0.7, 0.5, 0)).toBe(1);
+  expect(dyeCoverage(0.5, 0.3, 0.7, 0.5, 0)).toBeCloseTo(0.5);
+  expect(dyeCoverage(0.6, 0.3, 0.7, 0.5, 0)).toBe(0);
+  expect(dyeCoverage(0.5 - STRIPE_FEATHER / 2, 0.3, 0.7, 0.5, 0)).toBeCloseTo(0.84375);
+  expect(dyeCoverage(0.5 + STRIPE_FEATHER / 2, 0.3, 0.7, 0.5, 0)).toBeCloseTo(0.15625);
+  for (const y of [0, 0.3, 0.5, 0.7, 1]) {
+    expect(dyeCoverage(y, 0.3, 0.7, 0, 0)).toBe(0);
+    expect(dyeCoverage(y, 0.3, 0.7, 1, 0)).toBe(1);
+  }
+  expect(dyeCoverage(0.5, 0, 0, 0.5, 0)).toBe(0);
+});
+
+test('reduced-motion dye coverage is uniform across the stripe', () => {
+  for (const y of [0, 0.3, 0.5, 0.7, 1]) {
+    expect(dyeCoverage(y, 0.3, 0.7, 0.25, 1)).toBe(0.25);
+    expect(dyeCoverage(y, 0.3, 0.7, -1, 1)).toBe(0);
+    expect(dyeCoverage(y, 0.3, 0.7, 2, 1)).toBe(1);
+  }
 });
 
 test('128 shade gives the exact role color and preserves base alpha', () => {

@@ -19,6 +19,7 @@ export const RESULT_TIMELINE = {
   swallowScaleY: 0.94,
   bandStartMs: 120,
   bandStaggerMs: BAND_STAGGER_MS,
+  stripeWipeMs: 180,
   bandRise: 24,
   bandSettleMs: 320,
   markersAfterLandingMs: 80,

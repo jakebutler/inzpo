@@ -1,4 +1,4 @@
-import { COLOR_ROLES } from '@inzpo/shared';
+import { COLOR_ROLES, type RoleColors } from '@inzpo/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue,
@@ -7,6 +7,7 @@ import {
 } from 'react-native-reanimated';
 import { ENTER_SPRING, FADE_TIMING, RESULT_TIMELINE, TAP_TIMING, resultSequenceBeats } from '@/theme/motion';
 import { haptics } from './haptics';
+import type { StripeProgress, WipeMode } from './baku-tint';
 
 // Completed heroes are remembered for revisits during this app session.
 export const completedResultKits = new Set<string>();
@@ -19,7 +20,7 @@ function useBandMotion(): BandMotion {
   return useMemo(() => ({ opacity, translateY }), [opacity, translateY]);
 }
 
-export function useResultSequence({ kitId, ready }: { kitId: string; ready: boolean }) {
+export function useResultSequence({ kitId, ready, roles }: { kitId: string; ready: boolean; roles?: RoleColors | null }) {
   const reducedMotion = useReducedMotion();
   // Fixed hook order, matching COLOR_ROLES. No hooks in a map or variable loop.
   const primary = useBandMotion();
@@ -34,6 +35,18 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
   const bands = useMemo(() => reducedMotion
     ? bandValues.map((band) => ({ ...band, opacity: primary.opacity })) : bandValues,
   [bandValues, primary.opacity, reducedMotion]);
+  // Depend on role presence, so refreshed kit objects cannot replay the hero.
+  const filledStripes = COLOR_ROLES.reduce((bits, role, index) => roles?.[role] != null ? bits | (1 << index) : bits, 0);
+  const completed = completedResultKits.has(kitId);
+  const primaryStripe = useSharedValue(completed && (filledStripes & 1) ? 1 : 0);
+  const secondaryStripe = useSharedValue(completed && (filledStripes & 2) ? 1 : 0);
+  const accentStripe = useSharedValue(completed && (filledStripes & 4) ? 1 : 0);
+  const backgroundStripe = useSharedValue(completed && (filledStripes & 8) ? 1 : 0);
+  const surfaceStripe = useSharedValue(completed && (filledStripes & 16) ? 1 : 0);
+  const textStripe = useSharedValue(completed && (filledStripes & 32) ? 1 : 0);
+  const stripeProgress = useMemo<StripeProgress>(() => [
+    primaryStripe, secondaryStripe, accentStripe, backgroundStripe, surfaceStripe, textStripe,
+  ], [primaryStripe, secondaryStripe, accentStripe, backgroundStripe, surfaceStripe, textStripe]);
   const bakuY = useSharedValue(0);
   const bakuScaleX = useSharedValue(1);
   const bakuScaleY = useSharedValue(1);
@@ -44,11 +57,11 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
   const briefOpacity = useSharedValue(0);
   const values = useMemo(() => [
     ...bandValues.flatMap((band) => [band.opacity, band.translateY]),
+    ...stripeProgress,
     bakuY, bakuScaleX, bakuScaleY, bakuOpacity, markerScale, markerOpacity, briefY, briefOpacity,
-  ], [bandValues, bakuY, bakuScaleX, bakuScaleY, bakuOpacity, markerScale, markerOpacity, briefY, briefOpacity]);
+  ], [bandValues, stripeProgress, bakuY, bakuScaleX, bakuScaleY, bakuOpacity, markerScale, markerOpacity, briefY, briefOpacity]);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const scope = useRef({ kitId: '', started: false, skipped: false, landed: false });
-  const [revealed, setRevealed] = useState({ kitId, count: completedResultKits.has(kitId) ? 6 : 0 });
   const [finishedKit, setFinishedKit] = useState<string | null>(null);
 
   const cancel = useCallback(() => {
@@ -58,7 +71,7 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
   }, [values]);
 
   const setEndValues = useCallback(() => {
-    setRevealed({ kitId, count: 6 });
+    stripeProgress.forEach((progress, index) => progress.set(filledStripes & (1 << index) ? 1 : 0));
     bands.forEach((band) => { band.opacity.set(1); band.translateY.set(0); });
     bakuY.set(0);
     bakuScaleX.set(1);
@@ -68,7 +81,7 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
     markerOpacity.set(1);
     briefY.set(0);
     briefOpacity.set(1);
-  }, [kitId, bands, bakuY, bakuScaleX, bakuScaleY, bakuOpacity, markerScale, markerOpacity, briefY, briefOpacity]);
+  }, [filledStripes, stripeProgress, bands, bakuY, bakuScaleX, bakuScaleY, bakuOpacity, markerScale, markerOpacity, briefY, briefOpacity]);
 
   const skipToEnd = useCallback(() => {
     if (!ready || scope.current.kitId !== kitId || !scope.current.started
@@ -86,7 +99,7 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
     if (scope.current.kitId !== kitId) {
       scope.current = { kitId, started: false, skipped: false, landed: false };
       setFinishedKit(null);
-      setRevealed({ kitId, count: completedResultKits.has(kitId) ? 6 : 0 });
+      stripeProgress.forEach((progress, index) => progress.set(completedResultKits.has(kitId) && (filledStripes & (1 << index)) ? 1 : 0));
       bands.forEach((band) => {
         band.opacity.set(0);
         band.translateY.set(reducedMotion ? 0 : RESULT_TIMELINE.bandRise);
@@ -121,7 +134,13 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
       return cancel;
     }
     scope.current.started = true;
-    setRevealed({ kitId, count: reducedMotion ? 6 : 0 });
+    stripeProgress.forEach((progress, index) => {
+      progress.set(0);
+      if (!(filledStripes & (1 << index))) return;
+      const delay = reducedMotion ? 0 : RESULT_TIMELINE.bandStartMs + index * RESULT_TIMELINE.bandStaggerMs;
+      const timing = reducedMotion ? FADE_TIMING : { ...FADE_TIMING, duration: RESULT_TIMELINE.stripeWipeMs };
+      progress.set(withDelay(delay, withTiming(1, timing)));
+    });
     const beats = resultSequenceBeats(COLOR_ROLES.length, reducedMotion);
     bands.forEach((band) => {
       band.opacity.set(0);
@@ -143,7 +162,6 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
     bands.forEach((band, index) => {
       if (reducedMotion) return;
       const delay = RESULT_TIMELINE.bandStartMs + index * RESULT_TIMELINE.bandStaggerMs;
-      timers.current.push(setTimeout(() => setRevealed({ kitId, count: index + 1 }), delay));
       band.opacity.set(withDelay(delay, withTiming(1, FADE_TIMING)));
       band.translateY.set(withDelay(delay, withSpring(0, ENTER_SPRING)));
     });
@@ -152,8 +170,8 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
     const briefTiming = reducedMotion ? FADE_TIMING : { ...FADE_TIMING, duration: RESULT_TIMELINE.briefFadeMs };
     briefOpacity.set(withDelay(beats.briefMs, withTiming(1, briefTiming)));
     briefY.set(reducedMotion ? 0 : withDelay(beats.briefMs, withTiming(0, briefTiming)));
-    // UI-thread animations carry transforms/fades; JS timers deliver stripe
-    // reveals, haptic and buttons. All are cancelled on skip/unmount.
+    // UI-thread animations carry transforms, fades and dye progress. JS timers
+    // deliver only the haptic and buttons. All are cancelled on skip/unmount.
     timers.current.push(setTimeout(() => {
       if (scope.current.skipped || scope.current.landed) return;
       scope.current.landed = true;
@@ -169,7 +187,7 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
       // frame. Resume an interrupted pre-landing run instead of marking it done.
       if (!scope.current.landed && !scope.current.skipped) scope.current.started = false;
     };
-  }, [kitId, ready, reducedMotion, bands, primary.opacity, bakuY, bakuScaleX, bakuScaleY, bakuOpacity,
+  }, [kitId, ready, reducedMotion, bands, primary.opacity, stripeProgress, filledStripes, bakuY, bakuScaleX, bakuScaleY, bakuOpacity,
     markerScale, markerOpacity, briefY, briefOpacity, cancel, setEndValues]);
 
   const bakuStyle = useAnimatedStyle(() => ({
@@ -180,7 +198,7 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
   const briefStyle = useAnimatedStyle(() => ({ opacity: briefOpacity.value, transform: [{ translateY: briefY.value }] }));
 
   return {
-    revealedBands: revealed.kitId === kitId ? revealed.count : completedResultKits.has(kitId) ? 6 : 0,
+    stripeProgress, wipeMode: (reducedMotion ? 1 : 0) as WipeMode,
     bands, bakuStyle, markerStyle, briefStyle, skipToEnd, reducedMotion,
     interactive: ready && finishedKit === kitId,
     values: { bakuY, bakuScaleX, bakuScaleY, bakuOpacity, markerScale, markerOpacity, briefY, briefOpacity },

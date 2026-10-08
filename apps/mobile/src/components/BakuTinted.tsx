@@ -1,8 +1,10 @@
 import type { RoleColors } from '@inzpo/shared';
-import type { SkRuntimeEffect } from '@shopify/react-native-skia';
-import { Component, type ReactNode } from 'react';
+import type { SkRuntimeEffect, Uniforms } from '@shopify/react-native-skia';
+import { Component, useMemo, type ReactNode } from 'react';
+import { useDerivedValue } from 'react-native-reanimated';
 import { bakuTintAssets } from '@/lib/baku-assets';
-import { stripeColors } from '@/lib/baku-tint';
+import { OATMEAL_RGB, STRIPE_FEATHER, stripeColors, type StripeProgress, type WipeMode } from '@/lib/baku-tint';
+import { bakuStripeBounds } from '@/lib/baku-stripe-bounds';
 import type { BakuPose } from './Baku';
 
 export const BAKU_TINT_SKSL = `
@@ -20,7 +22,22 @@ uniform float3 color3;
 uniform float3 color4;
 uniform float3 color5;
 uniform float3 color6;
-uniform float revealed[6];
+uniform float progress[6];
+uniform float2 bounds[6];
+uniform float spriteHeight;
+uniform float wipeMode;
+
+float dyeCoverage(float y, float2 extent, float progress) {
+  if (wipeMode > 0.5) return clamp(progress, 0.0, 1.0);
+  if (progress <= 0.0 || extent.y <= extent.x) return 0.0;
+  if (progress >= 1.0) return 1.0;
+  float front = extent.x + progress * (extent.y - extent.x);
+  return 1.0 - smoothstep(front - ${STRIPE_FEATHER}, front + ${STRIPE_FEATHER}, y);
+}
+
+float3 dyedColor(float3 color, float coverage) {
+  return mix(float3(${OATMEAL_RGB.join(', ')}), color, coverage);
+}
 
 half4 main(float2 p) {
   half4 sprite = base.eval(p);
@@ -28,12 +45,13 @@ half4 main(float2 p) {
   float light = shade.eval(p).r * (255.0 / 128.0);
   // Image shaders are premultiplied. Blend straight RGB, then restore alpha.
   float3 rgb = sprite.rgb / sprite.a;
-  rgb = mix(rgb, clamp(color1 * light, 0.0, 1.0), band1.eval(p).r * revealed[0]);
-  rgb = mix(rgb, clamp(color2 * light, 0.0, 1.0), band2.eval(p).r * revealed[1]);
-  rgb = mix(rgb, clamp(color3 * light, 0.0, 1.0), band3.eval(p).r * revealed[2]);
-  rgb = mix(rgb, clamp(color4 * light, 0.0, 1.0), band4.eval(p).r * revealed[3]);
-  rgb = mix(rgb, clamp(color5 * light, 0.0, 1.0), band5.eval(p).r * revealed[4]);
-  rgb = mix(rgb, clamp(color6 * light, 0.0, 1.0), band6.eval(p).r * revealed[5]);
+  float y = p.y / spriteHeight;
+  rgb = mix(rgb, clamp(dyedColor(color1, dyeCoverage(y, bounds[0], progress[0])) * light, 0.0, 1.0), band1.eval(p).r);
+  rgb = mix(rgb, clamp(dyedColor(color2, dyeCoverage(y, bounds[1], progress[1])) * light, 0.0, 1.0), band2.eval(p).r);
+  rgb = mix(rgb, clamp(dyedColor(color3, dyeCoverage(y, bounds[2], progress[2])) * light, 0.0, 1.0), band3.eval(p).r);
+  rgb = mix(rgb, clamp(dyedColor(color4, dyeCoverage(y, bounds[3], progress[3])) * light, 0.0, 1.0), band4.eval(p).r);
+  rgb = mix(rgb, clamp(dyedColor(color5, dyeCoverage(y, bounds[4], progress[4])) * light, 0.0, 1.0), band5.eval(p).r);
+  rgb = mix(rgb, clamp(dyedColor(color6, dyeCoverage(y, bounds[5], progress[5])) * light, 0.0, 1.0), band6.eval(p).r);
   return half4(rgb * sprite.a, sprite.a);
 }`;
 
@@ -50,7 +68,7 @@ try {
 }
 
 type Props = {
-  pose: BakuPose; size: number; roles: RoleColors; revealedBands: number;
+  pose: BakuPose; size: number; roles: RoleColors; stripeProgress?: StripeProgress; wipeMode?: WipeMode;
   fallback: ReactNode; testID?: string;
 };
 
@@ -60,7 +78,7 @@ class TintFallback extends Component<{ children: ReactNode; fallback: ReactNode 
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
 
-function TintedSprite({ pose, size, roles, revealedBands, fallback, testID }: Props) {
+function TintedSprite({ pose, size, roles, stripeProgress, wipeMode = 0, fallback, testID }: Props) {
   const { Canvas, Fill, Shader, ImageShader, useImage } = skia!;
   // Native useImage resolves these grouped assets at PixelRatio.get().
   const assets = bakuTintAssets[pose];
@@ -73,14 +91,21 @@ function TintedSprite({ pose, size, roles, revealedBands, fallback, testID }: Pr
   const band4 = useImage(assets[5]);
   const band5 = useImage(assets[6]);
   const band6 = useImage(assets[7]);
+  const colors = useMemo(() => stripeColors(roles), [roles]);
+  const bounds = bakuStripeBounds[pose].map((extent) => extent ?? [0, 0]);
+  // Skia 2.6's Shader uniforms accept { value: Uniforms }, including a
+  // Reanimated DerivedValue. Read progress only inside this UI-thread worklet.
+  const uniforms = useDerivedValue<Uniforms>(() => ({
+    color1: colors[0], color2: colors[1], color3: colors[2],
+    color4: colors[3], color5: colors[4], color6: colors[5],
+    progress: stripeProgress ? [
+      stripeProgress[0].value, stripeProgress[1].value, stripeProgress[2].value,
+      stripeProgress[3].value, stripeProgress[4].value, stripeProgress[5].value,
+    ] : [1, 1, 1, 1, 1, 1],
+    bounds, spriteHeight: size, wipeMode,
+  }));
   const images = [base, shade, band1, band2, band3, band4, band5, band6];
   if (images.some((image) => !image)) return fallback;
-  const stripes = stripeColors(roles, revealedBands);
-  const uniforms = {
-    ...Object.fromEntries(stripes.map((stripe, index) => [`color${index + 1}`, stripe.color])),
-    revealed: stripes.map((stripe) => stripe.revealed),
-  };
-  // TODO(motion): 180ms top-to-bottom stripe wipe
   return (
     <Canvas style={{ width: size, height: size }} accessible={false} testID={testID} colorSpace="srgb">
       <Fill>
