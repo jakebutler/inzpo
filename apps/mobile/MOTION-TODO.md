@@ -1,6 +1,7 @@
 # Deferred native motion
 
-- Baku stripe wipe and tint, once Designer's rebuilt masks are available: Skia path, `out = roleColor × shade/128`. Empty bands stay undyed oatmeal `#E4D9C6`, never gray or hatched, and never wipe. Keep current color sprites untinted.
+- DONE: static per-stripe Skia tint using Designer’s fixed v6 base, shade and masks (`out = roleColor × shade/128`, coverage blend, base alpha preserved). Empty roles use undyed oatmeal `#E4D9C6`; unrevealed stripes retain the base knit. No-kit screens use the full-color sprite.
+- Remaining: 180ms top-to-bottom stripe wipe.
 - Separate googly-eye pupils with a damped spring (damping 6, stiffness 180).
 - Idle breathing (scaleY 1–1.015, 2.4s), paused off-screen and disabled for reduced motion.
 - Baku success hop, anticipation/landing squash, contact shadow and pupil jiggle. Current success pose holds 2s, then crossfades to idle over 150ms.

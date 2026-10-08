@@ -65,7 +65,7 @@ export default function ResultScreen() {
               />
             ) : (
               <View style={[styles.photo, styles.photoPlaceholder, { height: height * 0.4 }]}>
-                <Baku pose={photoFailed ? 'errorPhoto' : 'empty'} />
+                <Baku pose={photoFailed ? 'errorPhoto' : 'empty'} roles={kit.roles} revealedBands={sequence.revealedBands} />
                 <Text style={ui.message}>{photoFailed ? 'Couldn’t load the photo.' : 'No photo in this kit.'}</Text>
                 {photoFailed && <ActionButton label="Reload photo" onPress={() => { setFailedPhotoUrl(null); retry(); }} />}
               </View>
@@ -74,7 +74,7 @@ export default function ResultScreen() {
                 is ready for them; on pin drag call editSheet.current?.snapToPeek().
                 TODO(motion): Photo pins, hairlines and loupe/picker integration. */}
             <View style={styles.baku}>
-              <Baku pose={!ready ? 'chewing' : failedBrief ? 'errorBrief' : 'idle'} motionStyle={sequence.bakuStyle} skipTransition={sequence.interactive} />
+              <Baku pose={!ready ? 'chewing' : failedBrief ? 'errorBrief' : 'idle'} roles={kit.roles} revealedBands={sequence.revealedBands} motionStyle={sequence.bakuStyle} skipTransition={sequence.interactive} />
               {!ready && <BriefBlock brief={kit.brief} showBaku={false} />}
             </View>
             {ready && (

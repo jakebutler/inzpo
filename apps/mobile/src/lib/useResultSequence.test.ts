@@ -4,9 +4,10 @@ import * as Reanimated from 'react-native-reanimated';
 import { createElement, StrictMode, type PropsWithChildren } from 'react';
 import { FADE_TIMING, resultSequenceBeats } from '@/theme/motion';
 import { createHaptics, haptics } from './haptics';
-import { useResultSequence } from './useResultSequence';
+import { completedResultKits, useResultSequence } from './useResultSequence';
 
 beforeEach(() => {
+  completedResultKits.clear();
   jest.useFakeTimers();
   jest.mocked(Reanimated.useReducedMotion).mockReturnValue(false);
   Object.assign(haptics, createHaptics());
@@ -38,7 +39,7 @@ test('pending to ready lands once at 740ms and enables buttons at the brief beat
   expect(ExpoHaptics.impactAsync).toHaveBeenCalledTimes(1);
 });
 
-test('a revisit already ready still plays once; skipping after landing sets every end value without another haptic', async () => {
+test('a first visit already ready still plays once; skipping after landing sets every end value without another haptic', async () => {
   const cancel = jest.spyOn(Reanimated, 'cancelAnimation');
   const hook = await renderHook(useResultSequence, { initialProps: { kitId: 'kit-1', ready: true } });
   expect(hook.result.current.interactive).toBe(false);
@@ -141,5 +142,52 @@ test('Strict Mode effect restart still lands once and waits to enable buttons', 
   expect(hook.result.current.interactive).toBe(false);
   await advance(resultSequenceBeats(6, false).interactiveMs);
   expect(hook.result.current.interactive).toBe(true);
+  expect(ExpoHaptics.impactAsync).toHaveBeenCalledTimes(1);
+});
+
+test('stripe reveals start at 120ms and advance every 60ms; pending stays at zero', async () => {
+  const hook = await renderHook(useResultSequence, { initialProps: { kitId: 'tint-kit', ready: false } });
+  await advance(1000);
+  expect(hook.result.current.revealedBands).toBe(0);
+  await hook.rerender({ kitId: 'tint-kit', ready: true });
+  for (let index = 0; index < 6; index++) {
+    await advance(index === 0 ? 119 : 59);
+    expect(hook.result.current.revealedBands).toBe(index);
+    await advance(1);
+    expect(hook.result.current.revealedBands).toBe(index + 1);
+  }
+  await hook.rerender({ kitId: 'next-kit', ready: false });
+  expect(hook.result.current.revealedBands).toBe(0);
+  await advance(1000);
+  expect(hook.result.current.revealedBands).toBe(0);
+});
+
+test('skip reveals all six immediately and cancels subsequent stripe timers', async () => {
+  const hook = await renderHook(useResultSequence, { initialProps: { kitId: 'tint-kit', ready: true } });
+  await advance(120);
+  expect(hook.result.current.revealedBands).toBe(1);
+  await act(async () => hook.result.current.skipToEnd());
+  expect(hook.result.current.revealedBands).toBe(6);
+  await advance(2000);
+  expect(hook.result.current.revealedBands).toBe(6);
+});
+
+test('reduced motion reveals all six together when the hero becomes ready', async () => {
+  jest.mocked(Reanimated.useReducedMotion).mockReturnValue(true);
+  const hook = await renderHook(useResultSequence, { initialProps: { kitId: 'tint-kit', ready: false } });
+  expect(hook.result.current.revealedBands).toBe(0);
+  await hook.rerender({ kitId: 'tint-kit', ready: true });
+  expect(hook.result.current.revealedBands).toBe(6);
+});
+
+test('finished kits keep all six revealed on revisit without replaying the hero', async () => {
+  const first = await renderHook(useResultSequence, { initialProps: { kitId: 'tint-kit', ready: true } });
+  await advance(resultSequenceBeats(6, false).interactiveMs);
+  expect(first.result.current.revealedBands).toBe(6);
+  await first.unmount();
+  const revisit = await renderHook(useResultSequence, { initialProps: { kitId: 'tint-kit', ready: true } });
+  expect(revisit.result.current.revealedBands).toBe(6);
+  expect(revisit.result.current.interactive).toBe(true);
+  await advance(2000);
   expect(ExpoHaptics.impactAsync).toHaveBeenCalledTimes(1);
 });

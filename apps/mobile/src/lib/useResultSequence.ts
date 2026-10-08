@@ -8,6 +8,9 @@ import {
 import { ENTER_SPRING, FADE_TIMING, RESULT_TIMELINE, TAP_TIMING, resultSequenceBeats } from '@/theme/motion';
 import { haptics } from './haptics';
 
+// Completed heroes are remembered for revisits during this app session.
+export const completedResultKits = new Set<string>();
+
 export type BandMotion = { opacity: SharedValue<number>; translateY: SharedValue<number> };
 
 function useBandMotion(): BandMotion {
@@ -45,6 +48,7 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
   ], [bandValues, bakuY, bakuScaleX, bakuScaleY, bakuOpacity, markerScale, markerOpacity, briefY, briefOpacity]);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const scope = useRef({ kitId: '', started: false, skipped: false, landed: false });
+  const [revealed, setRevealed] = useState({ kitId, count: completedResultKits.has(kitId) ? 6 : 0 });
   const [finishedKit, setFinishedKit] = useState<string | null>(null);
 
   const cancel = useCallback(() => {
@@ -54,6 +58,7 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
   }, [values]);
 
   const setEndValues = useCallback(() => {
+    setRevealed({ kitId, count: 6 });
     bands.forEach((band) => { band.opacity.set(1); band.translateY.set(0); });
     bakuY.set(0);
     bakuScaleX.set(1);
@@ -63,7 +68,7 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
     markerOpacity.set(1);
     briefY.set(0);
     briefOpacity.set(1);
-  }, [bands, bakuY, bakuScaleX, bakuScaleY, bakuOpacity, markerScale, markerOpacity, briefY, briefOpacity]);
+  }, [kitId, bands, bakuY, bakuScaleX, bakuScaleY, bakuOpacity, markerScale, markerOpacity, briefY, briefOpacity]);
 
   const skipToEnd = useCallback(() => {
     if (!ready || scope.current.kitId !== kitId || !scope.current.started
@@ -73,6 +78,7 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
     scope.current.skipped = true;
     cancel();
     setEndValues();
+    completedResultKits.add(kitId);
     setFinishedKit(kitId);
   }, [cancel, setEndValues, kitId, ready, finishedKit]);
 
@@ -80,6 +86,7 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
     if (scope.current.kitId !== kitId) {
       scope.current = { kitId, started: false, skipped: false, landed: false };
       setFinishedKit(null);
+      setRevealed({ kitId, count: completedResultKits.has(kitId) ? 6 : 0 });
       bands.forEach((band) => {
         band.opacity.set(0);
         band.translateY.set(reducedMotion ? 0 : RESULT_TIMELINE.bandRise);
@@ -107,12 +114,14 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
       return cancel;
     }
     // Refreshing a title or signed photo URL must not replay the hero.
-    if (scope.current.started) {
+    if (scope.current.started || completedResultKits.has(kitId)) {
       setEndValues();
+      completedResultKits.add(kitId);
       setFinishedKit(kitId);
       return cancel;
     }
     scope.current.started = true;
+    setRevealed({ kitId, count: reducedMotion ? 6 : 0 });
     const beats = resultSequenceBeats(COLOR_ROLES.length, reducedMotion);
     bands.forEach((band) => {
       band.opacity.set(0);
@@ -134,6 +143,7 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
     bands.forEach((band, index) => {
       if (reducedMotion) return;
       const delay = RESULT_TIMELINE.bandStartMs + index * RESULT_TIMELINE.bandStaggerMs;
+      timers.current.push(setTimeout(() => setRevealed({ kitId, count: index + 1 }), delay));
       band.opacity.set(withDelay(delay, withTiming(1, FADE_TIMING)));
       band.translateY.set(withDelay(delay, withSpring(0, ENTER_SPRING)));
     });
@@ -142,14 +152,17 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
     const briefTiming = reducedMotion ? FADE_TIMING : { ...FADE_TIMING, duration: RESULT_TIMELINE.briefFadeMs };
     briefOpacity.set(withDelay(beats.briefMs, withTiming(1, briefTiming)));
     briefY.set(reducedMotion ? 0 : withDelay(beats.briefMs, withTiming(0, briefTiming)));
-    // UI-thread animations carry the visuals; JS timers only deliver the two
-    // semantic beats (haptic and buttons), and are cancelled on skip/unmount.
+    // UI-thread animations carry transforms/fades; JS timers deliver stripe
+    // reveals, haptic and buttons. All are cancelled on skip/unmount.
     timers.current.push(setTimeout(() => {
       if (scope.current.skipped || scope.current.landed) return;
       scope.current.landed = true;
       void haptics.soft();
     }, beats.landingMs));
-    timers.current.push(setTimeout(() => setFinishedKit(kitId), beats.interactiveMs));
+    timers.current.push(setTimeout(() => {
+      completedResultKits.add(kitId);
+      setFinishedKit(kitId);
+    }, beats.interactiveMs));
     return () => {
       cancel();
       // React Strict Mode may tear down and restart effects before the first
@@ -167,6 +180,7 @@ export function useResultSequence({ kitId, ready }: { kitId: string; ready: bool
   const briefStyle = useAnimatedStyle(() => ({ opacity: briefOpacity.value, transform: [{ translateY: briefY.value }] }));
 
   return {
+    revealedBands: revealed.kitId === kitId ? revealed.count : completedResultKits.has(kitId) ? 6 : 0,
     bands, bakuStyle, markerStyle, briefStyle, skipToEnd, reducedMotion,
     interactive: ready && finishedKit === kitId,
     values: { bakuY, bakuScaleX, bakuScaleY, bakuOpacity, markerScale, markerOpacity, briefY, briefOpacity },

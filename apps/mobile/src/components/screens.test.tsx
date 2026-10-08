@@ -10,6 +10,7 @@ import SnapScreen from '@/app/(app)/index';
 import ResultScreen from '@/app/(app)/kit/[id]';
 import AuthLayout from '@/app/(auth)/_layout';
 import AppLayout from '@/app/(app)/_layout';
+import { completedResultKits } from '@/lib/useResultSequence';
 import { useInzpoClient } from '@/lib/api';
 import { createHaptics, haptics } from '@/lib/haptics';
 import { uploadPhoto } from '@/lib/upload';
@@ -27,6 +28,7 @@ const signIn = {
 };
 
 beforeEach(() => {
+  completedResultKits.clear();
   Object.assign(haptics, createHaptics());
   jest.mocked(Reanimated.useReducedMotion).mockReturnValue(false);
   client = mockClient();

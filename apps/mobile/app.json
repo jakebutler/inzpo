@@ -38,7 +38,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#F3EEE4",
-          "image": "./assets/baku/baku-idle-color.png",
+          "image": "./assets/baku-v6/baku-idle-color.png",
           "imageWidth": 96,
           "resizeMode": "contain"
         }
