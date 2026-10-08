@@ -13,7 +13,9 @@ import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { hexWithoutHash, isHexColor, normalizeHex } from "@/lib/colors";
 import { MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { filledRoles, moveRole, rolesFromColors, setRoleColor } from "@/lib/tokens";
-import { sampleImageAverage } from "@/lib/client-eyedropper";
+import { sampleImageAverage, sampleImagePixel } from "@/lib/client-eyedropper";
+import { isNoopPinSample } from "@/lib/pin-drag";
+import { SAMPLED_ORIGIN } from "@/lib/derived-roles";
 import { pointerOnCoverBox, type CoverWindow } from "@/lib/cover-pin";
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -30,6 +32,7 @@ type ColorRow = {
   pinY?: number | null;
   position?: number;
   derivedFrom?: ColorRole | null;
+  origin?: string | null;
 };
 
 export function TokenEditor({
@@ -86,6 +89,9 @@ export function TokenEditor({
   const [autoRoles, setAutoRoles] = useState<Set<ColorRole>>(
     () => new Set(colors.filter((c) => c.role && c.derivedFrom).map((c) => c.role!)),
   );
+  const [userSetRoles, setUserSetRoles] = useState<Set<ColorRole>>(
+    () => new Set(colors.filter((c) => c.role && c.origin === SAMPLED_ORIGIN).map((c) => c.role!)),
+  );
   const [open, setOpen] = useState<ColorRole | null>(initialOpen);
   const [hexDraft, setHexDraft] = useState(() => (initialOpen ? rolesFromColors(colors)[initialOpen] ?? "" : ""));
   const [pendingHex, setPendingHex] = useState<string | null>(null);
@@ -115,21 +121,29 @@ export function TokenEditor({
     }
   }
 
-  function commit(nextRoles: typeof roles, nextPins = pins) {
+  function commit(nextRoles: typeof roles, nextPins = pins, nextUserSet = userSetRoles) {
     setRoles(nextRoles);
     setPins(nextPins);
+    setUserSetRoles(nextUserSet);
+    const origins: Partial<Record<ColorRole, string>> = {};
+    for (const role of COLOR_ROLES) {
+      if (nextUserSet.has(role)) origins[role] = SAMPLED_ORIGIN;
+    }
     const fd = new FormData();
     fd.set("itemId", itemId);
     fd.set("roles", JSON.stringify(nextRoles));
     fd.set("pins", JSON.stringify(nextPins));
+    fd.set("origins", JSON.stringify(origins));
     startTransition(() => {
       void saveItemTokensAction(fd);
     });
   }
 
-  function applyHex(role: ColorRole, value: string, nextPins = pins) {
+  function applyHex(role: ColorRole, value: string, nextPins = pins, markUserSet = true) {
     if (!isHexColor(value)) return;
-    commit(setRoleColor(roles, role, normalizeHex(value)), nextPins);
+    const nextUserSet = new Set(userSetRoles);
+    if (markUserSet) nextUserSet.add(role);
+    commit(setRoleColor(roles, role, normalizeHex(value)), nextPins, nextUserSet);
     setHexDraft(normalizeHex(value));
     setPendingHex(null);
   }
@@ -137,7 +151,9 @@ export function TokenEditor({
   function onChip(color: NamedColor) {
     const empty = COLOR_ROLES.find((role) => !roles[role]);
     if (empty) {
-      commit(setRoleColor(roles, empty, color.hex));
+      const nextUserSet = new Set(userSetRoles);
+      nextUserSet.add(empty);
+      commit(setRoleColor(roles, empty, color.hex), pins, nextUserSet);
       return;
     }
     setPendingHex(color.hex);
@@ -156,7 +172,12 @@ export function TokenEditor({
     );
     if (!mapped) return;
     try {
-      const sample = sampleImageAverage(img, mapped.nx, mapped.ny, 8);
+      if (commitSample && isNoopPinSample(pins[open], mapped.nx, mapped.ny)) {
+        return;
+      }
+      const sample = commitSample
+        ? sampleImagePixel(img, mapped.nx, mapped.ny)
+        : sampleImageAverage(img, mapped.nx, mapped.ny, 8);
       setLoupe({ x: mapped.x, y: mapped.y, hex: sample.hex });
       if (commitSample) {
         const nextPins = { ...pins, [open]: { pinX: sample.pinX, pinY: sample.pinY } };
@@ -166,7 +187,7 @@ export function TokenEditor({
           return next;
         });
         onPromoteRole?.(open, { pinX: sample.pinX, pinY: sample.pinY, hex: sample.hex });
-        applyHex(open, sample.hex, nextPins);
+        applyHex(open, sample.hex, nextPins, true);
       } else {
         setHexDraft(sample.hex);
       }

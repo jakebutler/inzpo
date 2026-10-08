@@ -47,7 +47,19 @@ export async function saveItemTokensAction(formData: FormData): Promise<void> {
       // ignore malformed pins; colors still save
     }
   }
-  await replaceItemTokens(ownerId, itemId, roles, pins);
+  const originsRaw = formData.get("origins");
+  const origins: Partial<Record<ColorRole, string>> = {};
+  if (typeof originsRaw === "string") {
+    try {
+      const obj = JSON.parse(originsRaw) as Record<string, unknown>;
+      for (const role of COLOR_ROLES) {
+        if (obj[role] === "sampled") origins[role] = "sampled";
+      }
+    } catch {
+      // ignore malformed origins; colors still save
+    }
+  }
+  await replaceItemTokens(ownerId, itemId, roles, pins, origins);
   revalidatePath(`/items/${itemId}`);
   revalidatePath("/");
 }

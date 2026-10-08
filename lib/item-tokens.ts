@@ -14,7 +14,13 @@ export interface TokenWrite {
   name?: string | null;
 }
 
-export async function replaceItemTokens(ownerId: string, itemId: string, roles: RoleColors, pins: Partial<Record<ColorRole, { pinX: number; pinY: number }>> = {}): Promise<void> {
+export async function replaceItemTokens(
+  ownerId: string,
+  itemId: string,
+  roles: RoleColors,
+  pins: Partial<Record<ColorRole, { pinX: number; pinY: number }>> = {},
+  origins: Partial<Record<ColorRole, string>> = {},
+): Promise<void> {
   await assertItemOwned(ownerId, itemId);
   const writes: TokenWrite[] = [];
   for (const role of filledRoles(roles)) {
@@ -36,7 +42,7 @@ export async function replaceItemTokens(ownerId: string, itemId: string, roles: 
       itemId,
       hex: c.hex,
       family: hexToFamily(c.hex),
-      origin: "extracted",
+      origin: origins[c.role] === "sampled" ? "sampled" : "extracted",
       position,
       name: c.name ?? hexToFamily(c.hex),
       role: c.role,

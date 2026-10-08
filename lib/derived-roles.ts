@@ -6,12 +6,15 @@ export const PIN_NEAR = 0.08;
 export const HUE_RELATED_DEG = 30;
 export const LIGHT_TINT_MIN = 0.07;
 
+export const SAMPLED_ORIGIN = "sampled";
+
 export type ColorWithRole = {
   hex: string;
   role?: ColorRole | null;
   pinX?: number | null;
   pinY?: number | null;
   derivedFrom?: ColorRole | null;
+  origin?: string | null;
 };
 
 const KEEP_ORDER: ColorRole[] = ["background", "text", "primary", "secondary", "accent", "surface"];
@@ -59,6 +62,10 @@ export function markDerivedRoles<T extends ColorWithRole>(colors: T[]): Array<T 
   const derived = new Map<ColorRole, ColorRole>();
 
   for (const row of pending) {
+    if (row.origin === SAMPLED_ORIGIN) {
+      sampled.push(row);
+      continue;
+    }
     const near = sampled.find((s) => pinDistance(row, s) < PIN_NEAR);
     if (near) {
       derived.set(row.role, near.role);

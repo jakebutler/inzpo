@@ -78,3 +78,12 @@ export function sampleImageAverage(
   }
   return { hex: rgbToHex(sr / n, sg / n, sb / n), pinX: cx / w, pinY: cy / h };
 }
+
+/** Exact source pixel, no neighborhood average. */
+export function sampleImagePixel(
+  image: HTMLImageElement,
+  nx: number,
+  ny: number,
+): { hex: string; pinX: number; pinY: number } {
+  return sampleImageAverage(image, nx, ny, 0);
+}
