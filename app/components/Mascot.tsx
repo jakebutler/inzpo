@@ -4,13 +4,14 @@ import { useEffect, useId, useState, type CSSProperties } from "react";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import {
   BAKU_CREAM,
+  emptyKit,
   kitForPose,
   kitHasPalette,
   stripeCssVars,
   type MascotKit,
   type MascotPose,
 } from "@/lib/mascot";
-import type { BakuSrcPose } from "@/lib/baku-v6";
+import { BAKU_TINT_ENABLED, type BakuSrcPose } from "@/lib/baku-v6";
 import {
   BAKU_BODY_D,
   BAKU_SEAM_DS,
@@ -37,7 +38,7 @@ export type MascotProps = {
   faceText?: boolean;
   /** Band/page hex under the sprite, used to bake the ground-shadow multiply. */
   ground?: string;
-  /** Skip the cream-boxed color PNG and use the transparent pose asset. */
+  /** Skip tinting in the opt-in path. Always uses the colour PNG when tinting is off. */
   forcePoseAsset?: boolean;
 };
 
@@ -54,11 +55,11 @@ export function Mascot({
 }: MascotProps) {
   const rawId = useId().replace(/:/g, "");
   const clipId = `baku-clip-${rawId}`;
-  const colors = kitForPose(pose, kit);
+  const colors = BAKU_TINT_ENABLED ? kitForPose(pose, kit) : emptyKit();
   const [rive, setRive] = useState<MascotRiveRuntime | null>(null);
 
   useEffect(() => {
-    if (!snapReady) return;
+    if (!BAKU_TINT_ENABLED || !snapReady) return;
     let alive = true;
     void import("./load-mascot-rive").then(async ({ loadMascotRive }) => {
       const runtime = await loadMascotRive();
@@ -70,7 +71,7 @@ export function Mascot({
     };
   }, [snapReady]);
 
-  if (rive && pose !== "404" && pose !== "error-photo") {
+  if (BAKU_TINT_ENABLED && rive && pose !== "404" && pose !== "error-photo") {
     return rive.render({ pose, kit: colors, size });
   }
 

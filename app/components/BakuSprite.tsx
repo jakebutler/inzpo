@@ -7,16 +7,17 @@ import { COLOR_ROLES } from "@/lib/db/schema";
 import {
   BAKU_CROSSFADE_MS,
   BAKU_SHADOW_CLIP_PCT,
+  BAKU_TINT_ENABLED,
   bakuCanTint,
   bakuDensity,
   bakuV6BandsSrc,
   bakuV6ColorSrc,
-  bakuV6PoseSrc,
+  bakuV6ShadeSrc,
   type BakuDensity,
   type BakuSrcPose,
 } from "@/lib/baku-v6";
 import { defringePremulEdges, multiplyShadowPixels, tintRoles, tintSpriteWithBands } from "@/lib/baku-tint";
-import { kitForPose, kitHasPalette, type MascotKit } from "@/lib/mascot";
+import { kitForPose, type MascotKit } from "@/lib/mascot";
 import { prefersReducedMotion } from "@/lib/motion";
 import { PAPER } from "@/lib/brand";
 
@@ -36,8 +37,14 @@ async function composeTint(
   density: BakuDensity,
   colors: Array<string | null>,
 ): Promise<string> {
-  const spriteImg = await loadImage(bakuV6PoseSrc(pose, density));
-  const bandImg = await loadImage(bakuV6BandsSrc(pose, density));
+  const [spriteImg, bandImg, shadeImg] = await Promise.all([
+    loadImage(bakuV6ColorSrc(pose, density)),
+    loadImage(bakuV6BandsSrc(pose, density)),
+    loadImage(bakuV6ShadeSrc(pose, density)),
+  ]);
+  if ([bandImg, shadeImg].some((img) => img.naturalWidth !== spriteImg.naturalWidth || img.naturalHeight !== spriteImg.naturalHeight)) {
+    throw new Error("Baku tint assets must match the colour sprite dimensions");
+  }
   const canvas = document.createElement("canvas");
   canvas.width = spriteImg.naturalWidth;
   canvas.height = spriteImg.naturalHeight;
@@ -48,8 +55,10 @@ async function composeTint(
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(bandImg, 0, 0, canvas.width, canvas.height);
   const bands = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  tintSpriteWithBands(sprite.data, bands.data, canvas.width, canvas.height, 4, 4, colors);
-  defringePremulEdges(sprite.data, canvas.width, canvas.height, 4);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(shadeImg, 0, 0);
+  const shade = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  tintSpriteWithBands(sprite.data, bands.data, canvas.width, canvas.height, 4, 4, colors, shade.data, 4);
   ctx.putImageData(sprite, 0, 0);
   return canvas.toDataURL("image/png");
 }
@@ -108,11 +117,9 @@ export function BakuSprite({
 }) {
   const colors = kitForPose(pose as "idle" | "chewing" | "success" | "empty" | "error-brief" | "error-unreadable" | "404" | "error-photo", kit);
   const density = bakuDensity(useDensity() * Math.max(1, size / 48));
-  const canTint = bakuCanTint(pose) && kitHasPalette(colors) && !forcePoseAsset;
+  const canTint = bakuCanTint(pose) && !forcePoseAsset;
   const paletteKey = COLOR_ROLES.map((role) => colors[role] ?? "").join(",");
-  const baseSrc = canTint || forcePoseAsset || !bakuCanTint(pose)
-    ? bakuV6PoseSrc(pose, density)
-    : bakuV6ColorSrc(pose, density);
+  const baseSrc = bakuV6ColorSrc(pose, density);
   const squashRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLImageElement>(null);
   const [pngFailed, setPngFailed] = useState(false);
@@ -164,7 +171,7 @@ export function BakuSprite({
   const showPng = !pngFailed;
 
   useEffect(() => {
-    if (!showPng) {
+    if (!BAKU_TINT_ENABLED || !showPng) {
       setShadowSrc(null);
       return;
     }

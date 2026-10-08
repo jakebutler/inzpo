@@ -220,9 +220,9 @@ describe("r5 shots", () => {
 });
 
 describe("r5 baku v6 art", () => {
-  it("keeps v6 paths, maps error-unreadable to error-photo, and tints knit poses only", () => {
+  it("keeps v6 paths, maps error-unreadable to error-photo, and disables tint by default", () => {
     expect(bakuArtPose("error-unreadable")).toBe("error-photo");
-    expect(bakuCanTint("idle")).toBe(true);
+    expect(bakuCanTint("idle")).toBe(false);
     expect(bakuCanTint("empty")).toBe(false);
     expect(bakuCanTint("error-unreadable")).toBe(false);
     expect(bakuDensity(1)).toBe(1);
@@ -289,7 +289,7 @@ describe("r5 baku v6 art", () => {
     expect(src("app/components/Mascot.tsx") + src("app/components/BakuSprite.tsx")).not.toMatch(/baku\/v5/);
   });
 
-  it("multiplies knit pixels from the index mask", async () => {
+  it("shades knit pixels from the index mask", async () => {
     const sharp = (await import("sharp")).default;
     const sprite = await sharp(path.join(process.cwd(), "public/baku/v6/baku-idle@1x.png"))
       .ensureAlpha()
@@ -302,11 +302,13 @@ describe("r5 baku v6 art", () => {
     const pixels = new Uint8ClampedArray(sprite.data);
     const mask = new Uint8ClampedArray(bands.data);
     const { tintSpriteWithBands } = await import("@/lib/baku-tint");
-    tintSpriteWithBands(pixels, mask, 48, 48, 4, bands.info.channels, ["#ff0000", null, null, null, null, null]);
+    const shade = new Uint8ClampedArray(48 * 48).fill(128);
+    tintSpriteWithBands(pixels, mask, 48, 48, 4, bands.info.channels, ["#ff0000", null, null, null, null, null], shade, 1);
     let tinted = 0;
     for (let i = 0; i < mask.length; i += bands.info.channels) {
       if (mask[i] !== 40) continue;
       const p = (i / bands.info.channels) * 4;
+      expect(pixels[p]).toBe(255);
       expect(pixels[p + 1]).toBe(0);
       expect(pixels[p + 2]).toBe(0);
       tinted += 1;

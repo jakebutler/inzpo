@@ -2,6 +2,8 @@ import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import type { MascotPose } from "@/lib/mascot";
 
 export const BAKU_V6_DIR = "/baku/v6";
+/** Opt in only after Designer replaces the band masks and supplies shade sprites. */
+export const BAKU_TINT_ENABLED = process.env.NEXT_PUBLIC_BAKU_TINT === "1";
 export const BAKU_CROSSFADE_MS = 150;
 export const BAKU_BAND_GRAYS = [40, 80, 120, 160, 200, 240] as const;
 /** Bottom slice of the sprite that holds the pale ground shadow. */
@@ -18,7 +20,7 @@ export const BAKU_ART_POSES = [
 ] as const;
 export type BakuArtPose = (typeof BAKU_ART_POSES)[number];
 
-/** Knit-patch poses: grayscale sprite + index masks. empty and error-photo stay as-is. */
+/** Knit-patch poses with index masks. empty and error-photo stay as-is. */
 export const BAKU_TINT_POSES: ReadonlySet<BakuArtPose> = new Set([
   "idle",
   "chewing",
@@ -41,7 +43,7 @@ export function bakuArtPose(pose: BakuSrcPose): BakuArtPose {
 }
 
 export function bakuCanTint(pose: BakuSrcPose): boolean {
-  return BAKU_TINT_POSES.has(bakuArtPose(pose));
+  return BAKU_TINT_ENABLED && BAKU_TINT_POSES.has(bakuArtPose(pose));
 }
 
 export function bakuDensity(dpr: number): BakuDensity {
@@ -61,6 +63,10 @@ export function bakuV6PoseSrc(pose: BakuSrcPose, density: BakuDensity = 1): stri
 
 export function bakuV6ColorSrc(pose: BakuSrcPose, density: BakuDensity = 1): string {
   return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}-color@${densityOrThrow(density)}x.png`;
+}
+
+export function bakuV6ShadeSrc(pose: BakuSrcPose, density: BakuDensity = 1): string {
+  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}-shade@${densityOrThrow(density)}x.png`;
 }
 
 export function bakuV6PoseSrcSet(pose: BakuSrcPose): string {
