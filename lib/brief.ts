@@ -11,7 +11,7 @@ import {
   BriefTimeoutError,
   briefModelId,
   bytesToDataUrl,
-  requestBriefCompletion,
+  requestBriefCompletionWithRetry,
 } from "@/lib/brief-request";
 
 export type BriefStatus = "pending" | "ready" | "failed";
@@ -126,7 +126,7 @@ export async function runBriefJob(itemId: string): Promise<BriefJob> {
   try {
     const imageUrl = await w640ImageUrl(itemId);
     if (!imageUrl) throw new Error("brief image missing");
-    const parsed = await requestBriefCompletion({
+    const parsed = await requestBriefCompletionWithRetry({
       imageUrl,
       keptHexes: [...filled],
       apiKey: key,

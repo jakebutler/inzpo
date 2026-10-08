@@ -14,6 +14,7 @@ export const BRIEF_REQUEST: {
   maxTokens: number | null;
   temperature: number | null;
   reasoningEffort: "low" | "high" | "max" | null;
+  maxChars: number;
   extra: Record<string, unknown>;
 } = {
   maxDurationS: 60,
@@ -22,18 +23,37 @@ export const BRIEF_REQUEST: {
   maxTokens: 300,
   temperature: null,
   reasoningEffort: "low",
+  /** Parsed brief text over this length is a parse failure. */
+  maxChars: 120,
   /** Extra chat-completions fields. Thinking cannot be disabled on glm-5.3-flash. */
   extra: {},
 };
 
 export const BRIEF_MAX_DURATION_S = BRIEF_REQUEST.maxDurationS;
 export const BRIEF_IMAGE_EXPIRES_S = BRIEF_REQUEST.imageExpiresS;
+export const BRIEF_MAX_CHARS = BRIEF_REQUEST.maxChars;
 
 export class BriefTimeoutError extends Error {
   constructor(message = "Brief request timed out") {
     super(message);
     this.name = "BriefTimeoutError";
   }
+}
+
+export class BriefTooLongError extends Error {
+  constructor(message = "Brief text is over 120 characters") {
+    super(message);
+    this.name = "BriefTooLongError";
+  }
+}
+
+/** Trim model text. Over BRIEF_MAX_CHARS is a parse failure. */
+export function acceptParsedBriefText(text: unknown): string | null {
+  if (typeof text !== "string") return null;
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > BRIEF_MAX_CHARS) throw new BriefTooLongError();
+  return trimmed;
 }
 
 export function briefModelId(env: Record<string, string | undefined> = process.env): string {
@@ -162,7 +182,7 @@ export async function requestBriefCompletion(input: {
     const content = body.choices?.[0]?.message?.content;
     const parsed = content ? parseBriefModelContent(content) : {};
     return {
-      text: typeof parsed.text === "string" ? parsed.text : null,
+      text: acceptParsedBriefText(parsed.text),
       namedColors: parsed.namedColors,
       namedHexes: Array.isArray(parsed.namedHexes)
         ? parsed.namedHexes.filter((hex): hex is string => typeof hex === "string")
@@ -174,5 +194,19 @@ export async function requestBriefCompletion(input: {
     throw err;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** Retry the vision call once when the parsed sentence is over BRIEF_MAX_CHARS. */
+export async function requestBriefCompletionWithRetry(
+  input: Parameters<typeof requestBriefCompletion>[0],
+): Promise<Awaited<ReturnType<typeof requestBriefCompletion>>> {
+  try {
+    return await requestBriefCompletion(input);
+  } catch (err) {
+    if (err instanceof BriefTooLongError) {
+      return await requestBriefCompletion(input);
+    }
+    throw err;
   }
 }

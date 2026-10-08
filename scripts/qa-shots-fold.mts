@@ -292,6 +292,28 @@ async function main(): Promise<void> {
   }
 
   {
+    const longest = (Object.keys(FOLD_BRIEFS) as Array<keyof typeof FOLD_BRIEFS>).reduce((best, id) =>
+      FOLD_BRIEFS[id].text.length > FOLD_BRIEFS[best].text.length ? id : best,
+    );
+    for (const vp of VIEWPORTS) {
+      let page = await browser.newPage({
+        viewport: { width: vp.width, height: vp.height },
+        deviceScaleFactor: 2,
+        reducedMotion: "no-preference",
+      });
+      page = await captureShot(
+        page,
+        urlFor({ state: "result" }, longest),
+        path.join(ARTIFACTS, `r5_${longest}_${vp.name}_brief-full_motion.png`),
+        false,
+        700,
+        false,
+      );
+      await page.close();
+    }
+  }
+
+  {
     const page = await browser.newPage({
       viewport: { width: 390, height: 844 },
       deviceScaleFactor: 3,

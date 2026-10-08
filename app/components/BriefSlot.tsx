@@ -102,13 +102,10 @@ export function BriefSlot({
       <div className="min-w-0 flex-1 pt-0.5">
         {shown ? (
           <p
-            className="font-heading line-clamp-3 text-[18px] leading-6"
+            className="font-heading text-[18px] leading-6"
+            data-brief-text
             style={{
               color: ink,
-              display: "-webkit-box",
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
               opacity,
               transition: `opacity ${MOTION_CSS.smallMs}ms ${MOTION_CSS.easeMove}`,
             }}

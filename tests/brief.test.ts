@@ -4,16 +4,20 @@ import { BRIEF_PROMPT } from "@/lib/brief-prompt";
 import { FOLD_BRIEFS } from "@/lib/fold-briefs";
 import { describe, expect, it } from "vitest";
 import {
+  BRIEF_MAX_CHARS,
   BRIEF_MAX_DURATION_S,
   BRIEF_REQUEST,
   BriefTimeoutError,
+  BriefTooLongError,
   DEFAULT_BRIEF_MODEL,
+  acceptParsedBriefText,
   briefModelId,
   briefUserContent,
   buildBriefChatBody,
   bytesToDataUrl,
   parseBriefModelContent,
   requestBriefCompletion,
+  requestBriefCompletionWithRetry,
 } from "@/lib/brief-request";
 
 function src(rel: string): string {
@@ -103,6 +107,48 @@ describe("brief model path", () => {
     expect(BRIEF_REQUEST.reasoningEffort).toBe("low");
     expect(src("lib/brief.ts")).toContain("BriefTimeoutError");
     expect(src("lib/brief-request.ts")).toContain("BRIEF_REQUEST");
+  });
+});
+
+describe("brief max chars", () => {
+  it("treats parsed text over 120 characters as a parse failure and retries once", async () => {
+    expect(BRIEF_MAX_CHARS).toBe(120);
+    expect(BRIEF_REQUEST.maxChars).toBe(120);
+    expect(acceptParsedBriefText("a".repeat(120))).toBe("a".repeat(120));
+    expect(() => acceptParsedBriefText("a".repeat(121))).toThrow(BriefTooLongError);
+    for (const capture of Object.values(FOLD_BRIEFS)) {
+      expect(capture.text.length).toBeLessThanOrEqual(BRIEF_MAX_CHARS);
+    }
+    expect(FOLD_BRIEFS.IMG_6208.text.length).toBe(107);
+
+    const tooLong = `{"text":"${"x".repeat(121)}","namedColors":[]}`;
+    const ok = '{"text":"Warm brick in shade.","namedColors":[]}';
+    const contents = [tooLong, ok];
+    const result = await requestBriefCompletionWithRetry({
+      imageUrl: "data:image/webp;base64,AQID",
+      keptHexes: ["#6b6656"],
+      apiKey: "test-key",
+      fetchImpl: (async () => {
+        const content = contents.shift();
+        return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 });
+      }) as typeof fetch,
+    });
+    expect(contents).toEqual([]);
+    expect(result.text).toBe("Warm brick in shade.");
+
+    await expect(
+      requestBriefCompletionWithRetry({
+        imageUrl: "data:image/webp;base64,AQID",
+        keptHexes: ["#6b6656"],
+        apiKey: "test-key",
+        fetchImpl: (async () =>
+          new Response(
+            JSON.stringify({ choices: [{ message: { content: tooLong } }] }),
+            { status: 200 },
+          )) as typeof fetch,
+      }),
+    ).rejects.toBeInstanceOf(BriefTooLongError);
+    expect(src("lib/brief.ts")).toContain("requestBriefCompletionWithRetry");
   });
 });
 

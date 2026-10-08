@@ -64,15 +64,21 @@ describe("r5 brief slot", () => {
     expect(brief).toContain("error-brief");
     expect(brief).toContain('"idle"');
     expect(brief).toContain('"chewing"');
-    expect(brief).toContain("line-clamp-3");
+    expect(brief).not.toContain("line-clamp");
+    expect(brief).not.toContain("WebkitLineClamp");
+    expect(brief).not.toContain("-webkit-box");
     expect(brief).toContain("text-[18px] leading-6");
+    expect(brief).toContain("data-brief-text");
   });
 
-  it("shows the model sentence as-is and relies on line-clamp", () => {
+  it("shows the model sentence as-is without an ellipsis clamp", () => {
     const sentence =
-      "Pale butter-yellow clapboard siding with white trim reads warm, dignified Victorian charm.";
+      "Sky-blue mural facade with dark navy door insets and pale gray shopfront, evoking a quiet, storybook charm.";
+    expect(sentence.length).toBe(107);
     expect(displayBriefSlot(sentence)).toBe(sentence);
+    expect(src("app/components/BriefSlot.tsx")).not.toMatch(/overflow:\s*["']?hidden/);
     expect(src("lib/brief-prompt.ts")).toContain("Write one sentence of at most 12 words");
+    expect(src("lib/brief-display.ts")).toContain("Never ellipsize");
   });
 });
 
@@ -187,6 +193,7 @@ describe("r5 shots", () => {
     expect(shots).toContain('state: "failed"');
     expect(shots).toContain("r5_flow_");
     expect(shots).toContain("brief-closeup");
+    expect(shots).toContain("brief-full");
     expect(shots).toContain("empty-collection");
     expect(shots).toContain('state: "pending"');
     expect(shots).toContain("arrived_");
