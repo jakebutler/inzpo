@@ -610,7 +610,7 @@ export function KitResult({
         />
         <ContrastAa roles={roles} />
       </TokenEditor>
-      {tileSrc ? (
+      {tileSrc && brief.status !== "pending" ? (
         <section className="mt-5 px-5">
           <div
             className="h-40 overflow-hidden"

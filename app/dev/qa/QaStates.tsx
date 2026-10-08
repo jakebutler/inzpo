@@ -163,20 +163,6 @@ export function QaStates({ issue, state }: { issue: string; state: string }) {
             <div className="px-4 pt-4">
               <TokenEditor itemId="qa" imageSrc={null} colors={colorsFromKit(HANDOFF_KITS.IMG_6505)} />
               <BriefSlot status="pending" kit={HANDOFF_KITS.IMG_6505} note={null} />
-              <section className="mt-6">
-                <div
-                  className="h-40 overflow-hidden rounded-xl border border-border"
-                  style={{
-                    backgroundImage:
-                      "linear-gradient(45deg, #6b6656 25%, #d1cda4 25%, #d1cda4 50%, #6b6656 50%, #6b6656 75%, #d1cda4 75%)",
-                    backgroundSize: "256px 256px",
-                  }}
-                  aria-label="Texture tile"
-                />
-                <button type="button" className="mt-2 min-h-11 text-sm text-muted-foreground">
-                  Move crop
-                </button>
-              </section>
             </div>
             <SaveBar itemId="qa" collections={[{ id: "c1", name: "Street walks" }]} />
           </div>
