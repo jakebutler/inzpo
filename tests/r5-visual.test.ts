@@ -244,6 +244,8 @@ describe("r5 baku v6 art", () => {
     expect(sprite).toContain('mixBlendMode: "multiply"');
     expect(sprite).toContain("data-baku-shadow");
     expect(sprite).toContain("BAKU_SHADOW_CLIP_PCT");
+    expect(sprite).toContain('const flip = faceText && showPng ? "scaleX(-1)" : undefined');
+    expect(sprite).not.toMatch(/data-baku-sprite[\s\S]{0,400}transform: faceText && showPng/);
     expect(sprite).not.toMatch(/probe\(/);
     expect(src("app/components/mascot.css")).not.toMatch(/width:\s*48px/);
   });

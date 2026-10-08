@@ -87,6 +87,7 @@ export function BakuSprite({
       ? bakuV6ColorSrc(pose, density)
       : bakuV6PoseSrc(pose, density);
   const squashRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLImageElement>(null);
   const [pngFailed, setPngFailed] = useState(false);
   const [tinted, setTinted] = useState<string | null>(null);
   const [tintFailed, setTintFailed] = useState(false);
@@ -124,7 +125,7 @@ export function BakuSprite({
 
   useGSAP(
     () => {
-      const el = squashRef.current;
+      const el = bodyRef.current ?? squashRef.current;
       if (!el || prefersReducedMotion()) return;
       gsap.fromTo(el, { opacity: 0.35 }, { opacity: 1, duration: BAKU_CROSSFADE_MS / 1000, ease: "power2.out" });
     },
@@ -142,6 +143,9 @@ export function BakuSprite({
   };
   const shadowClip = `inset(${100 - BAKU_SHADOW_CLIP_PCT}% 0 0 0)`;
   const bodyClip = `inset(0 0 ${BAKU_SHADOW_CLIP_PCT}% 0)`;
+  // Flip the imgs, not a wrapper: a transformed ancestor isolates mix-blend-mode
+  // and the pale oval then reads as a white smudge on navy bands.
+  const flip = faceText && showPng ? "scaleX(-1)" : undefined;
 
   return (
     <div
@@ -152,11 +156,9 @@ export function BakuSprite({
       style={{
         width: size,
         height: size,
-        transform: faceText && showPng ? "scaleX(-1)" : undefined,
-        transformOrigin: "50% 100%",
       }}
     >
-      <div ref={squashRef} className="relative h-full w-full" style={{ transformOrigin: "50% 100%" }}>
+      <div ref={squashRef} className="relative h-full w-full">
         {showPng ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -167,19 +169,25 @@ export function BakuSprite({
               height={size}
               data-baku-shadow
               className="pointer-events-none absolute inset-0 block h-full w-full"
-              style={{ mixBlendMode: "multiply", clipPath: shadowClip }}
+              style={{
+                mixBlendMode: "multiply",
+                clipPath: shadowClip,
+                transform: flip,
+                transformOrigin: "50% 100%",
+              }}
               draggable={false}
               onError={failPng}
             />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              ref={bodyRef}
               src={src}
               alt=""
               width={size}
               height={size}
               data-baku-body
               className="relative block h-full w-full"
-              style={{ clipPath: bodyClip }}
+              style={{ clipPath: bodyClip, transform: flip, transformOrigin: "50% 100%" }}
               draggable={false}
               onError={failPng}
             />
