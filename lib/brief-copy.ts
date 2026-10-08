@@ -119,10 +119,9 @@ export function parseNamedColorCandidates(raw: unknown, fallbackHexes: string[] 
   return out;
 }
 
-/** Display only measured suggestions; unmarked r8.3 records have valid region pins. */
+/** Display only suggestions carrying the region marker written since r8.4. */
 export function parseNamedColors(raw: unknown, fallbackHexes: string[] = []): NamedColor[] {
-  return parseNamedColorCandidates(raw, fallbackHexes).filter((color) =>
-    color.source === "region" || (color.source === undefined && color.pinX !== undefined && color.pinY !== undefined));
+  return parseNamedColorCandidates(raw, fallbackHexes).filter((color) => color.source === "region");
 }
 
 export const EMPTY_ROLE_COPY = (role: string): string => `No ${role} in this one. Add a color.`;

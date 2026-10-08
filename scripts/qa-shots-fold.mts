@@ -100,13 +100,22 @@ async function assertCaptureReady(page: Page): Promise<void> {
     const wear = document.querySelector("[data-kit-wear]");
     const node = wear ?? document.body;
     const families = [...document.fonts].map((f) => f.family);
+    const style = getComputedStyle(document.documentElement);
+    const faces = [...document.fonts];
+    const fontOK = (variable: string, family: string) => {
+      // next/font renames families; require the actual primary face to be loaded.
+      const primary = style.getPropertyValue(variable).trim().split(",")[0]?.trim() || family;
+      const unquoted = primary.replace(/["']/g, "");
+      return document.fonts.check(`18px ${primary}`) && faces.some(face =>
+        face.family.replace(/["']/g, "") === unquoted && face.status === "loaded");
+    };
     return {
       sheetCount: sheets.length,
       ruleCount,
       backgroundColor: getComputedStyle(node).backgroundColor,
       kitWear: Boolean(wear),
       errorDocument: document.documentElement.id === "__next_error__",
-      fraunces: document.fonts.check("18px Fraunces") || families.some((f) => /fraunces/i.test(f)),
+      headlineFont: fontOK("--font-headline", "Akaya Kanadaka"),
       geist: document.fonts.check("16px Geist") || families.some((f) => /geist/i.test(f) && !/mono/i.test(f)),
     };
   });
@@ -116,7 +125,7 @@ async function assertCaptureReady(page: Page): Promise<void> {
     ruleCount: raw.ruleCount,
     backgroundHex: cssRgbToHex(raw.backgroundColor),
     kitWear: raw.kitWear,
-    fraunces: raw.fraunces,
+    headlineFont: raw.headlineFont,
     geist: raw.geist,
     documentStatus: PAGE_DOC_STATUS.get(page),
     errorDocument: raw.errorDocument,
@@ -279,7 +288,7 @@ function motionTxt(): string {
       `photo fold ${PHOTO_FOLD_CSS} (max ${PHOTO_FOLD_PX}px) leader x ${PIN_LEADER_X}px pin ${PIN_SIZE}px`,
       `baku v6 crossfade ${BAKU_CROSSFADE_MS}ms`,
       `paper ${PAPER} ink ${INK} vermilion ${VERMILION}`,
-      `fonts Fraunces / Geist / Geist Mono via next/font`,
+      `fonts Akaya Kanadaka / Geist / Geist Mono via next/font`,
       `brief model ${FOLD_BRIEFS.IMG_6505.model}`,
       `brief timeout ${BRIEF_REQUEST.timeoutMs}ms max_tokens ${BRIEF_REQUEST.maxTokens} reasoning_effort ${BRIEF_REQUEST.reasoningEffort}`,
       `IMG_6505 brief latency ${FOLD_BRIEFS.IMG_6505.latencyMs ?? "n/a"}ms outputTokens ${FOLD_BRIEFS.IMG_6505.outputTokens ?? "n/a"}`,

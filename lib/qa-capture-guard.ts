@@ -55,7 +55,7 @@ export type CaptureGuardSnapshot = {
   ruleCount: number;
   backgroundHex: string | null;
   kitWear: boolean;
-  fraunces: boolean;
+  headlineFont: boolean;
   geist: boolean;
   documentStatus?: number;
   errorDocument?: boolean;
@@ -75,7 +75,7 @@ export function captureGuardIssues(snap: CaptureGuardSnapshot): string[] {
   if (!isAllowedCaptureBackground(snap.backgroundHex, { kitWear: snap.kitWear })) {
     issues.push(`background ${snap.backgroundHex ?? "empty"} is not paper or a kit color`);
   }
-  if (!snap.fraunces) issues.push("Fraunces is not loaded");
+  if (!snap.headlineFont) issues.push("Headline font (Akaya Kanadaka) is not loaded");
   if (!snap.geist) issues.push("Geist is not loaded");
   return issues;
 }

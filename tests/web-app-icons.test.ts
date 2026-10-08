@@ -9,7 +9,7 @@ import { IconsMetadata } from "next/dist/lib/metadata/generate/icons";
 import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 
 vi.mock("next/font/google", () => ({
-  Fraunces: () => ({ variable: "fraunces" }),
+  Akaya_Kanadaka: () => ({ variable: "headline" }),
   Geist: () => ({ variable: "geist" }),
   Geist_Mono: () => ({ variable: "geist-mono" }),
 }));

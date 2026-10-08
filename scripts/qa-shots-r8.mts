@@ -106,7 +106,7 @@ async function guard(page: Page, label: string, allowStatus = [200]): Promise<vo
         sheetCount: sheets.length, ruleCount, sheetIssues,
         backgroundColor: getComputedStyle(wear ?? document.body).backgroundColor,
         kitWear: Boolean(wear), errorDocument: document.documentElement.id === "__next_error__",
-        fraunces: fontOK("--font-fraunces", "Fraunces"), geist: fontOK("--font-geist", "Geist"),
+        headlineFont: fontOK("--font-headline", "Akaya Kanadaka"), geist: fontOK("--font-geist", "Geist"),
       };
     });
     const state = states.get(page)!;

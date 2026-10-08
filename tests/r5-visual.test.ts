@@ -338,7 +338,7 @@ describe("r5 capture guard", () => {
         ruleCount: 0,
         backgroundHex: "#ffffff",
         kitWear: true,
-        fraunces: false,
+        headlineFont: false,
         geist: false,
       }).length,
     ).toBeGreaterThan(3);
@@ -349,7 +349,7 @@ describe("r5 capture guard", () => {
         ruleCount: 40,
         backgroundHex: "#384b5f",
         kitWear: true,
-        fraunces: true,
+        headlineFont: true,
         geist: true,
       }),
     ).toEqual([]);
@@ -360,7 +360,7 @@ describe("r5 capture guard", () => {
         ruleCount: 40,
         backgroundHex: "#f3eee4",
         kitWear: false,
-        fraunces: true,
+        headlineFont: true,
         geist: true,
         documentStatus: 500,
         errorDocument: true,

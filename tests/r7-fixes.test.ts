@@ -53,7 +53,7 @@ describe("r7 recapture script", () => {
 });
 
 describe("r7 login polish", () => {
-  it("uses Fraunces, pose PNG, and six real kit colors", () => {
+  it("uses the headline font, pose PNG, and six real kit colors", () => {
     const login = src("app/login/SignInForm.tsx");
     expect(login).toContain("font-heading");
     expect(login).toContain("Enter your email and we'll send you a code.");

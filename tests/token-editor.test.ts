@@ -1,5 +1,6 @@
 import { createElement, act, type ReactElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import { parseHTML } from "linkedom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
@@ -10,6 +11,9 @@ import { photoBackZone, pinPlacement } from "@/lib/cover-pin";
 const mocks = vi.hoisted(() => ({ save: vi.fn(), sheet: null as ReactNode, pixel: vi.fn(), average: vi.fn(), drag: vi.fn() }));
 vi.mock("@/app/actions/tokens", () => ({ saveItemTokensAction: mocks.save }));
 vi.mock("@/lib/client-eyedropper", () => ({ sampleImagePixel: mocks.pixel, sampleImageAverage: mocks.average }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("gsap", () => ({ gsap: { registerPlugin: vi.fn() } }));
+vi.mock("@gsap/react", () => ({ useGSAP: vi.fn() }));
 vi.mock("@/components/ui/sheet", () => ({
   Sheet: ({ children }: { children: ReactNode }) => children,
   SheetContent: ({ children }: { children: ReactNode }) => { mocks.sheet = children; return children; },
@@ -17,6 +21,7 @@ vi.mock("@/components/ui/sheet", () => ({
   SheetTitle: ({ children }: { children: ReactNode }) => children,
 }));
 import { TokenEditor } from "@/app/components/TokenEditor";
+import { KitResult } from "@/app/components/KitResult";
 
 type Row = { role: ColorRole; hex: string; pinX?: number; pinY?: number; origin: string };
 let root: Root;
@@ -255,16 +260,35 @@ describe("Add suggestions need an empty slot", () => {
 
   it.each([
     { provenance: {}, visible: false },
-    { provenance: { pinX: 0.2, pinY: 0.3 }, visible: true },
+    { provenance: { pinX: 0.2, pinY: 0.3 }, visible: false },
     { provenance: { source: "region" }, visible: true },
+    { provenance: { source: "region", pinX: 0.2, pinY: 0.3 }, visible: true },
     { provenance: { source: "model", pinX: 0.2, pinY: 0.3 }, visible: false },
-  ])("renders only measured suggestions ($provenance)", async ({ provenance, visible }) => {
+    { provenance: { source: "unknown" }, visible: false },
+  ])("renders only suggestions with the region marker ($provenance)", async ({ provenance, visible }) => {
     await render([], null, false, {
       ...suggestions, namedColors: [{ hex: "#b9cfe2", label: "blue window pane", ...provenance }],
     });
     const chip = document.querySelector("[data-named-chip]");
     expect(Boolean(chip)).toBe(visible);
     if (visible) expect(chip?.getAttribute("data-chip-source")).toBe("region");
+  });
+
+  it.each([
+    { source: undefined, expectedCount: 0 },
+    { source: "region", expectedCount: 1 },
+  ])("filters saved-kit chips with pins and source=$source", ({ source, expectedCount }) => {
+    const html = renderToStaticMarkup(createElement(KitResult, {
+      itemId: "saved-kit", title: "Blue window", imageSrc: null, width: 390, height: 488,
+      colors: [], tileSrc: null, saved: true,
+      preview: {
+        status: "ready", text: "A blue window pane.", reveal: "landed",
+        namedColors: [{ hex: "#b9cfe2", label: "blue window pane", pinX: 0.2, pinY: 0.3, ...(source ? { source } : {}) }],
+      },
+    }));
+    const { document } = parseHTML(html);
+    expect(document.querySelector("[data-saved-header]")).not.toBeNull();
+    expect(document.querySelectorAll("[data-named-chip]")).toHaveLength(expectedCount);
   });
 
   it.each([0, 1, 3, 6])("shows Add suggestions only with empty roles (%s empty)", async (emptyCount) => {

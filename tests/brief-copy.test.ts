@@ -38,21 +38,22 @@ describe("chip labels", () => {
     expect(parseNamedColorCandidates(["c9c9c4", "nope"])).toEqual([{ hex: "#c9c9c4", label: null }]);
   });
 
-  it("hides pre-r8.3 guesses and accepts only region provenance or unmarked measured pins", () => {
+  it("hides all pre-r8.4 suggestions and accepts only explicit region provenance", () => {
     const named = { hex: "#778bae", label: "blue sky" };
     expect(parseNamedColors([named], [named.hex])).toEqual([]);
     expect(parseNamedColors(undefined, [named.hex])).toEqual([]);
     expect(parseNamedColors([{ ...named, source: "region" }])).toEqual([{ ...named, source: "region" }]);
-    expect(parseNamedColors([{ ...named, pinX: 0, pinY: 1 }])).toEqual([{ ...named, pinX: 0, pinY: 1 }]);
+    expect(parseNamedColors([{ ...named, pinX: 0, pinY: 1 }])).toEqual([]);
+    expect(parseNamedColors([{ ...named, pinX: 0.2, pinY: 0.3 }])).toEqual([]);
     expect(parseNamedColors([{ ...named, source: "model", pinX: 0.2, pinY: 0.3 }])).toEqual([]);
     expect(parseNamedColors([{ ...named, source: null, pinX: 0.2, pinY: 0.3 }])).toEqual([]);
   });
 
   it("preserves measured pins on stored suggestions and ignores invalid positions", () => {
-    const named = { hex: "#c6c09a", label: "yellow siding" };
+    const named = { hex: "#c6c09a", label: "yellow siding", source: "region" };
     expect(parseNamedColors([{ ...named, pinX: 0.2, pinY: 0.3 }])).toEqual([{ ...named, pinX: 0.2, pinY: 0.3 }]);
     for (const pin of [{ pinX: -0.1, pinY: 0.3 }, { pinX: 0.2, pinY: 1.1 }, { pinX: NaN, pinY: 0.3 }, { pinX: 0.2 }]) {
-      expect(parseNamedColors([{ ...named, ...pin }])).toEqual([]);
+      expect(parseNamedColors([{ ...named, ...pin }])).toEqual([named]);
     }
   });
 });
