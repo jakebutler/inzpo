@@ -42,6 +42,7 @@ type ColorRow = {
   pinY?: number | null;
   position: number;
   derivedFrom?: ColorRole | null;
+  origin?: string | null;
 };
 
 const TILE_PX = 256;
@@ -86,6 +87,7 @@ export function KitResult({
   height,
   colors,
   tileSrc,
+  placeholderSrc,
   saved,
   backHref = "/",
   showBack = true,
@@ -98,6 +100,7 @@ export function KitResult({
   height: number;
   colors: ColorRow[];
   tileSrc: string | null;
+  placeholderSrc?: string | null;
   saved?: boolean;
   backHref?: string;
   showBack?: boolean;
@@ -120,7 +123,7 @@ export function KitResult({
         if (!row.role) return row;
         const next = promoted[row.role];
         if (!next) return row;
-        return { ...row, hex: next.hex, pinX: next.pinX, pinY: next.pinY, derivedFrom: null };
+        return { ...row, hex: next.hex, pinX: next.pinX, pinY: next.pinY, derivedFrom: null, origin: "sampled" };
       }),
     [derivedColors, promoted],
   );
@@ -156,6 +159,7 @@ export function KitResult({
     stub: preview?.stub === true,
   });
   const [moving, setMoving] = useState(false);
+  const [photoReady, setPhotoReady] = useState(!imageSrc);
   const reduced = prefersReducedMotion();
   const pageBg = roles.background ?? PAPER;
   const pageInk = roles.text ?? INK;
@@ -181,6 +185,28 @@ export function KitResult({
     ro.observe(el);
     setBox({ w: el.clientWidth, h: el.clientHeight });
     return () => ro.disconnect();
+  }, [imageSrc]);
+
+  useEffect(() => {
+    if (!imageSrc) {
+      setPhotoReady(true);
+      return;
+    }
+    setPhotoReady(false);
+    let cancelled = false;
+    const markReady = () => {
+      if (!cancelled) setPhotoReady(true);
+    };
+    const node = imgRef.current;
+    const warmup = new Image();
+    warmup.decoding = "async";
+    warmup.src = imageSrc;
+    const decodeTarget = node && node.currentSrc ? node : warmup;
+    const wait = decodeTarget.decode ? decodeTarget.decode() : Promise.resolve();
+    void wait.then(markReady).catch(markReady);
+    return () => {
+      cancelled = true;
+    };
   }, [imageSrc]);
 
   useEffect(() => {
@@ -307,16 +333,25 @@ export function KitResult({
         gsap.ticker.add(syncHairlines);
         return () => gsap.ticker.remove(syncHairlines);
       }
+      if (mode === "play" && !photoReady) {
+        gsap.set(bands, { y: 8, opacity: 0 });
+        return;
+      }
       if (!claimRevealPlay(itemId)) {
         land();
         gsap.ticker.add(syncHairlines);
         return () => gsap.ticker.remove(syncHairlines);
       }
       gsap.set(bands, { y: 8, opacity: 0 });
-      revealNow();
-      setLinePulse(true);
       const tl = gsap.timeline({
         defaults: { duration: MOTION.enter.duration, ease: MOTION.enter.ease },
+        onStart: () => {
+          stackEl?.setAttribute("data-revealed", "true");
+          setLinePulse(true);
+        },
+        onComplete: () => {
+          setBandsRevealed(true);
+        },
         onUpdate: syncHairlines,
       });
       bands.forEach((band, i) => {
@@ -329,7 +364,7 @@ export function KitResult({
         gsap.ticker.remove(syncHairlines);
       };
     },
-    { scope: stageRef, dependencies: [itemId, preview?.reveal, reduced, revealTick, box.w, box.h] },
+    { scope: stageRef, dependencies: [itemId, preview?.reveal, reduced, revealTick, photoReady] },
   );
 
   useGSAP(
@@ -392,6 +427,22 @@ export function KitResult({
         >
           <span data-safe-top className="pointer-events-none absolute" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }} />
           <div className="absolute inset-0 overflow-hidden">
+            {placeholderSrc || tileSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={placeholderSrc || tileSrc || ""}
+                alt=""
+                aria-hidden
+                data-photo-lqip
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{
+                  objectPosition,
+                  filter: "blur(16px)",
+                  transform: "scale(1.08)",
+                  opacity: photoReady ? 0 : 1,
+                }}
+              />
+            ) : null}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={imgRef}
@@ -402,9 +453,16 @@ export function KitResult({
                 namedColors: brief.namedColors,
                 pending: brief.status === "pending" || brief.stub,
               })}
-              className="h-full w-full object-cover"
-              style={{ filter: "none", objectPosition, touchAction: editOpen ? "none" : undefined }}
+              className="relative h-full w-full object-cover"
+              style={{
+                filter: "none",
+                objectPosition,
+                touchAction: editOpen ? "none" : undefined,
+                opacity: photoReady ? 1 : 0,
+              }}
               crossOrigin="anonymous"
+              fetchPriority="high"
+              decoding="async"
             />
           </div>
           {showBack && !saved ? <PhotoBackButton href={backHref} /> : null}

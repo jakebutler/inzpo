@@ -66,6 +66,7 @@ export default async function ItemDetailPage({
             height={item.media?.height ?? 488}
             colors={item.colors}
             tileSrc={item.media?.tileKey ? `/media/${item.media.tileKey}` : null}
+            placeholderSrc={item.media?.placeholder ?? null}
             saved={saved}
             backHref={collectionHref}
             showBack={!saved}
