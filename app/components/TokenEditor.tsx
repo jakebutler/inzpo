@@ -29,6 +29,7 @@ type ColorRow = {
   pinX?: number | null;
   pinY?: number | null;
   position?: number;
+  derivedFrom?: ColorRole | null;
 };
 
 export function TokenEditor({
@@ -49,6 +50,8 @@ export function TokenEditor({
   imageSize,
   simulateLoupe = false,
   onLoupe,
+  onPromoteRole,
+  bandsRevealed = true,
   children,
 }: {
   itemId: string;
@@ -68,6 +71,8 @@ export function TokenEditor({
   imageSize?: { width: number; height: number };
   simulateLoupe?: boolean;
   onLoupe?: (loupe: LoupeView | null) => void;
+  onPromoteRole?: (role: ColorRole, pin: { pinX: number; pinY: number; hex: string }) => void;
+  bandsRevealed?: boolean;
   children?: ReactNode;
 }) {
   const [roles, setRoles] = useState(() => rolesFromColors(colors));
@@ -78,6 +83,9 @@ export function TokenEditor({
     }
     return next;
   });
+  const [autoRoles, setAutoRoles] = useState<Set<ColorRole>>(
+    () => new Set(colors.filter((c) => c.role && c.derivedFrom).map((c) => c.role!)),
+  );
   const [open, setOpen] = useState<ColorRole | null>(initialOpen);
   const [hexDraft, setHexDraft] = useState(() => (initialOpen ? rolesFromColors(colors)[initialOpen] ?? "" : ""));
   const [pendingHex, setPendingHex] = useState<string | null>(null);
@@ -102,6 +110,9 @@ export function TokenEditor({
   function openRole(role: ColorRole) {
     setOpenRole(role);
     setHexDraft(pendingHex ?? roles[role] ?? "");
+    if (autoRoles.has(role) && photoBox) {
+      setLoupe({ x: photoBox.w / 2, y: photoBox.h / 2, hex: roles[role] ?? "#000000" });
+    }
   }
 
   function commit(nextRoles: typeof roles, nextPins = pins) {
@@ -149,6 +160,12 @@ export function TokenEditor({
       setLoupe({ x: mapped.x, y: mapped.y, hex: sample.hex });
       if (commitSample) {
         const nextPins = { ...pins, [open]: { pinX: sample.pinX, pinY: sample.pinY } };
+        setAutoRoles((prev) => {
+          const next = new Set(prev);
+          next.delete(open);
+          return next;
+        });
+        onPromoteRole?.(open, { pinX: sample.pinX, pinY: sample.pinY, hex: sample.hex });
         applyHex(open, sample.hex, nextPins);
       } else {
         setHexDraft(sample.hex);
@@ -193,13 +210,20 @@ export function TokenEditor({
 
   useEffect(() => {
     if (!simulateLoupe || !open || !crop || !photoBox || !imageSize) return;
-    const pin = pins[open] ?? Object.values(pins)[0];
-    if (!pin) return;
+    const hex = roles[open] ?? "#000000";
+    if (autoRoles.has(open)) {
+      setLoupe({ x: photoBox.w / 2, y: photoBox.h / 2, hex });
+      return;
+    }
+    const pin = pins[open];
+    if (!pin) {
+      setLoupe({ x: photoBox.w / 2, y: photoBox.h / 2, hex });
+      return;
+    }
     const left = ((pin.pinX - crop.vx) / crop.vw) * photoBox.w;
     const top = ((pin.pinY - crop.vy) / crop.vh) * photoBox.h;
-    const hex = roles[open] ?? "#000000";
     setLoupe({ x: left, y: top, hex });
-  }, [simulateLoupe, open, crop, photoBox, imageSize, pins, roles]);
+  }, [simulateLoupe, open, crop, photoBox, imageSize, pins, roles, autoRoles]);
 
   const reduced = prefersReducedMotion();
   const chipAnim = reduced
@@ -208,7 +232,7 @@ export function TokenEditor({
 
   return (
     <section>
-      <div data-band-stack>
+      <div data-band-stack data-revealed={bandsRevealed ? "true" : "false"}>
         <PaletteBands
           roles={roles}
           size={size}
@@ -216,6 +240,7 @@ export function TokenEditor({
           onPick={openRole}
           onFocusRole={onFocusRole}
           bandRefs={bandRefs}
+          autoRoles={autoRoles}
         />
       </div>
       {children}

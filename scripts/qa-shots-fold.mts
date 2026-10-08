@@ -1,10 +1,10 @@
 /**
- * r4_ visual-direction stills: real photos, both viewports, reduced off/on.
- * Extra: 200ms into the reveal on IMG_5859 at 390x844 motion-on.
+ * r5_ visual-direction stills: real photos, both viewports, reduced off/on.
+ * Extra: first-frame / 200ms / 400ms reveal, brief arrived/failed, edit-drag, flow.
  */
 import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { webkit } from "playwright";
+import { webkit, type Page } from "playwright";
 import { MOTION, MOTION_CSS } from "../lib/motion.ts";
 import {
   BAND_H_EDITOR,
@@ -24,7 +24,7 @@ import { BRIEF_REQUEST } from "../lib/brief-request.ts";
 import { BAKU_CROSSFADE_MS } from "../lib/baku-v6.ts";
 
 const ARTIFACTS = "/opt/cursor/artifacts";
-const BASE = process.env.QA_BASE ?? "http://127.0.0.1:3000";
+const BASE = process.env.QA_BASE ?? "http://127.0.0.1:3010";
 const PHOTOS = ["IMG_6505", "IMG_6208", "IMG_5859"] as const;
 const VIEWPORTS = [
   { name: "390x844", width: 390, height: 844 },
@@ -42,6 +42,7 @@ const PER_PHOTO: Shot[] = [
   { state: "edit" },
   { state: "save" },
   { state: "saved" },
+  { state: "failed" },
 ];
 
 const EXTRA: Shot[] = [
@@ -56,16 +57,14 @@ function urlFor(shot: Shot, photo: string): string {
   return `${BASE}/dev/fold?state=${shot.state}&photo=${p}`;
 }
 
-const ABOVE_BAR = new Set(["pending", "chips", "saved", "empty-roles", "dark"]);
+/** Pending/failed keep the back button in frame; do not scroll those. */
+const ABOVE_BAR = new Set(["chips", "saved", "empty-roles", "dark"]);
 
-async function hideChrome(page: import("playwright").Page): Promise<void> {
+async function hideChrome(page: Page): Promise<void> {
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
 }
 
-async function recoverPage(
-  page: import("playwright").Page,
-  reduced: boolean,
-): Promise<import("playwright").Page> {
+async function recoverPage(page: Page, reduced: boolean): Promise<Page> {
   const browser = page.context().browser();
   const vp = page.viewportSize();
   try {
@@ -80,11 +79,7 @@ async function recoverPage(
   });
 }
 
-async function openShot(
-  page: import("playwright").Page,
-  url: string,
-  reduced: boolean,
-): Promise<import("playwright").Page> {
+async function openShot(page: Page, url: string, reduced: boolean): Promise<Page> {
   try {
     await page.goto(url, { waitUntil: "load", timeout: 60_000 });
     return page;
@@ -96,13 +91,13 @@ async function openShot(
 }
 
 async function captureShot(
-  page: import("playwright").Page,
+  page: Page,
   url: string,
   dest: string,
   reduced: boolean,
   waitMs: number,
   aboveBar: boolean,
-): Promise<import("playwright").Page> {
+): Promise<Page> {
   let current = await openShot(page, url, reduced);
   await hideChrome(current);
   if (aboveBar) await revealAboveSaveBar(current);
@@ -121,7 +116,7 @@ async function captureShot(
 }
 
 /** Scroll so Baku, chips, and the contrast line sit above the fixed save bar. */
-async function revealAboveSaveBar(page: import("playwright").Page): Promise<void> {
+async function revealAboveSaveBar(page: Page): Promise<void> {
   await page.evaluate(() => {
     const bar = document.querySelector("[data-save-bar]");
     const candidates = [
@@ -137,6 +132,63 @@ async function revealAboveSaveBar(page: import("playwright").Page): Promise<void
     const need = bottom - limit;
     if (need > 0) window.scrollBy(0, need);
   });
+}
+
+async function captureReveal(
+  page: Page,
+  dest: string,
+  atMs: number,
+): Promise<Page> {
+  const url =
+    atMs <= 0
+      ? `${BASE}/dev/fold?state=result&photo=IMG_5859&hold=1`
+      : `${BASE}/dev/fold?state=result&photo=IMG_5859&play=1`;
+  let current = await openShot(page, url, false);
+  await hideChrome(current);
+  try {
+    if (atMs <= 0) {
+      await current.locator('[data-band-stack][data-revealed="false"]').waitFor({ timeout: 15_000 });
+      await current.waitForTimeout(40);
+    } else {
+      await current.locator('[data-band-stack][data-revealed="true"]').waitFor({ timeout: 15_000 });
+      await current.waitForTimeout(atMs);
+    }
+    await current.screenshot({ path: dest, animations: "allow" });
+    return current;
+  } catch {
+    current = await openShot(await recoverPage(current, false), url, false);
+    await hideChrome(current);
+    await current.waitForTimeout(atMs <= 0 ? 40 : atMs);
+    await current.screenshot({ path: dest, animations: "allow" });
+    return current;
+  }
+}
+
+async function captureEditDrag(page: Page, dest: string): Promise<Page> {
+  const url = `${BASE}/dev/fold?state=edit&photo=IMG_5859`;
+  let current = await openShot(page, url, false);
+  await hideChrome(current);
+  try {
+    const photo = current.locator("[data-photo-fold] img");
+    await photo.waitFor({ timeout: 20_000 });
+    await current.waitForTimeout(500);
+    const box = await photo.boundingBox();
+    if (box) {
+      await current.mouse.move(box.x + box.width * 0.42, box.y + box.height * 0.46);
+      await current.mouse.down();
+      await current.mouse.move(box.x + box.width * 0.58, box.y + box.height * 0.54, { steps: 12 });
+      await current.waitForTimeout(80);
+    }
+    await current.screenshot({ path: dest, animations: "allow" });
+    await current.mouse.up();
+    return current;
+  } catch {
+    current = await openShot(await recoverPage(current, false), url, false);
+    await hideChrome(current);
+    await current.waitForTimeout(400);
+    await current.screenshot({ path: dest, animations: "allow" });
+    return current;
+  }
 }
 
 function motionTxt(): string {
@@ -169,7 +221,7 @@ function motionTxt(): string {
 async function main(): Promise<void> {
   await mkdir(ARTIFACTS, { recursive: true });
   const txt = motionTxt();
-  await writeFile(path.join(ARTIFACTS, "r4_motion.txt"), txt);
+  await writeFile(path.join(ARTIFACTS, "r5_motion.txt"), txt);
   await writeFile(path.join(ARTIFACTS, "motion.txt"), txt);
 
   const browser = await webkit.launch();
@@ -183,7 +235,7 @@ async function main(): Promise<void> {
       });
       for (const photo of PHOTOS) {
         for (const shot of PER_PHOTO) {
-          const name = `r4_${photo}_${vp.name}_${shot.state}_${label}.png`;
+          const name = `r5_${photo}_${vp.name}_${shot.state}_${label}.png`;
           page = await captureShot(
             page,
             urlFor(shot, photo),
@@ -193,9 +245,17 @@ async function main(): Promise<void> {
             ABOVE_BAR.has(shot.state),
           );
         }
+        page = await captureShot(
+          page,
+          urlFor({ state: "result" }, photo),
+          path.join(ARTIFACTS, `r5_${photo}_${vp.name}_arrived_${label}.png`),
+          reduced,
+          reduced ? 200 : 700,
+          false,
+        );
       }
       for (const shot of EXTRA) {
-        const name = `r4_${shot.photo}_${vp.name}_${shot.state}_${label}.png`;
+        const name = `r5_${shot.photo}_${vp.name}_${shot.state}_${label}.png`;
         page = await captureShot(
           page,
           urlFor(shot, shot.photo ?? "IMG_6505"),
@@ -215,14 +275,40 @@ async function main(): Promise<void> {
       deviceScaleFactor: 2,
       reducedMotion: "no-preference",
     });
-    page = await captureShot(
-      page,
-      `${BASE}/dev/fold?state=result&photo=IMG_5859&play=1`,
-      path.join(ARTIFACTS, "r4_IMG_5859_390x844_reveal200ms_motion.png"),
-      false,
-      200,
-      false,
-    );
+    page = await captureReveal(page, path.join(ARTIFACTS, "r5_IMG_5859_390x844_reveal0ms_motion.png"), 0);
+    page = await captureReveal(page, path.join(ARTIFACTS, "r5_IMG_5859_390x844_reveal200ms_motion.png"), 200);
+    page = await captureReveal(page, path.join(ARTIFACTS, "r5_IMG_5859_390x844_reveal400ms_motion.png"), 400);
+    await page.close();
+  }
+
+  for (const vp of VIEWPORTS) {
+    let page = await browser.newPage({
+      viewport: { width: vp.width, height: vp.height },
+      deviceScaleFactor: 2,
+      reducedMotion: "no-preference",
+    });
+    page = await captureEditDrag(page, path.join(ARTIFACTS, `r5_IMG_5859_${vp.name}_edit-drag_motion.png`));
+    await page.close();
+  }
+
+  {
+    const page = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 3,
+      reducedMotion: "no-preference",
+    });
+    await page.goto(`${BASE}/dev/fold?state=result&photo=IMG_5859`, { waitUntil: "load", timeout: 60_000 });
+    await hideChrome(page);
+    await page.locator("[data-brief-slot]").waitFor({ timeout: 20_000 });
+    await page
+      .locator('[data-baku-tinted="1"]')
+      .waitFor({ timeout: 12_000 })
+      .catch(() => undefined);
+    await page.waitForTimeout(200);
+    await page.locator("[data-brief-slot]").screenshot({
+      path: path.join(ARTIFACTS, "r5_IMG_5859_390x844_brief-closeup_motion.png"),
+      animations: "allow",
+    });
     await page.close();
   }
 
@@ -250,19 +336,22 @@ async function main(): Promise<void> {
     await page.goto(`${BASE}/dev/fold?state=saved&photo=IMG_6505`, { waitUntil: "load" });
     await hideChrome(page);
     await page.waitForTimeout(500);
+    await page.goto(`${BASE}/dev/fold?state=collection&photo=IMG_6505`, { waitUntil: "load" });
+    await hideChrome(page);
+    await page.waitForTimeout(400);
     const video = page.video();
     await page.close();
     await context.close();
     if (video) {
       const raw = await video.path();
-      const dest = path.join(ARTIFACTS, `r4_flow_${label}.webm`);
+      const dest = path.join(ARTIFACTS, `r5_flow_${label}.webm`);
       await copyFile(raw, dest);
-      await writeFile(path.join(ARTIFACTS, `r4_flow_${label}_path.txt`), `${dest}\n`);
+      await writeFile(path.join(ARTIFACTS, `r5_flow_${label}_path.txt`), `${dest}\n`);
     }
   }
 
   await browser.close();
-  console.log("r4_ fold shots written");
+  console.log("r5_ fold shots written");
 }
 
 main().catch((err) => {

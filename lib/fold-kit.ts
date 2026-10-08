@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { extractPalette } from "@/lib/palette-extract";
 import { HANDOFF_KITS, type MascotKit } from "@/lib/mascot";
+import { markDerivedRoles } from "@/lib/derived-roles";
 
 export type FoldPhoto = "IMG_6505" | "IMG_6208" | "IMG_5859";
 
@@ -14,6 +15,7 @@ export type FoldColor = {
   position: number;
   pinX: number;
   pinY: number;
+  derivedFrom: ColorRole | null;
 };
 
 export type FoldKit = {
@@ -25,7 +27,7 @@ export type FoldKit = {
 };
 
 function colorsFromKit(kit: MascotKit): FoldColor[] {
-  return COLOR_ROLES.flatMap((role, position) => {
+  const rows = COLOR_ROLES.flatMap((role, position) => {
     const hex = kit[role];
     if (!hex) return [];
     return [
@@ -38,6 +40,7 @@ function colorsFromKit(kit: MascotKit): FoldColor[] {
       },
     ];
   });
+  return markDerivedRoles(rows);
 }
 
 export async function loadFoldKit(which: FoldPhoto = "IMG_6505"): Promise<FoldKit> {
@@ -48,7 +51,7 @@ export async function loadFoldKit(which: FoldPhoto = "IMG_6505"): Promise<FoldKi
     const buffer = await readFile(file);
     const meta = await sharp(buffer).metadata();
     const palette = await extractPalette(buffer);
-    const colors: FoldColor[] = [];
+    const colors: Array<Omit<FoldColor, "derivedFrom">> = [];
     COLOR_ROLES.forEach((role, position) => {
       const hex = which === "IMG_6208" ? fallbackKit[role] : palette.roles[role];
       if (!hex) return;
@@ -68,7 +71,7 @@ export async function loadFoldKit(which: FoldPhoto = "IMG_6505"): Promise<FoldKi
       imageSrc,
       width: meta.width ?? 1500,
       height: meta.height ?? 2000,
-      colors: colors.length > 0 ? colors : colorsFromKit(fallbackKit),
+      colors: colors.length > 0 ? markDerivedRoles(colors) : colorsFromKit(fallbackKit),
     };
   } catch {
     return {

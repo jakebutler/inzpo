@@ -96,8 +96,14 @@
 }
 
 [data-photo-fold] {
-  height: clamp(200px, 100svh - 418px, 337px);
+  height: clamp(200px, max(100svh, 740px) - 442px, 337px);
   filter: none;
+  overflow: visible;
+}
+
+[data-band-stack][data-revealed="false"] .inzpo-band {
+  opacity: 0;
+  transform: translateY(8px);
 }
 
 [data-slot="sheet-overlay"].inzpo-photo-clear {
@@ -156,6 +162,17 @@
   text-transform: uppercase;
   font-variant: normal;
   line-height: 1;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4em;
+}
+.inzpo-band-auto {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: lowercase;
+  opacity: 0.6;
 }
 .inzpo-band-hex {
   font-family: var(--font-geist-mono), ui-monospace, monospace;

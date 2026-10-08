@@ -5,8 +5,8 @@ import { BAND_H_EDITOR, BAND_H_RESULT, BAND_STAGGER_S, INK, PAPER, PIN_LEADER_X,
 describe("result fold tokens", () => {
   it("clamps the photo frame and uses stacked band heights", () => {
     expect(PHOTO_FOLD_PX).toBe(337);
-    expect(PHOTO_FOLD_CSS).toContain("100svh - 418px");
-    expect(photoFoldHeight(667)).toBe(249);
+    expect(PHOTO_FOLD_CSS).toContain("max(100svh, 740px) - 442px");
+    expect(photoFoldHeight(667)).toBe(298);
     expect(PHOTO_MAX_SVH).toBe("45svh");
     expect(PIN_LEADER_X).toBe(16);
     expect(SAVE_BAR_PAD).toContain("8.5rem");

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { LayoutGrid, Plus } from "lucide-react";
 import { LogoutButton } from "./components/LogoutButton";
 import { ExportKitButton } from "./components/ExportKitButton";
+import { PhotoBackButton } from "./components/PhotoBackButton";
 import { requireOwnerId } from "@/lib/auth/owner";
 import Link from "next/link";
 
@@ -33,10 +34,16 @@ export default async function Wall({
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-10 bg-background">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <h1 className="font-heading text-2xl">
-            {collectionId ? collections.find((c) => c.id === collectionId)?.name ?? "Collection" : "Wall"}
-          </h1>
+        <div
+          className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3"
+          style={{ paddingTop: collectionId ? "calc(env(safe-area-inset-top, 0px) + 8px)" : undefined }}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            {collectionId ? <PhotoBackButton href="/capture" placement="header" /> : null}
+            <h1 className="font-heading text-2xl">
+              {collectionId ? collections.find((c) => c.id === collectionId)?.name ?? "Collection" : "Wall"}
+            </h1>
+          </div>
           <div className="flex items-center gap-2">
             {collectionId && wallItems.length > 0 ? <ExportKitButton collectionId={collectionId} /> : null}
             <Button asChild size="sm" className="hidden md:inline-flex">

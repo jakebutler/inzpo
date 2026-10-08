@@ -78,8 +78,26 @@ export function objectPositionCss(win: CoverWindow): string {
   return `${px}% ${py}%`;
 }
 
+export const PIN_EDGE_MARGIN_PX = 16;
+
 /** Map a 0–1 source pin onto an object-fit: cover box. Null if the pin was cropped away. */
 export function mapCoverPin(
+  pinX: number,
+  pinY: number,
+  imageW: number,
+  imageH: number,
+  boxW: number,
+  boxH: number,
+  win?: CoverWindow | null,
+): { left: number; top: number } | null {
+  const mapped = mapCoverPinRaw(pinX, pinY, imageW, imageH, boxW, boxH, win);
+  if (!mapped) return null;
+  if (mapped.left < 0 || mapped.left > 1 || mapped.top < 0 || mapped.top > 1) return null;
+  return mapped;
+}
+
+/** Same mapping as mapCoverPin, but coordinates may fall outside 0–1 when the sample is cropped. */
+export function mapCoverPinRaw(
   pinX: number,
   pinY: number,
   imageW: number,
@@ -92,10 +110,34 @@ export function mapCoverPin(
   if (!window) return null;
   if (!Number.isFinite(pinX) || !Number.isFinite(pinY)) return null;
   const { vx, vy, vw, vh } = window;
-  if (pinX < vx || pinX > vx + vw || pinY < vy || pinY > vy + vh) return null;
+  if (vw <= 0 || vh <= 0) return null;
   return {
     left: (pinX - vx) / vw,
     top: (pinY - vy) / vh,
+  };
+}
+
+/** Clamp a pin disc center in box pixels. Sample point stays exact; this is display-only. */
+export function clampPinCenter(
+  leftPx: number,
+  topPx: number,
+  boxW: number,
+  boxH: number,
+  safeTopPx = 0,
+  marginPx = PIN_EDGE_MARGIN_PX,
+): { x: number; y: number } {
+  if (!Number.isFinite(boxW) || !Number.isFinite(boxH) || boxW <= 0 || boxH <= 0) {
+    return { x: leftPx, y: topPx };
+  }
+  const inset = Number.isFinite(marginPx) ? marginPx : PIN_EDGE_MARGIN_PX;
+  const safe = Number.isFinite(safeTopPx) && safeTopPx > 0 ? safeTopPx : 0;
+  const minX = inset;
+  const maxX = Math.max(inset, boxW - inset);
+  const minY = inset + safe;
+  const maxY = Math.max(minY, boxH - inset);
+  return {
+    x: clamp(leftPx, minX, maxX),
+    y: clamp(topPx, minY, maxY),
   };
 }
 

@@ -94,7 +94,7 @@
   animation: baku-chew-trunk 18s ease-in-out infinite;
 }
 
-.baku[data-pose="success"] .baku-hop {
+.baku:has([data-baku-sprite="svg"])[data-pose="success"] .baku-hop {
   animation: baku-hop 280ms cubic-bezier(0.16, 1, 0.3, 1) 1;
 }
 
@@ -110,7 +110,7 @@
   transform: translateY(2px) rotate(8deg);
 }
 
-.baku[data-pose="error-brief"] {
+.baku:has([data-baku-sprite="svg"])[data-pose="error-brief"] {
   transform: rotate(-8deg);
 }
 
@@ -231,7 +231,7 @@
     transform: translateY(2px);
   }
 
-  .baku[data-pose="success"] .baku-hop {
+  .baku:has([data-baku-sprite="svg"])[data-pose="success"] .baku-hop {
     transform: none;
   }
 
@@ -247,7 +247,7 @@
     transform: translateY(2px) rotate(8deg);
   }
 
-  .baku[data-pose="error-brief"] {
+  .baku:has([data-baku-sprite="svg"])[data-pose="error-brief"] {
     transform: rotate(-8deg);
   }
 

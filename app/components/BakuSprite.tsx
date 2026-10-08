@@ -1,31 +1,64 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import {
   BAKU_CROSSFADE_MS,
-  bakuV6BandMaskSrc,
+  bakuCanTint,
+  bakuDensity,
   bakuV6BandsSrc,
+  bakuV6ColorSrc,
   bakuV6PoseSrc,
-  bakuV6PoseSrcSet,
+  type BakuDensity,
 } from "@/lib/baku-v6";
-import { kitForPose, type MascotKit, type MascotPose } from "@/lib/mascot";
+import { tintRoles, tintSpriteWithBands } from "@/lib/baku-tint";
+import { kitForPose, kitHasPalette, type MascotKit, type MascotPose } from "@/lib/mascot";
 import { prefersReducedMotion } from "@/lib/motion";
 
 gsap.registerPlugin(useGSAP);
 
-const pngReady = new Map<MascotPose, boolean>();
-
-function probe(src: string): Promise<boolean> {
-  if (typeof window === "undefined") return Promise.resolve(false);
-  return new Promise((resolve) => {
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve(true);
-    img.onerror = () => resolve(false);
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Failed to load ${src}`));
     img.src = src;
   });
+}
+
+async function composeTint(
+  pose: MascotPose,
+  density: BakuDensity,
+  colors: Array<string | null>,
+): Promise<string> {
+  const spriteImg = await loadImage(bakuV6PoseSrc(pose, density));
+  const bandImg = await loadImage(bakuV6BandsSrc(pose, density));
+  const canvas = document.createElement("canvas");
+  canvas.width = spriteImg.naturalWidth;
+  canvas.height = spriteImg.naturalHeight;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("No 2d context");
+  ctx.drawImage(spriteImg, 0, 0);
+  const sprite = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bandImg, 0, 0, canvas.width, canvas.height);
+  const bands = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  tintSpriteWithBands(sprite.data, bands.data, canvas.width, canvas.height, 4, 4, colors);
+  ctx.putImageData(sprite, 0, 0);
+  return canvas.toDataURL("image/png");
+}
+
+function useDensity(): BakuDensity {
+  const [density, setDensity] = useState<BakuDensity>(1);
+  useEffect(() => {
+    const read = () => setDensity(bakuDensity(window.devicePixelRatio || 1));
+    read();
+    window.addEventListener("resize", read);
+    return () => window.removeEventListener("resize", read);
+  }, []);
+  return density;
 }
 
 export function BakuSprite({
@@ -44,91 +77,93 @@ export function BakuSprite({
   fallback: ReactNode;
 }) {
   const colors = kitForPose(pose, kit);
+  const density = useDensity();
+  const canTint = bakuCanTint(pose) && kitHasPalette(colors);
+  const paletteKey = COLOR_ROLES.map((role) => colors[role] ?? "").join(",");
+  const baseSrc = canTint
+    ? bakuV6PoseSrc(pose, density)
+    : bakuCanTint(pose)
+      ? bakuV6ColorSrc(pose, density)
+      : bakuV6PoseSrc(pose, density);
   const squashRef = useRef<HTMLDivElement>(null);
-  const [png, setPng] = useState(() => pngReady.get(pose) === true);
+  const [pngFailed, setPngFailed] = useState(false);
+  const [tinted, setTinted] = useState<string | null>(null);
+  const [tintFailed, setTintFailed] = useState(false);
 
   useEffect(() => {
+    setPngFailed(false);
+    setTinted(null);
+    setTintFailed(false);
+  }, [pose, density, canTint]);
+
+  useEffect(() => {
+    if (!canTint || pngFailed) {
+      setTinted(null);
+      return;
+    }
     let alive = true;
-    const cached = pngReady.get(pose);
-    if (cached === true) {
-      setPng(true);
-      return;
-    }
-    if (cached === false) {
-      setPng(false);
-      return;
-    }
-    void probe(bakuV6PoseSrc(pose, 1)).then((ok) => {
-      pngReady.set(pose, ok);
-      if (!alive) return;
-      setPng(ok);
-    });
+    const roles = tintRoles(colors, revealedCount);
+    void composeTint(pose, density, roles)
+      .then((url) => {
+        if (!alive) return;
+        setTinted(url);
+        setTintFailed(false);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setTinted(null);
+        setTintFailed(true);
+      });
     return () => {
       alive = false;
     };
-  }, [pose]);
+    // paletteKey stands in for kit colors so we do not re-tint every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canTint, pngFailed, pose, density, paletteKey, revealedCount]);
 
   useGSAP(
     () => {
       const el = squashRef.current;
       if (!el || prefersReducedMotion()) return;
-      gsap.fromTo(
-        el,
-        { opacity: 0.35, scaleY: 0.92, scaleX: 1.06 },
-        { opacity: 1, scaleY: 1, scaleX: 1, duration: BAKU_CROSSFADE_MS / 1000, ease: "power2.out" },
-      );
+      gsap.fromTo(el, { opacity: 0.35 }, { opacity: 1, duration: BAKU_CROSSFADE_MS / 1000, ease: "power2.out" });
     },
-    { dependencies: [pose, png] },
+    { dependencies: [pose, density, baseSrc] },
   );
+
+  const src = tintFailed ? bakuV6ColorSrc(pose, density) : tinted ?? baseSrc;
+  const showPng = !pngFailed;
 
   return (
     <div
-      data-baku-sprite={png ? "png" : "svg"}
-      data-baku-v6={png ? "1" : "0"}
+      data-baku-sprite={showPng ? "png" : "svg"}
+      data-baku-v6={showPng ? "1" : "0"}
+      data-baku-tinted={tinted ? "1" : "0"}
+      data-baku-density={density}
       style={{
         width: size,
         height: size,
-        transform: faceText && png ? "scaleX(-1)" : undefined,
-        transformOrigin: "center",
+        transform: faceText && showPng ? "scaleX(-1)" : undefined,
+        transformOrigin: "50% 100%",
       }}
     >
       <div ref={squashRef} className="h-full w-full" style={{ transformOrigin: "50% 100%" }}>
-        {png ? (
-          <div className="relative h-full w-full" style={{ transition: `opacity ${BAKU_CROSSFADE_MS}ms ease` }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={bakuV6PoseSrc(pose, 1)}
-              srcSet={bakuV6PoseSrcSet(pose)}
-              alt=""
-              className="absolute inset-0 h-full w-full"
-              draggable={false}
-            />
-            {COLOR_ROLES.map((role, i) => {
-              const hex = colors[role];
-              if (!hex) return null;
-              if (revealedCount != null && i >= revealedCount) return null;
-              return (
-                <span
-                  key={role}
-                  data-baku-band={role}
-                  className="absolute inset-0"
-                  style={
-                    {
-                      backgroundColor: hex,
-                      mixBlendMode: "multiply",
-                      WebkitMaskImage: `url(${bakuV6BandMaskSrc(pose, role)}), url(${bakuV6BandsSrc(pose)})`,
-                      maskImage: `url(${bakuV6BandMaskSrc(pose, role)}), url(${bakuV6BandsSrc(pose)})`,
-                      maskMode: "luminance",
-                      WebkitMaskSize: "100% 100%",
-                      maskSize: "100% 100%",
-                      WebkitMaskRepeat: "no-repeat",
-                      maskRepeat: "no-repeat",
-                    } as CSSProperties
-                  }
-                />
-              );
-            })}
-          </div>
+        {showPng ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt=""
+            width={size}
+            height={size}
+            className="block h-full w-full"
+            draggable={false}
+            onError={() => {
+              if (canTint && src !== bakuV6ColorSrc(pose, density)) {
+                setTintFailed(true);
+                return;
+              }
+              setPngFailed(true);
+            }}
+          />
         ) : (
           fallback
         )}

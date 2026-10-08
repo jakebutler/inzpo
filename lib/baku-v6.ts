@@ -1,33 +1,80 @@
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
-import { MASCOT_POSES, type MascotPose } from "@/lib/mascot";
+import type { MascotPose } from "@/lib/mascot";
 
 export const BAKU_V6_DIR = "/baku/v6";
 export const BAKU_CROSSFADE_MS = 150;
 export const BAKU_BAND_GRAYS = [40, 80, 120, 160, 200, 240] as const;
 
-export type BakuDensity = 1 | 2 | 3;
+export const BAKU_ART_POSES = [
+  "idle",
+  "chewing",
+  "success",
+  "error-brief",
+  "404",
+  "empty",
+  "error-photo",
+] as const;
+export type BakuArtPose = (typeof BAKU_ART_POSES)[number];
 
-export function bakuV6PoseSrc(pose: MascotPose, density: BakuDensity = 1): string {
-  if (!MASCOT_POSES.includes(pose)) throw new Error("Unknown Baku pose");
-  if (density !== 1 && density !== 2 && density !== 3) throw new Error("Baku density must be 1, 2, or 3");
-  return `${BAKU_V6_DIR}/baku-${pose}@${density}x.png`;
+/** Knit-patch poses: grayscale sprite + index masks. empty and error-photo stay as-is. */
+export const BAKU_TINT_POSES: ReadonlySet<BakuArtPose> = new Set([
+  "idle",
+  "chewing",
+  "success",
+  "error-brief",
+  "404",
+]);
+
+export type BakuDensity = 1 | 2 | 3;
+export type BakuSrcPose = MascotPose | BakuArtPose;
+
+function isArtPose(pose: string): pose is BakuArtPose {
+  return (BAKU_ART_POSES as readonly string[]).includes(pose);
 }
 
-export function bakuV6PoseSrcSet(pose: MascotPose): string {
+export function bakuArtPose(pose: BakuSrcPose): BakuArtPose {
+  if (pose === "error-unreadable") return "error-photo";
+  if (isArtPose(pose)) return pose;
+  throw new Error("Unknown Baku pose");
+}
+
+export function bakuCanTint(pose: BakuSrcPose): boolean {
+  return BAKU_TINT_POSES.has(bakuArtPose(pose));
+}
+
+export function bakuDensity(dpr: number): BakuDensity {
+  if (!Number.isFinite(dpr) || dpr < 1.5) return 1;
+  if (dpr < 2.5) return 2;
+  return 3;
+}
+
+function densityOrThrow(density: BakuDensity): BakuDensity {
+  if (density !== 1 && density !== 2 && density !== 3) throw new Error("Baku density must be 1, 2, or 3");
+  return density;
+}
+
+export function bakuV6PoseSrc(pose: BakuSrcPose, density: BakuDensity = 1): string {
+  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}@${densityOrThrow(density)}x.png`;
+}
+
+export function bakuV6ColorSrc(pose: BakuSrcPose, density: BakuDensity = 1): string {
+  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}-color@${densityOrThrow(density)}x.png`;
+}
+
+export function bakuV6PoseSrcSet(pose: BakuSrcPose): string {
   return `${bakuV6PoseSrc(pose, 1)} 1x, ${bakuV6PoseSrc(pose, 2)} 2x, ${bakuV6PoseSrc(pose, 3)} 3x`;
 }
 
-/** Combined grayscale knit mask. Band roles live at gray 40–240. */
-export function bakuV6BandsSrc(pose: MascotPose): string {
-  if (!MASCOT_POSES.includes(pose)) throw new Error("Unknown Baku pose");
-  return `${BAKU_V6_DIR}/baku-${pose}-bands.png`;
+/** Combined grayscale knit mask at the sprite density. Band roles live at gray 40–240. */
+export function bakuV6BandsSrc(pose: BakuSrcPose, density: BakuDensity = 1): string {
+  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}-bands@${densityOrThrow(density)}x.png`;
 }
 
-/** One-band luminance mask at 1x, in token order. */
-export function bakuV6BandMaskSrc(pose: MascotPose, role: ColorRole): string {
-  if (!MASCOT_POSES.includes(pose)) throw new Error("Unknown Baku pose");
+/** One-band 1-bit mask at 1x, in token order (band1 = primary). */
+export function bakuV6BandMaskSrc(pose: BakuSrcPose, role: ColorRole): string {
   if (!COLOR_ROLES.includes(role)) throw new Error("Unknown color role");
-  return `${BAKU_V6_DIR}/baku-${pose}-band-${role}.png`;
+  const n = COLOR_ROLES.indexOf(role) + 1;
+  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}-band${n}@1x.png`;
 }
 
 export function bakuV6BandGray(role: ColorRole): number {

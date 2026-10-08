@@ -1,7 +1,7 @@
 import { COLOR_ROLES } from "@/lib/db/schema";
 import { EMPTY_ROLE_COPY } from "@/lib/brief-copy";
 import { bandLabelColor, matchesPageBackground } from "@/lib/contrast";
-import { PAPER } from "@/lib/brand";
+import { PAGE_BAND_HAIRLINE, PAPER } from "@/lib/brand";
 import { designTokenColors, emptyRoles, type RoleColors } from "@/lib/tokens";
 
 export function rolesFromHexes(hexes: Array<string | null | undefined>): RoleColors {
@@ -51,7 +51,7 @@ export function BandStripe({
               style={{
                 backgroundColor: hex,
                 color: ink,
-                boxShadow: hair ? `inset 0 0 0 1px ${ink}` : undefined,
+                boxShadow: hair ? `inset 0 0 0 1px ${PAGE_BAND_HAIRLINE}` : undefined,
               }}
             />
           );

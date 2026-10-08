@@ -56,13 +56,13 @@ describe("r4 pins", () => {
 });
 
 describe("r4 photo fold", () => {
-  it("clamps the photo to 249px at 667 and 337px at 844", () => {
+  it("clamps the photo to 337px at 844 and does not shrink further below 740px", () => {
     expect(PHOTO_FOLD_MIN_PX).toBe(200);
-    expect(PHOTO_FOLD_RESERVE_PX).toBe(418);
-    expect(PHOTO_FOLD_CSS).toBe("clamp(200px, 100svh - 418px, 337px)");
-    expect(photoFoldHeight(667)).toBe(249);
+    expect(PHOTO_FOLD_RESERVE_PX).toBe(442);
+    expect(PHOTO_FOLD_CSS).toBe("clamp(200px, max(100svh, 740px) - 442px, 337px)");
+    expect(photoFoldHeight(667)).toBe(298);
     expect(photoFoldHeight(844)).toBe(PHOTO_FOLD_PX);
-    expect(photoFoldHeight(500)).toBe(200);
+    expect(photoFoldHeight(500)).toBe(298);
   });
 });
 
@@ -74,6 +74,7 @@ describe("r4 reveal once per kit id", () => {
     expect(planReveal("kit-b", "play", store)).toBe("play");
     expect(planReveal("kit-a", "mid", store)).toBe("mid");
     expect(planReveal("kit-a", "landed", store)).toBe("land");
+    expect(planReveal("kit-a", "hold", store)).toBe("hold");
     expect(revealHasPlayed("kit-a", store)).toBe(true);
   });
 
@@ -92,8 +93,9 @@ describe("r4 baku v6", () => {
   it("loads v6 PNGs and band masks, never v5", () => {
     expect(BAKU_V6_DIR).toBe("/baku/v6");
     expect(bakuV6PoseSrc("chewing", 2)).toBe("/baku/v6/baku-chewing@2x.png");
-    expect(bakuV6BandsSrc("chewing")).toBe("/baku/v6/baku-chewing-bands.png");
-    expect(bakuV6BandMaskSrc("chewing", "primary")).toBe("/baku/v6/baku-chewing-band-primary.png");
+    expect(bakuV6BandsSrc("chewing")).toBe("/baku/v6/baku-chewing-bands@1x.png");
+    expect(bakuV6BandsSrc("chewing", 3)).toBe("/baku/v6/baku-chewing-bands@3x.png");
+    expect(bakuV6BandMaskSrc("chewing", "primary")).toBe("/baku/v6/baku-chewing-band1@1x.png");
     expect(BAKU_BAND_GRAYS).toEqual([40, 80, 120, 160, 200, 240]);
     expect(bakuV6BandGray("text")).toBe(240);
     const mascot = src("app/components/Mascot.tsx") + src("app/components/BakuSprite.tsx") + src("lib/baku-v6.ts");

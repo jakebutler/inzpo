@@ -6,6 +6,7 @@ export const VERMILION = "#C9341F";
 export const BAND_H_RESULT = 40;
 export const BAND_H_EDITOR = 56;
 export const BAND_STAGGER_S = 0.06;
+export const BAND_HIDDEN_Y_PX = 8;
 export const PIN_SIZE = 22;
 export const PIN_INNER_RING_PX = 2;
 export const PIN_OUTER_RING_PX = 1.5;
@@ -15,17 +16,23 @@ export const PIN_HAIRLINE_S = 0.4;
 export const PIN_LEADER_X = 16;
 export const PHOTO_FOLD_PX = 337;
 export const PHOTO_FOLD_MIN_PX = 200;
-export const PHOTO_FOLD_RESERVE_PX = 418;
-export const PHOTO_FOLD_CSS = `clamp(${PHOTO_FOLD_MIN_PX}px, 100svh - ${PHOTO_FOLD_RESERVE_PX}px, ${PHOTO_FOLD_PX}px)`;
+export const PHOTO_FOLD_RESERVE_PX = 442;
+/** Below this viewport, keep the 740px photo size and let the Aa tile scroll under the save bar. */
+export const PHOTO_FOLD_FLOOR_VH = 740;
+export const PHOTO_FOLD_CSS = `clamp(${PHOTO_FOLD_MIN_PX}px, max(100svh, ${PHOTO_FOLD_FLOOR_VH}px) - ${PHOTO_FOLD_RESERVE_PX}px, ${PHOTO_FOLD_PX}px)`;
 export const LOUPE_PX = 96;
 export const LOUPE_ZOOM = 3;
 export const LOUPE_OFFSET_PX = 64;
 export const PHOTO_BACK_PX = 44;
+export const BRIEF_SLOT_MIN_PX = 88;
+export const PAGE_BAND_HAIRLINE = "rgba(28, 27, 25, 0.12)";
+export const PAGE_BAND_HAIRLINE_RATIO = 1.2;
 
-/** Photo frame height for a viewport. 249px at 667, 337px at 844. */
+/** Photo frame height for a viewport. 337px at 844; 298px at 667 (floor of 740). */
 export function photoFoldHeight(vh: number): number {
   if (!Number.isFinite(vh) || vh <= 0) return PHOTO_FOLD_PX;
-  return Math.min(PHOTO_FOLD_PX, Math.max(PHOTO_FOLD_MIN_PX, vh - PHOTO_FOLD_RESERVE_PX));
+  const effective = Math.max(vh, PHOTO_FOLD_FLOOR_VH);
+  return Math.min(PHOTO_FOLD_PX, Math.max(PHOTO_FOLD_MIN_PX, effective - PHOTO_FOLD_RESERVE_PX));
 }
 
 /** 22px swatch fill, 2px paper inner ring, 1.5px ink outer ring, contact shadow. */

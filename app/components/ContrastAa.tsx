@@ -16,7 +16,7 @@ export function ContrastAa({ roles }: { roles: RoleColors }) {
   return (
     <div
       data-contrast-line
-      className="flex w-full items-center justify-between gap-3 px-5 py-4"
+      className="flex w-full min-h-16 items-center justify-between gap-3 px-5 py-3"
       style={{ backgroundColor: bg, color: ink }}
     >
       <span className="font-heading text-[40px] leading-none">Aa</span>

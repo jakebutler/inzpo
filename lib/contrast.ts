@@ -1,5 +1,5 @@
 import { COLOR_ROLES } from "@/lib/db/schema";
-import { INK, PAPER } from "@/lib/brand";
+import { INK, PAGE_BAND_HAIRLINE_RATIO, PAPER } from "@/lib/brand";
 import type { RoleColors } from "@/lib/tokens";
 
 function srgbToLin(c: number): number {
@@ -74,7 +74,7 @@ export function bandLabelColor(bandHex: string, kit: RoleColors): string {
 }
 
 export function matchesPageBackground(bandHex: string, pageHex: string): boolean {
-  return contrastRatio(bandHex, pageHex) < 1.15;
+  return contrastRatio(bandHex, pageHex) < PAGE_BAND_HAIRLINE_RATIO;
 }
 
 export function saveControlColors(

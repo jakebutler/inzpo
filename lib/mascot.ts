@@ -46,6 +46,7 @@ export const MASCOT_COPY = {
   "chewing-still": "Still chewing. Your colors are already here.",
   success: "Saved. Baku is full.",
   "error-brief": "Couldn't finish the notes. Your colors are fine.",
+  "error-brief-retry": "Couldn't read this one. Tap to retry.",
   "error-unreadable": "Baku can't taste this one. Try another photo.",
 } as const;
 
@@ -104,11 +105,14 @@ export function waitBeforeShow(moment: MascotMoment): boolean {
 }
 
 /**
- * error-brief keeps the saved palette. Only error-unreadable (and idle/empty,
- * which have not eaten a kit yet) go back to a cream coat with no stripes.
+ * error-unreadable and empty (no kit yet) go back to a cream coat.
+ * Idle keeps the palette once a kit has been eaten (arrived brief).
  */
 export function kitForPose(pose: MascotPose, kit: MascotKit | null | undefined): MascotKit {
-  if (pose === "error-unreadable" || pose === "empty" || pose === "idle") {
+  if (pose === "error-unreadable" || pose === "empty") {
+    return emptyKit();
+  }
+  if (pose === "idle" && !kitHasPalette(kit ?? emptyKit())) {
     return emptyKit();
   }
   return kit ?? emptyKit();

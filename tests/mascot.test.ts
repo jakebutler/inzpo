@@ -103,13 +103,15 @@ describe("stripe kit", () => {
     expect(kitForPose("success", kit)).toEqual(kit);
   });
 
-  it("returns a cream coat with no stripes for idle, empty, and error-unreadable", () => {
+  it("returns a cream coat with no stripes for empty and error-unreadable", () => {
     const kit = HANDOFF_KITS.IMG_6505;
     expect(kitForPose("error-unreadable", kit)).toEqual(creamKit());
     expect(kitForPose("empty", kit)).toEqual(creamKit());
-    expect(kitForPose("idle", kit)).toEqual(creamKit());
+    expect(kitForPose("idle", kit)).toEqual(kit);
+    expect(kitForPose("idle", creamKit())).toEqual(creamKit());
     expect(kitHasPalette(kitForPose("error-unreadable", kit))).toBe(false);
     expect(kitHasPalette(kitForPose("error-brief", kit))).toBe(true);
+    expect(kitHasPalette(kitForPose("idle", kit))).toBe(true);
     expect(stripeFills(creamKit())).toEqual([]);
   });
 

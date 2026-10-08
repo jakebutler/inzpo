@@ -6,6 +6,7 @@ import { KitCard } from "@/app/components/KitCard";
 import { CaptureForm } from "@/app/capture/CaptureForm";
 import { MascotStage } from "@/app/components/MascotStage";
 import { ExportKitButton } from "@/app/components/ExportKitButton";
+import { PhotoBackButton } from "@/app/components/PhotoBackButton";
 import { KitChrome } from "@/app/components/KitChrome";
 import { SavedKitHeader } from "@/app/components/SavedKitHeader";
 import { dropRoles, loadFoldKit, type FoldPhoto } from "@/lib/fold-kit";
@@ -31,6 +32,7 @@ const STATES = [
   "empty-roles",
   "empty-collection",
   "dark",
+  "failed",
 ] as const;
 type FoldState = (typeof STATES)[number];
 
@@ -43,7 +45,7 @@ const FOLD_TITLES: Record<FoldPhoto, string> = {
 export default async function FoldPage({
   searchParams,
 }: {
-  searchParams: Promise<{ state?: string; photo?: string; play?: string }>;
+  searchParams: Promise<{ state?: string; photo?: string; play?: string; hold?: string }>;
 }) {
   if (!isDevAuthBypassEnabled()) notFound();
   const params = await searchParams;
@@ -59,16 +61,19 @@ export default async function FoldPage({
   const chips = state === "chips";
   const saved = state === "saved";
   const play = params.play === "1";
+  const hold = params.hold === "1";
   const reveal =
-    play || state === "first"
-      ? "play"
-      : state === "mid"
-        ? "mid"
-        : state === "collection" || state === "empty-collection"
-          ? "play"
-          : "landed";
+    hold
+      ? "hold"
+      : play || state === "first"
+        ? "play"
+        : state === "mid"
+          ? "mid"
+          : state === "collection" || state === "empty-collection"
+            ? "play"
+            : "landed";
   const captured = FOLD_BRIEFS[photo];
-  const briefText = state === "pending" ? null : captured.text || null;
+  const briefText = state === "pending" || state === "failed" ? null : captured.text || null;
   const namedColors = chips
     ? captured.namedColors.length > 0
       ? captured.namedColors
@@ -78,7 +83,7 @@ export default async function FoldPage({
     title: FOLD_TITLES[photo],
     briefText,
     namedColors,
-    pending: state === "pending",
+    pending: state === "pending" || state === "failed",
   });
   const roles = rolesFromColors(colors);
   const collectionHref = `/dev/fold?state=collection&photo=${photo}`;
@@ -112,7 +117,8 @@ export default async function FoldPage({
   if (state === "empty-collection") {
     return (
       <main className="min-h-screen bg-background text-foreground">
-        <header className="flex items-center justify-between px-4 py-3">
+        <header className="flex items-center gap-2 px-4 py-3" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
+          <PhotoBackButton href={`/dev/fold?state=first&photo=${photo}`} placement="header" />
           <h1 className="font-heading text-2xl">Street walks</h1>
         </header>
         <div className="flex flex-col items-center justify-center py-32" role="status">
@@ -125,8 +131,11 @@ export default async function FoldPage({
   if (state === "collection") {
     return (
       <main className="min-h-screen bg-background text-foreground">
-        <header className="flex items-center justify-between px-4 py-3">
-          <h1 className="font-heading text-2xl">Street walks</h1>
+        <header className="flex items-center justify-between gap-2 px-4 py-3" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
+          <div className="flex min-w-0 items-center gap-2">
+            <PhotoBackButton href={`/dev/fold?state=first&photo=${photo}`} placement="header" />
+            <h1 className="font-heading text-2xl">Street walks</h1>
+          </div>
           <ExportKitButton collectionId="c1" />
         </header>
         <div className="flex flex-col">
@@ -156,7 +165,7 @@ export default async function FoldPage({
           showBack={!saved}
           preview={{
             namedColors,
-            status: state === "pending" ? "pending" : "ready",
+            status: state === "pending" ? "pending" : state === "failed" ? "failed" : "ready",
             text: briefText,
             stub: false,
             reveal,

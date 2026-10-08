@@ -13,12 +13,14 @@ import { kitFromColors } from "@/lib/mascot";
 import { MOTION, MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { rolesFromColors } from "@/lib/tokens";
-import { coverWindowForPins, mapCoverPin, objectPositionCss } from "@/lib/cover-pin";
+import { clampPinCenter, coverWindowForPins, mapCoverPinRaw, objectPositionCss } from "@/lib/cover-pin";
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
 import { kitDisplayName } from "@/lib/kit-name";
 import { SAVE_BAR_PAD } from "@/lib/layout";
 import { kitWearStyle } from "@/lib/kit-wear";
 import { claimRevealPlay, type RevealMode } from "@/lib/reveal";
+import { markDerivedRoles } from "@/lib/derived-roles";
+import { nearestOnRect, preferredHairline, uncrossHairlines, type BandBox, type Hairline } from "@/lib/hairlines";
 import {
   BAND_H_RESULT,
   BAND_STAGGER_S,
@@ -39,9 +41,42 @@ type ColorRow = {
   pinX?: number | null;
   pinY?: number | null;
   position: number;
+  derivedFrom?: ColorRole | null;
 };
 
 const TILE_PX = 256;
+
+function readSafeTop(el: HTMLElement | null): number {
+  if (!el) return 0;
+  const probe = el.querySelector("[data-safe-top]");
+  if (!(probe instanceof HTMLElement)) return 0;
+  const pad = Number.parseFloat(getComputedStyle(probe).paddingTop);
+  return Number.isFinite(pad) ? pad : 0;
+}
+
+function bandBoxFor(
+  band: HTMLElement | null,
+  stage: HTMLElement,
+  stackEl: HTMLElement | null,
+): BandBox | null {
+  if (!band) return null;
+  const br = band.getBoundingClientRect();
+  const sr = stage.getBoundingClientRect();
+  const clip = stackEl?.getBoundingClientRect() ?? br;
+  const opacity = Number.parseFloat(getComputedStyle(band).opacity);
+  const intersects =
+    br.bottom > clip.top + 0.5 &&
+    br.top < clip.bottom - 0.5 &&
+    br.right > clip.left + 0.5 &&
+    br.left < clip.right - 0.5;
+  return {
+    left: br.left - sr.left,
+    top: br.top - sr.top,
+    right: br.right - sr.left,
+    bottom: br.bottom - sr.top,
+    visible: opacity > 0.04 && intersects,
+  };
+}
 
 export function KitResult({
   itemId,
@@ -77,19 +112,38 @@ export function KitResult({
   };
 }) {
   const router = useRouter();
-  const kit = kitFromColors(colors);
-  const roles = rolesFromColors(colors);
+  const derivedColors = useMemo(() => markDerivedRoles(colors), [colors]);
+  const [promoted, setPromoted] = useState<Partial<Record<ColorRole, { pinX: number; pinY: number; hex: string }>>>({});
+  const displayColors = useMemo(
+    () =>
+      derivedColors.map((row) => {
+        if (!row.role) return row;
+        const next = promoted[row.role];
+        if (!next) return row;
+        return { ...row, hex: next.hex, pinX: next.pinX, pinY: next.pinY, derivedFrom: null };
+      }),
+    [derivedColors, promoted],
+  );
+  const kit = kitFromColors(displayColors);
+  const roles = rolesFromColors(displayColors);
   const kicked = useRef(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const photoRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const bandRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [box, setBox] = useState({ w: width, h: PHOTO_FOLD_PX });
-  const [stripeCount, setStripeCount] = useState(preview?.reveal === "play" ? 0 : 6);
+  const [stripeCount, setStripeCount] = useState(
+    preview?.reveal === "play" || preview?.reveal === "hold" ? 0 : 6,
+  );
   const [linePulse, setLinePulse] = useState(false);
   const [focusedRole, setFocusedRole] = useState<ColorRole | null>(null);
   const [editOpen, setEditOpen] = useState(preview?.openRole != null);
   const [loupe, setLoupe] = useState<LoupeView | null>(null);
   const [revealTick, setRevealTick] = useState(0);
+  const [bandsRevealed, setBandsRevealed] = useState(
+    preview?.reveal === "landed" || preview?.reveal === "mid",
+  );
+  const [leaders, setLeaders] = useState<Array<Hairline | null>>([]);
   const [brief, setBrief] = useState<{
     status: BriefSlotStatus;
     text: string | null;
@@ -111,13 +165,12 @@ export function KitResult({
     namedColors: brief.namedColors,
     pending: brief.status === "pending" || brief.stub,
   });
-
   const crop = useMemo(() => {
-    const pins = colors
-      .filter((c) => c.pinX != null && c.pinY != null)
+    const pins = displayColors
+      .filter((c) => c.role && c.derivedFrom == null && c.pinX != null && c.pinY != null)
       .map((c) => ({ x: c.pinX as number, y: c.pinY as number }));
     return coverWindowForPins(width, height, box.w, box.h, pins);
-  }, [colors, width, height, box.w, box.h]);
+  }, [displayColors, width, height, box.w, box.h]);
 
   useEffect(() => {
     const el = photoRef.current;
@@ -163,14 +216,57 @@ export function KitResult({
     };
   }, [itemId, preview]);
 
+  function syncHairlines() {
+    const stage = stageRef.current;
+    if (!stage || !crop) {
+      setLeaders([]);
+      return;
+    }
+    const stackEl = stage.querySelector<HTMLElement>("[data-band-stack]");
+    const lines: Array<Hairline | null> = [];
+    const nearest: Array<{ x: number; y: number } | null> = [];
+    for (let i = 0; i < COLOR_ROLES.length; i++) {
+      const role = COLOR_ROLES[i]!;
+      const row = displayColors.find((c) => c.role === role);
+      if (!row || row.derivedFrom || row.pinX == null || row.pinY == null) {
+        lines.push(null);
+        nearest.push(null);
+        continue;
+      }
+      const mapped = mapCoverPinRaw(row.pinX, row.pinY, width, height, box.w, box.h, crop);
+      if (!mapped) {
+        lines.push(null);
+        nearest.push(null);
+        continue;
+      }
+      const band = bandBoxFor(bandRefs.current[i] ?? null, stage, stackEl);
+      if (!band) {
+        lines.push(null);
+        nearest.push(null);
+        continue;
+      }
+      const sampleX = mapped.left * box.w;
+      const sampleY = mapped.top * box.h;
+      lines.push(preferredHairline(sampleX, sampleY, band, PIN_LEADER_X));
+      nearest.push(nearestOnRect(sampleX, sampleY, band.left, band.top, band.right, band.bottom));
+    }
+    setLeaders(uncrossHairlines(lines, nearest));
+  }
+
   useGSAP(
     () => {
       const root = stageRef.current;
       if (!root) return;
+      const stackEl = root.querySelector<HTMLElement>("[data-band-stack]");
       const bands = root.querySelectorAll<HTMLElement>("[data-band-stack] .inzpo-band");
       const mode: RevealMode = preview?.reveal ?? "play";
+      const revealNow = () => {
+        stackEl?.setAttribute("data-revealed", "true");
+        setBandsRevealed(true);
+      };
       const land = () => {
-        gsap.set(bands, { y: 0 });
+        gsap.set(bands, { y: 0, opacity: 1 });
+        revealNow();
         setStripeCount(6);
         setLinePulse(false);
       };
@@ -181,35 +277,59 @@ export function KitResult({
         }
         return;
       }
-      if (reduced || mode === "landed") {
-        land();
+      if (mode === "hold") {
+        gsap.set(bands, { y: 8, opacity: 0 });
+        setStripeCount(0);
+        setLinePulse(false);
+        setLeaders([]);
         return;
+      }
+      if (mode === "landed") {
+        land();
+        gsap.ticker.add(syncHairlines);
+        return () => gsap.ticker.remove(syncHairlines);
+      }
+      if (reduced) {
+        gsap.set(bands, { y: 0, opacity: 0 });
+        revealNow();
+        gsap.to(bands, { opacity: 1, duration: MOTION.reduced.duration, ease: MOTION.reduced.ease });
+        setStripeCount(6);
+        setLinePulse(false);
+        gsap.ticker.add(syncHairlines);
+        return () => gsap.ticker.remove(syncHairlines);
       }
       const stack = BAND_H_RESULT * COLOR_ROLES.length;
       if (mode === "mid") {
-        gsap.set(bands, { y: (i) => (i < 3 ? 0 : stack * 0.35) });
+        gsap.set(bands, { y: (i) => (i < 3 ? 0 : stack * 0.35), opacity: 1 });
+        revealNow();
         setStripeCount(3);
         setLinePulse(false);
-        return;
+        gsap.ticker.add(syncHairlines);
+        return () => gsap.ticker.remove(syncHairlines);
       }
       if (!claimRevealPlay(itemId)) {
         land();
-        return;
+        gsap.ticker.add(syncHairlines);
+        return () => gsap.ticker.remove(syncHairlines);
       }
-      gsap.set(bands, { y: stack });
+      gsap.set(bands, { y: stack, opacity: 1 });
+      revealNow();
       setLinePulse(true);
       const tl = gsap.timeline({
         defaults: { duration: MOTION.enter.duration, ease: MOTION.enter.ease },
+        onUpdate: syncHairlines,
       });
       bands.forEach((band, i) => {
         tl.to(band, { y: 0 }, i * BAND_STAGGER_S);
         tl.add(() => setStripeCount(i + 1), i * BAND_STAGGER_S);
       });
+      gsap.ticker.add(syncHairlines);
       return () => {
         tl.kill();
+        gsap.ticker.remove(syncHairlines);
       };
     },
-    { scope: stageRef, dependencies: [itemId, preview?.reveal, reduced, revealTick] },
+    { scope: stageRef, dependencies: [itemId, preview?.reveal, reduced, revealTick, box.w, box.h] },
   );
 
   useGSAP(
@@ -232,8 +352,13 @@ export function KitResult({
         },
       );
     },
-    { dependencies: [linePulse, reduced, box.w, box.h] },
+    { dependencies: [linePulse, reduced, box.w, box.h, leaders.length] },
   );
+
+  useEffect(() => {
+    if (focusedRole) syncHairlines();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedRole, box.w, box.h, displayColors]);
 
   async function moveCrop() {
     setMoving(true);
@@ -253,7 +378,8 @@ export function KitResult({
     paddingBottom: SAVE_BAR_PAD,
   };
   const objectPosition = crop ? objectPositionCss(crop) : "50% 50%";
-  const hideBrief = brief.stub && !saved;
+  const hideBrief = false;
+  const safeTop = readSafeTop(photoRef.current);
 
   return (
     <div ref={stageRef} className="relative w-full" style={wearStyle} data-kit-wear>
@@ -262,8 +388,9 @@ export function KitResult({
           ref={photoRef}
           className={editOpen ? "sticky top-0 z-[60] w-full" : "relative w-full"}
           data-photo-fold
-          style={{ height: PHOTO_FOLD_CSS }}
+          style={{ height: PHOTO_FOLD_CSS, overflow: "visible" }}
         >
+          <span data-safe-top className="pointer-events-none absolute" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }} />
           <div className="absolute inset-0 overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -277,10 +404,11 @@ export function KitResult({
           </div>
           {showBack && !saved ? <PhotoBackButton href={backHref} /> : null}
           <div className="pointer-events-none absolute inset-0 overflow-visible">
-            {colors.map((c) => {
-              if (!c.role || c.pinX == null || c.pinY == null) return null;
-              const mapped = mapCoverPin(c.pinX, c.pinY, width, height, box.w, box.h, crop);
+            {displayColors.map((c) => {
+              if (!c.role || c.derivedFrom || c.pinX == null || c.pinY == null) return null;
+              const mapped = mapCoverPinRaw(c.pinX, c.pinY, width, height, box.w, box.h, crop);
               if (!mapped) return null;
+              const clamped = clampPinCenter(mapped.left * box.w, mapped.top * box.h, box.w, box.h, safeTop);
               return (
                 <span
                   key={`${c.role}-${c.position}`}
@@ -288,8 +416,8 @@ export function KitResult({
                   className="absolute rounded-full"
                   style={{
                     ...pinDiscStyle(c.hex),
-                    left: `${mapped.left * 100}%`,
-                    top: `${mapped.top * 100}%`,
+                    left: clamped.x,
+                    top: clamped.y,
                     transform: "translate(-50%, -50%)",
                   }}
                 />
@@ -316,33 +444,28 @@ export function KitResult({
           aria-hidden
         >
           {COLOR_ROLES.map((role, i) => {
-            const row = colors.find((c) => c.role === role);
-            if (!row || row.pinX == null || row.pinY == null) return null;
-            const mapped = mapCoverPin(row.pinX, row.pinY, width, height, box.w, box.h, crop);
-            if (!mapped) return null;
-            const x1 = mapped.left * box.w;
-            const y1 = mapped.top * box.h;
-            const x2 = PIN_LEADER_X;
-            const y2 = box.h + (i + 0.5) * BAND_H_RESULT;
-            const d = Math.hypot(x2 - x1, y2 - y1);
+            const line = leaders[i];
+            const row = displayColors.find((c) => c.role === role);
+            if (!line || !row || row.derivedFrom) return null;
+            const d = Math.hypot(line.x2 - line.x1, line.y2 - line.y1);
             const visible = linePulse || focusedRole === role;
             return (
               <g key={role} opacity={visible ? 1 : 0}>
                 <line
-                  x1={x1}
-                  y1={y1}
-                  x2={x2}
-                  y2={y2}
+                  x1={line.x1}
+                  y1={line.y1}
+                  x2={line.x2}
+                  y2={line.y2}
                   stroke={INK}
                   strokeWidth="3"
                   strokeLinecap="round"
                 />
                 <line
                   data-pin-line
-                  x1={x1}
-                  y1={y1}
-                  x2={x2}
-                  y2={y2}
+                  x1={line.x1}
+                  y1={line.y1}
+                  x2={line.x2}
+                  y2={line.y2}
                   stroke={PAPER}
                   strokeWidth="1"
                   strokeLinecap="round"
@@ -358,7 +481,7 @@ export function KitResult({
       <TokenEditor
         itemId={itemId}
         imageSrc={imageSrc}
-        colors={colors}
+        colors={displayColors}
         namedColors={brief.namedColors}
         size="result"
         pageBackground={pageBg}
@@ -372,6 +495,11 @@ export function KitResult({
         imageSize={{ width, height }}
         simulateLoupe={preview?.loupe === true}
         onLoupe={setLoupe}
+        onPromoteRole={(role, pin) => {
+          setPromoted((prev) => ({ ...prev, [role]: pin }));
+        }}
+        bandRefs={bandRefs}
+        bandsRevealed={bandsRevealed}
       >
         <span data-stripe-count={stripeCount} className="sr-only">
           {stripeCount} stripes
@@ -387,8 +515,12 @@ export function KitResult({
           pageInk={pageInk}
           onRetry={() => {
             kicked.current = true;
+            setBrief((prev) => ({ ...prev, status: "pending", text: null, stub: false }));
             void fetch(`/api/briefs/${itemId}`, { method: "POST" }).then(async (res) => {
-              if (!res.ok) return;
+              if (!res.ok) {
+                setBrief((prev) => ({ ...prev, status: "failed" }));
+                return;
+              }
               const job = (await res.json()) as {
                 status: BriefSlotStatus;
                 text: string | null;

@@ -1,5 +1,5 @@
-export type RevealMode = "play" | "landed" | "mid";
-export type RevealPlan = "play" | "land" | "mid";
+export type RevealMode = "play" | "landed" | "mid" | "hold";
+export type RevealPlan = "play" | "land" | "mid" | "hold";
 
 const played = new Set<string>();
 
@@ -16,6 +16,7 @@ export function claimRevealPlay(kitId: string, store: Set<string> = played): boo
 }
 
 export function planReveal(kitId: string, mode: RevealMode, store: Set<string> = played): RevealPlan {
+  if (mode === "hold") return "hold";
   if (mode === "landed") return "land";
   if (mode === "mid") return "mid";
   return claimRevealPlay(kitId, store) ? "play" : "land";

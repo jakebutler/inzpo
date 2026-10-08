@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   MASCOT_SIZE_BRIEF_PX,
+  MASCOT_SIZE_PX,
   MASCOT_SUCCESS_HOLD_MS,
   MASCOT_COPY,
   type MascotKit,
@@ -65,8 +66,18 @@ export function BriefSlot({
         style={{ minHeight: BRIEF_SLOT_MIN_PX }}
       >
         <div className="flex items-start gap-3">
-          <div style={{ width: MASCOT_SIZE_BRIEF_PX, height: MASCOT_SIZE_BRIEF_PX, flex: "0 0 auto" }}>
-            <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText />
+          <div
+            data-baku-slot
+            style={{
+              width: MASCOT_SIZE_BRIEF_PX,
+              height: MASCOT_SIZE_BRIEF_PX,
+              flex: "0 0 auto",
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "flex-start",
+            }}
+          >
+            <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_PX} revealedCount={stripeReveal} faceText />
           </div>
         </div>
       </section>
@@ -75,8 +86,18 @@ export function BriefSlot({
 
   const body = (
     <div className="flex items-start gap-3">
-      <div style={{ width: MASCOT_SIZE_BRIEF_PX, height: MASCOT_SIZE_BRIEF_PX, flex: "0 0 auto" }}>
-        <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText />
+      <div
+        data-baku-slot
+        style={{
+          width: MASCOT_SIZE_BRIEF_PX,
+          height: MASCOT_SIZE_BRIEF_PX,
+          flex: "0 0 auto",
+          display: "flex",
+          alignItems: "flex-end",
+          justifyContent: "flex-start",
+        }}
+      >
+        <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_PX} revealedCount={stripeReveal} faceText />
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
         {shown ? (

@@ -2,17 +2,29 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { INK, PAPER, PHOTO_BACK_PX } from "@/lib/brand";
 
-export function PhotoBackButton({ href }: { href: string }) {
+export function PhotoBackButton({
+  href,
+  placement = "photo",
+}: {
+  href: string;
+  placement?: "photo" | "header";
+}) {
   if (typeof href !== "string" || href.length === 0) return null;
+  const photo = placement === "photo";
   return (
     <Link
       href={href}
       aria-label="Back"
       data-photo-back
-      className="absolute left-3 top-3 z-[21] flex items-center justify-center rounded-full"
+      className={
+        photo
+          ? "absolute left-3 z-[21] flex items-center justify-center rounded-full"
+          : "relative z-[21] flex shrink-0 items-center justify-center rounded-full"
+      }
       style={{
         width: PHOTO_BACK_PX,
         height: PHOTO_BACK_PX,
+        top: photo ? "calc(env(safe-area-inset-top, 0px) + 8px)" : undefined,
         backgroundColor: `color-mix(in srgb, ${PAPER} 85%, transparent)`,
         color: INK,
       }}
