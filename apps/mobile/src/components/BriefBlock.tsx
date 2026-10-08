@@ -1,26 +1,29 @@
 import { type BriefJob } from '@inzpo/shared';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type ViewProps } from 'react-native';
+import Animated, { type AnimatedProps } from 'react-native-reanimated';
 import { Baku } from './Baku';
 import { ui } from '@/theme/styles';
 
-export function BriefBlock({ brief, failed = false }: { brief: BriefJob; failed?: boolean }) {
+export function BriefBlock({ brief, failed = false, showBaku = true, motionStyle }: {
+  brief: BriefJob; failed?: boolean; showBaku?: boolean; motionStyle?: AnimatedProps<ViewProps>['style'];
+}) {
   if (failed || brief.status === 'failed' || (brief.status === 'ready' && !brief.text)) {
     return (
-      <View style={styles.status} accessibilityLiveRegion="polite">
-        <Baku pose="errorBrief" />
-        <Text style={ui.message}>Baku couldn’t finish the brief. Your colors are here.</Text>
-      </View>
+      <Animated.View style={[styles.status, motionStyle]} accessibilityLiveRegion="polite">
+        {showBaku && <Baku pose="errorBrief" />}
+        <Text allowFontScaling style={ui.message}>Baku couldn’t finish the brief. Your colors are here.</Text>
+      </Animated.View>
     );
   }
   if (brief.status === 'pending') {
     return (
       <View style={styles.status} accessibilityLiveRegion="polite">
-        <Baku pose="chewing" />
-        <Text style={ui.message}>Baku is chewing on it…</Text>
+        {showBaku && <Baku pose="chewing" />}
+        <Text allowFontScaling style={ui.message}>Baku is chewing on it…</Text>
       </View>
     );
   }
-  return <Text style={ui.body}>{brief.text}</Text>;
+  return <Animated.View style={motionStyle}><Text allowFontScaling style={ui.body}>{brief.text}</Text></Animated.View>;
 }
 
 const styles = StyleSheet.create({ status: { alignItems: 'center', gap: 12, paddingVertical: 12 } });

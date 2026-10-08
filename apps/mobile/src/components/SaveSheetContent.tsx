@@ -1,118 +1,138 @@
 import { type CollectionSummary } from '@inzpo/shared';
+import { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInzpoClient } from '@/lib/api';
-import { fonts, INK, PAPER } from '@/theme/tokens';
+import { haptics } from '@/lib/haptics';
+import { fonts, INK } from '@/theme/tokens';
 import { ui } from '@/theme/styles';
 import { ActionButton } from './ActionButton';
 import { Baku } from './Baku';
+import { SaveButton } from './SaveButton';
 
 export function SaveSheetContent({ kitId, onClose }: { kitId: string; onClose: () => void }) {
   const client = useInzpoClient();
+  const insets = useSafeAreaInsets();
   const [collections, setCollections] = useState<CollectionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [successPose, setSuccessPose] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [collectionError, setCollectionError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const saveInFlight = useRef(false);
+  const active = useRef(true);
 
   useEffect(() => {
-    let active = true;
+    active.current = true;
+    return () => { active.current = false; };
+  }, []);
+  useEffect(() => {
+    let current = true;
     client.listCollections()
-      .then((items) => { if (active) setCollections(items); })
-      .catch(() => { if (active) setError('Couldn’t load collections. Please try again.'); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+      .then((items) => { if (current) setCollections(items); })
+      .catch(() => { if (current) setCollectionError('Couldn’t load collections. Please try again.'); })
+      .finally(() => { if (current) setLoading(false); });
+    return () => { current = false; };
   }, [client, attempt]);
+  useEffect(() => {
+    if (!saved) return;
+    // TODO(motion): Baku anticipation/takeoff/landing hop and contact shadow.
+    const timer = setTimeout(() => setSuccessPose(false), 2000);
+    return () => clearTimeout(timer);
+  }, [saved]);
 
   async function save() {
-    if (saveInFlight.current || (!selectedId && !newName.trim())) return;
+    if (saveInFlight.current || saved || (!selectedId && !newName.trim())) return;
     saveInFlight.current = true;
     setSaving(true);
-    setError(null);
+    setSaveError(null);
     try {
       await client.saveKit(kitId, selectedId ? { collectionId: selectedId } : { newName: newName.trim() });
+      if (!active.current) return;
       setSaved(true);
+      setSuccessPose(true);
+      void haptics.success();
     } catch {
-      setError('Couldn’t save this kit. Please try again.');
+      if (!active.current) return;
+      setSaveError('Couldn’t save this kit. Please try again.');
+      void haptics.error();
     } finally {
       saveInFlight.current = false;
-      setSaving(false);
+      if (active.current) setSaving(false);
     }
   }
 
   return (
-    <SafeAreaView style={ui.screen}>
-      <KeyboardAvoidingView style={ui.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
-          <Text style={ui.heading}>{saved ? 'Saved' : 'Keep this kit'}</Text>
-          {saved ? (
-            <View style={styles.success} accessibilityLiveRegion="polite">
-              <Baku pose="success" />
-              <Text style={ui.body}>Its colors have a home.</Text>
-              <ActionButton label="Done" onPress={onClose} />
-            </View>
-          ) : (
+    <BottomSheetScrollView contentContainerStyle={[ui.content, { paddingBottom: Math.max(insets.bottom, 24) }]} keyboardShouldPersistTaps="handled">
+      <Text allowFontScaling style={ui.heading}>Keep this kit</Text>
+      <View style={styles.baku} accessibilityLiveRegion="polite">
+        <Baku pose={successPose ? 'success' : saveError ? 'errorBrief' : 'idle'} />
+      </View>
+      {saved ? <Text allowFontScaling style={ui.body}>Its colors have a home.</Text> : (
+        <>
+          <Text allowFontScaling style={ui.body}>Choose a collection or start a new one.</Text>
+          {loading && <Text allowFontScaling style={ui.body}>Loading collections…</Text>}
+          {!loading && collections.length === 0 && !collectionError && <Text allowFontScaling style={ui.body}>Your first collection starts here.</Text>}
+          <View style={styles.collections}>
+            {collections.map((collection) => (
+              <Pressable
+                key={collection.id}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selectedId === collection.id, disabled: saving }}
+                disabled={saving}
+                onPress={() => { setSelectedId(collection.id); setNewName(''); }}
+                style={[styles.collection, selectedId === collection.id && styles.selected]}
+              >
+                <Text allowFontScaling style={styles.collectionName}>{collection.name}</Text>
+                <Text allowFontScaling style={ui.label}>{selectedId === collection.id ? 'Selected' : `${collection.count} kits`}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text allowFontScaling style={ui.label}>New collection</Text>
+          <BottomSheetTextInput
+            accessibilityLabel="New collection name"
+            placeholder="Collection name"
+            placeholderTextColor={INK}
+            autoFocus
+            value={newName}
+            onChangeText={(name) => { setNewName(name); setSelectedId(null); }}
+            editable={!saving}
+            maxLength={100}
+            returnKeyType="done"
+            onSubmitEditing={() => void save()}
+            style={ui.input}
+          />
+          {collectionError && (
             <>
-              <Text style={ui.body}>Choose a collection or start a new one.</Text>
-              {loading && <Text style={ui.body}>Loading collections…</Text>}
-              {!loading && collections.length === 0 && !error && <Text style={ui.body}>Your first collection starts here.</Text>}
-              <View style={styles.collections}>
-                {collections.map((collection) => (
-                  <Pressable
-                    key={collection.id}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: selectedId === collection.id, disabled: saving }}
-                    disabled={saving}
-                    onPress={() => { setSelectedId(collection.id); setNewName(''); }}
-                    style={[styles.collection, selectedId === collection.id && styles.selected]}
-                  >
-                    <Text style={styles.collectionName}>{collection.name}</Text>
-                    <Text style={ui.label}>{selectedId === collection.id ? 'Selected' : `${collection.count} kits`}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              <Text style={ui.label}>New collection</Text>
-              <TextInput
-                accessibilityLabel="New collection name"
-                placeholder="Collection name"
-                placeholderTextColor={INK}
-                value={newName}
-                onChangeText={(name) => { setNewName(name); setSelectedId(null); }}
-                editable={!saving}
-                maxLength={100}
-                returnKeyType="done"
-                style={ui.input}
-              />
-              {error && <Text accessibilityRole="alert" style={ui.body}>{error}</Text>}
-              {error?.startsWith('Couldn’t load') && (
-                <ActionButton label="Reload collections" disabled={loading || saving} onPress={() => {
-                  setLoading(true);
-                  setError(null);
-                  setAttempt((value) => value + 1);
-                }} />
-              )}
-              <ActionButton label={saving ? 'Saving…' : 'Save'} primary disabled={saving || (!selectedId && !newName.trim())} onPress={() => void save()} />
-              <ActionButton label="Cancel" disabled={saving} onPress={onClose} />
+              <Text allowFontScaling accessibilityRole="alert" style={ui.body}>{collectionError}</Text>
+              <ActionButton label="Reload collections" disabled={loading || saving} onPress={() => {
+                setLoading(true);
+                setCollectionError(null);
+                setAttempt((value) => value + 1);
+              }} />
             </>
           )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        </>
+      )}
+      <SaveButton saved={saved} saving={saving} disabled={saving || (!selectedId && !newName.trim())} onPress={() => void save()} />
+      {saveError && <Text allowFontScaling accessibilityRole="alert" style={ui.message}>{saveError}</Text>}
+      <ActionButton label={saved ? 'Done' : 'Cancel'} disabled={saving} onPress={onClose} />
+    </BottomSheetScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  baku: { alignItems: 'center' },
   collections: { gap: 10 },
   collection: {
     padding: 16, minHeight: 60, borderWidth: 1, borderColor: INK, borderRadius: 12,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12,
   },
   selected: { borderWidth: 2 },
   collectionName: { fontFamily: fonts.body, fontSize: 16, color: INK, flex: 1 },
-  success: { gap: 20, alignItems: 'center', backgroundColor: PAPER },
 });

@@ -1,24 +1,37 @@
+import { type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { usePressFeedback } from '@/lib/usePressFeedback';
 import { fonts, INK, PAPER, VERMILION } from '@/theme/tokens';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type Props = {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   primary?: boolean;
+  pressScale?: number;
+  onPressIn?: () => void;
+  disabledOpacity?: number;
+  children?: ReactNode;
 };
 
-export function ActionButton({ label, onPress, disabled = false, primary = false }: Props) {
+export function ActionButton({ label, onPress, disabled = false, primary = false, pressScale, onPressIn, disabledOpacity, children }: Props) {
+  const feedback = usePressFeedback({ pressScale, disabled, disabledOpacity, onPressIn });
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
+      accessibilityLabel={label}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.button, primary && styles.primary, (pressed || disabled) && styles.dimmed]}
+      onPressIn={feedback.onPressIn}
+      onPressOut={feedback.onPressOut}
+      style={[styles.button, primary && styles.primary, feedback.animatedStyle]}
     >
-      <Text style={[styles.label, primary && styles.primaryLabel]}>{label}</Text>
-    </Pressable>
+      {children ?? <Text allowFontScaling style={[styles.label, primary && styles.primaryLabel]}>{label}</Text>}
+    </AnimatedPressable>
   );
 }
 
@@ -30,5 +43,4 @@ const styles = StyleSheet.create({
   primary: { backgroundColor: VERMILION, borderColor: VERMILION },
   label: { fontFamily: fonts.bodyMedium, fontSize: 16, color: INK, textAlign: 'center' },
   primaryLabel: { color: PAPER },
-  dimmed: { opacity: 0.5 },
 });

@@ -35,7 +35,10 @@ function ReadyApp() {
   if (!isLoaded) return null;
   return (
     <InzpoClientProvider>
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: PAPER } }} />
+      {/* The modal portal host must inherit Clerk and the API client too. */}
+      <BottomSheetModalProvider>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: PAPER } }} />
+      </BottomSheetModalProvider>
     </InzpoClientProvider>
   );
 }
@@ -51,17 +54,15 @@ export default function RootLayout() {
     <GestureHandlerRootView style={ui.screen}>
       <SafeAreaProvider>
         <StatusBar style="dark" />
-        <BottomSheetModalProvider>
-          {fontError ? (
-            <StartupError message="The fonts couldn’t load. Please restart Inzpo." />
-          ) : !publishableKey ? (
-            <StartupError message="Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY. Add it to apps/mobile/.env.local, then restart Expo." />
-          ) : (
-            <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-              <ReadyApp />
-            </ClerkProvider>
-          )}
-        </BottomSheetModalProvider>
+        {fontError ? (
+          <StartupError message="The fonts couldn’t load. Please restart Inzpo." />
+        ) : !publishableKey ? (
+          <StartupError message="Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY. Add it to apps/mobile/.env.local, then restart Expo." />
+        ) : (
+          <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+            <ReadyApp />
+          </ClerkProvider>
+        )}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

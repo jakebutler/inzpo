@@ -1,31 +1,46 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useRef, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActionButton } from '@/components/ActionButton';
 import { Baku } from '@/components/Baku';
 import { BriefBlock } from '@/components/BriefBlock';
+import { EditSheet, type EditSheetHandle } from '@/components/EditSheet';
 import { RoleBands } from '@/components/RoleBands';
-import { SaveSheetContent } from '@/components/SaveSheetContent';
+import { SaveSheet } from '@/components/SaveSheet';
 import { useKit } from '@/lib/use-kit';
+import { useResultSequence } from '@/lib/useResultSequence';
 import { ui } from '@/theme/styles';
 
 export default function ResultScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = typeof params.id === 'string' ? params.id : '';
   const { kit, loading, error, briefFailed, retry } = useKit(id);
-  const [showSave, setShowSave] = useState(false);
+  const [sheet, setSheet] = useState<{ kitId: string; type: 'save' | 'edit' } | null>(null);
+  const editSheet = useRef<EditSheetHandle>(null);
   const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
   const photoFailed = !!kit?.photo && kit.photo.url === failedPhotoUrl;
   const { height } = useWindowDimensions();
+  const ready = !!kit && (briefFailed || kit.brief.status !== 'pending');
+  const failedBrief = briefFailed || kit?.brief.status === 'failed' || (kit?.brief.status === 'ready' && !kit.brief.text);
+  const sequence = useResultSequence({ kitId: id, ready });
 
   return (
-    <SafeAreaView style={ui.screen} edges={['bottom', 'left', 'right']}>
-      <ScrollView contentContainerStyle={[ui.content, !kit && { flexGrow: 1 }]}>
+    <SafeAreaView style={ui.screen} edges={['bottom', 'left', 'right']} onTouchStart={sequence.skipToEnd}>
+      <ScrollView
+        testID="result-content"
+        contentContainerStyle={[ui.content, !kit && { flexGrow: 1 }]}
+        onScrollBeginDrag={sequence.skipToEnd}
+        onMomentumScrollBegin={sequence.skipToEnd}
+        onScroll={({ nativeEvent }) => {
+          if (nativeEvent.contentOffset.x !== 0 || nativeEvent.contentOffset.y !== 0) sequence.skipToEnd();
+        }}
+        scrollEventThrottle={16}
+      >
         {loading ? (
           <View style={ui.center}>
-            <Baku pose="chewing" />
+            <Baku pose="chewing" motionStyle={sequence.bakuStyle} />
             <Text style={ui.message}>Baku is chewing on it…</Text>
           </View>
         ) : error ? (
@@ -37,6 +52,8 @@ export default function ResultScreen() {
         ) : kit ? (
           <>
             <Text style={ui.heading}>{kit.title}</Text>
+            {/* TODO(motion): Photo collapses to 40% of its slot at largest Dynamic Type. */}
+            {/* TODO(motion): Shared-element hand-off from the frozen camera frame. */}
             {kit.photo && !photoFailed ? (
               <Image
                 key={kit.photo.url}
@@ -53,16 +70,32 @@ export default function ResultScreen() {
                 {photoFailed && <ActionButton label="Reload photo" onPress={() => { setFailedPhotoUrl(null); retry(); }} />}
               </View>
             )}
-            <RoleBands roles={kit.roles} />
-            <BriefBlock brief={kit.brief} failed={briefFailed} />
+            {/* No pin coordinates exist in MobileKit yet. sequence.markerStyle
+                is ready for them; on pin drag call editSheet.current?.snapToPeek().
+                TODO(motion): Photo pins, hairlines and loupe/picker integration. */}
+            <View style={styles.baku}>
+              <Baku pose={!ready ? 'chewing' : failedBrief ? 'errorBrief' : 'idle'} motionStyle={sequence.bakuStyle} skipTransition={sequence.interactive} />
+              {!ready && <BriefBlock brief={kit.brief} showBaku={false} />}
+            </View>
+            {ready && (
+              <>
+                <RoleBands roles={kit.roles} motion={sequence.bands} />
+                <BriefBlock brief={kit.brief} failed={briefFailed} showBaku={false} motionStyle={sequence.briefStyle} />
+              </>
+            )}
             {(briefFailed || kit.brief.status === 'failed') && <ActionButton label="Check brief again" onPress={retry} />}
           </>
         ) : null}
-        <ActionButton label="Save" primary disabled={!kit} onPress={() => setShowSave(true)} />
+        <ActionButton label="Save" primary disabled={!sequence.interactive} onPress={() => setSheet({ kitId: id, type: 'save' })} />
+        <ActionButton label="Edit" disabled={!sequence.interactive} onPress={() => setSheet({ kitId: id, type: 'edit' })} />
+        {/* TODO(motion): Kit overflow/export sheet with dynamic sizing and 52pt action rows. */}
       </ScrollView>
-      <Modal visible={showSave && !!kit} presentationStyle="pageSheet" onRequestClose={() => setShowSave(false)}>
-        {showSave && kit && <SaveSheetContent kitId={kit.id} onClose={() => setShowSave(false)} />}
-      </Modal>
+      {kit && (
+        <>
+          <SaveSheet visible={sheet?.kitId === id && sheet.type === 'save'} kitId={kit.id} onClose={() => setSheet(null)} />
+          <EditSheet ref={editSheet} visible={sheet?.kitId === id && sheet.type === 'edit'} roles={kit.roles} onClose={() => setSheet(null)} />
+        </>
+      )}
     </SafeAreaView>
   );
 }
@@ -70,4 +103,5 @@ export default function ResultScreen() {
 const styles = StyleSheet.create({
   photo: { width: '100%', borderRadius: 18, overflow: 'hidden' },
   photoPlaceholder: { alignItems: 'center', justifyContent: 'center', gap: 16 },
+  baku: { alignItems: 'center' },
 });

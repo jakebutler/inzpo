@@ -6,7 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActionButton } from '@/components/ActionButton';
 import { Baku } from '@/components/Baku';
 import { useInzpoClient } from '@/lib/api';
+import { haptics } from '@/lib/haptics';
 import { uploadPhoto } from '@/lib/upload';
+import { SHUTTER_PRESS_SCALE } from '@/theme/motion';
 import { ui } from '@/theme/styles';
 
 export default function SnapScreen() {
@@ -29,6 +31,8 @@ export default function SnapScreen() {
           return;
         }
       }
+      // TODO(motion): Full-screen expo-camera CameraView, paper flash (35%,
+      // 80ms hold/120ms fade), then shared-element hand-off to the result photo.
       // The system image-only library picker does not need broad photo access.
       const result = source === 'camera'
         ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 })
@@ -58,8 +62,8 @@ export default function SnapScreen() {
           {uploading && <Text style={ui.message}>Baku is chewing on it…</Text>}
           {error && <Text accessibilityRole="alert" style={ui.message}>{error}</Text>}
         </View>
-        <ActionButton label="Snap a house" primary disabled={busy} onPress={() => void pick('camera')} />
-        <ActionButton label="Pick from library" disabled={busy} onPress={() => void pick('library')} />
+        <ActionButton label="Snap a house" primary disabled={busy} pressScale={SHUTTER_PRESS_SCALE} onPressIn={() => void haptics.light()} onPress={() => void pick('camera')} />
+        <ActionButton label="Pick from library" disabled={busy} onPressIn={() => void haptics.light()} onPress={() => void pick('library')} />
       </ScrollView>
     </SafeAreaView>
   );

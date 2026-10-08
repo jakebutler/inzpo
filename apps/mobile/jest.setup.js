@@ -3,12 +3,31 @@ require('react-native-gesture-handler/jestSetup');
 // Use the mocks shipped by the installed Reanimated/Worklets versions.
 // Reanimated 4.5.1 predates the new jest/resolver shown in the latest docs.
 jest.mock('react-native-worklets', () => require('react-native-worklets/lib/module/mock'));
-jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+jest.mock('react-native-reanimated', () => {
+  const mock = require('react-native-reanimated/mock');
+  const React = require('react');
+  return {
+    ...mock,
+    // The installed official mock omits useReducedMotion and creates fresh
+    // shared values on every render. Add the native hook's stable identity.
+    useReducedMotion: jest.fn(() => false),
+    useSharedValue: (initial) => {
+      const ref = React.useRef(null);
+      if (ref.current === null) ref.current = mock.useSharedValue(initial);
+      return ref.current;
+    },
+  };
+});
 require('react-native-reanimated').setUpTests();
 
 jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
-jest.mock('@gorhom/bottom-sheet', () => ({
-  BottomSheetModalProvider: ({ children }) => children,
+jest.mock('@gorhom/bottom-sheet', () => require('@gorhom/bottom-sheet/mock'));
+jest.mock('expo-haptics', () => ({
+  ImpactFeedbackStyle: { Light: 'light', Soft: 'soft' },
+  NotificationFeedbackType: { Success: 'success', Error: 'error' },
+  impactAsync: jest.fn(async () => undefined),
+  notificationAsync: jest.fn(async () => undefined),
+  selectionAsync: jest.fn(async () => undefined),
 }));
 jest.mock('@clerk/expo', () => ({
   ClerkProvider: ({ children }) => children,

@@ -2,6 +2,8 @@ import { useAuth, useClerk, useSignIn } from '@clerk/expo';
 import { InzpoApiError } from '@inzpo/shared';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ExpoHaptics from 'expo-haptics';
+import * as Reanimated from 'react-native-reanimated';
 import { router } from 'expo-router';
 import SignInScreen from '@/app/(auth)/sign-in';
 import SnapScreen from '@/app/(app)/index';
@@ -9,7 +11,9 @@ import ResultScreen from '@/app/(app)/kit/[id]';
 import AuthLayout from '@/app/(auth)/_layout';
 import AppLayout from '@/app/(app)/_layout';
 import { useInzpoClient } from '@/lib/api';
+import { createHaptics, haptics } from '@/lib/haptics';
 import { uploadPhoto } from '@/lib/upload';
+import { resultSequenceBeats, SHUTTER_PRESS_SCALE, TAP_TIMING, BUTTON_PRESS_SCALE } from '@/theme/motion';
 import { kitFixture, mockClient } from '../../tests/fixtures';
 
 jest.mock('@/lib/api', () => ({ useInzpoClient: jest.fn() }));
@@ -23,6 +27,8 @@ const signIn = {
 };
 
 beforeEach(() => {
+  Object.assign(haptics, createHaptics());
+  jest.mocked(Reanimated.useReducedMotion).mockReturnValue(false);
   client = mockClient();
   jest.mocked(useInzpoClient).mockReturnValue(client);
   jest.mocked(useAuth).mockReturnValue({ isLoaded: true, isSignedIn: false } as ReturnType<typeof useAuth>);
@@ -40,6 +46,7 @@ beforeEach(() => {
   jest.mocked(uploadPhoto).mockResolvedValue('kit-1');
   jest.mocked(ImagePicker.requestCameraPermissionsAsync).mockResolvedValue({ granted: true } as ImagePicker.CameraPermissionResponse);
 });
+afterEach(() => { jest.restoreAllMocks(); jest.useRealTimers(); });
 
 test('sign-in renders, sends an email code, verifies six digits, and activates the session', async () => {
   const view = await render(<SignInScreen />);
@@ -136,6 +143,8 @@ test('result renders filled bands and preserves an empty accent without a swatch
   expect(view.getByTestId('role-empty-accent')).toHaveStyle({ backgroundColor: '#F3EEE4', borderStyle: 'dashed' });
   expect(view.queryByTestId('role-swatch-accent')).toBeNull();
   expect(view.getByText(kitFixture.brief.text!)).toBeTruthy();
+  expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
+  await fireEvent(view.getByTestId('result-content'), 'scrollBeginDrag');
   expect(view.getByRole('button', { name: 'Save' })).toBeEnabled();
   expect(client.getBrief).not.toHaveBeenCalled();
 });
@@ -148,6 +157,9 @@ test('a pending brief polls and refetches the kit title after resolving', async 
   const view = await render(<ResultScreen />);
   expect(await view.findByText('Baku is chewing on it…')).toBeTruthy();
   expect(view.getByTestId('baku-chewing')).toBeTruthy();
+  expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
+  expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
+  expect(view.getByRole('button', { name: 'Save' })).toHaveStyle({ opacity: 0.4 });
   await act(async () => { resolveBrief(kitFixture.brief); });
   expect(await view.findByText('The brick house')).toBeTruthy();
   expect(client.getKit).toHaveBeenCalledTimes(2);
@@ -183,7 +195,94 @@ test('missing kit renders the 404 placeholder and retry', async () => {
 test('opening Save presents the collection content in the result modal', async () => {
   const view = await render(<ResultScreen />);
   await view.findByText(kitFixture.title);
+  await fireEvent(view.getByTestId('result-content'), 'scrollBeginDrag');
   await fireEvent.press(view.getByRole('button', { name: 'Save' }));
   expect(await view.findByText('Keep this kit')).toBeTruthy();
   expect(await view.findByText('Neighborhood')).toBeTruthy();
+});
+
+test('ready data waits for the sequence before enabling both result actions', async () => {
+  jest.useFakeTimers();
+  const view = await render(<ResultScreen />);
+  expect(view.getByText(kitFixture.title)).toBeTruthy();
+  expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
+  expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
+  const { interactiveMs } = resultSequenceBeats(6, false);
+  await act(async () => { jest.advanceTimersByTime(interactiveMs - 1); });
+  expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
+  await act(async () => { jest.advanceTimersByTime(1); });
+  expect(view.getByRole('button', { name: 'Save' })).toBeEnabled();
+  expect(view.getByRole('button', { name: 'Edit' })).toBeEnabled();
+});
+
+test('scrolling without a touch event still skips the active result sequence', async () => {
+  jest.useFakeTimers();
+  const view = await render(<ResultScreen />);
+  expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
+  await fireEvent.scroll(view.getByTestId('result-content'), { nativeEvent: { contentOffset: { x: 0, y: 24 } } });
+  expect(view.getByRole('button', { name: 'Save' })).toBeEnabled();
+  expect(view.getByRole('button', { name: 'Edit' })).toBeEnabled();
+  await act(async () => { jest.advanceTimersByTime(2000); });
+  expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
+});
+
+test('tapping during pending preserves the hero and keeps buttons gated until it finishes', async () => {
+  jest.useFakeTimers();
+  const pending = { ...kitFixture, brief: { ...kitFixture.brief, status: 'pending' as const, text: null } };
+  client.getKit.mockResolvedValueOnce(pending).mockResolvedValueOnce(kitFixture);
+  let resolveBrief!: (brief: typeof kitFixture.brief) => void;
+  client.getBrief.mockReturnValue(new Promise((resolve) => { resolveBrief = resolve; }));
+  const view = await render(<ResultScreen />);
+  await fireEvent(view.getByTestId('result-content'), 'touchStart');
+  expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
+  expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
+  await act(async () => { resolveBrief(kitFixture.brief); });
+  expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
+  expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
+  await act(async () => { jest.advanceTimersByTime(resultSequenceBeats(6, false).interactiveMs); });
+  expect(view.getByRole('button', { name: 'Save' })).toBeEnabled();
+  expect(view.getByRole('button', { name: 'Edit' })).toBeEnabled();
+  await act(async () => { jest.advanceTimersByTime(2000); });
+  expect(ExpoHaptics.impactAsync).toHaveBeenCalledTimes(1);
+  expect(ExpoHaptics.impactAsync).toHaveBeenCalledWith(ExpoHaptics.ImpactFeedbackStyle.Soft);
+});
+
+test('Edit opens at the peek and preserves the empty accent chip', async () => {
+  const view = await render(<ResultScreen />);
+  await view.findByText(kitFixture.title);
+  await fireEvent(view.getByTestId('result-content'), 'scrollBeginDrag');
+  await fireEvent.press(view.getByRole('button', { name: 'Edit' }));
+  expect(view.getByTestId('edit-role-accent')).toHaveStyle({ backgroundColor: '#F3EEE4', borderStyle: 'dashed' });
+  expect(view.queryByText('Color picking comes next')).toBeNull();
+  expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
+  expect(ExpoHaptics.notificationAsync).not.toHaveBeenCalled();
+});
+
+test.each([
+  ['Snap a house', SHUTTER_PRESS_SCALE],
+  ['Pick from library', BUTTON_PRESS_SCALE],
+] as const)('%s scales and fires Light on press-in, with spring release and no release haptic', async (label, scale) => {
+  const timing = jest.spyOn(Reanimated, 'withTiming');
+  const spring = jest.spyOn(Reanimated, 'withSpring');
+  const view = await render(<SnapScreen />);
+  const button = view.getByRole('button', { name: label });
+  await fireEvent(button, 'pressIn');
+  expect(timing).toHaveBeenCalledWith(scale, TAP_TIMING);
+  expect(ExpoHaptics.impactAsync).toHaveBeenCalledWith(ExpoHaptics.ImpactFeedbackStyle.Light);
+  await fireEvent(button, 'pressOut');
+  expect(spring).toHaveBeenCalledWith(1, expect.objectContaining({ damping: 18, stiffness: 220, mass: 1 }));
+  expect(ExpoHaptics.impactAsync).toHaveBeenCalledTimes(1);
+  expect(ImagePicker.launchCameraAsync).not.toHaveBeenCalled();
+  expect(ImagePicker.launchImageLibraryAsync).not.toHaveBeenCalled();
+});
+
+test('reduced motion Snap fades on press and keeps Light feedback', async () => {
+  jest.mocked(Reanimated.useReducedMotion).mockReturnValue(true);
+  const timing = jest.spyOn(Reanimated, 'withTiming');
+  const spring = jest.spyOn(Reanimated, 'withSpring');
+  const view = await render(<SnapScreen />);
+  await fireEvent(view.getByRole('button', { name: 'Snap a house' }), 'pressIn');
+  expect(timing).toHaveBeenCalledWith(0.72, expect.objectContaining({ duration: 150 }));
+  expect(spring).not.toHaveBeenCalled();
+  expect(ExpoHaptics.impactAsync).toHaveBeenCalledWith(ExpoHaptics.ImpactFeedbackStyle.Light);
 });
