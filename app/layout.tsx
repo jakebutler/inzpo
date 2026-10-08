@@ -61,6 +61,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ClerkProvider
             signInUrl="/login"
             signUpUrl="/login"
+            signInFallbackRedirectUrl="/capture"
+            signUpFallbackRedirectUrl="/capture"
             afterSignOutUrl="/login"
             appearance={{
               variables: {

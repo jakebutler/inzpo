@@ -31,6 +31,12 @@ describe("r3 string audit", () => {
     expect(src("app/login/SignInForm.tsx")).toContain("Enter the email your invite went to.");
     expect(src("app/login/SignInForm.tsx")).toContain('id="clerk-captcha"');
     expect(src("app/login/SignInForm.tsx")).toContain("LoginIdleMark");
+    expect(src("app/login/SignInForm.tsx")).toContain("decorateUrl");
+    expect(src("app/login/SignInForm.tsx")).toContain("activateSession");
+    expect(src("app/login/SignInForm.tsx")).toContain("clerkReady");
+    expect(src("app/login/SignInForm.tsx")).not.toMatch(/finalize\(\s*\)/);
+    expect(src("app/layout.tsx")).toContain('signInFallbackRedirectUrl="/capture"');
+    expect(src("app/layout.tsx")).toContain('signUpFallbackRedirectUrl="/capture"');
     expect(src("lib/auth/clerk-errors.ts")).toContain("Couldn't sign you in just now. Try again in a minute.");
     expect(src("lib/auth/clerk-errors.ts")).toContain("We couldn't verify you're human. Reload the page and try again.");
     expect(src("app/not-found.tsx")).toContain("NotFoundMark");

@@ -33,12 +33,16 @@ function check(label: string, ok: boolean, detail = "") {
 async function signIn(page: import("playwright").Page) {
   await page.goto(`${BASE}/login`);
   await page.waitForSelector("#email");
+  await page.waitForFunction(
+    () => Boolean((window as unknown as { Clerk?: { loaded?: boolean } }).Clerk?.loaded),
+    { timeout: 20000 },
+  );
   await page.fill("#email", EMAIL);
   await page.click('button[type="submit"]');
   await page.waitForSelector("#code", { timeout: 20000 });
   await page.fill("#code", CODE);
   await page.click('button[type="submit"]');
-  await page.waitForURL(/\/(capture|$)/, { timeout: 25000 });
+  await page.waitForURL(/\/capture/, { timeout: 45000 });
 }
 
 const jpeg = await sharp({

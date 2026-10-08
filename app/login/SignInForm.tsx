@@ -40,6 +40,40 @@ export function SignInForm({
   const [done, setDone] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const dest = validateRelativePath(next) === "/" ? "/capture" : validateRelativePath(next);
+  const fetching = signInFetch === "fetching" || signUpFetch === "fetching";
+  const clerkReady = Boolean(signIn) && Boolean(signUp);
+  const uiState: UiState = done
+    ? "done"
+    : offline
+      ? "offline"
+      : fetching
+        ? "loading"
+        : error
+          ? "error"
+          : email.length === 0 && step === "email"
+            ? "empty"
+            : "ready";
+
+  async function activateSession(
+    finalize: (params: {
+      navigate: (args: { decorateUrl: (url: string) => string }) => void;
+    }) => Promise<{ error: unknown }>,
+  ): Promise<boolean> {
+    let navigated = false;
+    const result = await finalize({
+      navigate: ({ decorateUrl }) => {
+        navigated = true;
+        window.location.assign(decorateUrl(dest));
+      },
+    });
+    if (result.error) {
+      setError(messageForAuthError(classifyAuthError(result.error)));
+      return false;
+    }
+    setDone(true);
+    if (!navigated) window.location.assign(dest);
+    return true;
+  }
 
   useEffect(() => {
     function sync() {
@@ -65,13 +99,7 @@ export function SignInForm({
         return;
       }
       if (signUp.status === "complete") {
-        const fin = await signUp.finalize();
-        if (fin.error) {
-          setError(messageForAuthError(classifyAuthError(fin.error)));
-          return;
-        }
-        setDone(true);
-        window.location.assign(dest);
+        await activateSession((params) => signUp.finalize(params));
       } else {
         await signUp.verifications.sendEmailCode();
         setMode("signup");
@@ -89,19 +117,6 @@ export function SignInForm({
     const { duration, ease } = motionFor("enter");
     gsap.fromTo(el, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration, ease, overwrite: "auto" });
   }, [step]);
-
-  const fetching = signInFetch === "fetching" || signUpFetch === "fetching";
-  const uiState: UiState = done
-    ? "done"
-    : offline
-      ? "offline"
-      : fetching
-        ? "loading"
-        : error
-          ? "error"
-          : email.length === 0 && step === "email"
-            ? "empty"
-            : "ready";
 
   async function sendCode(event: React.FormEvent) {
     event.preventDefault();
@@ -152,25 +167,15 @@ export function SignInForm({
         setError(messageForAuthError(classifyAuthError(verified.error)));
         return;
       }
-      const fin = await signIn.finalize();
-      if (fin.error) {
-        setError(messageForAuthError(classifyAuthError(fin.error)));
-        return;
-      }
-    } else {
-      const verified = await signUp.verifications.verifyEmailCode({ code: trimmed });
-      if (verified.error) {
-        setError(messageForAuthError(classifyAuthError(verified.error)));
-        return;
-      }
-      const fin = await signUp.finalize();
-      if (fin.error) {
-        setError(messageForAuthError(classifyAuthError(fin.error)));
-        return;
-      }
+      await activateSession((params) => signIn.finalize(params));
+      return;
     }
-    setDone(true);
-    window.location.assign(dest);
+    const verified = await signUp.verifications.verifyEmailCode({ code: trimmed });
+    if (verified.error) {
+      setError(messageForAuthError(classifyAuthError(verified.error)));
+      return;
+    }
+    await activateSession((params) => signUp.finalize(params));
   }
 
   const primaryLabel = step === "email" ? "Send code" : "Sign in";
@@ -228,7 +233,7 @@ export function SignInForm({
             <div className="mt-auto pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-8">
               <button
                 type="submit"
-                disabled={fetching || offline || email.trim().length === 0}
+                disabled={fetching || offline || !clerkReady || email.trim().length === 0}
                 className="min-h-[44px] w-full rounded-xl bg-primary px-4 text-base font-medium text-primary-foreground transition-transform duration-[120ms] ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-[0.98] disabled:opacity-50"
               >
                 {fetching ? pendingLabel : primaryLabel}
@@ -279,7 +284,7 @@ export function SignInForm({
             <div className="mt-auto pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-8">
               <button
                 type="submit"
-                disabled={fetching || offline || code.trim().length === 0}
+                disabled={fetching || offline || !clerkReady || code.trim().length === 0}
                 className="min-h-[44px] w-full rounded-xl bg-primary px-4 text-base font-medium text-primary-foreground transition-transform duration-[120ms] ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-[0.98] disabled:opacity-50"
               >
                 {fetching ? pendingLabel : primaryLabel}
