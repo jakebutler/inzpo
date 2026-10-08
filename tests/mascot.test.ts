@@ -7,6 +7,7 @@ import {
   MASCOT_COPY,
   MASCOT_POSES,
   MASCOT_SIZE_PX,
+  MASCOT_SUCCESS_HOLD_MS,
   MASCOT_WAIT_MS,
   copyForMoment,
   creamKit,
@@ -64,6 +65,7 @@ describe("Baku copy", () => {
       "Still chewing. Your colors are already here.",
     );
     expect(copyForMoment("success")).toBe("Saved. Baku is full.");
+    expect(MASCOT_SUCCESS_HOLD_MS).toBe(2_000);
     expect(copyForMoment("error-brief")).toBe("Couldn't finish the notes. Your colors are fine.");
     expect(copyForMoment("error-unreadable")).toBe("Baku can't taste this one. Try another photo.");
   });

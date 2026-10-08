@@ -14,10 +14,13 @@ import { getOrigin, getDerivedItems } from "@/lib/palettes";
 import { requireOwnerId } from "@/lib/auth/owner";
 import { KitResult } from "@/app/components/KitResult";
 import { SaveBar } from "@/app/components/SaveBar";
-import { ExportKitButton } from "@/app/components/ExportKitButton";
 import { TokenEditor } from "@/app/components/TokenEditor";
 import { BriefSlot } from "@/app/components/BriefSlot";
+import { KitChrome } from "@/app/components/KitChrome";
+import { SavedKitHeader } from "@/app/components/SavedKitHeader";
 import { kitFromColors } from "@/lib/mascot";
+import { kitDisplayName } from "@/lib/kit-name";
+import { rolesFromColors } from "@/lib/tokens";
 import { listCollections } from "@/lib/collections";
 
 export const dynamic = "force-dynamic";
@@ -46,31 +49,35 @@ export default async function ItemDetailPage({
   const collections = await listCollections(ownerId);
   const isKit = item.kind === "photo" || item.kind === "screenshot";
   if (isKit) {
+    const saved = query.saved === "1";
+    const collectionHref = query.c ? `/?c=${query.c}` : "/";
+    const kitTitle = kitDisplayName({ title: item.title, briefText: item.note });
     return (
       <main className="min-h-screen bg-background text-foreground">
-        <div className="sticky top-0 z-10 flex items-center justify-between bg-background px-4 py-3">
-          <Link href={query.c ? `/?c=${query.c}` : "/"} className="text-base">
-            ← {query.c ? collections.find((c) => c.id === query.c)?.name ?? "Collection" : "Wall"}
-          </Link>
-          {query.c ? <ExportKitButton itemId={item.id} /> : null}
-        </div>
-        <KitResult
-          itemId={item.id}
-          title={item.title}
-          imageSrc={item.media?.displayKey ? `/media/${item.media.displayKey}` : null}
-          width={item.media?.width ?? 390}
-          height={item.media?.height ?? 488}
-          colors={item.colors}
-          tileSrc={item.media?.tileKey ? `/media/${item.media.tileKey}` : null}
-          saved={query.saved === "1"}
-        />
-        <SaveBar
-          itemId={item.id}
-          collections={collections.map((c) => ({ id: c.id, name: c.name }))}
-          saved={query.saved === "1"}
-          collectionId={query.c ?? null}
-          collectionName={query.c ? collections.find((c) => c.id === query.c)?.name ?? null : null}
-        />
+        <KitChrome roles={rolesFromColors(item.colors)}>
+          {saved ? (
+            <SavedKitHeader title={kitTitle} backHref={collectionHref} itemId={item.id} />
+          ) : null}
+          <KitResult
+            itemId={item.id}
+            title={item.title}
+            imageSrc={item.media?.displayKey ? `/media/${item.media.displayKey}` : null}
+            width={item.media?.width ?? 390}
+            height={item.media?.height ?? 488}
+            colors={item.colors}
+            tileSrc={item.media?.tileKey ? `/media/${item.media.tileKey}` : null}
+            saved={saved}
+            backHref={collectionHref}
+            showBack={!saved}
+          />
+          <SaveBar
+            itemId={item.id}
+            collections={collections.map((c) => ({ id: c.id, name: c.name }))}
+            saved={saved}
+            collectionId={query.c ?? null}
+            collectionName={query.c ? collections.find((c) => c.id === query.c)?.name ?? null : null}
+          />
+        </KitChrome>
       </main>
     );
   }

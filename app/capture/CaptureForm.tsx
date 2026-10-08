@@ -6,6 +6,7 @@ import { useGSAP } from "@gsap/react";
 import { CaptureMascotLayer } from "@/app/components/CaptureMascotLayer";
 import { prepareUploadFile } from "@/lib/client-image";
 import { MOTION, MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
+import { BAR_FADE, SNAP_SCROLL_PAD } from "@/lib/layout";
 import { capture } from "./actions";
 
 gsap.registerPlugin(useGSAP);
@@ -91,7 +92,7 @@ export function CaptureForm({
   }
 
   return (
-    <form ref={formRef} action={capture} className="pb-[calc(9.5rem+env(safe-area-inset-bottom,0px))]">
+    <form ref={formRef} action={capture} style={{ paddingBottom: SNAP_SCROLL_PAD }}>
       <CaptureMascotLayer firstOpen={firstOpen} hasSubstance={hasSubstance} uploading={uploading} />
       <input
         ref={cameraRef}
@@ -131,7 +132,12 @@ export function CaptureForm({
         </div>
       ) : null}
 
-      <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-xl bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+      <div data-snap-bar className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-xl bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-full h-12"
+          style={{ background: BAR_FADE }}
+          aria-hidden
+        />
         <button
           type="button"
           onClick={() => cameraRef.current?.click()}

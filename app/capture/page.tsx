@@ -30,7 +30,7 @@ export default async function CapturePage({
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-xl pb-36 pt-6">
+      <div className="mx-auto max-w-xl pt-6">
         <div className="px-4">
           <h1 className="font-heading mt-4 max-w-[14ch] text-left text-[40px] leading-[1.15] tracking-tight">
             Steal the colors off anything

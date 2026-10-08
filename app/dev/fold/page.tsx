@@ -6,9 +6,13 @@ import { KitCard } from "@/app/components/KitCard";
 import { CaptureForm } from "@/app/capture/CaptureForm";
 import { MascotStage } from "@/app/components/MascotStage";
 import { ExportKitButton } from "@/app/components/ExportKitButton";
+import { KitChrome } from "@/app/components/KitChrome";
+import { SavedKitHeader } from "@/app/components/SavedKitHeader";
 import { dropRoles, loadFoldKit, type FoldPhoto } from "@/lib/fold-kit";
+import { FOLD_BRIEFS } from "@/lib/fold-briefs";
 import { HANDOFF_KITS } from "@/lib/mascot";
 import { rolesFromColors } from "@/lib/tokens";
+import { kitDisplayName } from "@/lib/kit-name";
 import type { ColorRole } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +43,7 @@ const FOLD_TITLES: Record<FoldPhoto, string> = {
 export default async function FoldPage({
   searchParams,
 }: {
-  searchParams: Promise<{ state?: string; photo?: string }>;
+  searchParams: Promise<{ state?: string; photo?: string; play?: string }>;
 }) {
   if (!isDevAuthBypassEnabled()) notFound();
   const params = await searchParams;
@@ -54,18 +58,35 @@ export default async function FoldPage({
   if (state === "empty-roles") colors = dropRoles(colors, ["accent", "surface"] as ColorRole[]);
   const chips = state === "chips";
   const saved = state === "saved";
+  const play = params.play === "1";
   const reveal =
-    state === "mid"
-      ? "mid"
-      : state === "first" || state === "collection" || state === "empty-collection"
-        ? "play"
-        : "landed";
-  const displayTitle = FOLD_TITLES[photo];
+    play || state === "first"
+      ? "play"
+      : state === "mid"
+        ? "mid"
+        : state === "collection" || state === "empty-collection"
+          ? "play"
+          : "landed";
+  const captured = FOLD_BRIEFS[photo];
+  const briefText = state === "pending" ? null : captured.text || null;
+  const namedColors = chips
+    ? captured.namedColors.length > 0
+      ? captured.namedColors
+      : [{ hex: "#e8c36a", label: "yellow siding" }]
+    : captured.namedColors;
+  const displayTitle = kitDisplayName({
+    title: FOLD_TITLES[photo],
+    briefText,
+    namedColors,
+    pending: state === "pending",
+  });
+  const roles = rolesFromColors(colors);
+  const collectionHref = `/dev/fold?state=collection&photo=${photo}`;
 
   if (state === "first") {
     return (
       <main className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto max-w-xl pb-36 pt-6">
+        <div className="mx-auto max-w-xl pt-6">
           <div className="px-4">
             <h1 className="font-heading mt-4 max-w-[14ch] text-left text-[40px] leading-[1.15] tracking-tight">
               Steal the colors off anything
@@ -118,35 +139,40 @@ export default async function FoldPage({
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="sticky top-0 z-10 flex items-center justify-between bg-background px-4 py-3">
-        {saved ? <ExportKitButton itemId="fold" /> : <span />}
-      </div>
-      <KitResult
-        itemId="fold"
-        title={displayTitle}
-        imageSrc={extracted.imageSrc}
-        width={extracted.width}
-        height={extracted.height}
-        colors={colors}
-        tileSrc={null}
-        saved={saved}
-        preview={{
-          namedColors: chips ? [{ hex: "#e8c36a", label: "yellow siding" }] : [],
-          status: state === "pending" ? "pending" : "ready",
-          text: state === "pending" ? null : "Warm stone against shade.",
-          stub: false,
-          reveal,
-          openRole: state === "edit" ? "primary" : null,
-        }}
-      />
-      <SaveBar
-        itemId="fold"
-        collections={[{ id: "c1", name: "Street walks" }]}
-        defaultOpen={state === "save"}
-        saved={saved}
-        collectionId={saved ? "c1" : null}
-        collectionName={saved ? "Street walks" : null}
-      />
+      <KitChrome roles={roles}>
+        {saved ? (
+          <SavedKitHeader title={displayTitle} backHref={collectionHref} itemId="fold" />
+        ) : null}
+        <KitResult
+          itemId={`fold-${photo}`}
+          title={displayTitle}
+          imageSrc={extracted.imageSrc}
+          width={extracted.width}
+          height={extracted.height}
+          colors={colors}
+          tileSrc={null}
+          saved={saved}
+          backHref={collectionHref}
+          showBack={!saved}
+          preview={{
+            namedColors,
+            status: state === "pending" ? "pending" : "ready",
+            text: briefText,
+            stub: false,
+            reveal,
+            openRole: state === "edit" ? "primary" : null,
+            loupe: state === "edit",
+          }}
+        />
+        <SaveBar
+          itemId={`fold-${photo}`}
+          collections={[{ id: "c1", name: "Street walks" }]}
+          defaultOpen={state === "save"}
+          saved={saved}
+          collectionId={saved ? "c1" : "c1"}
+          collectionName="Street walks"
+        />
+      </KitChrome>
     </main>
   );
 }

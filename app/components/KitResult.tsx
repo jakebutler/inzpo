@@ -4,9 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
-import { TokenEditor } from "./TokenEditor";
+import { TokenEditor, type LoupeView } from "./TokenEditor";
 import { BriefSlot, type BriefSlotStatus } from "./BriefSlot";
 import { ContrastAa } from "./ContrastAa";
+import { PhotoLoupe } from "./PhotoLoupe";
+import { PhotoBackButton } from "./PhotoBackButton";
 import { kitFromColors } from "@/lib/mascot";
 import { MOTION, MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
@@ -15,17 +17,19 @@ import { coverWindowForPins, mapCoverPin, objectPositionCss } from "@/lib/cover-
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
 import { kitDisplayName } from "@/lib/kit-name";
 import { SAVE_BAR_PAD } from "@/lib/layout";
+import { kitWearStyle } from "@/lib/kit-wear";
+import { claimRevealPlay, type RevealMode } from "@/lib/reveal";
 import {
   BAND_H_RESULT,
   BAND_STAGGER_S,
   INK,
   PAPER,
+  PHOTO_FOLD_CSS,
   PHOTO_FOLD_PX,
   PIN_HAIRLINE_S,
   PIN_LEADER_X,
-  PIN_SIZE,
+  pinDiscStyle,
 } from "@/lib/brand";
-import { saveControlColors } from "@/lib/contrast";
 
 gsap.registerPlugin(useGSAP);
 
@@ -48,6 +52,8 @@ export function KitResult({
   colors,
   tileSrc,
   saved,
+  backHref = "/",
+  showBack = true,
   preview,
 }: {
   itemId: string;
@@ -58,13 +64,16 @@ export function KitResult({
   colors: ColorRow[];
   tileSrc: string | null;
   saved?: boolean;
+  backHref?: string;
+  showBack?: boolean;
   preview?: {
     namedColors?: NamedColor[];
     status?: BriefSlotStatus;
     text?: string | null;
     stub?: boolean;
-    reveal?: "play" | "landed" | "mid";
+    reveal?: RevealMode;
     openRole?: ColorRole | null;
+    loupe?: boolean;
   };
 }) {
   const router = useRouter();
@@ -73,10 +82,14 @@ export function KitResult({
   const kicked = useRef(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const photoRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const [box, setBox] = useState({ w: width, h: PHOTO_FOLD_PX });
   const [stripeCount, setStripeCount] = useState(preview?.reveal === "play" ? 0 : 6);
   const [linePulse, setLinePulse] = useState(false);
   const [focusedRole, setFocusedRole] = useState<ColorRole | null>(null);
+  const [editOpen, setEditOpen] = useState(preview?.openRole != null);
+  const [loupe, setLoupe] = useState<LoupeView | null>(null);
+  const [revealTick, setRevealTick] = useState(0);
   const [brief, setBrief] = useState<{
     status: BriefSlotStatus;
     text: string | null;
@@ -92,7 +105,6 @@ export function KitResult({
   const reduced = prefersReducedMotion();
   const pageBg = roles.background ?? PAPER;
   const pageInk = roles.text ?? INK;
-  const save = saveControlColors(roles.accent, roles.background);
   const displayTitle = kitDisplayName({
     title,
     briefText: brief.text,
@@ -106,36 +118,6 @@ export function KitResult({
       .map((c) => ({ x: c.pinX as number, y: c.pinY as number }));
     return coverWindowForPins(width, height, box.w, box.h, pins);
   }, [colors, width, height, box.w, box.h]);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    const body = document.body;
-    const prev = {
-      bg: root.style.getPropertyValue("--background"),
-      fg: root.style.getPropertyValue("--foreground"),
-      primary: root.style.getPropertyValue("--primary"),
-      primaryFg: root.style.getPropertyValue("--primary-foreground"),
-      bodyBg: body.style.backgroundColor,
-      bodyColor: body.style.color,
-      bodyT: body.style.transition,
-    };
-    root.style.setProperty("--background", pageBg);
-    root.style.setProperty("--foreground", pageInk);
-    root.style.setProperty("--primary", save.fill);
-    root.style.setProperty("--primary-foreground", save.ink);
-    body.style.transition = `background-color ${MOTION_CSS.smallMs}ms ease-in-out, color ${MOTION_CSS.smallMs}ms ease-in-out`;
-    body.style.backgroundColor = pageBg;
-    body.style.color = pageInk;
-    return () => {
-      root.style.setProperty("--background", prev.bg);
-      root.style.setProperty("--foreground", prev.fg);
-      root.style.setProperty("--primary", prev.primary);
-      root.style.setProperty("--primary-foreground", prev.primaryFg);
-      body.style.backgroundColor = prev.bodyBg;
-      body.style.color = prev.bodyColor;
-      body.style.transition = prev.bodyT;
-    };
-  }, [pageBg, pageInk, save.fill, save.ink]);
 
   useEffect(() => {
     const el = photoRef.current;
@@ -186,12 +168,21 @@ export function KitResult({
       const root = stageRef.current;
       if (!root) return;
       const bands = root.querySelectorAll<HTMLElement>("[data-band-stack] .inzpo-band");
-      if (bands.length === 0) return;
-      const mode = preview?.reveal ?? "play";
-      if (reduced || mode === "landed") {
+      const mode: RevealMode = preview?.reveal ?? "play";
+      const land = () => {
         gsap.set(bands, { y: 0 });
         setStripeCount(6);
         setLinePulse(false);
+      };
+      if (bands.length === 0) {
+        if (mode === "play") {
+          const id = window.requestAnimationFrame(() => setRevealTick((n) => n + 1));
+          return () => window.cancelAnimationFrame(id);
+        }
+        return;
+      }
+      if (reduced || mode === "landed") {
+        land();
         return;
       }
       const stack = BAND_H_RESULT * COLOR_ROLES.length;
@@ -199,6 +190,10 @@ export function KitResult({
         gsap.set(bands, { y: (i) => (i < 3 ? 0 : stack * 0.35) });
         setStripeCount(3);
         setLinePulse(false);
+        return;
+      }
+      if (!claimRevealPlay(itemId)) {
+        land();
         return;
       }
       gsap.set(bands, { y: stack });
@@ -210,8 +205,11 @@ export function KitResult({
         tl.to(band, { y: 0 }, i * BAND_STAGGER_S);
         tl.add(() => setStripeCount(i + 1), i * BAND_STAGGER_S);
       });
+      return () => {
+        tl.kill();
+      };
     },
-    { scope: stageRef, dependencies: [imageSrc, colors.length, preview?.reveal, reduced] },
+    { scope: stageRef, dependencies: [itemId, preview?.reveal, reduced, revealTick] },
   );
 
   useGSAP(
@@ -247,17 +245,11 @@ export function KitResult({
     }
   }
 
-  const pinRing = pageInk;
   const wearStyle = {
-    backgroundColor: pageBg,
-    color: pageInk,
+    ...kitWearStyle(roles),
     transitionDuration: `${MOTION_CSS.smallMs}ms`,
     transitionProperty: "background-color, color",
     transitionTimingFunction: "ease-in-out",
-    ["--background" as string]: pageBg,
-    ["--foreground" as string]: pageInk,
-    ["--primary" as string]: save.fill,
-    ["--primary-foreground" as string]: save.ink,
     paddingBottom: SAVE_BAR_PAD,
   };
   const objectPosition = crop ? objectPositionCss(crop) : "50% 50%";
@@ -268,19 +260,22 @@ export function KitResult({
       {imageSrc ? (
         <div
           ref={photoRef}
-          className="relative w-full"
+          className={editOpen ? "sticky top-0 z-[60] w-full" : "relative w-full"}
           data-photo-fold
-          style={{ height: PHOTO_FOLD_PX }}
+          style={{ height: PHOTO_FOLD_CSS }}
         >
           <div className="absolute inset-0 overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              ref={imgRef}
               src={imageSrc}
               alt={displayTitle}
               className="h-full w-full object-cover"
-              style={{ filter: "none", objectPosition }}
+              style={{ filter: "none", objectPosition, touchAction: editOpen ? "none" : undefined }}
+              crossOrigin="anonymous"
             />
           </div>
+          {showBack && !saved ? <PhotoBackButton href={backHref} /> : null}
           <div className="pointer-events-none absolute inset-0 overflow-visible">
             {colors.map((c) => {
               if (!c.role || c.pinX == null || c.pinY == null) return null;
@@ -292,18 +287,25 @@ export function KitResult({
                   data-pin={c.role}
                   className="absolute rounded-full"
                   style={{
-                    width: PIN_SIZE,
-                    height: PIN_SIZE,
+                    ...pinDiscStyle(c.hex),
                     left: `${mapped.left * 100}%`,
                     top: `${mapped.top * 100}%`,
                     transform: "translate(-50%, -50%)",
-                    backgroundColor: c.hex,
-                    border: `2px solid ${pinRing}`,
-                    boxSizing: "content-box",
                   }}
                 />
               );
             })}
+            {loupe ? (
+              <PhotoLoupe
+                imageSrc={imageSrc}
+                boxW={box.w}
+                boxH={box.h}
+                x={loupe.x}
+                y={loupe.y}
+                hex={loupe.hex}
+                pointer={preview?.loupe === true}
+              />
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -363,6 +365,13 @@ export function KitResult({
         pageInk={pageInk}
         initialOpen={preview?.openRole ?? null}
         onFocusRole={setFocusedRole}
+        onOpenChange={(role) => setEditOpen(role !== null)}
+        photoRef={imgRef}
+        photoBox={box}
+        crop={crop}
+        imageSize={{ width, height }}
+        simulateLoupe={preview?.loupe === true}
+        onLoupe={setLoupe}
       >
         <span data-stripe-count={stripeCount} className="sr-only">
           {stripeCount} stripes

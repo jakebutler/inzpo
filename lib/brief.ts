@@ -9,8 +9,8 @@ import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
 import {
   BRIEF_IMAGE_EXPIRES_S,
   briefModelId,
-  buildBriefChatBody,
   bytesToDataUrl,
+  requestBriefCompletion,
 } from "@/lib/brief-request";
 
 export type BriefStatus = "pending" | "ready" | "failed";
@@ -125,30 +125,19 @@ export async function runBriefJob(itemId: string): Promise<BriefJob> {
   try {
     const imageUrl = await w640ImageUrl(itemId);
     if (!imageUrl) throw new Error("brief image missing");
-    const res = await fetch(`${base.replace(/\/$/, "")}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify(
-        buildBriefChatBody({
-          model,
-          keptHexes: [...filled],
-          imageUrl,
-        }),
-      ),
+    const parsed = await requestBriefCompletion({
+      imageUrl,
+      keptHexes: [...filled],
+      apiKey: key,
+      baseUrl: base,
+      model,
     });
-    if (!res.ok) throw new Error("brief failed");
-    const body = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const content = body.choices?.[0]?.message?.content;
-    const parsed = content ? (JSON.parse(content) as { text?: string; namedColors?: unknown; namedHexes?: string[] }) : {};
-    const namedColors = parseNamedColors(parsed.namedColors, parsed.namedHexes ?? []).filter(
+    const namedColors = parseNamedColors(parsed.namedColors, parsed.namedHexes).filter(
       (c) => !filled.has(c.hex.toLowerCase()),
     );
     const ready = jobPayload({
       status: "ready",
-      text: typeof parsed.text === "string" ? parsed.text : null,
+      text: parsed.text,
       namedColors,
       stub: false,
     });

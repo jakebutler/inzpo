@@ -82,7 +82,7 @@ export function MascotStage({
         style={{ width: size, height: size, flex: "0 0 auto" }}
         className={[shown ? "opacity-100" : "opacity-0", glow ? "baku-glow" : ""].filter(Boolean).join(" ")}
       >
-        <Mascot pose={pose} kit={kit} size={size} snapReady={snapReady} revealedCount={revealedCount} />
+        <Mascot pose={pose} kit={kit} size={size} snapReady={snapReady} revealedCount={revealedCount} faceText />
       </div>
       {shown && !hideCopy ? (
         <div className="min-w-0 pt-1">

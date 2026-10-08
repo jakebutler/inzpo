@@ -18,6 +18,7 @@ import {
   BAKU_VIEWBOX,
 } from "@/lib/mascot-svg";
 import type { MascotRiveRuntime } from "./load-mascot-rive";
+import { BakuSprite } from "./BakuSprite";
 import "./mascot.css";
 
 const STRIPE_CLASS = COLOR_ROLES.map((role) => `baku-stripe baku-stripe-${role}`);
@@ -31,9 +32,19 @@ export type MascotProps = {
   className?: string;
   /** How many token-order stripes have landed. Null means all filled roles. */
   revealedCount?: number | null;
+  /** Flip so left-facing v6 art looks at the brief/copy. */
+  faceText?: boolean;
 };
 
-export function Mascot({ pose, kit, size = 48, snapReady = false, className, revealedCount = null }: MascotProps) {
+export function Mascot({
+  pose,
+  kit,
+  size = 48,
+  snapReady = false,
+  className,
+  revealedCount = null,
+  faceText = false,
+}: MascotProps) {
   const rawId = useId().replace(/:/g, "");
   const clipId = `baku-clip-${rawId}`;
   const colors = kitForPose(pose, kit);
@@ -63,14 +74,7 @@ export function Mascot({ pose, kit, size = 48, snapReady = false, className, rev
     ...vars,
   } as CSSProperties;
 
-  return (
-    <div
-      className={["baku", className].filter(Boolean).join(" ")}
-      data-pose={pose}
-      data-seams={kitHasPalette(colors) ? "on" : "off"}
-      style={style}
-      aria-hidden="true"
-    >
+  const svg = (
       <div className="baku-hop">
         <svg viewBox={BAKU_VIEWBOX} width={size} height={size} focusable="false">
           <defs>
@@ -107,6 +111,17 @@ export function Mascot({ pose, kit, size = 48, snapReady = false, className, rev
           </g>
         </svg>
       </div>
+  );
+
+  return (
+    <div
+      className={["baku", className].filter(Boolean).join(" ")}
+      data-pose={pose}
+      data-seams={kitHasPalette(colors) ? "on" : "off"}
+      style={style}
+      aria-hidden="true"
+    >
+      <BakuSprite pose={pose} kit={kit} size={size} revealedCount={revealedCount} faceText={faceText} fallback={svg} />
     </div>
   );
 }

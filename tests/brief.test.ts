@@ -8,6 +8,8 @@ import {
   briefUserContent,
   buildBriefChatBody,
   bytesToDataUrl,
+  parseBriefModelContent,
+  requestBriefCompletion,
 } from "@/lib/brief-request";
 
 function src(rel: string): string {
@@ -42,7 +44,34 @@ describe("brief image payload", () => {
     expect(JSON.stringify(body)).toContain('"type":"image_url"');
     expect(JSON.stringify(body)).toContain(dataUrl);
     expect(src("lib/brief.ts")).toContain("w640ImageUrl");
-    expect(src("lib/brief.ts")).toContain("buildBriefChatBody");
+    expect(src("lib/brief.ts")).toContain("requestBriefCompletion");
+  });
+});
+
+describe("brief model path", () => {
+  it("parses fenced JSON from the model", () => {
+    const parsed = parseBriefModelContent('```json\n{"text":"Warm brick in shade.","namedColors":[]}\n```');
+    expect(parsed.text).toBe("Warm brick in shade.");
+  });
+
+  it("calls the chat completions path with the real image", async () => {
+    const calls: string[] = [];
+    const result = await requestBriefCompletion({
+      imageUrl: "data:image/webp;base64,AQID",
+      keptHexes: ["#6b6656"],
+      apiKey: "test-key",
+      fetchImpl: (async (url, init) => {
+        calls.push(String(url));
+        expect(init?.headers).toMatchObject({ Authorization: "Bearer test-key" });
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: '{"text":"Blue glass over shade.","namedColors":[]}' } }] }),
+          { status: 200 },
+        );
+      }) as typeof fetch,
+    });
+    expect(calls[0]).toContain("/chat/completions");
+    expect(result.text).toBe("Blue glass over shade.");
+    expect(result.latencyMs).toBeGreaterThanOrEqual(0);
   });
 });
 

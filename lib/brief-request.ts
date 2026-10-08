@@ -50,3 +50,68 @@ export function buildBriefChatBody(input: {
     response_format: { type: "json_object" },
   };
 }
+
+export function parseBriefModelContent(content: string): {
+  text?: string;
+  namedColors?: unknown;
+  namedHexes?: string[];
+} {
+  if (typeof content !== "string" || content.trim().length === 0) {
+    throw new Error("Empty brief");
+  }
+  const trimmed = content
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "");
+  const parsed: unknown = JSON.parse(trimmed);
+  if (typeof parsed !== "object" || parsed === null) throw new Error("Brief is not an object");
+  return parsed as { text?: string; namedColors?: unknown; namedHexes?: string[] };
+}
+
+/** Call the vision model with a real image. Does not touch the database or R2. */
+export async function requestBriefCompletion(input: {
+  imageUrl: string;
+  keptHexes: string[];
+  apiKey: string;
+  baseUrl?: string;
+  model?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<{ text: string | null; namedColors: unknown; namedHexes: string[]; latencyMs: number }> {
+  if (typeof input.apiKey !== "string" || input.apiKey.length === 0) {
+    throw new Error("Brief API key is required");
+  }
+  if (typeof input.imageUrl !== "string" || input.imageUrl.length === 0) {
+    throw new Error("Brief image URL is required");
+  }
+  const model = input.model ?? briefModelId();
+  const base = (input.baseUrl ?? "https://inference.do-ai.run/v1").replace(/\/$/, "");
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const started = Date.now();
+  const res = await fetchImpl(`${base}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${input.apiKey}`,
+    },
+    body: JSON.stringify(
+      buildBriefChatBody({
+        model,
+        keptHexes: input.keptHexes,
+        imageUrl: input.imageUrl,
+      }),
+    ),
+  });
+  const latencyMs = Date.now() - started;
+  if (!res.ok) throw new Error("brief failed");
+  const body = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const content = body.choices?.[0]?.message?.content;
+  const parsed = content ? parseBriefModelContent(content) : {};
+  return {
+    text: typeof parsed.text === "string" ? parsed.text : null,
+    namedColors: parsed.namedColors,
+    namedHexes: Array.isArray(parsed.namedHexes)
+      ? parsed.namedHexes.filter((hex): hex is string => typeof hex === "string")
+      : [],
+    latencyMs,
+  };
+}

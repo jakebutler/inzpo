@@ -1,16 +1,27 @@
 "use client";
 
-import { useRef, useState, useTransition, type MutableRefObject, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type MutableRefObject,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { hexWithoutHash, isHexColor, normalizeHex } from "@/lib/colors";
 import { MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { filledRoles, moveRole, rolesFromColors, setRoleColor } from "@/lib/tokens";
-import { pointerOnContainedImage, sampleImageAverage } from "@/lib/client-eyedropper";
+import { sampleImageAverage } from "@/lib/client-eyedropper";
+import { pointerOnCoverBox, type CoverWindow } from "@/lib/cover-pin";
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { chipCopy, chipNoun, EMPTY_ROLE_COPY, type NamedColor } from "@/lib/brief-copy";
 import { PaletteBands } from "@/app/components/PaletteBands";
-import { INK, PAPER, PIN_SIZE } from "@/lib/brand";
+import { CHIP_SWATCH_PX, INK, PAPER } from "@/lib/brand";
+
+export type LoupeView = { x: number; y: number; hex: string };
 
 type ColorRow = {
   hex: string;
@@ -19,9 +30,6 @@ type ColorRow = {
   pinY?: number | null;
   position?: number;
 };
-
-const LOUPE_ZOOM = 3;
-const LOUPE_PX = 80;
 
 export function TokenEditor({
   itemId,
@@ -34,6 +42,13 @@ export function TokenEditor({
   pageInk = INK,
   bandRefs,
   onFocusRole,
+  onOpenChange,
+  photoRef,
+  photoBox,
+  crop,
+  imageSize,
+  simulateLoupe = false,
+  onLoupe,
   children,
 }: {
   itemId: string;
@@ -46,6 +61,13 @@ export function TokenEditor({
   pageInk?: string;
   bandRefs?: MutableRefObject<Array<HTMLButtonElement | null>>;
   onFocusRole?: (role: ColorRole | null) => void;
+  onOpenChange?: (role: ColorRole | null) => void;
+  photoRef?: RefObject<HTMLImageElement | null>;
+  photoBox?: { w: number; h: number };
+  crop?: CoverWindow | null;
+  imageSize?: { width: number; height: number };
+  simulateLoupe?: boolean;
+  onLoupe?: (loupe: LoupeView | null) => void;
   children?: ReactNode;
 }) {
   const [roles, setRoles] = useState(() => rolesFromColors(colors));
@@ -59,9 +81,11 @@ export function TokenEditor({
   const [open, setOpen] = useState<ColorRole | null>(initialOpen);
   const [hexDraft, setHexDraft] = useState(() => (initialOpen ? rolesFromColors(colors)[initialOpen] ?? "" : ""));
   const [pendingHex, setPendingHex] = useState<string | null>(null);
-  const [loupe, setLoupe] = useState<{ x: number; y: number; hex: string } | null>(null);
+  function setLoupe(next: LoupeView | null) {
+    onLoupe?.(next);
+  }
   const [pending, startTransition] = useTransition();
-  const imgRef = useRef<HTMLImageElement>(null);
+  const sampling = useRef(false);
   const filledHex = new Set(
     Object.values(roles)
       .filter((hex): hex is string => typeof hex === "string")
@@ -69,8 +93,14 @@ export function TokenEditor({
   );
   const chips = namedColors.filter((c) => !filledHex.has(c.hex.toLowerCase()));
 
-  function openRole(role: ColorRole) {
+  function setOpenRole(role: ColorRole | null) {
     setOpen(role);
+    onOpenChange?.(role);
+    if (!role) setLoupe(null);
+  }
+
+  function openRole(role: ColorRole) {
+    setOpenRole(role);
     setHexDraft(pendingHex ?? roles[role] ?? "");
   }
 
@@ -86,9 +116,9 @@ export function TokenEditor({
     });
   }
 
-  function applyHex(role: ColorRole, value: string) {
+  function applyHex(role: ColorRole, value: string, nextPins = pins) {
     if (!isHexColor(value)) return;
-    commit(setRoleColor(roles, role, normalizeHex(value)));
+    commit(setRoleColor(roles, role, normalizeHex(value)), nextPins);
     setHexDraft(normalizeHex(value));
     setPendingHex(null);
   }
@@ -104,28 +134,77 @@ export function TokenEditor({
     setHexDraft(color.hex);
   }
 
-  function sampleAt(clientX: number, clientY: number) {
-    if (!open || !imgRef.current) return;
-    const mapped = pointerOnContainedImage(imgRef.current, clientX, clientY);
+  function samplePointer(clientX: number, clientY: number, commitSample: boolean) {
+    const img = photoRef?.current;
+    if (!open || !img || !crop || !photoBox || !imageSize) return;
+    const mapped = pointerOnCoverBox(
+      clientX,
+      clientY,
+      { left: img.getBoundingClientRect().left, top: img.getBoundingClientRect().top, width: photoBox.w, height: photoBox.h },
+      crop,
+    );
     if (!mapped) return;
     try {
-      const sample = sampleImageAverage(imgRef.current, mapped.nx, mapped.ny, 8);
-      const nextPins = { ...pins, [open]: { pinX: sample.pinX, pinY: sample.pinY } };
-      commit(setRoleColor(roles, open, sample.hex), nextPins);
-      setHexDraft(sample.hex);
-      setPendingHex(null);
-      const rect = imgRef.current.getBoundingClientRect();
-      setLoupe({ x: clientX - rect.left, y: clientY - rect.top, hex: sample.hex });
+      const sample = sampleImageAverage(img, mapped.nx, mapped.ny, 8);
+      setLoupe({ x: mapped.x, y: mapped.y, hex: sample.hex });
+      if (commitSample) {
+        const nextPins = { ...pins, [open]: { pinX: sample.pinX, pinY: sample.pinY } };
+        applyHex(open, sample.hex, nextPins);
+      } else {
+        setHexDraft(sample.hex);
+      }
     } catch {
       // keep the previous color if the image cannot be sampled
     }
   }
 
+  useEffect(() => {
+    const img = photoRef?.current;
+    if (!open || !img) return;
+    img.style.pointerEvents = "auto";
+    const onDown = (e: PointerEvent) => {
+      sampling.current = true;
+      img.setPointerCapture(e.pointerId);
+      samplePointer(e.clientX, e.clientY, false);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!sampling.current && e.buttons === 0) return;
+      samplePointer(e.clientX, e.clientY, false);
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!sampling.current) return;
+      sampling.current = false;
+      samplePointer(e.clientX, e.clientY, true);
+    };
+    img.addEventListener("pointerdown", onDown);
+    img.addEventListener("pointermove", onMove);
+    img.addEventListener("pointerup", onUp);
+    img.addEventListener("pointercancel", onUp);
+    return () => {
+      img.style.pointerEvents = "";
+      img.removeEventListener("pointerdown", onDown);
+      img.removeEventListener("pointermove", onMove);
+      img.removeEventListener("pointerup", onUp);
+      img.removeEventListener("pointercancel", onUp);
+    };
+    // samplePointer closes over open/crop; rebind when the role changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, photoRef, crop, photoBox, imageSize, pins, roles]);
+
+  useEffect(() => {
+    if (!simulateLoupe || !open || !crop || !photoBox || !imageSize) return;
+    const pin = pins[open] ?? Object.values(pins)[0];
+    if (!pin) return;
+    const left = ((pin.pinX - crop.vx) / crop.vw) * photoBox.w;
+    const top = ((pin.pinY - crop.vy) / crop.vh) * photoBox.h;
+    const hex = roles[open] ?? "#000000";
+    setLoupe({ x: left, y: top, hex });
+  }, [simulateLoupe, open, crop, photoBox, imageSize, pins, roles]);
+
   const reduced = prefersReducedMotion();
   const chipAnim = reduced
     ? `${MOTION_CSS.reducedMs}ms ${MOTION_CSS.easeEnter}`
     : `${MOTION_CSS.enterMs}ms ${MOTION_CSS.easeEnter}`;
-  const img = imgRef.current;
 
   return (
     <section>
@@ -157,8 +236,15 @@ export function TokenEditor({
               >
                 <span
                   aria-hidden
+                  data-chip-swatch
                   className="shrink-0 rounded-full"
-                  style={{ width: PIN_SIZE, height: PIN_SIZE, backgroundColor: color.hex }}
+                  style={{
+                    width: CHIP_SWATCH_PX,
+                    height: CHIP_SWATCH_PX,
+                    minWidth: CHIP_SWATCH_PX,
+                    minHeight: CHIP_SWATCH_PX,
+                    backgroundColor: color.hex,
+                  }}
                 />
                 <span className="font-mono text-base tabular-nums">#{hexWithoutHash(color.hex)}</span>
                 <span className="min-w-0 flex-1 truncate text-base">{noun}</span>
@@ -181,15 +267,15 @@ export function TokenEditor({
         open={open !== null}
         onOpenChange={(v) => {
           if (!v) {
-            setOpen(null);
-            setLoupe(null);
+            setOpenRole(null);
             setPendingHex(null);
           }
         }}
       >
         <SheetContent
           side="bottom"
-          className="max-h-[85vh] bg-background pb-[max(1rem,env(safe-area-inset-bottom))] text-foreground shadow-none"
+          overlayClassName="inzpo-photo-clear"
+          className="max-h-[calc(100dvh-var(--photo-fold-h,337px))] bg-background pb-[max(1rem,env(safe-area-inset-bottom))] text-foreground shadow-none"
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <SheetHeader>
@@ -198,57 +284,7 @@ export function TokenEditor({
           {open && !roles[open] ? (
             <p className="px-4 text-base">{EMPTY_ROLE_COPY(open)}</p>
           ) : null}
-          {imageSrc ? (
-            <div className="relative mx-4 overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                ref={imgRef}
-                src={imageSrc}
-                alt="Sample a color"
-                crossOrigin="anonymous"
-                className="max-h-56 w-full cursor-crosshair object-contain"
-                onClick={(e) => sampleAt(e.clientX, e.clientY)}
-                onPointerMove={(e) => {
-                  if (!imgRef.current) return;
-                  const mapped = pointerOnContainedImage(imgRef.current, e.clientX, e.clientY);
-                  if (!mapped) {
-                    setLoupe(null);
-                    return;
-                  }
-                  try {
-                    const sample = sampleImageAverage(imgRef.current, mapped.nx, mapped.ny, 8);
-                    const rect = imgRef.current.getBoundingClientRect();
-                    setLoupe({ x: e.clientX - rect.left, y: e.clientY - rect.top, hex: sample.hex });
-                  } catch {
-                    setLoupe(null);
-                  }
-                }}
-                onPointerLeave={() => setLoupe(null)}
-              />
-              {loupe ? (
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute h-20 w-20 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full"
-                  style={{
-                    left: loupe.x,
-                    top: loupe.y,
-                    boxShadow: `0 0 0 2px ${pageInk}`,
-                    backgroundImage: `url(${imageSrc})`,
-                    backgroundRepeat: "no-repeat",
-                    backgroundSize: img
-                      ? `${img.getBoundingClientRect().width * LOUPE_ZOOM}px ${img.getBoundingClientRect().height * LOUPE_ZOOM}px`
-                      : `${LOUPE_ZOOM * 100}%`,
-                    backgroundPosition: `${-(loupe.x * LOUPE_ZOOM - LOUPE_PX / 2)}px ${-(loupe.y * LOUPE_ZOOM - LOUPE_PX / 2)}px`,
-                  }}
-                >
-                  <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-current" style={{ color: pageInk }} />
-                  <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-current" style={{ color: pageInk }} />
-                </span>
-              ) : null}
-            </div>
-          ) : (
-            <p className="px-4 text-base">No photo to sample from.</p>
-          )}
+          {!imageSrc ? <p className="px-4 text-base">No photo to sample from.</p> : null}
           <div className="grid gap-3 px-4">
             <label className="block text-base" htmlFor="token-hex">
               Hex
@@ -288,11 +324,11 @@ export function TokenEditor({
                       }
                       if (pendingHex) {
                         applyHex(role, pendingHex);
-                        setOpen(role);
+                        setOpenRole(role);
                         return;
                       }
                       commit(moveRole(roles, open, role));
-                      setOpen(role);
+                      setOpenRole(role);
                     }}
                   >
                     {role}
@@ -306,7 +342,7 @@ export function TokenEditor({
                 className="min-h-11 text-base"
                 onClick={() => {
                   commit(setRoleColor(roles, open, null));
-                  setOpen(null);
+                  setOpenRole(null);
                 }}
               >
                 Clear this role

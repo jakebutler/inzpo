@@ -82,12 +82,14 @@ export function saveControlColors(
   background: string | null,
 ): { fill: string; ink: string } {
   const bg = background ?? PAPER;
-  if (accent && contrastRatio(accent, bg) >= 3) {
-    const ink = contrastRatio(PAPER, accent) >= contrastRatio(INK, accent) ? PAPER : INK;
-    return { fill: accent, ink };
-  }
-  if (contrastRatio(INK, bg) >= 3) return { fill: INK, ink: PAPER };
-  return { fill: PAPER, ink: INK };
+  let fill = PAPER;
+  if (accent && contrastRatio(accent, bg) >= 3) fill = accent;
+  else if (contrastRatio(INK, bg) >= 3) fill = INK;
+  else fill = PAPER;
+  const paperRatio = contrastRatio(PAPER, fill);
+  const inkRatio = contrastRatio(INK, fill);
+  if (paperRatio >= 4.5 && paperRatio >= inkRatio) return { fill, ink: PAPER };
+  return { fill, ink: INK };
 }
 
 /**

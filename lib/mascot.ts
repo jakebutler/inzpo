@@ -24,6 +24,7 @@ export type MascotMoment = (typeof MASCOT_MOMENTS)[number];
 
 export const MASCOT_WAIT_MS = 300;
 export const MASCOT_CHEW_COPY_MS = 15_000;
+export const MASCOT_SUCCESS_HOLD_MS = 2_000;
 export const MASCOT_SIZE_PX = 48;
 export const MASCOT_SIZE_BRIEF_PX = 56;
 export const MASCOT_SIZE_INTRO_PX = 64;

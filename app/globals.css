@@ -96,8 +96,18 @@
 }
 
 [data-photo-fold] {
-  height: 337px;
+  height: clamp(200px, 100svh - 418px, 337px);
   filter: none;
+}
+
+[data-slot="sheet-overlay"].inzpo-photo-clear {
+  top: var(--photo-fold-h, 337px);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: auto;
+  background: rgb(0 0 0 / 0.1);
+  backdrop-filter: none;
 }
 
 .baku-glow {

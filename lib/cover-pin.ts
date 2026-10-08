@@ -99,6 +99,26 @@ export function mapCoverPin(
   };
 }
 
+/** Map a pointer on an object-fit: cover box to 0–1 source coordinates. */
+export function pointerOnCoverBox(
+  clientX: number,
+  clientY: number,
+  box: { left: number; top: number; width: number; height: number },
+  win: CoverWindow,
+): { nx: number; ny: number; x: number; y: number } | null {
+  if (box.width <= 0 || box.height <= 0) return null;
+  if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+  const x = clientX - box.left;
+  const y = clientY - box.top;
+  if (x < 0 || y < 0 || x > box.width || y > box.height) return null;
+  return {
+    x,
+    y,
+    nx: win.vx + (x / box.width) * win.vw,
+    ny: win.vy + (y / box.height) * win.vh,
+  };
+}
+
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }

@@ -29,18 +29,30 @@ export function SaveBar({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(defaultOpen);
-  const [selected, setSelected] = useState<string>("");
+  const [selected, setSelected] = useState<string>(
+    () =>
+      (collectionId && collections.some((c) => c.id === collectionId) ? collectionId : null) ??
+      collections[0]?.id ??
+      "",
+  );
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [pending, startTransition] = useTransition();
   const checkRef = useRef<HTMLSpanElement>(null);
+  const collectionReady = Boolean(selected || newName.trim() || collections[0]);
 
   useEffect(() => {
     const last = window.localStorage.getItem(LAST_COLLECTION_KEY);
-    if (collectionId && collections.some((c) => c.id === collectionId)) setSelected(collectionId);
-    else if (last && collections.some((c) => c.id === last)) setSelected(last);
-    else if (collections[0]) setSelected(collections[0].id);
-  }, [collections, collectionId]);
+    if (collectionId && collections.some((c) => c.id === collectionId)) {
+      setSelected(collectionId);
+      return;
+    }
+    if (last && collections.some((c) => c.id === last)) {
+      setSelected(last);
+      return;
+    }
+    if (!selected && collections[0]) setSelected(collections[0].id);
+  }, [collections, collectionId, selected]);
 
   useEffect(() => {
     if (!saved || !checkRef.current) return;
@@ -55,7 +67,7 @@ export function SaveBar({
     newName.trim() ||
     collections.find((c) => c.id === selected)?.name ||
     collectionName ||
-    "New collection";
+    "";
 
   function save(targetId: string | "", name = "") {
     if (!canSaveKit({ saved, pending })) return;
@@ -93,14 +105,14 @@ export function SaveBar({
               onClick={() => setOpen(true)}
               className="min-h-11 flex-1 truncate text-left text-base outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
             >
-              Save to {selectedName} ⌄
+              {selectedName ? `Save to ${selectedName} ⌄` : "Save to collection ⌄"}
             </button>
           )}
           <button
             type="button"
-            disabled={!canSaveKit({ saved, pending }) || (!selected && !newName.trim() && !saved)}
+            disabled={!canSaveKit({ saved, pending }) || (!collectionReady && !saved)}
             onClick={() => save(selected, newName.trim())}
-            className="h-14 min-w-24 bg-primary px-5 text-base font-medium text-primary-foreground disabled:opacity-50"
+            className="h-14 min-w-24 bg-primary px-5 text-base font-medium text-primary-foreground disabled:opacity-100"
             style={{ transitionDuration: `${MOTION_CSS.smallMs}ms` }}
           >
             {saved ? (
