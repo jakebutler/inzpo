@@ -19,7 +19,8 @@ import { kitDisplayName } from "@/lib/kit-name";
 import { SAVE_BAR_PAD } from "@/lib/layout";
 import { kitWearStyle } from "@/lib/kit-wear";
 import { claimRevealPlay, type RevealMode } from "@/lib/reveal";
-import { markDerivedRoles } from "@/lib/derived-roles";
+import { sampledColors } from "@/lib/derived-roles";
+import { pageChromeColors } from "@/lib/contrast";
 import { nearestOnRect, preferredHairline, uncrossHairlines, type BandBox, type Hairline } from "@/lib/hairlines";
 import {
   BAND_H_RESULT,
@@ -49,7 +50,7 @@ const TILE_PX = 256;
 
 function pinsForCrop(colors: ColorRow[]) {
   return colors
-    .filter((c) => c.role && c.derivedFrom == null && c.pinX != null && c.pinY != null)
+    .filter((c) => c.role && c.pinX != null && c.pinY != null)
     .map((c) => ({ x: c.pinX as number, y: c.pinY as number }));
 }
 
@@ -121,17 +122,16 @@ export function KitResult({
   };
 }) {
   const router = useRouter();
-  const derivedColors = useMemo(() => markDerivedRoles(colors), [colors]);
   const [promoted, setPromoted] = useState<Partial<Record<ColorRole, { pinX: number; pinY: number; hex: string }>>>({});
+  useEffect(() => { setPromoted({}); }, [colors]);
   const displayColors = useMemo(
     () =>
-      derivedColors.map((row) => {
-        if (!row.role) return row;
-        const next = promoted[row.role];
-        if (!next) return row;
-        return { ...row, hex: next.hex, pinX: next.pinX, pinY: next.pinY, derivedFrom: null, origin: "sampled" };
-      }),
-    [derivedColors, promoted],
+      sampledColors(COLOR_ROLES.flatMap((role, position) => {
+        const next = promoted[role];
+        if (next) return [{ ...next, role, position, origin: "sampled" }];
+        return colors.filter((row) => row.role === role);
+      })),
+    [colors, promoted],
   );
   const kit = kitFromColors(displayColors);
   const roles = rolesFromColors(displayColors);
@@ -147,7 +147,7 @@ export function KitResult({
   const [focusedRole, setFocusedRole] = useState<ColorRole | null>(null);
   const [editOpen, setEditOpen] = useState(preview?.openRole != null);
   const [editingPins, setEditingPins] = useState<Array<{ x: number; y: number }> | null>(
-    () => preview?.openRole ? pinsForCrop(derivedColors) : null,
+    () => preview?.openRole ? pinsForCrop(displayColors) : null,
   );
   const [loupe, setLoupe] = useState<LoupeView | null>(null);
   const [revealTick, setRevealTick] = useState(0);
@@ -169,8 +169,7 @@ export function KitResult({
   const [moving, setMoving] = useState(false);
   const [photoReady, setPhotoReady] = useState(!imageSrc);
   const reduced = prefersReducedMotion();
-  const pageBg = roles.background ?? PAPER;
-  const pageInk = roles.text ?? INK;
+  const { background: pageBg, ink: pageInk } = pageChromeColors(roles);
   const displayTitle = kitDisplayName({ title });
   const crop = useMemo(() => {
     // Keep the photo under the user's pointer fixed throughout the edit session.
@@ -260,7 +259,7 @@ export function KitResult({
     for (let i = 0; i < COLOR_ROLES.length; i++) {
       const role = COLOR_ROLES[i]!;
       const row = displayColors.find((c) => c.role === role);
-      if (!row || row.derivedFrom || row.pinX == null || row.pinY == null) {
+      if (!row || row.pinX == null || row.pinY == null) {
         lines.push(null);
         nearest.push(null);
         continue;
@@ -470,7 +469,7 @@ export function KitResult({
           {showBack && !saved ? <PhotoBackButton href={backHref} /> : null}
           <div className="pointer-events-none absolute inset-0 overflow-visible">
             {displayColors.map((c) => {
-              if (!c.role || c.derivedFrom || c.pinX == null || c.pinY == null) return null;
+              if (!c.role || c.pinX == null || c.pinY == null) return null;
               const mapped = mapCoverPinRaw(c.pinX, c.pinY, width, height, box.w, box.h, crop);
               if (!mapped) return null;
               const clamped = clampPinCenter(mapped.left * box.w, mapped.top * box.h, box.w, box.h, safeTop);
@@ -514,7 +513,7 @@ export function KitResult({
           {COLOR_ROLES.map((role, i) => {
             const line = leaders[i];
             const row = displayColors.find((c) => c.role === role);
-            if (!line || !row || row.derivedFrom) return null;
+            if (!line || !row) return null;
             const d = Math.hypot(line.x2 - line.x1, line.y2 - line.y1);
             const visible = linePulse || focusedRole === role;
             return (
@@ -572,8 +571,8 @@ export function KitResult({
         bandRefs={bandRefs}
         bandsRevealed={bandsRevealed}
       >
-        <span data-stripe-count={stripeCount} className="sr-only">
-          {stripeCount} stripes
+        <span data-stripe-count={COLOR_ROLES.slice(0, stripeCount).filter((role) => roles[role]).length} className="sr-only">
+          {COLOR_ROLES.slice(0, stripeCount).filter((role) => roles[role]).length} stripes
         </span>
         <BriefSlot
           status={brief.status}

@@ -2,7 +2,7 @@ import { COLOR_ROLES } from "@/lib/db/schema";
 import { EMPTY_ROLE_COPY } from "@/lib/brief-copy";
 import { bandLabelColor, matchesPageBackground } from "@/lib/contrast";
 import { PAGE_BAND_HAIRLINE, PAPER } from "@/lib/brand";
-import { designTokenColors, emptyRoles, type RoleColors } from "@/lib/tokens";
+import { emptyRoles, type RoleColors } from "@/lib/tokens";
 
 export function rolesFromHexes(hexes: Array<string | null | undefined>): RoleColors {
   const roles = emptyRoles();
@@ -22,13 +22,11 @@ export function BandStripe({
   title?: string | null;
   italicEmptyTitle?: boolean;
 }) {
-  const tokens = designTokenColors(roles);
   return (
     <figure className="inzpo-kit-stripe">
       <div className="inzpo-bands inzpo-bands-stripe" aria-hidden={title ? undefined : true}>
         {COLOR_ROLES.map((role) => {
-          const filled = roles[role];
-          const hex = filled ?? tokens?.[role]?.$value;
+          const hex = roles[role];
           if (!hex) {
             const emptyInk = bandLabelColor(PAPER, roles);
             return (

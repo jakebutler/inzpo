@@ -15,7 +15,7 @@ import { MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { filledRoles, moveRole, rolesFromColors, setRoleColor } from "@/lib/tokens";
 import { sampleImageAverage, sampleImagePixel } from "@/lib/client-eyedropper";
 import { isNoopPinDrag, isNoopPinSample, resolvePinDropPoint, type PinDragPoint, type PointerPoint } from "@/lib/pin-drag";
-import { SAMPLED_ORIGIN } from "@/lib/derived-roles";
+import { REGION_ORIGIN, sampledColors, SAMPLED_ORIGIN } from "@/lib/derived-roles";
 import { pointerOnCoverBox, type CoverWindow } from "@/lib/cover-pin";
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -81,14 +81,11 @@ export function TokenEditor({
   const [roles, setRoles] = useState(() => rolesFromColors(colors));
   const [pins, setPins] = useState<Partial<Record<ColorRole, { pinX: number; pinY: number }>>>(() => {
     const next: Partial<Record<ColorRole, { pinX: number; pinY: number }>> = {};
-    for (const c of colors) {
+    for (const c of sampledColors(colors)) {
       if (c.role && c.pinX != null && c.pinY != null) next[c.role] = { pinX: c.pinX, pinY: c.pinY };
     }
     return next;
   });
-  const [autoRoles, setAutoRoles] = useState<Set<ColorRole>>(
-    () => new Set(colors.filter((c) => c.role && c.derivedFrom).map((c) => c.role!)),
-  );
   const [userSetRoles, setUserSetRoles] = useState<Set<ColorRole>>(
     () => new Set(colors.filter((c) => c.role && c.origin === SAMPLED_ORIGIN).map((c) => c.role!)),
   );
@@ -115,9 +112,6 @@ export function TokenEditor({
   function openRole(role: ColorRole) {
     setOpenRole(role);
     setHexDraft(pendingHex ?? roles[role] ?? "");
-    if (autoRoles.has(role) && photoBox) {
-      setLoupe({ x: photoBox.w / 2, y: photoBox.h / 2, hex: roles[role] ?? "#000000" });
-    }
   }
 
   function commit(nextRoles: typeof roles, nextPins = pins, nextUserSet = userSetRoles) {
@@ -127,6 +121,7 @@ export function TokenEditor({
     const origins: Partial<Record<ColorRole, string>> = {};
     for (const role of COLOR_ROLES) {
       if (nextUserSet.has(role)) origins[role] = SAMPLED_ORIGIN;
+      else if (nextPins[role]) origins[role] = REGION_ORIGIN;
     }
     const fd = new FormData();
     fd.set("itemId", itemId);
@@ -153,14 +148,8 @@ export function TokenEditor({
 
   function onChip(color: NamedColor) {
     const empty = COLOR_ROLES.find((role) => !roles[role]);
-    if (empty) {
-      const nextUserSet = new Set(userSetRoles);
-      nextUserSet.add(empty);
-      commit(setRoleColor(roles, empty, color.hex), pins, nextUserSet);
-      return;
-    }
     setPendingHex(color.hex);
-    openRole(open ?? "primary");
+    openRole(empty ?? open ?? "primary");
     setHexDraft(color.hex);
   }
 
@@ -193,11 +182,6 @@ export function TokenEditor({
       setLoupe({ x: mapped.x, y: mapped.y, hex: sample.hex });
       if (commitSample) {
         const nextPins = { ...pins, [open]: { pinX: sample.pinX, pinY: sample.pinY } };
-        setAutoRoles((prev) => {
-          const next = new Set(prev);
-          next.delete(open);
-          return next;
-        });
         onPromoteRole?.(open, { pinX: sample.pinX, pinY: sample.pinY, hex: sample.hex });
         applyHex(open, sample.hex, nextPins, true);
       } else {
@@ -279,10 +263,6 @@ export function TokenEditor({
   useEffect(() => {
     if (!simulateLoupe || !open || !crop || !photoBox || !imageSize) return;
     const hex = roles[open] ?? "#000000";
-    if (autoRoles.has(open)) {
-      setLoupe({ x: photoBox.w / 2, y: photoBox.h / 2, hex });
-      return;
-    }
     const pin = pins[open];
     if (!pin) {
       setLoupe({ x: photoBox.w / 2, y: photoBox.h / 2, hex });
@@ -291,7 +271,7 @@ export function TokenEditor({
     const left = ((pin.pinX - crop.vx) / crop.vw) * photoBox.w;
     const top = ((pin.pinY - crop.vy) / crop.vh) * photoBox.h;
     setLoupe({ x: left, y: top, hex });
-  }, [simulateLoupe, open, crop, photoBox, imageSize, pins, roles, autoRoles]);
+  }, [simulateLoupe, open, crop, photoBox, imageSize, pins, roles]);
 
   const reduced = prefersReducedMotion();
   const chipAnim = reduced
@@ -305,10 +285,10 @@ export function TokenEditor({
           roles={roles}
           size={size}
           pageBackground={pageBackground}
+          pageInk={pageInk}
           onPick={openRole}
           onFocusRole={onFocusRole}
           bandRefs={bandRefs}
-          autoRoles={autoRoles}
         />
       </div>
       {children}
@@ -424,7 +404,12 @@ export function TokenEditor({
                         setOpenRole(role);
                         return;
                       }
-                      commit(moveRole(roles, open, role));
+                      const nextUserSet = new Set(userSetRoles);
+                      nextUserSet.delete(open);
+                      nextUserSet.delete(role);
+                      if (userSetRoles.has(open)) nextUserSet.add(role);
+                      if (userSetRoles.has(role)) nextUserSet.add(open);
+                      commit(moveRole(roles, open, role), { ...pins, [open]: pins[role], [role]: pins[open] }, nextUserSet);
                       setOpenRole(role);
                     }}
                   >
@@ -438,7 +423,9 @@ export function TokenEditor({
                 type="button"
                 className="min-h-11 text-base"
                 onClick={() => {
-                  commit(setRoleColor(roles, open, null));
+                  const nextPins = { ...pins };
+                  delete nextPins[open];
+                  commit(setRoleColor(roles, open, null), nextPins);
                   setOpenRole(null);
                 }}
               >

@@ -1,3 +1,4 @@
+import { sampledColors } from "@/lib/derived-roles";
 import { eq } from "drizzle-orm";
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -79,8 +80,11 @@ export async function startBriefJob(ownerId: string, itemId: string): Promise<vo
 }
 
 async function filledHexes(itemId: string): Promise<Set<string>> {
-  const rows = await db.select({ hex: itemColors.hex }).from(itemColors).where(eq(itemColors.itemId, itemId));
-  return new Set(rows.map((r) => r.hex.toLowerCase()));
+  const rows = await db.select({
+    hex: itemColors.hex, role: itemColors.role, origin: itemColors.origin,
+    pinX: itemColors.pinX, pinY: itemColors.pinY,
+  }).from(itemColors).where(eq(itemColors.itemId, itemId));
+  return new Set(sampledColors(rows).map((r) => r.hex.toLowerCase()));
 }
 
 /** Compact JPEG data URL for vision, or a short-lived signed GET if the object cannot be read. */

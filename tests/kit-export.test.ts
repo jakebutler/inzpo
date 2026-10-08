@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { briefMarkdown, KIT_EXPORT_FILES, tokensJsonFromRoles, textureSvg } from "@/lib/kit-export";
+import { briefMarkdown, KIT_EXPORT_FILES, tokensJsonFromRoles, tokensCss, tokensJson, textureSvg } from "@/lib/kit-export";
+import type { ItemDetail } from "@/lib/items";
 import { pinNumbers, rolesFromColors } from "@/lib/tokens";
 
 describe("kit export files", () => {
@@ -15,13 +16,31 @@ describe("kit export files", () => {
       { hex: "#bec6cd", role: "text" },
     ]);
     const json = JSON.parse(tokensJsonFromRoles(roles)) as {
-      color: Record<string, { $value: string; fallback?: boolean }>;
+      color: Record<string, { $value: string; sampled?: boolean; fallback?: boolean; fallbackFrom?: string; note?: string }>;
     };
     expect(json.color.primary.fallback).toBeUndefined();
+    expect(json.color.primary.sampled).toBe(true);
     expect(json.color.accent.fallback).toBe(true);
     expect(json.color.surface.fallback).toBe(true);
     expect(json.color.accent.$value).toBe("#a2afbd");
     expect(json.color.surface.$value).toBe("#384b5f");
+    expect(json.color.accent.fallbackFrom).toBe("secondary");
+    expect(json.color.accent.note).toBe("No accent in this photo; nearest real colour");
+    expect(json.color.accent.sampled).toBeUndefined();
+    expect(JSON.parse(tokensJsonFromRoles(rolesFromColors([]))).color).toEqual({});
+  });
+
+  it("uses only real rows for JSON fallbacks and never fills empty CSS tokens", () => {
+    const item = { colors: [
+      { role: "background", hex: "#c0c0c0", pinX: 0.2, pinY: 0.2, origin: "extracted" },
+      { role: "accent", hex: "#eeeeee", pinX: 0.5, pinY: 0.5, origin: "extracted" },
+    ] } as ItemDetail;
+    const json = JSON.parse(tokensJson(item));
+    expect(json.color.accent.$value).toBe("#c0c0c0");
+    expect(json.color.accent.fallbackFrom).toBe("background");
+    expect(json.color.background.sampled).toBe(true);
+    expect(tokensCss(item)).toContain("--color-accent: transparent;");
+    expect(tokensCss(item)).not.toContain("#eeeeee");
   });
 
   it("differentiates pending, failed, and none in brief.md", () => {

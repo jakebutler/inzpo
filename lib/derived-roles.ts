@@ -1,12 +1,13 @@
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { hexToHsl } from "@/lib/colors";
 
-export const AUTO_TAG = "auto";
 export const PIN_NEAR = 0.08;
 export const HUE_RELATED_DEG = 30;
 export const LIGHT_TINT_MIN = 0.07;
 
 export const SAMPLED_ORIGIN = "sampled";
+/** Connected-region means from the real-only extractor, with measured pins. */
+export const REGION_ORIGIN = "region";
 
 export type ColorWithRole = {
   hex: string;
@@ -49,8 +50,8 @@ function fallbackCenter(pinX?: number | null, pinY?: number | null): boolean {
 }
 
 /**
- * Sampled roles keep pins and hairlines. Derived roles (tints, shared blobs,
- * leftover center pins) get an "auto" tag and no pin.
+ * Detect padding in legacy rows without changing storage. New region samples
+ * and user-set colours are authoritative, even when their hues are related.
  */
 export function markDerivedRoles<T extends ColorWithRole>(colors: T[]): Array<T & { derivedFrom: ColorRole | null }> {
   if (!Array.isArray(colors)) return [];
@@ -62,8 +63,21 @@ export function markDerivedRoles<T extends ColorWithRole>(colors: T[]): Array<T 
   const derived = new Map<ColorRole, ColorRole>();
 
   for (const row of pending) {
-    if (row.origin === SAMPLED_ORIGIN) {
+    if (row.origin === SAMPLED_ORIGIN || (row.origin === REGION_ORIGIN && row.pinX != null && row.pinY != null)) {
       sampled.push(row);
+      continue;
+    }
+    if (row.derivedFrom) {
+      derived.set(row.role, row.derivedFrom);
+      continue;
+    }
+    // Plain role/hex maps carry no legacy provenance to inspect.
+    if (!("origin" in row || "pinX" in row || "pinY" in row)) {
+      sampled.push(row);
+      continue;
+    }
+    if (fallbackCenter(row.pinX, row.pinY)) {
+      derived.set(row.role, sampled[0]?.role ?? row.role);
       continue;
     }
     const near = sampled.find((s) => pinDistance(row, s) < PIN_NEAR);
@@ -76,10 +90,6 @@ export function markDerivedRoles<T extends ColorWithRole>(colors: T[]): Array<T 
       derived.set(row.role, tintOf.role);
       continue;
     }
-    if (fallbackCenter(row.pinX, row.pinY) && sampled.length > 0) {
-      derived.set(row.role, sampled[0]!.role);
-      continue;
-    }
     sampled.push(row);
   }
 
@@ -89,6 +99,7 @@ export function markDerivedRoles<T extends ColorWithRole>(colors: T[]): Array<T 
   }));
 }
 
-export function sampledColors<T extends { derivedFrom?: ColorRole | null }>(colors: T[]): T[] {
-  return colors.filter((c) => c.derivedFrom == null);
+/** Display-time only: generated legacy rows leave their role slot empty. */
+export function sampledColors<T extends ColorWithRole>(colors: readonly T[]): T[] {
+  return markDerivedRoles([...colors]).filter((c) => c.derivedFrom == null);
 }

@@ -106,6 +106,14 @@ export function gatedTextColor(
   return contrastRatio(INK, bg) >= contrastRatio(PAPER, bg) ? INK : PAPER;
 }
 
+/** Accessible page chrome only; the kit's measured colours stay untouched. */
+export function pageChromeColors(roles: RoleColors): { background: string; ink: string } {
+  const background = roles.background ?? PAPER;
+  const ink = gatedTextColor(roles.text, background);
+  if (contrastRatio(ink, background) >= 4.5) return { background, ink };
+  return { background: PAPER, ink: INK };
+}
+
 export function aaPassLabel(ratio: number): "AA pass" | "fail" {
   return ratio >= 4.5 ? "AA pass" : "fail";
 }

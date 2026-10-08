@@ -1,12 +1,13 @@
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { isHexColor, normalizeHex } from "@/lib/colors";
+import { sampledColors, type ColorWithRole } from "@/lib/derived-roles";
 
 export type RoleColors = Record<ColorRole, string | null>;
 
 export interface DesignTokenColor {
   $value: string;
   $type: "color";
-  fallback?: true;
+  sampled: true;
 }
 
 export function emptyRoles(): RoleColors {
@@ -21,8 +22,9 @@ export function emptyRoles(): RoleColors {
 }
 
 export function rolesFromColors(
-  colors: ReadonlyArray<{ hex: string; role?: ColorRole | null }>,
+  rows: ReadonlyArray<ColorWithRole>,
 ): RoleColors {
+  const colors = sampledColors(rows);
   const roles = emptyRoles();
   const used = new Set<number>();
   for (const role of COLOR_ROLES) {
@@ -55,17 +57,7 @@ export function pinNumbers(
   return pins;
 }
 
-function nearestFilledHex(roles: RoleColors, index: number): string | null {
-  for (let distance = 1; distance < COLOR_ROLES.length; distance++) {
-    const left = COLOR_ROLES[index - distance];
-    if (left && roles[left]) return roles[left];
-    const right = COLOR_ROLES[index + distance];
-    if (right && roles[right]) return roles[right];
-  }
-  return null;
-}
-
-/** Empty roles fall back to the nearest real color and are marked fallback: true. */
+/** Editing one role never pads the others. */
 export function setRoleColor(roles: RoleColors, role: ColorRole, hex: string | null): RoleColors {
   const next = { ...roles };
   if (hex === null) {
@@ -90,19 +82,15 @@ export function moveRole(roles: RoleColors, from: ColorRole, to: ColorRole): Rol
   return next;
 }
 
-export function designTokenColors(roles: RoleColors): Record<ColorRole, DesignTokenColor> | null {
+export function designTokenColors(roles: RoleColors): Partial<Record<ColorRole, DesignTokenColor>> | null {
   if (filledRoles(roles).length === 0) return null;
-  const out = {} as Record<ColorRole, DesignTokenColor>;
+  const out: Partial<Record<ColorRole, DesignTokenColor>> = {};
   for (let i = 0; i < COLOR_ROLES.length; i++) {
     const role = COLOR_ROLES[i]!;
     const hex = roles[role];
     if (hex) {
-      out[role] = { $value: hex, $type: "color" };
-      continue;
+      out[role] = { $value: hex, $type: "color", sampled: true };
     }
-    const fallback = nearestFilledHex(roles, i);
-    if (!fallback) return null;
-    out[role] = { $value: fallback, $type: "color", fallback: true };
   }
   return out;
 }

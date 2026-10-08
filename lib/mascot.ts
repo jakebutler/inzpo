@@ -53,7 +53,7 @@ export const MASCOT_COPY = {
 
 export type MascotCopyKey = keyof typeof MASCOT_COPY;
 
-/** #53 handoff palettes, token order. Extract pads leftover roles as auto tints. */
+/** Historical handoff palettes for static art previews, in token order. */
 export const HANDOFF_KITS = {
   IMG_6505: {
     primary: "#6b6656",
@@ -77,7 +77,7 @@ export function emptyKit(): MascotKit {
   return emptyRoles();
 }
 
-/** Cream coat with no stripes. Empty roles stay null — never pad with cream. */
+/** Cream coat with no stripes. */
 export function creamKit(): MascotKit {
   return emptyKit();
 }
@@ -149,7 +149,7 @@ export function stripeCssVars(kit: MascotKit): Record<`--baku-${string}`, string
     "--baku-seam": BAKU_SEAM,
   };
   for (const role of COLOR_ROLES) {
-    vars[`--baku-${role}`] = kit[role] ?? BAKU_CREAM;
+    if (kit[role]) vars[`--baku-${role}`] = kit[role]!;
   }
   return vars;
 }

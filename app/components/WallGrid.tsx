@@ -13,6 +13,7 @@ import { ActionForm } from "@/app/components/ActionForm";
 import { MascotStage } from "@/app/components/MascotStage";
 import { KitCard } from "@/app/components/KitCard";
 import { kitDisplayName } from "@/lib/kit-name";
+import type { RoleColors } from "@/lib/tokens";
 
 export interface WallCard {
   id: string;
@@ -21,7 +22,8 @@ export interface WallCard {
   note?: string | null;
   displayKey: string | null;
   aspect: number | null;
-  hexColors: string[];
+  hexColors: Array<string | null>;
+  roles?: RoleColors;
   facetTags: Array<{ facet: string; value: string }>;
   freeTags: string[];
   sourceUrl: string | null;
@@ -328,6 +330,7 @@ export function WallGrid({
                   title={kitDisplayName({ title: item.title, briefText: item.note })}
                   imageSrc={item.displayKey ? `/media/${item.displayKey}` : null}
                   hexes={item.hexColors}
+                  roles={item.roles}
                 />
                 <span
                   aria-hidden
@@ -385,6 +388,7 @@ export function WallGrid({
               title={kitDisplayName({ title: item.title, briefText: item.note })}
               imageSrc={item.displayKey ? `/media/${item.displayKey}` : null}
               hexes={item.hexColors}
+              roles={item.roles}
             />
           </Link>
           <div className="pointer-events-none absolute right-0 top-0 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">

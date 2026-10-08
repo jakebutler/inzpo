@@ -14,7 +14,7 @@ import {
 } from "@/lib/brand";
 import { contrastRatio, matchesPageBackground } from "@/lib/contrast";
 import { displayBriefSlot } from "@/lib/brief-display";
-import { AUTO_TAG, markDerivedRoles } from "@/lib/derived-roles";
+import { markDerivedRoles, sampledColors } from "@/lib/derived-roles";
 import { clampPinCenter, mapCoverPinRaw, PIN_EDGE_MARGIN_PX } from "@/lib/cover-pin";
 import { preferredHairline, segmentsCross, uncrossHairlines } from "@/lib/hairlines";
 import { MOTION } from "@/lib/motion";
@@ -98,8 +98,8 @@ describe("r5 photo clamp", () => {
   });
 });
 
-describe("r5 derived auto tags", () => {
-  it("marks tints and shared pins as auto, not sampled", () => {
+describe("legacy padded roles", () => {
+  it("leaves legacy tints and shared pins out of display colours", () => {
     const rows = markDerivedRoles([
       { hex: HANDOFF_KITS.IMG_6505.background!, role: "background", pinX: 0.5, pinY: 0.4, position: 3 },
       { hex: HANDOFF_KITS.IMG_6505.accent!, role: "accent", pinX: 0.52, pinY: 0.41, position: 2 },
@@ -113,27 +113,23 @@ describe("r5 derived auto tags", () => {
     expect(sampled).toContain("background");
     expect(sampled).toContain("text");
     expect(auto.length).toBeGreaterThanOrEqual(2);
-    expect(AUTO_TAG).toBe("auto");
-    expect(src("app/components/PaletteBands.tsx")).toContain("inzpo-band-auto");
-    expect(src("app/globals.css")).toMatch(/\.inzpo-band-auto[\s\S]*font-size:\s*11px/);
-    expect(src("app/globals.css")).toMatch(/\.inzpo-band-auto[\s\S]*opacity:\s*0\.6/);
-    expect(src("app/components/TokenEditor.tsx")).toContain("onPromoteRole");
-    expect(src("app/components/TokenEditor.tsx")).toContain("photoBox.w / 2");
+    const display = sampledColors(rows);
+    expect(display.every((row) => !row.derivedFrom)).toBe(true);
+    expect(src("app/components/PaletteBands.tsx")).not.toContain("data-auto");
+    expect(src("app/components/PaletteBands.tsx")).toContain("EMPTY_ROLE_COPY(role)");
+    expect(src("app/globals.css")).toMatch(/\.inzpo-band-empty[\s\S]*border:\s*1px dashed currentColor/);
+    expect(src("app/components/TokenEditor.tsx")).not.toContain("autoRoles");
   });
 
-  it("reports auto roles per fold fixture and fills every token role", async () => {
-    const report: Record<string, string[]> = {};
+  it("keeps fold fixtures real and does not refill empty slots", async () => {
     for (const id of ["IMG_6505", "IMG_6208", "IMG_5859"] as const) {
       const kit = await loadFoldKit(id);
-      const roles = kit.colors.map((c) => c.role).sort();
-      expect(roles).toEqual([...COLOR_ROLES].sort());
-      report[id] = kit.colors.filter((c) => c.derivedFrom).map((c) => c.role).sort();
+      expect(kit.colors.every((c) => c.origin === "region")).toBe(true);
+      expect(sampledColors(kit.colors)).toHaveLength(kit.colors.length);
+      expect(kit.colors.length).toBeGreaterThanOrEqual(5);
+      if (id === "IMG_6208") expect(kit.colors.some((c) => c.role === "accent")).toBe(false);
     }
-    expect(report.IMG_6505.length).toBeGreaterThanOrEqual(1);
-    expect(report.IMG_6208.length).toBeGreaterThanOrEqual(1);
-    expect(report.IMG_5859.length).toBeGreaterThanOrEqual(1);
-    expect(Object.keys(report).sort()).toEqual(["IMG_5859", "IMG_6208", "IMG_6505"]);
-  });
+  }, 30_000);
 });
 
 describe("r5 pin edge clamp", () => {

@@ -1,5 +1,4 @@
-import { aaPassLabel, contrastLineCopy, textOnBackgroundContrast } from "@/lib/contrast";
-import { INK, PAPER } from "@/lib/brand";
+import { aaPassLabel, contrastLineCopy, pageChromeColors, textOnBackgroundContrast } from "@/lib/contrast";
 import type { RoleColors } from "@/lib/tokens";
 
 export function ContrastAa({ roles }: { roles: RoleColors }) {
@@ -11,8 +10,7 @@ export function ContrastAa({ roles }: { roles: RoleColors }) {
       </p>
     );
   }
-  const bg = roles.background ?? PAPER;
-  const ink = roles.text ?? INK;
+  const { background: bg, ink } = pageChromeColors(roles);
   return (
     <div
       data-contrast-line

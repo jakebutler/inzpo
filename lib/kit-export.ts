@@ -1,4 +1,4 @@
-import { COLOR_ROLES } from "@/lib/db/schema";
+import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { designTokenColors, rolesFromColors, type RoleColors } from "@/lib/tokens";
 import type { ItemDetail } from "@/lib/items";
 
@@ -7,11 +7,25 @@ export type BriefExportStatus = "pending" | "ready" | "failed" | "none";
 export const KIT_EXPORT_FILES = ["tokens.json", "tokens.css", "brief.md", "texture.svg"] as const;
 
 export function tokensJsonFromRoles(roles: RoleColors): string {
-  const colors = designTokenColors(roles);
+  const colors: Record<string, unknown> = { ...designTokenColors(roles) };
+  for (let i = 0; i < COLOR_ROLES.length; i++) {
+    const role = COLOR_ROLES[i]!;
+    if (roles[role]) continue;
+    // "Nearest" means nearest in token order; there is no colour distance to
+    // compute for a missing sample. Never use a brand colour as a kit token.
+    let from: ColorRole | undefined;
+    for (let distance = 1; distance < COLOR_ROLES.length && !from; distance++) {
+      from = [COLOR_ROLES[i - distance], COLOR_ROLES[i + distance]].find((r) => r && roles[r]);
+    }
+    if (from) colors[role] = {
+      $value: roles[from], $type: "color", fallback: true, fallbackFrom: from,
+      note: `No ${role} in this photo; nearest real colour`,
+    };
+  }
   return JSON.stringify(
     {
       $schema: "https://design-tokens.org/format",
-      color: colors ?? {},
+      color: colors,
     },
     null,
     2,
@@ -28,8 +42,7 @@ export function tokensCss(item: ItemDetail): string {
   const lines = COLOR_ROLES.map((role) => {
     const token = colors?.[role];
     if (!token) return `  --color-${role}: transparent;`;
-    const fallback = token.fallback ? " /* fallback */" : "";
-    return `  --color-${role}: ${token.$value};${fallback}`;
+    return `  --color-${role}: ${token.$value};`;
   });
   return `:root {\n${lines.join("\n")}\n}\n`;
 }

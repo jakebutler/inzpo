@@ -25,7 +25,7 @@ describe("isNoopPinDrag", () => {
     expect(isNoopPinSample(null, end, geometry)).toBe(false);
   });
 
-  it("keeps a sampled role user-set instead of retagging it auto", () => {
+  it("keeps a sampled role user-set instead of hiding it as legacy padding", () => {
     const rows = markDerivedRoles([
       { hex: "#7dafd5", role: "primary", pinX: 0.4, pinY: 0.4, origin: SAMPLED_ORIGIN },
       { hex: "#44758d", role: "secondary", pinX: 0.41, pinY: 0.41, origin: "extracted" },
@@ -42,7 +42,8 @@ describe("isNoopPinDrag", () => {
     expect(editor).toContain("sampleImagePixel");
     expect(editor).toContain("origins");
     expect(editor).toContain("SAMPLED_ORIGIN");
-    expect(src("lib/item-tokens.ts")).toContain('origin: origins[c.role] === "sampled" ? "sampled" : "extracted"');
+    expect(src("lib/item-tokens.ts")).toContain('origins[c.role] === "sampled" ? "sampled" : "extracted"');
+    expect(src("lib/item-tokens.ts")).toContain('origins[c.role] === REGION_ORIGIN ? REGION_ORIGIN');
     expect(src("app/actions/tokens.ts")).toContain("origins");
   });
 });

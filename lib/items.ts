@@ -1,6 +1,6 @@
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { itemColors, items, mediaAssets, type ColorRole, type ItemKind } from "@/lib/db/schema";
+import { itemColors, items, mediaAssets, COLOR_ROLES, type ColorRole, type ItemKind } from "@/lib/db/schema";
 import { assertItemOwned, ownerClause } from "@/lib/auth/owner";
 import { newId } from "@/lib/ids";
 import { itemPrefix, originalKey, PutObjectCommand, GetObjectCommand, deletePrefix, r2, tileKey, textureMetaKey } from "@/lib/r2";
@@ -10,6 +10,8 @@ import { EMPTY_FILTER } from "@/lib/filter";
 import { processImage, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
 import { isCameraFilename } from "@/lib/kit-name";
 import { extractPalette } from "@/lib/palette-extract";
+import { REGION_ORIGIN, type ColorWithRole } from "@/lib/derived-roles";
+import { rolesFromColors, type RoleColors } from "@/lib/tokens";
 import { buildWallQuery } from "@/lib/wall-query";
 import type { FilterState } from "@/lib/filter";
 
@@ -23,7 +25,8 @@ export interface WallItem {
   thumbKey: string | null;
   placeholder: string | null;
   aspect: number | null;
-  hexColors: string[];
+  hexColors: Array<string | null>;
+  roles: RoleColors;
   facetTags: Array<{ facet: string; value: string }>;
   freeTags: string[];
   sourceUrl: string | null;
@@ -41,7 +44,7 @@ export async function getWallItems(ownerId: string, state: FilterState, collecti
       (select v.value from media_assets m, jsonb_each_text(m.variants) v where m.item_id = i.id and v.key = 'w256' limit 1) as "thumbKey",
       (select m.placeholder from media_assets m where m.item_id = i.id and m.role = 'primary' limit 1) as "placeholder",
       (select round(m.width::numeric / nullif(m.height, 0), 4)::float8 from media_assets m where m.item_id = i.id and m.role = 'primary' limit 1) as "aspect",
-      coalesce((select array_agg(c.hex order by c.position) from item_colors c where c.item_id = i.id), '{}') as "hexColors",
+      coalesce((select jsonb_agg(jsonb_build_object('hex', c.hex, 'role', c.role, 'origin', c.origin, 'pinX', c.pin_x, 'pinY', c.pin_y) order by c.position) from item_colors c where c.item_id = i.id), '[]') as "colorRows",
       coalesce((select jsonb_agg(jsonb_build_object('facet', f.name, 'value', fv.value) order by f.position, fv.value) from item_facet_values ifv join facet_values fv on fv.id = ifv.facet_value_id join facets f on f.id = fv.facet_id where ifv.item_id = i.id), '[]'::jsonb) as "facetTags",
       coalesce((select jsonb_agg(ft.name order by ft.name) from item_free_tags ift join free_tags ft on ft.id = ift.free_tag_id where ift.item_id = i.id), '[]'::jsonb) as "freeTags",
       (select s.url from item_sources s where s.item_id = i.id) as "sourceUrl"
@@ -49,7 +52,10 @@ export async function getWallItems(ownerId: string, state: FilterState, collecti
     where ${where}
     order by ${orderBy}
   `);
-  return rows.rows as unknown as WallItem[];
+  return (rows.rows as unknown as Array<Omit<WallItem, "roles" | "hexColors"> & { colorRows: ColorWithRole[] }>).map(({ colorRows, ...item }) => {
+    const roles = rolesFromColors(colorRows);
+    return { ...item, roles, hexColors: COLOR_ROLES.map((role) => roles[role]) };
+  });
 }
 
 export async function countWallItems(ownerId: string, state: FilterState, collectionId?: string | null): Promise<number> {
@@ -252,7 +258,7 @@ export async function createImageItem(input: {
           itemId: id,
           hex: c.hex,
           family: c.family,
-          origin: "extracted",
+          origin: REGION_ORIGIN,
           position: index,
           name: c.name,
           role: c.role,

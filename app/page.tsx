@@ -86,6 +86,7 @@ export default async function Wall({
           displayKey: w.displayKey,
           aspect: w.aspect,
           hexColors: w.hexColors,
+          roles: w.roles,
           facetTags: w.facetTags,
           freeTags: w.freeTags,
           sourceUrl: w.sourceUrl,

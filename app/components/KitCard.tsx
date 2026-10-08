@@ -1,7 +1,6 @@
 import { BandStripe } from "@/app/components/BandStripe";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import { emptyRoles, type RoleColors } from "@/lib/tokens";
-import { HANDOFF_KITS } from "@/lib/mascot";
 import { kitDisplayName } from "@/lib/kit-name";
 
 function rolesFromList(hexes?: Array<string | null>): RoleColors {
@@ -13,7 +12,7 @@ function rolesFromList(hexes?: Array<string | null>): RoleColors {
     });
     if (COLOR_ROLES.some((role) => roles[role])) return roles;
   }
-  return { ...HANDOFF_KITS.IMG_6505 };
+  return emptyRoles();
 }
 
 export function KitCard({
