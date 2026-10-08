@@ -35,7 +35,7 @@ function control(predicate: (props: Record<string, any>) => boolean, tree = mock
 
 beforeEach(() => {
   vi.clearAllMocks();
-  const dom = parseHTML("<html><body><img id='photo'><div id='root'></div></body></html>");
+  const dom = parseHTML("<html><body><div data-photo-fold><img id='photo'><span data-pin-hit='primary'></span><span data-pin-hit='secondary'></span><a data-photo-back><span id='back-icon'></span></a></div><div id='root'></div></body></html>");
   window = dom.window;
   window.matchMedia = vi.fn().mockReturnValue({ matches: false });
   vi.stubGlobal("window", window);
@@ -59,7 +59,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-async function render(colors: Row[], initialOpen: ColorRole = "primary") {
+async function render(colors: Row[], initialOpen: ColorRole | null = "primary") {
   await act(async () => root.render(createElement(TokenEditor, {
     itemId: "kit", imageSrc: "photo.jpg", colors, initialOpen,
     photoRef: { current: photo }, crop: { vx: 0, vy: 0, vw: 1, vh: 1 },
@@ -76,10 +76,10 @@ async function typeHex(value: string) {
   await act(async () => control((p) => p.id === "token-hex").props.onBlur());
 }
 
-async function pointer(type: string, clientX: number, clientY: number) {
+async function pointer(type: string, clientX: number, clientY: number, target: Element = photo) {
   const event = new window.Event(type, { bubbles: true, cancelable: true });
   Object.assign(event, { clientX, clientY, pointerId: 1, isPrimary: true, button: 0 });
-  await act(async () => { photo.dispatchEvent(event); });
+  await act(async () => { target.dispatchEvent(event); });
   return event;
 }
 
@@ -144,5 +144,42 @@ describe("token editor with real and empty roles", () => {
     expect(saved()).toMatchObject({ roles: { primary: "#abcdef", accent: null }, pins: { primary: { pinX: 0.6, pinY: 0.6 } }, origins: { primary: "sampled" } });
     expect(mocks.pixel).toHaveBeenCalledTimes(1);
     expect(listen.mock.calls.filter(([type]) => type === "pointerdown")).toHaveLength(0);
+  });
+
+  it.each([null, "secondary"] as const)("grabs an offset hit area from open=%s and samples the release without an offset", async (initialOpen) => {
+    await render([
+      { role: "primary", hex: "#123456", pinX: 0.2, pinY: 0.03, origin: "region" },
+      { role: "secondary", hex: "#654321", pinX: 0.8, pinY: 0.8, origin: "region" },
+    ], initialOpen);
+    const hit = document.querySelector('[data-pin-hit="primary"]')!;
+    // The disc is at (30, 23); its offset grab point is (82, 50).
+    expect((await pointer("pointerdown", 82, 50, hit)).defaultPrevented).toBe(true);
+    expect(photo.setPointerCapture).toHaveBeenCalledWith(1);
+    await pointer("pointermove", 90, 90);
+    await pointer("pointerup", 85, 52);
+    expect(mocks.save).not.toHaveBeenCalled(); // 4 CSS px from press, not disc
+    expect(control((p) => p.id === "token-hex").props.value).toBe("#123456");
+    await pointer("pointerdown", 82, 50, hit);
+    await pointer("pointermove", 50, 55);
+    await pointer("pointerup", 60, 70);
+    expect(mocks.pixel).toHaveBeenLastCalledWith(photo, 0.5, 0.5);
+    expect(saved()).toMatchObject({
+      roles: { primary: "#abcdef", secondary: "#654321" },
+      pins: { primary: { pinX: 0.5, pinY: 0.5 } }, origins: { primary: "sampled" },
+    });
+  });
+
+  it("leaves Back and its icon usable while the editor is open", async () => {
+    await render([{ role: "primary", hex: "#123456", pinX: 0.2, pinY: 0.03, origin: "region" }]);
+    const back = document.querySelector("[data-photo-back]")!;
+    const received = vi.fn();
+    back.addEventListener("pointerdown", received);
+    const event = await pointer("pointerdown", 30, 40, document.querySelector("#back-icon")!);
+    expect(received).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(false);
+    expect(photo.setPointerCapture).not.toHaveBeenCalled();
+    await pointer("pointerup", 30, 40, back);
+    expect(mocks.pixel).not.toHaveBeenCalled();
+    expect(mocks.save).not.toHaveBeenCalled();
   });
 });

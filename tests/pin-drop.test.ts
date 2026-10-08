@@ -51,7 +51,7 @@ describe("pin drop mapping and no-op decisions", () => {
     expect(Math.abs(drawn.top * box.height - release.y)).toBeLessThanOrEqual(0.5 * box.height / (crop.vh * image.height));
   });
 
-  it("ignores an out-and-back drop even if the original pin disc was clamped away from its source point", () => {
+  it("ignores an out-and-back drop from an offset hit area", () => {
     const start = pointerOnCoverBox(box.left + 16, box.top + 80, box, crop)!;
     // The role's existing source pin can be outside the visible crop.
     expect(isNoopPinSample({ pinX: 0, pinY: 0 }, start, geometry)).toBe(false);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coverWindow, coverWindowForPins, mapCoverPin, pointerOnCoverBox, PIN_CROP_MARGIN_PX } from "@/lib/cover-pin";
+import { clampPinCenter, coverWindow, coverWindowForPins, mapCoverPin, pointerOnCoverBox, PIN_CROP_MARGIN_PX, PIN_HIT_SIZE_PX } from "@/lib/cover-pin";
 
 describe("mapCoverPin", () => {
   it("maps source pixels onto an object-fit cover box", () => {
@@ -49,5 +49,55 @@ describe("mapCoverPin", () => {
       expect(boxW - mapped!.left * boxW).toBeGreaterThanOrEqual(16);
       expect(boxH - mapped!.top * boxH).toBeGreaterThanOrEqual(16);
     }
+  });
+
+  it("nudges an out-of-crop sample into view at its true point, even inside the edge inset", () => {
+    const pin = { x: 0.5, y: 0.005 };
+    expect(mapCoverPin(pin.x, pin.y, 1500, 2000, 390, 337)).toBeNull();
+    const win = coverWindowForPins(1500, 2000, 390, 337, [pin])!;
+    const drawn = mapCoverPin(pin.x, pin.y, 1500, 2000, 390, 337, win)!;
+    expect(drawn.top * 337).toBeCloseTo(2.6);
+    expect(clampPinCenter(drawn.left * 390, drawn.top * 337, 390, 337).y).toBe(16);
+    const source = pointerOnCoverBox(drawn.left * 390, drawn.top * 337,
+      { left: 0, top: 0, width: 390, height: 337 }, win)!;
+    expect(source.ny).toBeCloseTo(pin.y);
+  });
+
+  it("does not map an out-of-crop pin to a false edge point in a frozen crop", () => {
+    const frozen = coverWindowForPins(1500, 2000, 390, 337, [{ x: 0.5, y: 0.8 }])!;
+    expect(mapCoverPin(0.5, 0.005, 1500, 2000, 390, 337, frozen)).toBeNull();
+  });
+});
+
+describe("pin hit areas", () => {
+  it("clamps only the hit center at each photo edge", () => {
+    for (const [x, y, expected] of [
+      [1, 2, { x: 16, y: 16 }],
+      [389, 336, { x: 374, y: 321 }],
+    ] as const) {
+      const sample = { x, y };
+      expect(clampPinCenter(x, y, 390, 337)).toEqual(expected);
+      expect(sample).toEqual({ x, y });
+    }
+  });
+
+  it.each([0, 47])("moves the whole hit area clear of Back with a %spx safe area", (safeTop) => {
+    const back = { left: 12, top: safeTop + 8, right: 56, bottom: safeTop + 52 };
+    const disc = { x: 30, y: safeTop + 30 };
+    const hit = clampPinCenter(disc.x, disc.y, 390, 337, safeTop, PIN_HIT_SIZE_PX / 2, back);
+    const radius = PIN_HIT_SIZE_PX / 2;
+    expect(hit).not.toEqual(disc);
+    expect(hit.x - radius >= back.right || hit.y - radius >= back.bottom ||
+      hit.x + radius <= back.left || hit.y + radius <= back.top).toBe(true);
+    expect(hit.x - radius).toBeGreaterThanOrEqual(0);
+    expect(hit.y - radius).toBeGreaterThanOrEqual(safeTop);
+    expect(hit.x + radius).toBeLessThanOrEqual(390);
+    expect(hit.y + radius).toBeLessThanOrEqual(337);
+    expect(disc).toEqual({ x: 30, y: safeTop + 30 });
+  });
+
+  it("leaves a hit area beside Back in place", () => {
+    expect(clampPinCenter(100, 30, 390, 337, 0, 16,
+      { left: 12, top: 8, right: 56, bottom: 52 })).toEqual({ x: 100, y: 30 });
   });
 });

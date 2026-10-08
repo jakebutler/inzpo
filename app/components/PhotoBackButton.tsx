@@ -27,6 +27,7 @@ export function PhotoBackButton({
         top: photo ? "calc(env(safe-area-inset-top, 0px) + 8px)" : undefined,
         backgroundColor: `color-mix(in srgb, ${PAPER} 85%, transparent)`,
         color: INK,
+        pointerEvents: "auto",
       }}
     >
       <ChevronLeft className="h-6 w-6" strokeWidth={2} aria-hidden />

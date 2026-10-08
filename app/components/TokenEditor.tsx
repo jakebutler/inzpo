@@ -153,18 +153,18 @@ export function TokenEditor({
     setHexDraft(color.hex);
   }
 
-  function resetSamplePreview() {
+  function resetSamplePreview(role = open) {
     setLoupe(null);
-    if (open) setHexDraft(roles[open] ?? "");
+    if (role) setHexDraft(roles[role] ?? "");
   }
 
-  function samplePointer(clientX: number, clientY: number, commitSample: boolean, start?: PinDragPoint | null) {
+  function samplePointer(clientX: number, clientY: number, commitSample: boolean, start?: PinDragPoint | null, role = open) {
     const img = photoRef?.current;
-    if (!open || !img || !crop) return null;
+    if (!role || !img || !crop) return null;
     const rect = img.getBoundingClientRect();
     const mapped = pointerOnCoverBox(clientX, clientY, rect, crop);
     if (!mapped) {
-      if (commitSample) resetSamplePreview();
+      if (commitSample) resetSamplePreview(role);
       return null;
     }
     const geometry = {
@@ -172,8 +172,8 @@ export function TokenEditor({
       boxWidth: rect.width, boxHeight: rect.height, crop,
     };
     try {
-      if (commitSample && (isNoopPinDrag(start, mapped, geometry) || isNoopPinSample(pins[open], mapped, geometry))) {
-        resetSamplePreview();
+      if (commitSample && (isNoopPinDrag(start, mapped, geometry) || isNoopPinSample(pins[role], mapped, geometry))) {
+        resetSamplePreview(role);
         return mapped;
       }
       const sample = commitSample
@@ -181,24 +181,24 @@ export function TokenEditor({
         : sampleImageAverage(img, mapped.nx, mapped.ny, 8);
       setLoupe({ x: mapped.x, y: mapped.y, hex: sample.hex });
       if (commitSample) {
-        const nextPins = { ...pins, [open]: { pinX: sample.pinX, pinY: sample.pinY } };
-        onPromoteRole?.(open, { pinX: sample.pinX, pinY: sample.pinY, hex: sample.hex });
-        applyHex(open, sample.hex, nextPins, true);
+        const nextPins = { ...pins, [role]: { pinX: sample.pinX, pinY: sample.pinY } };
+        onPromoteRole?.(role, { pinX: sample.pinX, pinY: sample.pinY, hex: sample.hex });
+        applyHex(role, sample.hex, nextPins, true);
       } else {
         setHexDraft(sample.hex);
       }
     } catch {
       // keep the previous color if the image cannot be sampled
-      if (commitSample) resetSamplePreview();
+      if (commitSample) resetSamplePreview(role);
     }
     return mapped;
   }
 
   // Loupe updates render the parent on every move. Keep the native listeners and
   // their active pointer intact, while sampling with the latest role/crop/state.
-  const pointerHandlers = useRef({ samplePointer, resetSamplePreview });
+  const pointerHandlers = useRef({ samplePointer, resetSamplePreview, openRole, open });
   useEffect(() => {
-    pointerHandlers.current = { samplePointer, resetSamplePreview };
+    pointerHandlers.current = { samplePointer, resetSamplePreview, openRole, open };
   });
 
   useEffect(() => {
@@ -208,57 +208,74 @@ export function TokenEditor({
     const previousTouchAction = img.style.touchAction;
     img.style.pointerEvents = "auto";
     img.style.touchAction = "none";
-    let active: { pointerId: number; start: PinDragPoint; lastGood: PointerPoint } | null = null;
+    return () => {
+      img.style.pointerEvents = previousPointerEvents;
+      img.style.touchAction = previousTouchAction;
+    };
+  }, [open, photoRef]);
+
+  useEffect(() => {
+    const img = photoRef?.current;
+    if (!img) return;
+    // Offset hit areas are siblings of the image. Delegate on the photo but
+    // capture on the image, preserving the same release-point sampling stream.
+    const surface = img.closest<HTMLElement>("[data-photo-fold]") ?? img;
+    let active: { pointerId: number; role: ColorRole; start: PinDragPoint; lastGood: PointerPoint } | null = null;
     const preventNativeDrag = (e: DragEvent) => e.preventDefault();
     const onDown = (e: PointerEvent) => {
       if (active || !e.isPrimary || e.button !== 0) return;
-      const start = pointerHandlers.current.samplePointer(e.clientX, e.clientY, false);
+      const target = e.target as HTMLElement | null;
+      const hitRole = target?.closest?.<HTMLElement>("[data-pin-hit]")?.dataset.pinHit;
+      const role = COLOR_ROLES.find((r) => r === hitRole) ??
+        (target === img ? pointerHandlers.current.open : null);
+      if (!role) return; // Back and other photo controls retain their events.
+      if (role !== pointerHandlers.current.open) pointerHandlers.current.openRole(role);
+      const start = pointerHandlers.current.samplePointer(e.clientX, e.clientY, false, null, role);
       if (!start) return;
       // Images are natively draggable in Chromium: without this, dragstart
       // cancels our pointer stream and reports (0, 0) instead of a drop.
       e.preventDefault();
-      active = { pointerId: e.pointerId, start, lastGood: { clientX: e.clientX, clientY: e.clientY } };
+      active = { pointerId: e.pointerId, role, start, lastGood: { clientX: e.clientX, clientY: e.clientY } };
       img.setPointerCapture(e.pointerId);
     };
     const onMove = (e: PointerEvent) => {
       if (!active || active.pointerId !== e.pointerId) return;
       if (!Number.isFinite(e.clientX) || !Number.isFinite(e.clientY)) return;
       active.lastGood = { clientX: e.clientX, clientY: e.clientY };
-      pointerHandlers.current.samplePointer(e.clientX, e.clientY, false);
+      pointerHandlers.current.samplePointer(e.clientX, e.clientY, false, null, active.role);
     };
     const onUp = (e: PointerEvent) => {
       if (!active || active.pointerId !== e.pointerId) return;
       const drag = active;
       active = null;
       const point = resolvePinDropPoint(e, drag.lastGood);
-      if (point) pointerHandlers.current.samplePointer(point.clientX, point.clientY, true, drag.start);
-      else pointerHandlers.current.resetSamplePreview();
+      if (point) pointerHandlers.current.samplePointer(point.clientX, point.clientY, true, drag.start, drag.role);
+      else pointerHandlers.current.resetSamplePreview(drag.role);
       if (img.hasPointerCapture(e.pointerId)) img.releasePointerCapture(e.pointerId);
     };
     const onLostCapture = (e: PointerEvent) => {
       if (!active || active.pointerId !== e.pointerId) return;
+      const role = active.role;
       active = null;
-      pointerHandlers.current.resetSamplePreview();
+      pointerHandlers.current.resetSamplePreview(role);
     };
     img.addEventListener("dragstart", preventNativeDrag);
-    img.addEventListener("pointerdown", onDown);
-    img.addEventListener("pointermove", onMove);
-    img.addEventListener("pointerup", onUp);
-    img.addEventListener("pointercancel", onUp);
-    img.addEventListener("lostpointercapture", onLostCapture);
+    surface.addEventListener("pointerdown", onDown);
+    surface.addEventListener("pointermove", onMove);
+    surface.addEventListener("pointerup", onUp);
+    surface.addEventListener("pointercancel", onUp);
+    surface.addEventListener("lostpointercapture", onLostCapture);
     return () => {
       if (active && img.hasPointerCapture(active.pointerId)) img.releasePointerCapture(active.pointerId);
       active = null;
-      img.style.pointerEvents = previousPointerEvents;
-      img.style.touchAction = previousTouchAction;
       img.removeEventListener("dragstart", preventNativeDrag);
-      img.removeEventListener("pointerdown", onDown);
-      img.removeEventListener("pointermove", onMove);
-      img.removeEventListener("pointerup", onUp);
-      img.removeEventListener("pointercancel", onUp);
-      img.removeEventListener("lostpointercapture", onLostCapture);
+      surface.removeEventListener("pointerdown", onDown);
+      surface.removeEventListener("pointermove", onMove);
+      surface.removeEventListener("pointerup", onUp);
+      surface.removeEventListener("pointercancel", onUp);
+      surface.removeEventListener("lostpointercapture", onLostCapture);
     };
-  }, [open, photoRef]);
+  }, [photoRef]);
 
   useEffect(() => {
     if (!simulateLoupe || !open || !crop || !photoBox || !imageSize) return;
@@ -352,7 +369,8 @@ export function TokenEditor({
           onOpenAutoFocus={(event) => event.preventDefault()}
           onPointerDownOutside={(event) => {
             // The sticky photo is an editing surface outside the sheet portal.
-            if (event.detail.originalEvent.target === photoRef?.current) event.preventDefault();
+            const target = event.detail.originalEvent.target as HTMLElement | null;
+            if (target === photoRef?.current || target?.closest?.("[data-pin-hit], [data-photo-back]")) event.preventDefault();
           }}
         >
           <SheetHeader>

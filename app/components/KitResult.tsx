@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
@@ -13,7 +13,7 @@ import { kitFromColors } from "@/lib/mascot";
 import { MOTION, MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { rolesFromColors } from "@/lib/tokens";
-import { clampPinCenter, coverWindowForPins, mapCoverPinRaw, objectPositionCss } from "@/lib/cover-pin";
+import { clampPinCenter, coverWindowForPins, mapCoverPin, objectPositionCss, PIN_HIT_SIZE_PX } from "@/lib/cover-pin";
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
 import { useKitDisplayName } from "./useKitDisplayName";
 import { SavedKitHeader } from "./SavedKitHeader";
@@ -31,6 +31,7 @@ import {
   PAPER,
   PHOTO_FOLD_CSS,
   PHOTO_FOLD_PX,
+  PHOTO_BACK_PX,
   PIN_HAIRLINE_S,
   pinDiscStyle,
 } from "@/lib/brand";
@@ -274,7 +275,7 @@ export function KitResult({
         lines.push(null);
         continue;
       }
-      const mapped = mapCoverPinRaw(row.pinX, row.pinY, width, height, box.w, box.h, crop);
+      const mapped = mapCoverPin(row.pinX, row.pinY, width, height, box.w, box.h, crop);
       if (!mapped) {
         lines.push(null);
         continue;
@@ -427,6 +428,9 @@ export function KitResult({
   const objectPosition = crop ? objectPositionCss(crop) : "50% 50%";
   const hideBrief = false;
   const safeTop = readSafeTop(photoRef.current);
+  const backBox = showBack && !saved
+    ? { left: 12, top: safeTop + 8, right: 12 + PHOTO_BACK_PX, bottom: safeTop + 8 + PHOTO_BACK_PX }
+    : null;
 
   return (
     <>
@@ -517,24 +521,40 @@ export function KitResult({
           <div className="pointer-events-none absolute inset-0 overflow-visible">
             {displayColors.map((c) => {
               if (!c.role || c.pinX == null || c.pinY == null) return null;
-              const mapped = mapCoverPinRaw(c.pinX, c.pinY, width, height, box.w, box.h, crop);
+              const mapped = mapCoverPin(c.pinX, c.pinY, width, height, box.w, box.h, crop);
               if (!mapped) return null;
-              const clamped = clampPinCenter(mapped.left * box.w, mapped.top * box.h, box.w, box.h, safeTop);
+              const x = mapped.left * box.w;
+              const y = mapped.top * box.h;
+              const hit = clampPinCenter(x, y, box.w, box.h, safeTop, PIN_HIT_SIZE_PX / 2, backBox);
               return (
-                <span
-                  key={`${c.role}-${c.position}`}
-                  data-pin={c.role}
-                  data-pin-x={c.pinX}
-                  data-pin-y={c.pinY}
-                  data-origin={c.origin ?? "extracted"}
-                  className="absolute rounded-full"
-                  style={{
-                    ...pinDiscStyle(c.hex),
-                    left: clamped.x,
-                    top: clamped.y,
-                    transform: "translate(-50%, -50%)",
-                  }}
-                />
+                <Fragment key={`${c.role}-${c.position}`}>
+                  <span
+                    data-pin={c.role}
+                    data-pin-x={c.pinX}
+                    data-pin-y={c.pinY}
+                    data-origin={c.origin ?? "extracted"}
+                    className="pointer-events-none absolute rounded-full"
+                    style={{
+                      ...pinDiscStyle(c.hex),
+                      left: x,
+                      top: y,
+                      transform: "translate(-50%, -50%)",
+                    }}
+                  />
+                  <span
+                    data-pin-hit={c.role}
+                    aria-hidden
+                    className="pointer-events-auto absolute rounded-full"
+                    style={{
+                      width: PIN_HIT_SIZE_PX,
+                      height: PIN_HIT_SIZE_PX,
+                      left: hit.x,
+                      top: hit.y,
+                      transform: "translate(-50%, -50%)",
+                      touchAction: "none",
+                    }}
+                  />
+                </Fragment>
               );
             })}
             {loupe ? (

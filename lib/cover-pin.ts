@@ -79,6 +79,9 @@ export function objectPositionCss(win: CoverWindow): string {
 }
 
 export const PIN_EDGE_MARGIN_PX = 16;
+export const PIN_HIT_SIZE_PX = PIN_EDGE_MARGIN_PX * 2;
+
+export type PinExclusion = { left: number; top: number; right: number; bottom: number };
 
 /** Map a 0–1 source pin onto an object-fit: cover box. Null if the pin was cropped away. */
 export function mapCoverPin(
@@ -117,7 +120,7 @@ export function mapCoverPinRaw(
   };
 }
 
-/** Clamp a pin disc center in box pixels. Sample point stays exact; this is display-only. */
+/** Clamp only the hit-area center. The disc must stay at the mapped sample point. */
 export function clampPinCenter(
   leftPx: number,
   topPx: number,
@@ -125,6 +128,7 @@ export function clampPinCenter(
   boxH: number,
   safeTopPx = 0,
   marginPx = PIN_EDGE_MARGIN_PX,
+  avoid?: PinExclusion | null,
 ): { x: number; y: number } {
   if (!Number.isFinite(boxW) || !Number.isFinite(boxH) || boxW <= 0 || boxH <= 0) {
     return { x: leftPx, y: topPx };
@@ -135,10 +139,24 @@ export function clampPinCenter(
   const maxX = Math.max(inset, boxW - inset);
   const minY = inset + safe;
   const maxY = Math.max(minY, boxH - inset);
-  return {
+  const center = {
     x: clamp(leftPx, minX, maxX),
     y: clamp(topPx, minY, maxY),
   };
+  // Clear the entire control, including the hit area's half-size. Choose the
+  // closest available side so a sample under Back can still be grabbed.
+  if (avoid && center.x + inset > avoid.left && center.x - inset < avoid.right &&
+    center.y + inset > avoid.top && center.y - inset < avoid.bottom) {
+    const candidates = [
+      { x: avoid.left - inset, y: center.y },
+      { x: avoid.right + inset, y: center.y },
+      { x: center.x, y: avoid.top - inset },
+      { x: center.x, y: avoid.bottom + inset },
+    ].filter(({ x, y }) => x >= minX && x <= maxX && y >= minY && y <= maxY);
+    candidates.sort((a, b) => Math.hypot(a.x - center.x, a.y - center.y) - Math.hypot(b.x - center.x, b.y - center.y));
+    return candidates[0] ?? center;
+  }
+  return center;
 }
 
 /** Map a pointer on an object-fit: cover box to 0–1 source coordinates. */

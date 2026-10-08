@@ -131,8 +131,8 @@ describe("legacy padded roles", () => {
   }, 30_000);
 });
 
-describe("r5 pin edge clamp", () => {
-  it("keeps disc centers 16px from edges plus safe-area top", () => {
+describe("r5 pin hit-area clamp", () => {
+  it("keeps hit areas 16px from edges plus safe-area top without moving the sample", () => {
     expect(PIN_EDGE_MARGIN_PX).toBe(16);
     const raw = mapCoverPinRaw(0.5, 0.0, 100, 100, 390, 337);
     expect(raw).not.toBeNull();
@@ -140,6 +140,7 @@ describe("r5 pin edge clamp", () => {
     expect(clamped.y).toBeGreaterThanOrEqual(16 + 47);
     expect(clamped.x).toBeGreaterThanOrEqual(16);
     expect(clamped.x).toBeLessThanOrEqual(390 - 16);
+    expect(raw!.top * 337).toBeLessThan(0); // cropped samples must not become clamped discs
   });
 });
 

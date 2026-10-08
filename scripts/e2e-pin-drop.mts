@@ -196,7 +196,13 @@ async function runDrop(page: Page, cdp: CDPSession | null, photo: string, input:
     const before = await readSaved(page, role);
     const frame = await readFrame(page);
     row.before = before; row.frame = frame;
-    const start = { x: Math.round(before.screen.x), y: Math.round(before.screen.y) };
+    if (before.pinX === null || before.pinY === null) throw new Error("Missing source pin for drag start");
+    // Start the same-spot regression at the actual source point in this crop,
+    // independently of any offset hit area (or a regressed clamped disc).
+    const start = {
+      x: frame.rect.x + (before.pinX - frame.crop.vx) / frame.crop.vw * frame.rect.width,
+      y: frame.rect.y + (before.pinY - frame.crop.vy) / frame.crop.vh * frame.rect.height,
+    };
     const positions = [{ x: 0.28, y: 0.32 }, { x: 0.70, y: 0.50 }, { x: 0.42, y: 0.70 }];
     const destination = positions[n - 2];
     const release = destination ? { x: Math.round(frame.rect.x + frame.rect.width * destination.x),
