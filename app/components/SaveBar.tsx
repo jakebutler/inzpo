@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { addToCollectionAndReturnId } from "@/app/actions/collections";
 import { MOTION, MOTION_CSS } from "@/lib/motion";
 import { canSaveKit } from "@/lib/save-kit";
+import { observeSaveBarHeight, SAVE_BAR_FADE_HEIGHT } from "@/lib/layout";
 
 const LAST_COLLECTION_KEY = "inzpo-last-collection";
 
@@ -39,7 +40,12 @@ export function SaveBar({
   const [creating, setCreating] = useState(false);
   const [pending, startTransition] = useTransition();
   const checkRef = useRef<HTMLSpanElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
   const collectionReady = Boolean(selected || newName.trim() || collections[0]);
+
+  useEffect(() => {
+    if (barRef.current) return observeSaveBarHeight(barRef.current);
+  }, []);
 
   useEffect(() => {
     const last = window.localStorage.getItem(LAST_COLLECTION_KEY);
@@ -84,10 +90,10 @@ export function SaveBar({
   }
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30" data-save-bar>
+    <div ref={barRef} className="pointer-events-none fixed inset-x-0 bottom-0 z-30" data-save-bar>
       <div
-        className="pointer-events-none absolute inset-x-0 bottom-full h-12"
-        style={{ background: "linear-gradient(to bottom, transparent, var(--background))" }}
+        className="pointer-events-none absolute inset-x-0 bottom-full"
+        style={{ height: SAVE_BAR_FADE_HEIGHT, background: "linear-gradient(to bottom, transparent, var(--background))" }}
         aria-hidden
       />
       <div className="pointer-events-auto relative bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
