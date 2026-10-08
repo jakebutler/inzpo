@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hexToLab, MIN_ROLE_DELTA_E, roleDeltaE } from "@/lib/color-distance";
-import { snapNamedColors } from "@/lib/named-color-snap";
+import { chipsDistinctFromRoles, snapNamedColors } from "@/lib/named-color-snap";
 import { MIN_ROLE_PATCH } from "@/lib/palette-extract";
 
 function region(hex: string, patch = 0.1, pinX = 0.2, pinY = 0.3) {
@@ -93,5 +93,18 @@ describe("named colour snapping", () => {
     const boundary = { ...siding, lab: [lab[0] + MIN_ROLE_DELTA_E, lab[1], lab[2]] as typeof lab };
     expect(snapNamedColors(named, [boundary], [filled])).toHaveLength(1);
     expect(snapNamedColors(named, [{ ...boundary, lab: [lab[0] + 11.99, lab[1], lab[2]] }], [filled])).toEqual([]);
+  });
+});
+
+describe("chipsDistinctFromRoles", () => {
+  const sky = { hex: "#778bae", label: "blue sky", source: "region", pinX: 0.1, pinY: 0.1 };
+  it("hides a chip once a filled role is dragged onto a near-identical sample", () => {
+    expect(chipsDistinctFromRoles([sky], ["#7a8db0", "#050404"])).toEqual([]);
+  });
+  it("keeps a chip that stays distinct from every filled role", () => {
+    expect(chipsDistinctFromRoles([sky], ["#426092", "#050404", "#d0c7b2"])).toEqual([sky]);
+  });
+  it("keeps chips when nothing is filled", () => {
+    expect(chipsDistinctFromRoles([sky], [])).toEqual([sky]);
   });
 });

@@ -23,6 +23,7 @@ import { saveItemTokensAction } from "@/app/actions/tokens";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { chipCopy, chipNoun, EMPTY_ROLE_COPY, parseNamedColors, type NamedColor } from "@/lib/brief-copy";
 import { PaletteBands } from "@/app/components/PaletteBands";
+import { chipsDistinctFromRoles } from "@/lib/named-color-snap";
 import { ContrastAa } from "./ContrastAa";
 import { CHIP_SWATCH_PX, INK, PAPER } from "@/lib/brand";
 
@@ -118,7 +119,7 @@ export function TokenEditor({
       .map((hex) => hex.toLowerCase()),
   );
   const chips = COLOR_ROLES.some((role) => !roles[role])
-    ? parseNamedColors(namedColors).filter((c) => !filledHex.has(c.hex.toLowerCase()))
+    ? chipsDistinctFromRoles(parseNamedColors(namedColors), filledHex)
     : [];
 
   function setOpenRole(role: ColorRole | null) {
