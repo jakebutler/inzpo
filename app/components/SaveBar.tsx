@@ -49,11 +49,11 @@ export function SaveBar({
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30" data-save-bar>
       <div
-        className="pointer-events-none h-16 w-full"
+        className="pointer-events-none absolute inset-x-0 bottom-full h-12"
         style={{ background: "linear-gradient(to bottom, transparent, var(--background))" }}
         aria-hidden
       />
-      <div className="pointer-events-auto bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
+      <div className="pointer-events-auto relative bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
         <div className="mx-auto flex max-w-xl items-center gap-3">
           <button
             type="button"

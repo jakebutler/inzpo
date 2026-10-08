@@ -138,6 +138,7 @@ export function TokenEditor({
             <button
               key={color.hex}
               type="button"
+              data-named-chip
               className="min-h-11 border border-dashed border-current px-3 text-base"
               style={{
                 animation: `inzpo-chip-in ${chipAnim} both`,

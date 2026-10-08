@@ -81,7 +81,7 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
-    --inzpo-save-bar: 6rem;
+    --inzpo-save-bar: 8.5rem;
 }
 
 @keyframes inzpo-chip-in {
@@ -133,9 +133,8 @@
   line-height: 1;
 }
 .inzpo-band-empty {
-  border: 1px dashed #1C1B19;
+  border: 1px dashed currentColor;
   background: transparent;
-  color: #1C1B19;
   font-size: 14px;
   line-height: 1.2;
 }

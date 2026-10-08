@@ -34,4 +34,11 @@ describe("band and save contrast", () => {
     expect(contrastRatio(save.fill, "#d1cda4")).toBeGreaterThanOrEqual(3);
     expect([INK, PAPER, "#6b6656"]).toContain(save.fill);
   });
+
+  it("picks a light label for an empty band on a dark page", async () => {
+    const { bandLabelColor } = await import("@/lib/contrast");
+    const kit = { ...emptyRoles(), background: "#384b5f", text: "#bec6cd", primary: "#7fafd4" };
+    const ink = bandLabelColor("#384b5f", kit);
+    expect(contrastRatio(ink, "#384b5f")).toBeGreaterThanOrEqual(4.5);
+  });
 });

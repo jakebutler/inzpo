@@ -5,7 +5,7 @@ import { BAND_H_EDITOR, BAND_H_RESULT, BAND_STAGGER_S, INK, PAPER, VERMILION } f
 describe("result fold tokens", () => {
   it("caps the photo at 45svh and uses stacked band heights", () => {
     expect(PHOTO_MAX_SVH).toBe("45svh");
-    expect(SAVE_BAR_PAD).toContain("6.5rem");
+    expect(SAVE_BAR_PAD).toContain("8.5rem");
     expect(BAND_H_RESULT).toBe(40);
     expect(BAND_H_EDITOR).toBe(56);
     expect(BAND_STAGGER_S * 6 + 0.32).toBeLessThan(1);

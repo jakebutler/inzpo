@@ -27,6 +27,7 @@ export function PaletteBands({
       {COLOR_ROLES.map((role, i) => {
         const hex = roles[role];
         if (!hex) {
+          const emptyInk = bandLabelColor(pageBackground, roles);
           return (
             <button
               key={role}
@@ -38,7 +39,11 @@ export function PaletteBands({
               onClick={() => onPick?.(role)}
               aria-label={EMPTY_ROLE_COPY(role)}
               className="inzpo-band inzpo-band-empty"
-              style={{ height, transitionDuration: `${MOTION_CSS.tapMs}ms` }}
+              style={{
+                height,
+                color: emptyInk,
+                transitionDuration: `${MOTION_CSS.tapMs}ms`,
+              }}
             >
               {EMPTY_ROLE_COPY(role)}
             </button>

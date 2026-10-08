@@ -26,8 +26,14 @@ export function BandStripe({
         {COLOR_ROLES.map((role) => {
           const hex = roles[role];
           if (!hex) {
+            const emptyInk = bandLabelColor(PAPER, roles);
             return (
-              <span key={role} className="inzpo-band inzpo-band-empty inzpo-band-stripe" title={EMPTY_ROLE_COPY(role)}>
+              <span
+                key={role}
+                className="inzpo-band inzpo-band-empty inzpo-band-stripe"
+                title={EMPTY_ROLE_COPY(role)}
+                style={{ color: emptyInk }}
+              >
                 <span className="sr-only">{EMPTY_ROLE_COPY(role)}</span>
               </span>
             );
