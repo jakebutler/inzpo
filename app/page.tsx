@@ -39,7 +39,7 @@ export default async function Wall({
           style={{ paddingTop: collectionId ? "calc(env(safe-area-inset-top, 0px) + 8px)" : undefined }}
         >
           <div className="flex min-w-0 items-center gap-2">
-            {collectionId ? <PhotoBackButton href="/capture" placement="header" /> : null}
+            {collectionId ? <PhotoBackButton href="/" placement="header" /> : null}
             <h1 className="font-heading text-2xl">
               {collectionId ? collections.find((c) => c.id === collectionId)?.name ?? "Collection" : "Wall"}
             </h1>

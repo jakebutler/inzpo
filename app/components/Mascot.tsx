@@ -10,6 +10,7 @@ import {
   type MascotKit,
   type MascotPose,
 } from "@/lib/mascot";
+import type { BakuSrcPose } from "@/lib/baku-v6";
 import {
   BAKU_BODY_D,
   BAKU_SEAM_DS,
@@ -24,7 +25,7 @@ import "./mascot.css";
 const STRIPE_CLASS = COLOR_ROLES.map((role) => `baku-stripe baku-stripe-${role}`);
 
 export type MascotProps = {
-  pose: MascotPose;
+  pose: MascotPose | BakuSrcPose;
   kit?: MascotKit | null;
   size?: number;
   /** Set true once Snap can be tapped. Loads the Rive runtime then; SVG stays up until it arrives. */
@@ -66,7 +67,7 @@ export function Mascot({
     };
   }, [snapReady]);
 
-  if (rive) {
+  if (rive && pose !== "404" && pose !== "error-photo") {
     return rive.render({ pose, kit: colors, size });
   }
 

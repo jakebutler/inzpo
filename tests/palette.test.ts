@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { COLOR_ROLES } from "@/lib/db/schema";
-import { areaAverage, contrastRatio, extractPalette, textOnBackgroundContrast } from "@/lib/palette-extract";
+import { areaAverage, contrastRatio, extractPalette, fillMissingRoles, textOnBackgroundContrast } from "@/lib/palette-extract";
+import { markDerivedRoles } from "@/lib/derived-roles";
+import { emptyRoles } from "@/lib/tokens";
 import { chooseTextureCrop } from "@/lib/texture";
 import { designTokenColors, moveRole, rolesFromColors, setRoleColor } from "@/lib/tokens";
 
@@ -49,33 +51,52 @@ async function subjectOnField(): Promise<Buffer> {
     .toBuffer();
 }
 
-describe("extractPalette empty roles", () => {
-  it("stores a single-color photo as background only", async () => {
+describe("extractPalette fills all six roles", () => {
+  it("pads a single-color photo to six roles with AA contrast", async () => {
     const palette = await extractPalette(await solid("#6b6656"));
-    expect(palette.swatches.length).toBeGreaterThanOrEqual(1);
-    expect(palette.roles.background).toBeTruthy();
-    expect(palette.roles.text).toBeNull();
-    expect(palette.contrast).toBeNull();
-    expect(textOnBackgroundContrast(palette.roles)).toBeNull();
-    const filled = COLOR_ROLES.filter((role) => palette.roles[role] !== null);
-    expect(filled).toEqual(["background"]);
+    expect(palette.swatches.length).toBeGreaterThanOrEqual(6);
+    for (const role of COLOR_ROLES) {
+      expect(palette.roles[role]).toBeTruthy();
+    }
+    expect(palette.contrast).not.toBeNull();
+    expect(palette.contrast!).toBeGreaterThanOrEqual(4.5);
+    expect(textOnBackgroundContrast(palette.roles)!).toBeGreaterThanOrEqual(4.5);
+    const derived = markDerivedRoles(
+      palette.swatches.map((s, position) => ({
+        hex: s.hex,
+        role: s.role,
+        pinX: s.pinX,
+        pinY: s.pinY,
+        position,
+      })),
+    );
+    expect(derived.some((row) => row.derivedFrom != null)).toBe(true);
   });
 
-  it("does not invent colors to pad six roles", async () => {
+  it("fills leftover roles as auto tints and keeps contrast at 4.5:1", async () => {
     const palette = await extractPalette(await split("#1a1a1a", "#e8e0c8"));
     const filled = COLOR_ROLES.filter((role) => palette.roles[role] !== null);
-    expect(filled.length).toBeGreaterThanOrEqual(2);
-    expect(filled.length).toBeLessThanOrEqual(palette.swatches.length);
-    expect(filled).toContain("background");
-    expect(filled).toContain("text");
+    expect(filled).toEqual([...COLOR_ROLES]);
     expect(palette.contrast).not.toBeNull();
-    expect(palette.contrast!).toBeGreaterThan(4.5);
+    expect(palette.contrast!).toBeGreaterThanOrEqual(4.5);
+    const derived = markDerivedRoles(
+      palette.swatches.map((s, position) => ({
+        hex: s.hex,
+        role: s.role,
+        pinX: s.pinX,
+        pinY: s.pinY,
+        position,
+      })),
+    );
+    expect(derived.filter((row) => row.derivedFrom).length).toBeGreaterThanOrEqual(1);
     for (const swatch of palette.swatches) {
       expect(swatch.pinX).toBeGreaterThanOrEqual(0);
       expect(swatch.pinX).toBeLessThanOrEqual(1);
       expect(swatch.pinY).toBeGreaterThanOrEqual(0);
       expect(swatch.pinY).toBeLessThanOrEqual(1);
     }
+    const padded = fillMissingRoles([], emptyRoles());
+    expect(COLOR_ROLES.every((role) => padded.roles[role])).toBe(true);
   });
 });
 

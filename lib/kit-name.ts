@@ -9,6 +9,26 @@ const STREET =
   /\b(street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|highway|hwy|address)\b/i;
 const COLOR_WORDS =
   /\b(red|orange|yellow|gold|green|teal|blue|purple|pink|brown|black|white|gray|grey|cream|beige)\b/i;
+const STOPWORDS = new Set([
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "of",
+  "with",
+  "its",
+  "this",
+  "that",
+  "from",
+  "into",
+  "onto",
+  "for",
+  "on",
+  "in",
+  "at",
+  "to",
+]);
 
 export function isCameraFilename(filename: string | null | undefined): boolean {
   if (!filename) return false;
@@ -45,7 +65,13 @@ function subjectFromBrief(briefText: string | null | undefined): string | null {
   if (!briefText) return null;
   const cleaned = briefText.replace(/[^\p{L}\s]/gu, " ").replace(/\s+/g, " ").trim();
   if (!cleaned) return null;
-  const words = cleaned.split(" ").filter((word) => word.length > 2 && !COLOR_WORDS.test(word) && !STREET.test(word));
+  const words = cleaned.split(" ").filter(
+    (word) =>
+      word.length > 2 &&
+      !COLOR_WORDS.test(word) &&
+      !STREET.test(word) &&
+      !STOPWORDS.has(word.toLowerCase()),
+  );
   const pick = words.find((word) => /^[A-Z]/.test(word)) ?? words[0];
   if (!pick) return null;
   return pick.toLowerCase();
@@ -77,4 +103,17 @@ export function kitDisplayName(input: {
   if (color && subject && subject !== color) return titleCase(`${color} ${subject}`);
   if (subject) return titleCase(subject);
   return UNTITLED_KIT;
+}
+
+/** Short photo alt from the kit name; never a camera filename or Untitled kit. */
+export function kitAltText(input: {
+  title?: string | null;
+  briefText?: string | null;
+  namedColors?: NamedColor[];
+  pending?: boolean;
+}): string {
+  if (input.pending) return "Photo";
+  const name = kitDisplayName({ ...input, pending: false });
+  if (name === UNTITLED_KIT) return "Photo";
+  return name;
 }

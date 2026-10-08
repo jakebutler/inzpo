@@ -1,6 +1,6 @@
 import "server-only";
 import sharp from "sharp";
-import { hexToFamily, rgbToHex, type ColorFamily } from "@/lib/colors";
+import { hexToFamily, hexToHsv, hexToRgb, hsvToHex, rgbToHex, type ColorFamily } from "@/lib/colors";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { contrastRatio } from "@/lib/contrast";
 import { emptyRoles, type RoleColors } from "@/lib/tokens";
@@ -218,6 +218,103 @@ function assignRoles(swatches: PaletteSwatch[]): RoleColors {
   return roles;
 }
 
+function deriveHex(base: string, lightnessDelta: number): string {
+  const hsv = hexToHsv(base);
+  const v = Math.max(0.08, Math.min(0.95, hsv.v + lightnessDelta));
+  const s = Math.max(0.08, Math.min(1, hsv.s * (lightnessDelta > 0 ? 0.82 : 1.08)));
+  return hsvToHex(hsv.h, s, v);
+}
+
+function swatchFromHex(hex: string, role: ColorRole): PaletteSwatch {
+  const { r, g, b } = hexToRgb(hex);
+  const family = hexToFamily(hex);
+  return {
+    hex,
+    share: 0,
+    patch: 0,
+    pinX: 0.5,
+    pinY: 0.5,
+    lab: rgbToLab(r, g, b),
+    score: 0,
+    family,
+    name: family,
+    role,
+  };
+}
+
+function ensureTextBackgroundContrast(text: string, background: string): { text: string; background: string } {
+  let t = text;
+  let bg = background;
+  for (let i = 0; i < 28; i++) {
+    if (contrastRatio(t, bg) >= TARGET_CONTRAST) return { text: t, background: bg };
+    const th = hexToHsv(t);
+    const bh = hexToHsv(bg);
+    t = hsvToHex(th.h, th.s, Math.max(0, th.v - 0.05));
+    bg = hsvToHex(bh.h, Math.max(0, bh.s * 0.98), Math.min(1, bh.v + 0.05));
+  }
+  if (contrastRatio(t, bg) >= TARGET_CONTRAST) return { text: t, background: bg };
+  const dark = "#0a0a0a";
+  const light = "#f7f4ee";
+  if (contrastRatio(dark, bg) >= TARGET_CONTRAST && contrastRatio(dark, bg) >= contrastRatio(light, bg)) {
+    return { text: dark, background: bg };
+  }
+  if (contrastRatio(light, bg) >= TARGET_CONTRAST) return { text: light, background: bg };
+  const bgForDark = contrastRatio(dark, "#f7f4ee") >= TARGET_CONTRAST ? "#f7f4ee" : "#111111";
+  return { text: dark, background: bgForDark };
+}
+
+function replaceRoleHex(swatches: PaletteSwatch[], role: ColorRole, hex: string): void {
+  const row = swatches.find((s) => s.role === role);
+  if (row) {
+    row.hex = hex;
+    row.family = hexToFamily(hex);
+    row.name = row.family;
+    const rgb = hexToRgb(hex);
+    row.lab = rgbToLab(rgb.r, rgb.g, rgb.b);
+    return;
+  }
+  swatches.push(swatchFromHex(hex, role));
+}
+
+/** Fill every token role. Derived tints sit on the center pin so markDerivedRoles tags them auto. */
+export function fillMissingRoles(swatches: PaletteSwatch[], roles: RoleColors): { swatches: PaletteSwatch[]; roles: RoleColors } {
+  const nextRoles = { ...roles };
+  const nextSwatches = swatches.slice();
+  if (!nextRoles.background) {
+    const bg = nextSwatches[0];
+    if (bg) {
+      bg.role = "background";
+      nextRoles.background = bg.hex;
+    } else {
+      nextRoles.background = "#6b6656";
+      nextSwatches.push(swatchFromHex(nextRoles.background, "background"));
+    }
+  }
+  if (!nextRoles.text) {
+    const bg = nextRoles.background!;
+    const dark = deriveHex(bg, -0.45);
+    const light = deriveHex(bg, 0.42);
+    nextRoles.text = contrastRatio(dark, bg) >= contrastRatio(light, bg) ? dark : light;
+    nextSwatches.push(swatchFromHex(nextRoles.text, "text"));
+  }
+  const deltas = [0.18, -0.16, 0.3, -0.28];
+  const sources = COLOR_ROLES.filter((role) => nextRoles[role]);
+  const leftover = COLOR_ROLES.filter((role) => !nextRoles[role]);
+  leftover.forEach((role, i) => {
+    const srcRole = sources[i % sources.length] ?? "background";
+    const base = nextRoles[srcRole] ?? nextRoles.background!;
+    const hex = deriveHex(base, deltas[i % deltas.length]!);
+    nextRoles[role] = hex;
+    nextSwatches.push(swatchFromHex(hex, role));
+  });
+  const fixed = ensureTextBackgroundContrast(nextRoles.text!, nextRoles.background!);
+  nextRoles.text = fixed.text;
+  nextRoles.background = fixed.background;
+  replaceRoleHex(nextSwatches, "text", fixed.text);
+  replaceRoleHex(nextSwatches, "background", fixed.background);
+  return { swatches: nextSwatches, roles: nextRoles };
+}
+
 export async function extractPalette(input: Buffer): Promise<ExtractedPalette> {
   const { data, info } = await sharp(input)
     .rotate()
@@ -324,13 +421,15 @@ export async function extractPalette(input: Buffer): Promise<ExtractedPalette> {
     };
     const roles = emptyRoles();
     roles.background = hex;
-    return { swatches: [only], roles, contrast: null };
+    const filled = fillMissingRoles([only], roles);
+    const contrast = contrastRatio(filled.roles.text!, filled.roles.background!);
+    return { swatches: filled.swatches, roles: filled.roles, contrast };
   }
 
-  const roles = assignRoles(swatches);
-  const contrast =
-    roles.text && roles.background ? contrastRatio(roles.text, roles.background) : null;
-  return { swatches, roles, contrast };
+  const assigned = assignRoles(swatches);
+  const filled = fillMissingRoles(swatches, assigned);
+  const contrast = contrastRatio(filled.roles.text!, filled.roles.background!);
+  return { swatches: filled.swatches, roles: filled.roles, contrast };
 }
 
 export async function areaAverage(

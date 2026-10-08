@@ -64,6 +64,51 @@ function readGray(data: Uint8ClampedArray, i: number, channels: number): number 
 }
 
 /** Tint sprite pixels in place using a same-size grayscale index mask. */
+/**
+ * Replace pale fringe on semi-transparent edges with the nearest opaque body's RGB.
+ * Cheap premultiply-edge fix for cream halos over navy bands.
+ */
+export function defringePremulEdges(
+  pixels: Uint8ClampedArray,
+  width: number,
+  height: number,
+  channels: number,
+  opaqueMin = 250,
+  fringeMax = 220,
+): void {
+  if (width < 1 || height < 1 || channels < 4) return;
+  const copy = new Uint8ClampedArray(pixels);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * channels;
+      const a = copy[i + 3] ?? 0;
+      if (a === 0 || a >= opaqueMin || a > fringeMax) continue;
+      let found = false;
+      for (let oy = -1; oy <= 1 && !found; oy++) {
+        for (let ox = -1; ox <= 1; ox++) {
+          if (ox === 0 && oy === 0) continue;
+          const nx = x + ox;
+          const ny = y + oy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          const ni = (ny * width + nx) * channels;
+          if ((copy[ni + 3] ?? 0) < opaqueMin) continue;
+          pixels[i] = copy[ni] ?? 0;
+          pixels[i + 1] = copy[ni + 1] ?? 0;
+          pixels[i + 2] = copy[ni + 2] ?? 0;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        const scale = a / 255;
+        pixels[i] = Math.round((pixels[i] ?? 0) * scale);
+        pixels[i + 1] = Math.round((pixels[i + 1] ?? 0) * scale);
+        pixels[i + 2] = Math.round((pixels[i + 2] ?? 0) * scale);
+      }
+    }
+  }
+}
+
 export function tintSpriteWithBands(
   sprite: Uint8ClampedArray,
   bands: Uint8ClampedArray,

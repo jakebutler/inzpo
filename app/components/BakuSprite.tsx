@@ -13,9 +13,10 @@ import {
   bakuV6ColorSrc,
   bakuV6PoseSrc,
   type BakuDensity,
+  type BakuSrcPose,
 } from "@/lib/baku-v6";
-import { multiplyShadowPixels, tintRoles, tintSpriteWithBands } from "@/lib/baku-tint";
-import { kitForPose, kitHasPalette, type MascotKit, type MascotPose } from "@/lib/mascot";
+import { defringePremulEdges, multiplyShadowPixels, tintRoles, tintSpriteWithBands } from "@/lib/baku-tint";
+import { kitForPose, kitHasPalette, type MascotKit } from "@/lib/mascot";
 import { prefersReducedMotion } from "@/lib/motion";
 import { PAPER } from "@/lib/brand";
 
@@ -31,7 +32,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 async function composeTint(
-  pose: MascotPose,
+  pose: BakuSrcPose,
   density: BakuDensity,
   colors: Array<string | null>,
 ): Promise<string> {
@@ -48,6 +49,7 @@ async function composeTint(
   ctx.drawImage(bandImg, 0, 0, canvas.width, canvas.height);
   const bands = ctx.getImageData(0, 0, canvas.width, canvas.height);
   tintSpriteWithBands(sprite.data, bands.data, canvas.width, canvas.height, 4, 4, colors);
+  defringePremulEdges(sprite.data, canvas.width, canvas.height, 4);
   ctx.putImageData(sprite, 0, 0);
   return canvas.toDataURL("image/png");
 }
@@ -61,6 +63,7 @@ async function bakeShadow(src: string, ground: string): Promise<string> {
   if (!ctx) throw new Error("No 2d context");
   ctx.drawImage(img, 0, 0);
   const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  defringePremulEdges(data.data, canvas.width, canvas.height, 4);
   multiplyShadowPixels(
     data.data,
     canvas.width,
@@ -93,7 +96,7 @@ export function BakuSprite({
   ground = PAPER,
   fallback,
 }: {
-  pose: MascotPose;
+  pose: BakuSrcPose;
   kit?: MascotKit | null;
   size: number;
   revealedCount?: number | null;
@@ -101,7 +104,7 @@ export function BakuSprite({
   ground?: string;
   fallback: ReactNode;
 }) {
-  const colors = kitForPose(pose, kit);
+  const colors = kitForPose(pose as "idle" | "chewing" | "success" | "empty" | "error-brief" | "error-unreadable" | "404" | "error-photo", kit);
   const density = useDensity();
   const canTint = bakuCanTint(pose) && kitHasPalette(colors);
   const paletteKey = COLOR_ROLES.map((role) => colors[role] ?? "").join(",");

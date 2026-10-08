@@ -15,7 +15,7 @@ import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { rolesFromColors } from "@/lib/tokens";
 import { clampPinCenter, coverWindowForPins, mapCoverPinRaw, objectPositionCss } from "@/lib/cover-pin";
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
-import { kitDisplayName } from "@/lib/kit-name";
+import { kitAltText, kitDisplayName } from "@/lib/kit-name";
 import { SAVE_BAR_PAD } from "@/lib/layout";
 import { kitWearStyle } from "@/lib/kit-wear";
 import { claimRevealPlay, type RevealMode } from "@/lib/reveal";
@@ -312,7 +312,7 @@ export function KitResult({
         gsap.ticker.add(syncHairlines);
         return () => gsap.ticker.remove(syncHairlines);
       }
-      gsap.set(bands, { y: stack, opacity: 1 });
+      gsap.set(bands, { y: 8, opacity: 0 });
       revealNow();
       setLinePulse(true);
       const tl = gsap.timeline({
@@ -320,7 +320,7 @@ export function KitResult({
         onUpdate: syncHairlines,
       });
       bands.forEach((band, i) => {
-        tl.to(band, { y: 0 }, i * BAND_STAGGER_S);
+        tl.to(band, { y: 0, opacity: 1 }, i * BAND_STAGGER_S);
         tl.add(() => setStripeCount(i + 1), i * BAND_STAGGER_S);
       });
       gsap.ticker.add(syncHairlines);
@@ -396,7 +396,12 @@ export function KitResult({
             <img
               ref={imgRef}
               src={imageSrc}
-              alt={displayTitle}
+              alt={kitAltText({
+                title,
+                briefText: brief.text,
+                namedColors: brief.namedColors,
+                pending: brief.status === "pending" || brief.stub,
+              })}
               className="h-full w-full object-cover"
               style={{ filter: "none", objectPosition, touchAction: editOpen ? "none" : undefined }}
               crossOrigin="anonymous"

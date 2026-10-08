@@ -52,7 +52,7 @@ export const MASCOT_COPY = {
 
 export type MascotCopyKey = keyof typeof MASCOT_COPY;
 
-/** #53 handoff palettes, token order. IMG_6208 has four real swatches — empty roles stay null. */
+/** #53 handoff palettes, token order. Extract pads leftover roles as auto tints. */
 export const HANDOFF_KITS = {
   IMG_6505: {
     primary: "#6b6656",
@@ -108,8 +108,8 @@ export function waitBeforeShow(moment: MascotMoment): boolean {
  * error-unreadable and empty (no kit yet) go back to a cream coat.
  * Idle keeps the palette once a kit has been eaten (arrived brief).
  */
-export function kitForPose(pose: MascotPose, kit: MascotKit | null | undefined): MascotKit {
-  if (pose === "error-unreadable" || pose === "empty") {
+export function kitForPose(pose: MascotPose | "404" | "error-photo", kit: MascotKit | null | undefined): MascotKit {
+  if (pose === "error-unreadable" || pose === "empty" || pose === "404" || pose === "error-photo") {
     return emptyKit();
   }
   if (pose === "idle" && !kitHasPalette(kit ?? emptyKit())) {

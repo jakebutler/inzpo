@@ -19,7 +19,7 @@ import { BriefSlot } from "@/app/components/BriefSlot";
 import { KitChrome } from "@/app/components/KitChrome";
 import { SavedKitHeader } from "@/app/components/SavedKitHeader";
 import { kitFromColors } from "@/lib/mascot";
-import { kitDisplayName } from "@/lib/kit-name";
+import { kitAltText, kitDisplayName } from "@/lib/kit-name";
 import { rolesFromColors } from "@/lib/tokens";
 import { listCollections } from "@/lib/collections";
 
@@ -116,7 +116,7 @@ export default async function ItemDetailPage({
         {item.media?.displayKey ? (
           <img
             src={`/media/${item.media.displayKey}`}
-            alt={item.title ?? "Item"}
+            alt={kitAltText({ title: item.title, briefText: item.note })}
             className="w-full rounded-xl bg-neutral-900"
           />
         ) : null}

@@ -53,7 +53,7 @@ export async function loadFoldKit(which: FoldPhoto = "IMG_6505"): Promise<FoldKi
     const palette = await extractPalette(buffer);
     const colors: Array<Omit<FoldColor, "derivedFrom">> = [];
     COLOR_ROLES.forEach((role, position) => {
-      const hex = which === "IMG_6208" ? fallbackKit[role] : palette.roles[role];
+      const hex = palette.roles[role] ?? fallbackKit[role];
       if (!hex) return;
       const swatch =
         palette.swatches.find((row) => row.role === role) ??
