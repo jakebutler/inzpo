@@ -4,7 +4,7 @@
     "slug": "inzpo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icon-1024.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
@@ -12,15 +12,14 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#F3EEE4",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/adaptive-foreground-1024.png",
+        "backgroundColor": "#1C1B19"
       },
       "predictiveBackGestureEnabled": false,
       "package": "io.inzpo.app"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon-32.png"
     },
     "plugins": [
       "expo-router",
@@ -37,9 +36,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F3EEE4",
-          "image": "./assets/baku-v6/baku-idle-color.png",
-          "imageWidth": 96,
+          "backgroundColor": "#1C1B19",
+          "image": "./assets/adaptive-foreground-1024.png",
+          "imageWidth": 200,
           "resizeMode": "contain"
         }
       ],
