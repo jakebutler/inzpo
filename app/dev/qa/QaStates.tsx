@@ -246,8 +246,34 @@ export function QaStates({ issue, state }: { issue: string; state: string }) {
             </header>
           </div>
         ) : null}
+        {state === "result-texture" ? (
+          <section className="mt-8">
+            <div
+              className="h-40 overflow-hidden rounded-xl border border-border"
+              style={{
+                backgroundImage:
+                  "linear-gradient(45deg, #6b6656 25%, #d1cda4 25%, #d1cda4 50%, #6b6656 50%, #6b6656 75%, #d1cda4 75%)",
+                backgroundSize: "256px 256px",
+              }}
+              aria-label="Texture tile"
+            />
+            <button type="button" className="mt-2 min-h-11 text-sm text-muted-foreground">
+              Move crop
+            </button>
+          </section>
+        ) : null}
         {state === "kit-edit" ? (
-          <TokenEditor itemId="qa" imageSrc={null} colors={colorsFromKit(HANDOFF_KITS.IMG_6505)} initialOpen="primary" />
+          <TokenEditor
+            itemId="qa"
+            imageSrc={
+              "data:image/svg+xml," +
+              encodeURIComponent(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500"><rect fill="#6b6656" width="400" height="500"/></svg>',
+              )
+            }
+            colors={colorsFromKit(HANDOFF_KITS.IMG_6505)}
+            initialOpen="primary"
+          />
         ) : null}
         {state === "kit-export" ? (
           <header className="mt-8 flex items-center justify-between">

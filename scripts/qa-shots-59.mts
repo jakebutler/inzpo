@@ -20,6 +20,7 @@ const STATES = [
   "kit-export",
   "kit-chips",
   "brief-pending",
+  "result-texture",
 ] as const;
 
 async function main(): Promise<void> {
@@ -47,6 +48,7 @@ async function main(): Promise<void> {
     const label = reduced ? "reduced" : "motion";
     for (const state of STATES) {
       await page.goto(`${BASE}/dev/qa?issue=59&state=${state}`, { waitUntil: "networkidle" });
+      await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
       await page.screenshot({
         path: path.join(ARTIFACTS, `59_${state}_${label}_start.png`),
         animations: reduced ? "disabled" : "allow",

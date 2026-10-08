@@ -40,7 +40,7 @@ export function TokenEditor({
     return next;
   });
   const [open, setOpen] = useState<ColorRole | null>(initialOpen);
-  const [hexDraft, setHexDraft] = useState("");
+  const [hexDraft, setHexDraft] = useState(() => (initialOpen ? rolesFromColors(colors)[initialOpen] ?? "" : ""));
   const [pending, startTransition] = useTransition();
   const imgRef = useRef<HTMLImageElement>(null);
   const numbers = useMemo(() => pinNumbers(colors), [colors]);
