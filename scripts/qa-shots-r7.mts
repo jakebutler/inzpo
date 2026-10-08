@@ -192,6 +192,10 @@ async function noopPinDrag(page: Page): Promise<{ before: string | null; after: 
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.waitForTimeout(80);
+  // Exercise a drag, not just a tap. e2e-pin-drop.mts verifies saved pixels.
+  const direction = x < (page.viewportSize()?.width ?? 390) / 2 ? 1 : -1;
+  await page.mouse.move(x + direction * 60, y, { steps: 8 });
+  await page.mouse.move(x, y, { steps: 8 });
   await page.mouse.up();
   await page.waitForTimeout(800);
   await page.reload({ waitUntil: "load" });
