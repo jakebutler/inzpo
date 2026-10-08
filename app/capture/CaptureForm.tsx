@@ -4,8 +4,10 @@ import { useRef, useState, type ReactNode } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { CaptureMascotLayer } from "@/app/components/CaptureMascotLayer";
+import { MascotStage } from "@/app/components/MascotStage";
 import { prepareUploadFile } from "@/lib/client-image";
 import { buildCaptureFormData } from "@/lib/capture-form-data";
+import { MASCOT_SIZE_INTRO_PX } from "@/lib/mascot";
 import { MOTION, MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { BAR_FADE, SNAP_SCROLL_PAD } from "@/lib/layout";
 import { unstable_rethrow } from "next/navigation";
@@ -118,13 +120,24 @@ export function CaptureForm({
     uploadPhase === "reading" ? "Reading photo…" : uploadPhase === "uploading" ? "Uploading…" : uploadPhase === "saving" ? "Saving kit…" : null;
 
   return (
-    <form style={{ paddingBottom: SNAP_SCROLL_PAD }}>
-      <CaptureMascotLayer
-        firstOpen={firstOpen}
-        hasSubstance={hasSubstance}
-        uploading={uploading}
-        progress={progressCopy}
-      />
+    <form style={{ paddingBottom: SNAP_SCROLL_PAD }} aria-busy={uploading || undefined}>
+      {uploading ? (
+        <div
+          data-upload-wait
+          className="fixed inset-0 z-30 flex flex-col items-center justify-center bg-background px-6"
+        >
+          <MascotStage
+            moment="upload"
+            snapReady
+            immediate
+            size={MASCOT_SIZE_INTRO_PX}
+            align="center"
+            progress={progressCopy}
+          />
+        </div>
+      ) : (
+        <CaptureMascotLayer firstOpen={firstOpen} hasSubstance={hasSubstance} />
+      )}
       <input
         ref={cameraRef}
         type="file"
@@ -172,7 +185,8 @@ export function CaptureForm({
         <button
           type="button"
           onClick={() => cameraRef.current?.click()}
-          className="h-14 w-full bg-primary text-base font-medium text-primary-foreground"
+          disabled={uploading}
+          className="h-14 w-full bg-primary text-base font-medium text-primary-foreground disabled:opacity-40"
           style={{ transitionDuration: `${MOTION_CSS.tapMs}ms` }}
         >
           Snap something
@@ -180,7 +194,8 @@ export function CaptureForm({
         <button
           type="button"
           onClick={() => libraryRef.current?.click()}
-          className="mt-2 min-h-11 w-full text-base"
+          disabled={uploading}
+          className="mt-2 min-h-11 w-full text-base disabled:opacity-40"
         >
           Pick a photo
         </button>

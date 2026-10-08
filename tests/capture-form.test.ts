@@ -22,5 +22,7 @@ describe("capture submit after key", () => {
     expect(form).toContain("await capture(");
     expect(form).toContain('setUploading(true)');
     expect(form.indexOf("setUploading(true)")).toBeLessThan(form.indexOf("await prepareUploadFile"));
+    expect(form).toContain("data-upload-wait");
+    expect(form).toContain("disabled={uploading}");
   });
 });

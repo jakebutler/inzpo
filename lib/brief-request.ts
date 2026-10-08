@@ -11,6 +11,8 @@ export const BRIEF_REQUEST: {
   maxDurationS: number;
   timeoutMs: number;
   imageExpiresS: number;
+  visionEdgePx: number;
+  visionJpegQuality: number;
   maxTokens: number | null;
   temperature: number | null;
   reasoningEffort: "low" | "high" | "max" | null;
@@ -20,6 +22,9 @@ export const BRIEF_REQUEST: {
   maxDurationS: 60,
   timeoutMs: 25_000,
   imageExpiresS: 120,
+  /** Downscale the vision payload so the model is not chewing a full w640 data URL. */
+  visionEdgePx: 384,
+  visionJpegQuality: 72,
   maxTokens: 300,
   temperature: null,
   reasoningEffort: "low",

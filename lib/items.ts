@@ -181,47 +181,56 @@ export async function createImageItem(input: {
   try {
     const processed = await processImage(input.buffer, id);
     const client = r2();
-    await client.send(
-      new PutObjectCommand({
-        Bucket: process.env.R2_BUCKET!,
-        Key: originalKey(id, processed.ext),
-        Body: processed.original,
-        ContentType: processed.mime,
-      }),
-    );
+    const bucket = process.env.R2_BUCKET!;
     const variantMap: Record<string, string> = {};
-    for (const [name, variant] of Object.entries(processed.variants)) {
-      await client.send(
+    const paletteSource = processed.variants.w640?.buffer ?? processed.original;
+    const palettePromise = extractPalette(paletteSource);
+    await Promise.all([
+      palettePromise,
+      client.send(
         new PutObjectCommand({
-          Bucket: process.env.R2_BUCKET!,
-          Key: variant.key,
-          Body: variant.buffer,
-          ContentType: "image/webp",
+          Bucket: bucket,
+          Key: originalKey(id, processed.ext),
+          Body: processed.original,
+          ContentType: processed.mime,
         }),
-      );
-      variantMap[name] = variant.key;
-    }
+      ),
+      ...Object.entries(processed.variants).map(([name, variant]) => {
+        variantMap[name] = variant.key;
+        return client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: variant.key,
+            Body: variant.buffer,
+            ContentType: "image/webp",
+          }),
+        );
+      }),
+    ]);
+    const palette = await palettePromise;
     const crop = await chooseTextureCrop(processed.original);
     if (!crop.flat) {
       const tile = await makeSeamlessTile(processed.original, crop);
       const key = tileKey(id);
-      await client.send(
-        new PutObjectCommand({
-          Bucket: process.env.R2_BUCKET!,
-          Key: key,
-          Body: tile,
-          ContentType: "image/png",
-        }),
-      );
       variantMap.tile = key;
-      await client.send(
-        new PutObjectCommand({
-          Bucket: process.env.R2_BUCKET!,
-          Key: textureMetaKey(id),
-          Body: JSON.stringify({ ...crop, step: 0 }),
-          ContentType: "application/json",
-        }),
-      );
+      await Promise.all([
+        client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            Body: tile,
+            ContentType: "image/png",
+          }),
+        ),
+        client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: textureMetaKey(id),
+            Body: JSON.stringify({ ...crop, step: 0 }),
+            ContentType: "application/json",
+          }),
+        ),
+      ]);
     }
     await db.insert(mediaAssets).values({
       id: newId(),
@@ -236,8 +245,6 @@ export async function createImageItem(input: {
       variants: variantMap,
       placeholder: processed.placeholder,
     });
-
-    const palette = await extractPalette(processed.original);
     if (palette.swatches.length > 0) {
       await db.insert(itemColors).values(
         palette.swatches.map((c, index) => ({

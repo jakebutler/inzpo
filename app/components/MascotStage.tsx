@@ -28,6 +28,7 @@ export function MascotStage({
   glow = false,
   immediate = false,
   progress = null,
+  align = "start",
 }: {
   moment: MascotMoment;
   kit?: MascotKit | null;
@@ -42,6 +43,7 @@ export function MascotStage({
   glow?: boolean;
   immediate?: boolean;
   progress?: string | null;
+  align?: "start" | "center";
 }) {
   const pose = poseForMoment(moment);
   const delayed = waitBeforeShow(moment) && !immediate;
@@ -80,8 +82,18 @@ export function MascotStage({
   const copy = copyForMoment(moment, chewElapsedMs);
   const retry = onRetry ?? (() => router.refresh());
 
+  const centered = align === "center";
   return (
-    <div className={["flex items-start gap-3", className].filter(Boolean).join(" ")} style={{ minHeight: size }}>
+    <div
+      className={[
+        "flex",
+        centered ? "flex-col items-center justify-center gap-4 text-center" : "items-start gap-3",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      style={{ minHeight: size }}
+    >
       <div
         style={{ width: size, height: size, flex: "0 0 auto" }}
         className={[shown ? "opacity-100" : "opacity-0", glow ? "baku-glow" : ""].filter(Boolean).join(" ")}
@@ -89,8 +101,8 @@ export function MascotStage({
         <Mascot pose={pose} kit={kit} size={size} snapReady={snapReady} revealedCount={revealedCount} faceText />
       </div>
       {shown && !hideCopy ? (
-        <div className="min-w-0 pt-1">
-          <p aria-live="polite" className="text-sm" style={ink ? { color: ink } : undefined}>
+        <div className={centered ? "min-w-0" : "min-w-0 pt-1"}>
+          <p aria-live="polite" className={centered ? "text-base" : "text-sm"} style={ink ? { color: ink } : undefined}>
             {copy}
           </p>
           {progress ? (

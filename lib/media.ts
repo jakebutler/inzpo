@@ -65,19 +65,25 @@ export async function processImage(input: Buffer, itemId: string): Promise<Proce
   }
 
   const variants = {} as ProcessedImage["variants"];
-  for (const v of MEDIA_VARIANTS) {
-    const width = parseInt(v.slice(1), 10);
-    const pipeline = sharp(original, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
-      .resize({ width, withoutEnlargement: true })
-      .webp({ quality: 82 });
-    const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
-    variants[v] = { key: variantKey(itemId, v), buffer: data, width: info.width, height: info.height };
+  const [variantRows, placeholderBuffer] = await Promise.all([
+    Promise.all(
+      MEDIA_VARIANTS.map(async (v) => {
+        const width = parseInt(v.slice(1), 10);
+        const { data, info } = await sharp(original, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
+          .resize({ width, withoutEnlargement: true })
+          .webp({ quality: 82 })
+          .toBuffer({ resolveWithObject: true });
+        return [v, { key: variantKey(itemId, v), buffer: data, width: info.width, height: info.height }] as const;
+      }),
+    ),
+    sharp(original, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
+      .resize({ width: 24, withoutEnlargement: true })
+      .webp({ quality: 40 })
+      .toBuffer(),
+  ]);
+  for (const [name, variant] of variantRows) {
+    variants[name] = variant;
   }
-
-  const placeholderBuffer = await sharp(original, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
-    .resize({ width: 24, withoutEnlargement: true })
-    .webp({ quality: 40 })
-    .toBuffer();
   const placeholder = `data:image/webp;base64,${placeholderBuffer.toString("base64")}`;
   const sha256 = createHash("sha256").update(original).digest("hex");
 
