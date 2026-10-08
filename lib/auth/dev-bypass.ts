@@ -9,11 +9,16 @@ export function isDevAuthBypassEnabled(): boolean {
   return process.env.INZPO_DEV_AUTH === "1";
 }
 
-/** /dev/fold and /dev/qa on Vercel Preview, or any non-prod host with INZPO_DEV_AUTH=1. */
-export function isFoldQaEnabled(): boolean {
+/** /dev/qa and /dev/fold: local `next dev`, or DEV_ROUTES=1. Never on Vercel production. */
+export function isDevRoutesEnabled(): boolean {
   if (process.env.VERCEL_ENV === "production") return false;
-  if (isDevAuthBypassEnabled()) return true;
-  return process.env.VERCEL_ENV === "preview";
+  if (process.env.DEV_ROUTES === "1") return true;
+  return process.env.NODE_ENV === "development";
+}
+
+/** /dev/fold and /dev/qa. Preview 404s unless DEV_ROUTES=1. */
+export function isFoldQaEnabled(): boolean {
+  return isDevRoutesEnabled();
 }
 
 export function devOwnerId(): string | null {

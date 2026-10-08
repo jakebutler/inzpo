@@ -23,8 +23,14 @@ export async function optionalOwnerId(): Promise<string | null> {
   const bypass = devOwnerId();
   if (bypass) return bypass;
   if (!isClerkConfigured()) return null;
-  const { userId } = await auth();
-  return userId ?? null;
+  try {
+    const { userId } = await auth();
+    return userId ?? null;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "unknown";
+    console.error("optionalOwnerId: auth() failed without clerkMiddleware", message);
+    return null;
+  }
 }
 
 export async function assertItemOwned(ownerId: string, itemId: string): Promise<void> {
