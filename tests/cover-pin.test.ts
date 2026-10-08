@@ -1,7 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { clampPinCenter, coverWindow, coverWindowForPins, coverPinPlacement, layoutPins, mapCoverPin, mapCoverPinRaw, pointerOnCoverBox, PIN_CROP_MARGIN_PX, PIN_EDGE_MARGIN_PX, PIN_DISC_RADIUS_PX, PIN_HIT_SIZE_PX, PIN_MIN_SPACING_PX, photoBackZone, pinPlacement } from "@/lib/cover-pin";
+import { clampPinCenter, coverWindow, coverWindowForPins, coverPinPlacement, layoutPins as placePins, mapCoverPin, mapCoverPinRaw, pointerOnCoverBox, PIN_CROP_MARGIN_PX, PIN_EDGE_MARGIN_PX, PIN_DISC_RADIUS_PX, PIN_HIT_SIZE_PX, PIN_MIN_SPACING_PX, photoBackZone, pinPlacement } from "@/lib/cover-pin";
 import { photoFoldHeight } from "@/lib/brand";
 import { PIN_6505_COLORS } from "./fixtures/pins";
+
+function layoutPins(...args: Parameters<typeof placePins>) {
+  const placements = placePins(...args);
+  for (const [i, placement] of placements.entries()) {
+    expect(placement.hit).toEqual(placement.disc);
+    for (const other of placements.slice(i + 1)) {
+      expect(Math.hypot(placement.disc.x - other.disc.x, placement.disc.y - other.disc.y))
+        .toBeGreaterThanOrEqual(PIN_MIN_SPACING_PX);
+      const css = (v: number) => Math.floor(v * 64) / 64;
+      expect(Math.hypot(css(placement.disc.x) - css(other.disc.x), css(placement.disc.y) - css(other.disc.y)))
+        .toBeGreaterThanOrEqual(PIN_MIN_SPACING_PX);
+    }
+  }
+  return placements;
+}
 
 describe("mapCoverPin", () => {
   it("maps source pixels onto an object-fit cover box", () => {
@@ -172,20 +187,70 @@ describe("kit pin layout", () => {
     expect(distance(placed[0]!.disc, placed[1]!.disc)).toBeGreaterThanOrEqual(44);
   });
 
-  it("keeps close true anchors exactly in place", () => {
-    const anchors = [{ x: 100, y: 100 }, { x: 101, y: 101 }];
+  it("displaces the second anchor 30px away by the minimum distance, ticking to its true point", () => {
+    const anchors = Object.freeze([{ x: 100, y: 100 }, { x: 130, y: 100 }].map(pin => Object.freeze(pin)));
     const placed = layoutPins(anchors, { w: 390, h: 337 });
-    expect(placed.map(p => p.disc)).toEqual(anchors);
-    expect(placed.every(p => !p.displaced && !p.tick)).toBe(true);
+    expect(placed[0]!.disc).toEqual(anchors[0]);
+    expect(placed[0]!.displaced).toBe(false);
+    expect(placed[1]!.disc.x).toBeCloseTo(144, 1);
+    expect(placed[1]!.disc.y).toBe(100);
+    expect(placed[1]!.displaced).toBe(true);
+    expect(placed[1]!.offcrop).toBe(false);
+    expect(placed[1]!.tick).toEqual({ x1: placed[1]!.disc.x, y1: 100, x2: 130, y2: 100 });
+    expect(layoutPins(anchors, { w: 390, h: 337 })).toEqual(placed);
   });
 
-  it("uses the best-separated deterministic fallback when a tiny edge has no 44px spot", () => {
-    const pins = [{ x: 23.5, y: 70 }, { x: 46.5, y: 70 }, { x: 34, y: 150 }];
-    const placed = layoutPins(pins, { w: 70, h: 100 });
-    expect(placed[2]!.disc).toEqual({ x: 35, y: 100 - inset });
-    expect(layoutPins(pins, { w: 70, h: 100 })).toEqual(placed);
-    const tiny = layoutPins([{ x: -10, y: 10 }, { x: 20, y: 50 }], { w: 24, h: 24 });
-    expect(tiny.map(p => p.disc)).toEqual([{ x: 12, y: 12 }, { x: 12, y: 12 }]);
+  it.each([null, "secondary"] as const)("uses priority then COLOR_ROLES order, preserving input order (%s)", (priority) => {
+    const pins = [{ role: "secondary", x: 130, y: 100 }, { role: "primary", x: 100, y: 100 }] as const;
+    const placed = layoutPins(pins, { w: 390, h: 337 }, null, priority);
+    const winner = priority === "secondary" ? 0 : 1;
+    expect(placed[winner]!.disc).toEqual({ x: pins[winner].x, y: pins[winner].y });
+    expect(placed[winner]!.displaced).toBe(false);
+    expect(placed[1 - winner]!.displaced).toBe(true);
+  });
+
+  it.each([
+    [{ x: 100, y: 100 }, { x: 160, y: 100 }, { x: 130, y: 100 }],
+    [{ x: 80, y: 100 }, { x: 55, y: 100 }],
+    [{ x: 85, y: 30 }, { x: 76, y: 30 }],
+    [{ x: 100, y: 100 }, { x: 100, y: 100 }],
+  ].map(pins => ({ pins })))("clears every placed disc, the inset and Back for crowded anchors ($pins)", ({ pins }) => {
+    const box = { w: 390, h: 337 };
+    const zone = photoBackZone();
+    const placed = layoutPins(pins, box, zone);
+    for (const [i, p] of placed.entries()) {
+      if (!p.displaced) continue;
+      expect(p.disc.x - PIN_DISC_RADIUS_PX).toBeGreaterThanOrEqual(11);
+      expect(p.disc.y - PIN_DISC_RADIUS_PX).toBeGreaterThanOrEqual(11);
+      expect(p.disc.x + PIN_DISC_RADIUS_PX).toBeLessThanOrEqual(box.w - 11);
+      expect(p.disc.y + PIN_DISC_RADIUS_PX).toBeLessThanOrEqual(box.h - 11);
+      expect(p.disc.x - PIN_DISC_RADIUS_PX >= zone.right || p.disc.y - PIN_DISC_RADIUS_PX >= zone.bottom ||
+        p.disc.x + PIN_DISC_RADIUS_PX <= zone.left || p.disc.y + PIN_DISC_RADIUS_PX <= zone.top).toBe(true);
+      expect(p.tick).toMatchObject({ x1: p.disc.x, y1: p.disc.y, x2: pins[i]!.x, y2: pins[i]!.y });
+      expect(p.offcrop).toBe(false);
+    }
+    if (pins.length === 3) expect(placed[2]!.disc.x).toBe(130);
+    expect(layoutPins(pins, box, zone)).toEqual(placed);
+  });
+
+  it("finds a clear interior fallback when the whole original edge is crowded", () => {
+    const pins = [{ x: 40, y: 50 }, { x: 90, y: 50 }, { x: 65, y: -50 }];
+    const box = { w: 130, h: 180 };
+    // Two anchors crowd the top edge, forcing the off-crop point into the box.
+    const placed = layoutPins(pins, box);
+    expect(placed[2]!.disc.y).toBeGreaterThan(inset);
+    expect(placed[2]!.offcrop).toBe(true);
+    expect(layoutPins(pins, box)).toEqual(placed);
+  });
+
+  it("leaves rounding clearance even when an edge's original projection is already just over 44px away", () => {
+    const pins = [{ x: 100, y: 54.6249 }, { x: 131.1249, y: -20 }];
+    const original = pins.map(p => pinPlacement(p.x, p.y, 390, 337));
+    expect(distance(original[0]!.disc, original[1]!.disc)).toBeGreaterThan(44);
+    const placed = layoutPins(pins, { w: 390, h: 337 });
+    expect(placed[0]!.disc).toEqual(pins[0]);
+    expect(placed[1]!.disc.y).toBe(inset);
+    expect(placed[1]!.disc.x).toBeGreaterThan(original[1]!.disc.x);
   });
 });
 

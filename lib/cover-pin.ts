@@ -1,5 +1,6 @@
 import { PHOTO_BACK_LEFT_PX, PHOTO_BACK_TOP_PX, PHOTO_BACK_PX, PIN_SIZE, PIN_OUTER_RING_PX } from "@/lib/brand";
 import type { Hairline } from "@/lib/hairlines";
+import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 
 /** Visible window of an object-fit: cover box, in 0–1 source coordinates. */
 export type CoverWindow = {
@@ -131,18 +132,25 @@ function placementFromDisc(x: number, y: number, disc: { x: number; y: number },
 }
 
 /**
- * Lay out photo-pixel points in a stable order (callers use role order). True
- * non-zone points are anchors, even when close together. Only displaced discs
- * slide, along their original inset edge or Back boundary, without moving samples.
+ * Keep anchors in priority/role order, displacing conflicting lower-priority
+ * anchors to the nearest clear point. Then slide edge/Back/off-crop discs around
+ * all placed discs. Returned placements retain input order and true samples.
  */
 export function layoutPins(
-  pins: ReadonlyArray<{ x: number; y: number }>,
+  pins: ReadonlyArray<{ x: number; y: number; role?: ColorRole }>,
   box: { w: number; h: number },
   avoid?: PinExclusion | null,
+  priorityRole?: ColorRole | null,
 ) {
   const placements = pins.map(({ x, y }) => pinPlacement(x, y, box.w, box.h, avoid));
   if (!Number.isFinite(box.w) || !Number.isFinite(box.h) || box.w <= 0 || box.h <= 0) return placements;
-  const obstacles = placements.filter(p => !p.displaced).map(p => p.disc);
+  const order = pins.map((_, i) => i).sort((a, b) => {
+    const rank = (i: number) => priorityRole != null && pins[i]!.role === priorityRole ? -1
+      : pins[i]!.role ? COLOR_ROLES.indexOf(pins[i]!.role!) : COLOR_ROLES.length;
+    return rank(a) - rank(b) || a - b;
+  });
+  const sliding = order.filter(i => placements[i]!.displaced);
+  const obstacles: Array<{ x: number; y: number }> = [];
   const inset = PIN_EDGE_MARGIN_PX + PIN_DISC_RADIUS_PX;
   const minX = Math.min(inset, box.w / 2);
   const maxX = box.w - minX;
@@ -152,8 +160,62 @@ export function layoutPins(
     left: avoid.left - PIN_DISC_RADIUS_PX, right: avoid.right + PIN_DISC_RADIUS_PX,
     top: avoid.top - PIN_DISC_RADIUS_PX, bottom: avoid.bottom + PIN_DISC_RADIUS_PX,
   } : null;
-  return placements.map((placement, i) => {
-    if (!placement.displaced) return placement;
+  // Allow for Chromium's 1/64px CSS quantization when measuring disc centers.
+  const spacing = PIN_MIN_SPACING_PX + 1 / 32;
+  const separation = (point: { x: number; y: number }) =>
+    Math.min(...obstacles.map(p => Math.hypot(point.x - p.x, point.y - p.y)));
+  const nearestClearPoint = (pin: { x: number; y: number }) => {
+    const xs = [minX, maxX, ...(zone ? [zone.left, zone.right] : [])];
+    const ys = [minY, maxY, ...(zone ? [zone.top, zone.bottom] : [])];
+    const candidates = [{ x: clamp(pin.x, minX, maxX), y: clamp(pin.y, minY, maxY) }];
+    for (const x of xs) {
+      candidates.push({ x, y: clamp(pin.y, minY, maxY) });
+      for (const y of ys) candidates.push({ x, y });
+    }
+    for (const y of ys) candidates.push({ x: clamp(pin.x, minX, maxX), y });
+    for (const [i, p] of obstacles.entries()) {
+      const dx = pin.x - p.x;
+      const dy = pin.y - p.y;
+      const distance = Math.hypot(dx, dy);
+      candidates.push(distance ? { x: p.x + spacing * dx / distance, y: p.y + spacing * dy / distance }
+        : { x: p.x + spacing, y: p.y });
+      // A nearest legal point lies on a circle's radial projection, or where
+      // that circle meets another circle, the photo inset or the Back boundary.
+      for (const x of xs) {
+        const reach = spacing ** 2 - (x - p.x) ** 2;
+        if (reach >= 0) candidates.push({ x, y: p.y - Math.sqrt(reach) }, { x, y: p.y + Math.sqrt(reach) });
+      }
+      for (const y of ys) {
+        const reach = spacing ** 2 - (y - p.y) ** 2;
+        if (reach >= 0) candidates.push({ x: p.x - Math.sqrt(reach), y }, { x: p.x + Math.sqrt(reach), y });
+      }
+      for (const q of obstacles.slice(i + 1)) {
+        const dx = q.x - p.x;
+        const dy = q.y - p.y;
+        const distance = Math.hypot(dx, dy);
+        if (!distance || distance > 2 * spacing) continue;
+        const reach = Math.sqrt(Math.max(0, spacing ** 2 - (distance / 2) ** 2));
+        const x = (p.x + q.x) / 2;
+        const y = (p.y + q.y) / 2;
+        candidates.push({ x: x - dy / distance * reach, y: y + dx / distance * reach },
+          { x: x + dy / distance * reach, y: y - dx / distance * reach });
+      }
+    }
+    return candidates.filter(p => p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY &&
+      (!zone || !insideZone(p.x, p.y, zone)) && separation(p) >= spacing - 1e-9)
+      .sort((a, b) => Math.hypot(a.x - pin.x, a.y - pin.y) - Math.hypot(b.x - pin.x, b.y - pin.y) ||
+        a.x - b.x || a.y - b.y)[0];
+  };
+  for (const i of order) {
+    if (placements[i]!.displaced) continue;
+    const pin = pins[i]!;
+    const point = { x: pin.x, y: pin.y };
+    const disc = separation(point) < spacing ? nearestClearPoint(point) ?? point : point;
+    placements[i] = placementFromDisc(pin.x, pin.y, disc, box.w, box.h);
+    obstacles.push(disc);
+  }
+  for (const i of sliding) {
+    const placement = placements[i]!;
     const { disc } = placement;
     const pin = pins[i]!;
     // At an edge corner, prefer the vertical edge. A Back-only projection must
@@ -174,7 +236,7 @@ export function layoutPins(
     for (const p of projected) {
       // CSS layout rounds subpixels (Chromium uses 1/64px). Leave enough room
       // that rendered centers, as well as these coordinates, clear 44px.
-      const reach = Math.sqrt(Math.max(0, (PIN_MIN_SPACING_PX + 1 / 32) ** 2 - p.across ** 2));
+      const reach = Math.sqrt(Math.max(0, spacing ** 2 - p.across ** 2));
       candidates.push(p.along - reach, p.along + reach);
     }
     // If the whole edge is crowded, the maximum of its minimum separation lies
@@ -196,12 +258,13 @@ export function layoutPins(
       };
     }).filter(({ point }) => !zone || !insideZone(point.x, point.y, zone));
     const nearest = (a: typeof spots[number], b: typeof spots[number]) => a.travel - b.travel || a.t - b.t;
-    const valid = spots.filter(p => p.separation >= PIN_MIN_SPACING_PX).sort(nearest);
+    const valid = spots.filter(p => p.separation >= spacing - 1e-9).sort(nearest);
     const best = valid[0] ?? spots.sort((a, b) => b.separation - a.separation || nearest(a, b))[0];
-    const finalDisc = best?.point ?? disc;
+    const finalDisc = valid[0]?.point ?? nearestClearPoint(pin) ?? best?.point ?? disc;
     obstacles.push(finalDisc);
-    return placementFromDisc(pin.x, pin.y, finalDisc, box.w, box.h);
-  });
+    placements[i] = placementFromDisc(pin.x, pin.y, finalDisc, box.w, box.h);
+  }
+  return placements;
 }
 
 /** Place every stored sample visibly, without changing its source coordinates. */

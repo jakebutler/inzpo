@@ -141,6 +141,7 @@ export function KitResult({
   const [box, setBox] = useState({ w: width, h: PHOTO_FOLD_PX });
   const [safeTop, setSafeTop] = useState(0);
   const [dragPin, setDragPin] = useState<{ role: ColorRole; x: number; y: number } | null>(null);
+  const [lastDroppedRole, setLastDroppedRole] = useState<ColorRole | null>(null);
   const [stripeCount, setStripeCount] = useState(
     preview?.reveal === "play" || preview?.reveal === "hold" ? 0 : 6,
   );
@@ -188,17 +189,14 @@ export function KitResult({
     if (!color) return [];
     if (!color.role || color.pinX == null || color.pinY == null) return [];
     const mapped = mapCoverPinRaw(color.pinX, color.pinY, width, height, box.w, box.h, crop);
-    return mapped ? [{ color, x: mapped.left * box.w, y: mapped.top * box.h }] : [];
+    return mapped ? [{ color, role, x: mapped.left * box.w, y: mapped.top * box.h }] : [];
   });
-  // Use saved points for the whole layout during a drag, then override only the
-  // dragged disc. Other discs keep their settled positions under the pointer.
-  const placements = layoutPins(mappedPins, box, backZone);
+  const priorityRole = dragPin?.role ?? lastDroppedRole;
+  const placements = layoutPins(mappedPins.map(pin => dragPin?.role === pin.role
+    ? { ...pin, x: dragPin.x, y: dragPin.y } : pin), box, backZone, priorityRole);
   const drawnPins = mappedPins.map(({ color }, i) => {
-    const placement = dragPin && dragPin.role === color.role
-      ? { disc: dragPin, hit: dragPin, displaced: false, offcrop: false, tick: null }
-      : placements[i]!;
-    return { color, ...placement };
-  });
+    return { color, ...placements[i]! };
+  }).sort((a, b) => Number(a.color.role === priorityRole) - Number(b.color.role === priorityRole));
   // The reveal ticker keeps its callback for the life of the photo. Read the
   // latest disc geometry so resize, safe-area changes and drags cannot stale it.
   const hairlineGeometry = useRef({ pins: drawnPins, photoBottom: box.h });
@@ -424,7 +422,7 @@ export function KitResult({
   useEffect(() => {
     if (focusedRole) syncHairlines();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedRole, box.w, box.h, displayColors, safeTop, dragPin]);
+  }, [focusedRole, box.w, box.h, displayColors, safeTop, dragPin, lastDroppedRole]);
 
   async function moveCrop() {
     setMoving(true);
@@ -610,6 +608,7 @@ export function KitResult({
         simulateLoupe={preview?.loupe === true}
         onLoupe={setLoupe}
         onPinDrag={setDragPin}
+        onPinDrop={setLastDroppedRole}
         onColorsChange={(next) => {
           const rows = next.map((row, position) => ({ ...row, position }));
           setEditedColors(rows);

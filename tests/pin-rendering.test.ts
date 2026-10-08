@@ -111,10 +111,12 @@ it("freezes the editing crop and keeps an off-crop pin visible before and after 
     expect(document.querySelector('[data-pin="primary"]')).not.toBeNull();
     await act(async () => editor.props!.onPinDrag!({ role: "primary", x: 3, y: 2 }));
     const draggingDisc = document.querySelector<HTMLElement>('[data-pin="primary"]')!;
-    expect(parseFloat(draggingDisc.style.left)).toBe(3);
-    expect(parseFloat(draggingDisc.style.top)).toBe(2);
+    expect(parseFloat(draggingDisc.style.left)).toBe(11 + PIN_DISC_RADIUS_PX);
+    expect(parseFloat(draggingDisc.style.top)).toBe(56 + PIN_DISC_RADIUS_PX);
     expect(draggingDisc.dataset.pinY).toBe("0.6");
-    expect(document.querySelector("[data-pin-tick]")).toBeNull();
+    expect(draggingDisc.dataset.pinDisplaced).toBe("true");
+    expect(Number(document.querySelector("[data-pin-tick]")!.getAttribute("x2"))).toBe(3);
+    expect(Number(document.querySelector("[data-pin-tick]")!.getAttribute("y2"))).toBe(2);
     expect(document.querySelector<HTMLElement>('[data-pin-hit="primary"]')!.style.top).toBe(draggingDisc.style.top);
     await act(async () => editor.props!.onPinDrag!(null));
     await act(async () => editor.props!.onColorsChange!([

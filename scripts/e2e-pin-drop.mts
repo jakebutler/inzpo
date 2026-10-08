@@ -103,6 +103,12 @@ async function ready(page: Page) {
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
 }
 
+async function settlePinLayout(page: Page) {
+  await page.evaluate(() => new Promise<void>(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  }));
+}
+
 async function runPinCounts(page: Page, photo: string) {
   const originalViewport = page.viewportSize()!;
   try {
@@ -121,6 +127,7 @@ async function runPinCounts(page: Page, photo: string) {
           }
           // Allow the measured photo box and sheet transition to settle.
           await page.waitForTimeout(250);
+          await settlePinLayout(page);
           const counts = await page.evaluate(() => {
             const photo = document.querySelector<HTMLElement>("[data-photo-fold]");
             if (!photo) throw new Error("Photo box missing");
@@ -189,6 +196,7 @@ async function runPinCounts(page: Page, photo: string) {
 }
 
 async function readSaved(page: Page, role: string): Promise<Saved> {
+  await settlePinLayout(page);
   return page.evaluate((role) => {
     const pin = document.querySelector<HTMLElement>(`[data-pin="${role}"]`);
     const band = document.querySelector<HTMLElement>(`[data-role="${role}"]`);
@@ -300,6 +308,8 @@ async function runDrop(page: Page, cdp: CDPSession | null, photo: string, input:
     if (before.pinX === null || before.pinY === null) throw new Error("Missing source pin for drag start");
     // Users grab the drawn disc, including when it is displaced from the source.
     const start = before.screen;
+    expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-pin-hit]")?.dataset.pinHit,
+      start) === role, `Displayed ${role} disc does not hit its own role`);
     if (n === 6 || n === 7) {
       expect(await page.locator(`[data-pin="${role}"]`).getAttribute("data-pin-displaced") === "true",
         "Zone regression must start from a displaced disc");
@@ -333,6 +343,8 @@ async function runDrop(page: Page, cdp: CDPSession | null, photo: string, input:
     expect(Boolean(up && Math.abs(up.x - release.x) <= 0.5 && Math.abs(up.y - release.y) <= 0.5), "Missing pointerup at the release point");
     expect(!row.events.some(e => e.type === "pointercancel" || e.type === "dragstart"), "Pointer stream cancelled or native image drag started");
     const immediate = await readSaved(page, role);
+    expect(await page.locator('[role="dialog"]').textContent().then(text => text?.includes(`Edit ${role}`)) === true,
+      `Drag opened a different role than ${role}`);
     row.drawnAfterDrop = immediate.screen;
     const afterFrame = await readFrame(page);
     expect(Math.abs(afterFrame.crop.vx - frame.crop.vx) < 1e-6 && Math.abs(afterFrame.crop.vy - frame.crop.vy) < 1e-6,
@@ -448,7 +460,10 @@ async function main() {
             // Count the original samples before any of the existing 42 drops.
             // Reuse this page/context for both viewports to keep memory bounded.
             if (input === "mouse") await runPinCounts(page, photo);
-            const role = await page.locator("[data-pin]").first().getAttribute("data-pin");
+            // Choose a role independently of the disc stacking order. runDrop
+            // re-reads that role's settled displayed center before every drag.
+            const role = await page.evaluate(() => ["primary", "secondary", "accent", "background", "surface", "text"]
+              .find(role => document.querySelector(`[data-pin="${role}"]`)));
             if (!role) throw new Error("Photo has no role with a pin");
             for (let n = 1; n <= 7; n++) await runDrop(page, cdp, photo, input, role, n);
           } catch (error) {

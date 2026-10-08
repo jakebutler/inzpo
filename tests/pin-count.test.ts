@@ -137,12 +137,19 @@ describe.each([[390, 844], [375, 667]])("6505 pins at %sx%s", (width, height) =>
         const settledOthers = others();
         await pointer("pointerdown", x, y, hit);
         await pointer("pointermove", width / 2, photoH / 2);
-        expect(others()).toEqual(settledOthers);
+        // Lower-priority anchors move when the dragged disc crosses them.
+        for (const [i, rendered] of discs().entries()) {
+          for (const other of discs().slice(i + 1)) {
+            expect(Math.hypot(parseFloat(rendered.style.left) - parseFloat(other.style.left),
+              parseFloat(rendered.style.top) - parseFloat(other.style.top))).toBeGreaterThanOrEqual(PIN_MIN_SPACING_PX);
+          }
+        }
         expect(parseFloat(disc.style.left)).toBe(width / 2);
         expect(parseFloat(disc.style.top)).toBe(photoH / 2);
         expect(hit.style.left).toBe(disc.style.left);
         expect(hit.style.top).toBe(disc.style.top);
         await pointer("pointerup", x, y);
+        expect(others()).toEqual(settledOthers);
         expect(mocks.save).not.toHaveBeenCalled();
         expect(mocks.pixel).not.toHaveBeenCalled();
         expect(document.querySelector<HTMLInputElement>("#token-hex")!.value).toBe(saved.hex);

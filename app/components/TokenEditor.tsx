@@ -57,6 +57,7 @@ export function TokenEditor({
   simulateLoupe = false,
   onLoupe,
   onPinDrag,
+  onPinDrop,
   onPromoteRole,
   onColorsChange,
   showContrast = false,
@@ -81,6 +82,7 @@ export function TokenEditor({
   simulateLoupe?: boolean;
   onLoupe?: (loupe: LoupeView | null) => void;
   onPinDrag?: (pin: { role: ColorRole; x: number; y: number } | null) => void;
+  onPinDrop?: (role: ColorRole) => void;
   onPromoteRole?: (role: ColorRole, pin: { pinX: number; pinY: number; hex: string }) => void;
   onColorsChange?: (colors: ColorRow[]) => void;
   showContrast?: boolean;
@@ -105,6 +107,7 @@ export function TokenEditor({
   const [open, setOpen] = useState<ColorRole | null>(initialOpen);
   const [hexDraft, setHexDraft] = useState(() => (initialOpen ? rolesFromColors(colors)[initialOpen] ?? "" : ""));
   const [pendingHex, setPendingHex] = useState<string | null>(null);
+  const [priorityRole, setPriorityRole] = useState<ColorRole | null>(null);
   function setLoupe(next: LoupeView | null) {
     onLoupe?.(next);
   }
@@ -214,6 +217,8 @@ export function TokenEditor({
       setLoupe({ x: mapped.x, y: mapped.y, hex: sample.hex });
       if (commitSample) {
         const nextPins = { ...pins, [role]: { pinX: sample.pinX, pinY: sample.pinY } };
+        setPriorityRole(role);
+        onPinDrop?.(role);
         onPromoteRole?.(role, { pinX: sample.pinX, pinY: sample.pinY, hex: sample.hex });
         applyHex(role, sample.hex, nextPins, true);
       } else {
@@ -329,9 +334,9 @@ export function TokenEditor({
         photoBox.w, photoBox.h, crop);
       return mapped ? [{ role, x: mapped.left * photoBox.w, y: mapped.top * photoBox.h }] : [];
     });
-    const placement = layoutPins(mappedPins, photoBox, avoid)[mappedPins.findIndex(p => p.role === open)];
+    const placement = layoutPins(mappedPins, photoBox, avoid, priorityRole)[mappedPins.findIndex(p => p.role === open)];
     if (placement) setLoupe({ ...placement.disc, hex });
-  }, [simulateLoupe, open, crop, photoBox?.w, photoBox?.h, imageSize?.width, imageSize?.height, photoRef, pins, roles]);
+  }, [simulateLoupe, open, crop, photoBox?.w, photoBox?.h, imageSize?.width, imageSize?.height, photoRef, pins, roles, priorityRole]);
 
   const reduced = prefersReducedMotion();
   const { background: editorBackground, ink: editorInk } = showContrast
