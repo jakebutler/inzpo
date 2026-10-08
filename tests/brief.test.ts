@@ -56,9 +56,9 @@ describe("brief job lifetime", () => {
     const share = src("app/share/route.ts");
     expect(share).toMatch(/after\(async \(\) => \{\s*await runBriefJob\(itemId\);\s*\}\)/);
     expect(share).not.toMatch(/void runBriefJob/);
-    expect(share).toContain("export const maxDuration = BRIEF_MAX_DURATION_S");
-    expect(src("app/capture/page.tsx")).toContain("export const maxDuration = BRIEF_MAX_DURATION_S");
-    expect(src("app/api/briefs/[id]/route.ts")).toContain("export const maxDuration = BRIEF_MAX_DURATION_S");
+    expect(share).toContain("export const maxDuration = 60");
+    expect(src("app/capture/page.tsx")).toContain("export const maxDuration = 60");
+    expect(src("app/api/briefs/[id]/route.ts")).toContain("export const maxDuration = 60");
     expect(src("app/api/briefs/[id]/route.ts")).toContain("runBriefJob");
   });
 });

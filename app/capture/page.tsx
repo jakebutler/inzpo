@@ -6,10 +6,9 @@ import { KitCard } from "@/app/components/KitCard";
 import { SAMPLE_KIT } from "@/lib/sample-kit";
 import { requireOwnerId } from "@/lib/auth/owner";
 import { LINKS_UNSUPPORTED_ERROR, LINKS_UNSUPPORTED_MESSAGE, isLinksUnsupportedRequest } from "@/lib/links";
-import { BRIEF_MAX_DURATION_S } from "@/lib/brief-request";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = BRIEF_MAX_DURATION_S;
+export const maxDuration = 60;
 
 const ERRORS: Record<string, string> = {
   "missing-image": "Choose a photo first.",

@@ -3,13 +3,12 @@ import { clientKey, recordShareUpload, shareUploadLimited } from "@/lib/auth/rat
 import { optionalOwnerId } from "@/lib/auth/owner";
 import { createImageItem } from "@/lib/items";
 import { runBriefJob } from "@/lib/brief";
-import { BRIEF_MAX_DURATION_S } from "@/lib/brief-request";
 import { LINKS_UNSUPPORTED_ERROR } from "@/lib/links";
 import { newId } from "@/lib/ids";
 import { r2, PutObjectCommand } from "@/lib/r2";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = BRIEF_MAX_DURATION_S;
+export const maxDuration = 60;
 
 const MAX_STASH_BYTES = 10 * 1024 * 1024;
 
