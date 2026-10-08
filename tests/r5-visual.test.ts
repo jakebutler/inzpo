@@ -14,7 +14,7 @@ import {
 import { contrastRatio, matchesPageBackground } from "@/lib/contrast";
 import { displayBriefSlot } from "@/lib/brief-display";
 import { markDerivedRoles, sampledColors } from "@/lib/derived-roles";
-import { clampPinCenter, mapCoverPinRaw, PIN_EDGE_MARGIN_PX } from "@/lib/cover-pin";
+import { clampPinCenter, mapCoverPinRaw, PIN_EDGE_MARGIN_PX, PIN_DISC_RADIUS_PX } from "@/lib/cover-pin";
 import { preferredHairline, segmentsCross, uncrossHairlines } from "@/lib/hairlines";
 import { MOTION } from "@/lib/motion";
 import { COLOR_ROLES } from "@/lib/db/schema";
@@ -139,16 +139,16 @@ describe("legacy padded roles", () => {
   }, 30_000);
 });
 
-describe("r5 pin hit-area clamp", () => {
-  it("keeps hit areas 16px from edges plus safe-area top without moving the sample", () => {
-    expect(PIN_EDGE_MARGIN_PX).toBe(16);
+describe("pin edge displacement", () => {
+  it("keeps displaced discs inside the edge inset without moving the source mapping", () => {
+    expect(PIN_EDGE_MARGIN_PX).toBe(11);
     const raw = mapCoverPinRaw(0.5, 0.0, 100, 100, 390, 337);
     expect(raw).not.toBeNull();
-    const clamped = clampPinCenter(raw!.left * 390, raw!.top * 337, 390, 337, 47);
-    expect(clamped.y).toBeGreaterThanOrEqual(16 + 47);
-    expect(clamped.x).toBeGreaterThanOrEqual(16);
-    expect(clamped.x).toBeLessThanOrEqual(390 - 16);
-    expect(raw!.top * 337).toBeLessThan(0); // cropped samples must not become clamped discs
+    const clamped = clampPinCenter(raw!.left * 390, raw!.top * 337, 390, 337);
+    expect(clamped.y).toBeGreaterThanOrEqual(11 + PIN_DISC_RADIUS_PX);
+    expect(clamped.x).toBeGreaterThanOrEqual(11);
+    expect(clamped.x).toBeLessThanOrEqual(390 - 11);
+    expect(raw!.top * 337).toBeLessThan(0); // raw source mapping stays unchanged
   });
 });
 
@@ -177,7 +177,7 @@ describe("r5 hairlines and back", () => {
   });
 
   it("places the back button below the safe area and on the collection page", () => {
-    expect(src("app/components/PhotoBackButton.tsx")).toContain("env(safe-area-inset-top, 0px) + 8px");
+    expect(src("app/components/PhotoBackButton.tsx")).toContain("env(safe-area-inset-top, 0px) + ${PHOTO_BACK_TOP_PX}px");
     expect(src("app/dev/fold/page.tsx")).toContain('placement="header"');
     expect(src("app/page.tsx")).toContain('<PhotoBackButton href="/" placement="header" />');
     expect(src("app/page.tsx")).toContain('href="/capture"');

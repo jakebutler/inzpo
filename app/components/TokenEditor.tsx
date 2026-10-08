@@ -56,6 +56,7 @@ export function TokenEditor({
   imageSize,
   simulateLoupe = false,
   onLoupe,
+  onPinDrag,
   onPromoteRole,
   onColorsChange,
   showContrast = false,
@@ -79,6 +80,7 @@ export function TokenEditor({
   imageSize?: { width: number; height: number };
   simulateLoupe?: boolean;
   onLoupe?: (loupe: LoupeView | null) => void;
+  onPinDrag?: (pin: { role: ColorRole; x: number; y: number } | null) => void;
   onPromoteRole?: (role: ColorRole, pin: { pinX: number; pinY: number; hex: string }) => void;
   onColorsChange?: (colors: ColorRow[]) => void;
   showContrast?: boolean;
@@ -119,7 +121,10 @@ export function TokenEditor({
   function setOpenRole(role: ColorRole | null) {
     setOpen(role);
     onOpenChange?.(role);
-    if (!role) setLoupe(null);
+    if (!role) {
+      setLoupe(null);
+      onPinDrag?.(null);
+    }
   }
 
   function openRole(role: ColorRole) {
@@ -180,6 +185,7 @@ export function TokenEditor({
 
   function resetSamplePreview(role = open) {
     setLoupe(null);
+    onPinDrag?.(null);
     if (role) setHexDraft(roles[role] ?? "");
   }
 
@@ -196,6 +202,7 @@ export function TokenEditor({
       width: img.naturalWidth, height: img.naturalHeight,
       boxWidth: rect.width, boxHeight: rect.height, crop,
     };
+    if (commitSample) onPinDrag?.(null);
     try {
       if (commitSample && (isNoopPinDrag(start, mapped, geometry) || isNoopPinSample(pins[role], mapped, geometry))) {
         resetSamplePreview(role);
@@ -210,6 +217,7 @@ export function TokenEditor({
         onPromoteRole?.(role, { pinX: sample.pinX, pinY: sample.pinY, hex: sample.hex });
         applyHex(role, sample.hex, nextPins, true);
       } else {
+        onPinDrag?.({ role, x: mapped.x, y: mapped.y });
         setHexDraft(sample.hex);
       }
     } catch {
@@ -242,7 +250,7 @@ export function TokenEditor({
   useEffect(() => {
     const img = photoRef?.current;
     if (!img) return;
-    // Offset hit areas are siblings of the image. Delegate on the photo but
+    // Disc-centered hit areas are siblings of the image. Delegate on the photo but
     // capture on the image, preserving the same release-point sampling stream.
     const surface = img.closest<HTMLElement>("[data-photo-fold]") ?? img;
     let active: { pointerId: number; role: ColorRole; start: PinDragPoint; lastGood: PointerPoint } | null = null;

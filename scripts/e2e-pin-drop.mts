@@ -60,7 +60,7 @@ function table() {
 async function writeResults() {
   await writeFile(path.join(OUT, "r8_pin-drop.json"), JSON.stringify({ base: BASE, itemUrls, rows, setupFailures }, null, 2) + "\n");
   await writeFile(path.join(OUT, "r8_pin-drop.md"), table() + "\n\n" +
-    "Source positions are checked using the crop visible BEFORE the drop. The pin disc is also checked before closing the editor. Closing can pan the crop; reload must preserve the sampled source pixel. Same-spot drops preserve the previous values and send no save action.\n\n" +
+    "Source positions are checked using the crop visible BEFORE the drop. The pin disc is also checked before closing the editor; edge-zone discs must be inset with a tick to the true sample, and subsequent same-spot and move drops start from that displaced disc. Closing can pan the crop; reload must preserve the sampled source pixel. Same-spot drops preserve the previous values and send no save action.\n\n" +
     [...setupFailures, ...rows.flatMap(r => r.failures.map(f => `${r.photo} ${r.input} drop ${r.drop}: ${f}`))].map(f => `- ${f}`).join("\n") + "\n");
 }
 
@@ -181,7 +181,8 @@ async function drag(page: Page, cdp: CDPSession | null, start: Point, release: P
 }
 
 async function runDrop(page: Page, cdp: CDPSession | null, photo: string, input: Input, role: string, n: number) {
-  const row: Row = { photo, input, role, drop: n, kind: n === 1 ? "same-spot" : "move", releaseCss: null,
+  const sameSpot = n === 1 || n === 6;
+  const row: Row = { photo, input, role, drop: n, kind: sameSpot ? "same-spot" : "move", releaseCss: null,
     releaseSource: null, savedSource: null, savedHex: null, sourcePixelHex: null, pass: false, failures: [] };
   rows.push(row);
   const expect = (ok: boolean, message: string) => { if (!ok) row.failures.push(message); };
@@ -197,16 +198,23 @@ async function runDrop(page: Page, cdp: CDPSession | null, photo: string, input:
     const frame = await readFrame(page);
     row.before = before; row.frame = frame;
     if (before.pinX === null || before.pinY === null) throw new Error("Missing source pin for drag start");
-    // Start the same-spot regression at the actual source point in this crop,
-    // independently of any offset hit area (or a regressed clamped disc).
-    const start = {
-      x: frame.rect.x + (before.pinX - frame.crop.vx) / frame.crop.vw * frame.rect.width,
-      y: frame.rect.y + (before.pinY - frame.crop.vy) / frame.crop.vh * frame.rect.height,
-    };
+    // Users grab the drawn disc, including when it is displaced from the source.
+    const start = before.screen;
+    if (n === 6 || n === 7) {
+      expect(await page.locator(`[data-pin="${role}"]`).getAttribute("data-pin-displaced") === "true",
+        "Zone regression must start from a displaced disc");
+      expect(await page.locator(`[data-pin-tick="${role}"]`).count() === 1, "Displaced pin is missing its tick");
+    }
     const positions = [{ x: 0.28, y: 0.32 }, { x: 0.70, y: 0.50 }, { x: 0.42, y: 0.70 }];
     const destination = positions[n - 2];
-    const release = destination ? { x: Math.round(frame.rect.x + frame.rect.width * destination.x),
-      y: Math.round(frame.rect.y + frame.rect.height * destination.y) } : start;
+    // Put the true point inside an edge zone along the uncropped source axis.
+    // That axis cannot re-pan on close, so the disc remains displaced on reload.
+    const release = sameSpot ? start : n === 5
+      ? frame.crop.vw > 1 - 1e-6
+        ? { x: frame.rect.x + 2, y: Math.round(frame.rect.y + frame.rect.height * 0.55) }
+        : { x: Math.round(frame.rect.x + frame.rect.width * 0.55), y: frame.rect.y + 2 }
+      : { x: Math.round(frame.rect.x + frame.rect.width * (destination?.x ?? 0.55)),
+          y: Math.round(frame.rect.y + frame.rect.height * (destination?.y ?? 0.55)) };
     row.releaseCss = release;
     const pixel = await expectedPixel(page, frame, release);
     row.releaseSource = pixel.source; row.sourcePixelHex = pixel.hex;
@@ -214,14 +222,14 @@ async function runDrop(page: Page, cdp: CDPSession | null, photo: string, input:
     await page.screenshot({ path: path.join(OUT, `${prefix}-before.png`) });
     await watchEvents(page);
     page.on("request", onRequest);
-    await drag(page, cdp, start, release, n === 1, frame);
+    await drag(page, cdp, start, release, sameSpot, frame);
     await page.waitForTimeout(300);
     await page.waitForFunction(() => !document.querySelector("[data-token-saving]"), undefined, { timeout: 30_000 });
     await Promise.all(actions);
     row.events = await page.evaluate(() => (window as unknown as { pinDropEvents: PinEvent[] }).pinDropEvents);
     const moves = row.events.filter(e => e.type === "pointermove" && e.pointerType === input);
     const up = row.events.find(e => e.type === "pointerup" && e.pointerType === input);
-    expect(moves.length >= (n === 1 ? 16 : 8), `Expected a real ${input} drag; got ${moves.length} moves`);
+    expect(moves.length >= (sameSpot ? 16 : 8), `Expected a real ${input} drag; got ${moves.length} moves`);
     expect(Boolean(up && Math.abs(up.x - release.x) <= 0.5 && Math.abs(up.y - release.y) <= 0.5), "Missing pointerup at the release point");
     expect(!row.events.some(e => e.type === "pointercancel" || e.type === "dragstart"), "Pointer stream cancelled or native image drag started");
     const immediate = await readSaved(page, role);
@@ -231,17 +239,53 @@ async function runDrop(page: Page, cdp: CDPSession | null, photo: string, input:
       "Cover crop re-panned while editing");
     expect(Math.abs(afterFrame.rect.x - frame.rect.x) < 0.5 && Math.abs(afterFrame.rect.y - frame.rect.y) < 0.5,
       "Photo moved during drag");
-    if (n !== 1) expect(Math.abs(immediate.screen.x - release.x) <= 2 && Math.abs(immediate.screen.y - release.y) <= 2,
+    if (!sameSpot && n !== 5) expect(Math.abs(immediate.screen.x - release.x) <= 2 && Math.abs(immediate.screen.y - release.y) <= 2,
       `Drawn pin ${pair(immediate.screen)} misses release ${pair(release)}`);
-    else expect(await page.locator("#token-hex").inputValue() === before.hex, "No-op changed the dialog hex");
+    if (sameSpot) expect(await page.locator("#token-hex").inputValue() === before.hex, "No-op changed the dialog hex");
+    if (sameSpot) {
+      expect(immediate.pinX === before.pinX && immediate.pinY === before.pinY && immediate.hex === before.hex &&
+        immediate.origin === before.origin, "No-op changed the immediate pin, hex or origin");
+      expect(Math.hypot(immediate.screen.x - start.x, immediate.screen.y - start.y) <= 0.5,
+        "No-op moved the drawn disc");
+    }
+    if (n === 5) {
+      const geometry = await page.evaluate((role) => {
+        const disc = document.querySelector<HTMLElement>(`[data-pin="${role}"]`)!;
+        const hit = document.querySelector<HTMLElement>(`[data-pin-hit="${role}"]`)!;
+        const tick = document.querySelector<SVGLineElement>(`[data-pin-tick="${role}"]`);
+        const rect = disc.getBoundingClientRect();
+        const hitRect = hit.getBoundingClientRect();
+        return { displaced: disc.dataset.pinDisplaced, radius: rect.width / 2 + parseFloat(getComputedStyle(disc).outlineWidth),
+          hit: { x: hitRect.x + hitRect.width / 2, y: hitRect.y + hitRect.height / 2 },
+          tick: tick ? { x1: Number(tick.getAttribute("x1")), y1: Number(tick.getAttribute("y1")),
+            x2: Number(tick.getAttribute("x2")), y2: Number(tick.getAttribute("y2")) } : null };
+      }, role);
+      expect(geometry.displaced === "true", "Edge-zone drop did not displace the disc");
+      expect(immediate.screen.x - geometry.radius >= frame.rect.x + 11 - 0.5 &&
+        immediate.screen.y - geometry.radius >= frame.rect.y + 11 - 0.5 &&
+        immediate.screen.x + geometry.radius <= frame.rect.x + frame.rect.width - 11 + 0.5 &&
+        immediate.screen.y + geometry.radius <= frame.rect.y + frame.rect.height - 11 + 0.5,
+        "Displaced disc does not fit inside the 11px photo inset");
+      expect(Math.hypot(geometry.hit.x - immediate.screen.x, geometry.hit.y - immediate.screen.y) <= 0.5,
+        "Hit area is not centered on the displaced disc");
+      const truePoint = immediate.pinX !== null && immediate.pinY !== null ? {
+        x: frame.rect.x + (immediate.pinX - frame.crop.vx) / frame.crop.vw * frame.rect.width,
+        y: frame.rect.y + (immediate.pinY - frame.crop.vy) / frame.crop.vh * frame.rect.height,
+      } : null;
+      expect(Boolean(geometry.tick && truePoint &&
+        Math.hypot(geometry.tick.x1 + frame.rect.x - immediate.screen.x,
+          geometry.tick.y1 + frame.rect.y - immediate.screen.y) <= 0.5 &&
+        Math.hypot(geometry.tick.x2 + frame.rect.x - truePoint.x,
+          geometry.tick.y2 + frame.rect.y - truePoint.y) <= 0.5), "Tick does not connect the disc to the true point");
+    }
     await page.screenshot({ path: path.join(OUT, `${prefix}-after.png`) });
     await page.locator('[role="dialog"] [data-slot="sheet-close"]').click();
     await page.locator("#token-hex").waitFor({ state: "hidden" });
     await page.waitForTimeout(100);
     row.actionStatuses = await Promise.all(actions);
     expect(row.actionStatuses.every(status => status === 200), "Save action did not return HTTP 200");
-    expect(n === 1 ? actions.length === 0 : actions.length === 1,
-      `Expected ${n === 1 ? "no" : "one"} save action, got ${actions.length}`);
+    expect(sameSpot ? actions.length === 0 : actions.length === 1,
+      `Expected ${sameSpot ? "no" : "one"} save action, got ${actions.length}`);
     await page.reload({ waitUntil: "load" });
     await ready(page);
     const saved = await readSaved(page, role);
@@ -250,7 +294,7 @@ async function runDrop(page: Page, cdp: CDPSession | null, photo: string, input:
     if (saved.pinX !== null && saved.pinY !== null) {
       row.savedSource = { x: saved.pinX * frame.naturalWidth, y: saved.pinY * frame.naturalHeight };
     }
-    if (n === 1) {
+    if (sameSpot) {
       expect(saved.hex === before.hex && saved.pinX === before.pinX && saved.pinY === before.pinY && saved.origin === before.origin,
         "Same-spot drop changed persisted hex, pin coordinates or origin");
     } else {
@@ -303,7 +347,7 @@ async function main() {
             await ready(page);
             const role = await page.locator("[data-pin]").first().getAttribute("data-pin");
             if (!role) throw new Error("Photo has no role with a pin");
-            for (let n = 1; n <= 4; n++) await runDrop(page, cdp, photo, input, role, n);
+            for (let n = 1; n <= 7; n++) await runDrop(page, cdp, photo, input, role, n);
           } catch (error) {
             setupFailures.push(`${photo} ${input}: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`);
           }
@@ -320,7 +364,7 @@ async function main() {
   }
   const failed = rows.filter(r => !r.pass).length;
   console.log(`${rows.length - failed}/${rows.length} drops passed; ${setupFailures.length} setup failures. Reports: ${OUT}/r8_pin-drop.{json,md}`);
-  if (failed || setupFailures.length || rows.length !== 24) process.exitCode = 1;
+  if (failed || setupFailures.length || rows.length !== 42) process.exitCode = 1;
 }
 
 main().catch(async error => {

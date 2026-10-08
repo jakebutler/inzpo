@@ -5,8 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { sampledColors } from "@/lib/derived-roles";
 import type { NamedColor } from "@/lib/brief-copy";
+import { photoBackZone, pinPlacement } from "@/lib/cover-pin";
 
-const mocks = vi.hoisted(() => ({ save: vi.fn(), sheet: null as ReactNode, pixel: vi.fn(), average: vi.fn() }));
+const mocks = vi.hoisted(() => ({ save: vi.fn(), sheet: null as ReactNode, pixel: vi.fn(), average: vi.fn(), drag: vi.fn() }));
 vi.mock("@/app/actions/tokens", () => ({ saveItemTokensAction: mocks.save }));
 vi.mock("@/lib/client-eyedropper", () => ({ sampleImagePixel: mocks.pixel, sampleImageAverage: mocks.average }));
 vi.mock("@/components/ui/sheet", () => ({
@@ -64,6 +65,7 @@ async function render(colors: Row[], initialOpen: ColorRole | null = "primary", 
   await act(async () => root.render(createElement(TokenEditor, {
     itemId: "kit", imageSrc: "photo.jpg", colors, initialOpen, showContrast,
     photoRef: { current: photo }, crop: { vx: 0, vy: 0, vw: 1, vh: 1 },
+    onPinDrag: mocks.drag,
     ...suggestions,
   })));
 }
@@ -189,26 +191,43 @@ describe("token editor with real and empty roles", () => {
     expect(listen.mock.calls.filter(([type]) => type === "pointerdown")).toHaveLength(0);
   });
 
-  it.each([null, "secondary"] as const)("grabs an offset hit area from open=%s and samples the release without an offset", async (initialOpen) => {
+  it.each([null, "secondary"] as const)("grabs a displaced disc from open=%s, preserves its true pin on no-op, and samples the release", async (initialOpen) => {
     await render([
       { role: "primary", hex: "#123456", pinX: 0.2, pinY: 0.03, origin: "region" },
       { role: "secondary", hex: "#654321", pinX: 0.8, pinY: 0.8, origin: "region" },
     ], initialOpen);
     const hit = document.querySelector('[data-pin-hit="primary"]')!;
-    // The disc is at (30, 23); its offset grab point is (82, 50).
-    expect((await pointer("pointerdown", 82, 50, hit)).defaultPrevented).toBe(true);
+    const placement = pinPlacement(20, 3, 100, 100, photoBackZone());
+    const start = { x: placement.disc.x + 10, y: placement.disc.y + 20 };
+    expect(placement.displaced).toBe(true);
+    expect((await pointer("pointerdown", start.x, start.y, hit)).defaultPrevented).toBe(true);
     expect(photo.setPointerCapture).toHaveBeenCalledWith(1);
+    expect(mocks.drag).toHaveBeenLastCalledWith({ role: "primary", ...placement.disc });
     await pointer("pointermove", 90, 90);
-    await pointer("pointerup", 85, 52);
-    expect(mocks.save).not.toHaveBeenCalled(); // 4 CSS px from press, not disc
+    expect(mocks.drag).toHaveBeenLastCalledWith({ role: "primary", x: 80, y: 70 });
+    await pointer("pointerup", start.x + 3, start.y + 2);
+    expect(mocks.drag).toHaveBeenLastCalledWith(null);
+    expect(mocks.save).not.toHaveBeenCalled(); // Within 4px of press, far from true point.
+    expect(mocks.pixel).not.toHaveBeenCalled();
     expect(control((p) => p.id === "token-hex").props.value).toBe("#123456");
-    await pointer("pointerdown", 82, 50, hit);
+    // Exact out-and-back also preserves everything, including the true sample.
+    await pointer("pointerdown", start.x, start.y, hit);
+    await pointer("pointermove", 90, 90);
+    await pointer("pointerup", start.x, start.y);
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(mocks.pixel).not.toHaveBeenCalled();
+    await pointer("pointerdown", start.x, start.y, hit);
     await pointer("pointermove", 50, 55);
     await pointer("pointerup", 60, 70);
     expect(mocks.pixel).toHaveBeenLastCalledWith(photo, 0.5, 0.5);
     expect(saved()).toMatchObject({
       roles: { primary: "#abcdef", secondary: "#654321" },
       pins: { primary: { pinX: 0.5, pinY: 0.5 } }, origins: { primary: "sampled" },
+    });
+    // Undo proves that no-op gestures preserved the original source pin/hex/origin.
+    await act(async () => control((p) => p.children === "Undo").props.onClick());
+    expect(saved()).toMatchObject({
+      roles: { primary: "#123456" }, pins: { primary: { pinX: 0.2, pinY: 0.03 } }, origins: { primary: "region" },
     });
   });
 

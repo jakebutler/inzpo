@@ -9,6 +9,7 @@ import { PaletteBands } from "@/app/components/PaletteBands";
 import { BAND_H_EDITOR, BAND_H_RESULT, BAND_STAGGER_S } from "@/lib/brand";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import { preferredHairline } from "@/lib/hairlines";
+import { photoBackZone, pinPlacement } from "@/lib/cover-pin";
 import { MOTION } from "@/lib/motion";
 import { rolesFromColors } from "@/lib/tokens";
 
@@ -27,6 +28,13 @@ const colors: ComponentProps<typeof KitResult>["colors"] = [
 ];
 
 describe("pin hairline geometry", () => {
+  it("starts a displaced pin's vertical leader at the disc and stops before the bands", () => {
+    const { disc } = pinPlacement(30, 30, 390, 337, photoBackZone());
+    const line = preferredHairline(disc.x, disc.y,
+      { left: 0, top: 337, right: 390, bottom: 377, visible: true }, 337);
+    expect(line).toEqual({ x1: disc.x, y1: disc.y, x2: disc.x, y2: 337 });
+    expect(line!.y1).not.toBe(30);
+  });
   it.each([200, 298, 337])("keeps every line inside a %spx photo, above all result/editor bands", (photoBottom) => {
     for (const bandHeight of [BAND_H_RESULT, BAND_H_EDITOR]) {
       // Cover crops can map a sample above or below the visible photo.
@@ -74,7 +82,7 @@ describe("photo hairline clipping", () => {
       ts.forEachChild(node, visit);
     }
     visit(source);
-    expect(lines).toHaveLength(2);
+    expect(lines).toHaveLength(4);
     for (const line of lines) {
       const ancestors: ts.JsxOpeningElement[] = [];
       for (let parent = line.parent; parent; parent = parent.parent) {

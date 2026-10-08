@@ -43,7 +43,7 @@ export function segmentsCross(a: Hairline, b: Hairline): boolean {
 
 export type BandBox = { left: number; top: number; right: number; bottom: number; visible: boolean };
 
-/** A visible band's pin leads vertically to the photo edge, never into a band. */
+/** A visible band's disc (including a displaced disc) leads to the photo bottom, never into a band. */
 export function preferredHairline(
   sampleX: number | null,
   sampleY: number | null,

@@ -1,3 +1,6 @@
+import { PHOTO_BACK_LEFT_PX, PHOTO_BACK_TOP_PX, PHOTO_BACK_PX, PIN_SIZE, PIN_OUTER_RING_PX } from "@/lib/brand";
+import type { Hairline } from "@/lib/hairlines";
+
 /** Visible window of an object-fit: cover box, in 0–1 source coordinates. */
 export type CoverWindow = {
   vx: number;
@@ -78,10 +81,35 @@ export function objectPositionCss(win: CoverWindow): string {
   return `${px}% ${py}%`;
 }
 
-export const PIN_EDGE_MARGIN_PX = 16;
-export const PIN_HIT_SIZE_PX = PIN_EDGE_MARGIN_PX * 2;
+export const PIN_EDGE_MARGIN_PX = 11;
+export const PIN_HIT_SIZE_PX = 32;
+export const PIN_BACK_ZONE_PX = 52;
+export const PIN_DISC_RADIUS_PX = PIN_SIZE / 2 + PIN_OUTER_RING_PX;
 
 export type PinExclusion = { left: number; top: number; right: number; bottom: number };
+
+/** The photo Back box, expanded to 52px about its center, including safe-area top. */
+export function photoBackZone(safeTopPx = 0): PinExclusion {
+  const expansion = (PIN_BACK_ZONE_PX - PHOTO_BACK_PX) / 2;
+  const left = PHOTO_BACK_LEFT_PX - expansion;
+  const top = PHOTO_BACK_TOP_PX + Math.max(0, safeTopPx) - expansion;
+  return { left, top, right: left + PIN_BACK_ZONE_PX, bottom: top + PIN_BACK_ZONE_PX };
+}
+
+function insideZone(x: number, y: number, zone: PinExclusion): boolean {
+  return x > zone.left && x < zone.right && y > zone.top && y < zone.bottom;
+}
+
+export function pinPlacement(x: number, y: number, boxW: number, boxH: number, avoid?: PinExclusion | null) {
+  const disc = clampPinCenter(x, y, boxW, boxH, avoid);
+  const displaced = disc.x !== x || disc.y !== y;
+  return {
+    disc,
+    hit: disc,
+    displaced,
+    tick: displaced ? { x1: disc.x, y1: disc.y, x2: x, y2: y } satisfies Hairline : null,
+  };
+}
 
 /** Map a 0–1 source pin onto an object-fit: cover box. Null if the pin was cropped away. */
 export function mapCoverPin(
@@ -120,40 +148,47 @@ export function mapCoverPinRaw(
   };
 }
 
-/** Clamp only the hit-area center. The disc must stay at the mapped sample point. */
+/**
+ * Only zone samples move. Project to the nearest legal disc center: its ink ring
+ * clears Back's 52px zone and fits wholly inside the photo's 11px edge inset.
+ * Source coordinates are never clamped; hit and disc use this same center.
+ */
 export function clampPinCenter(
   leftPx: number,
   topPx: number,
   boxW: number,
   boxH: number,
-  safeTopPx = 0,
-  marginPx = PIN_EDGE_MARGIN_PX,
   avoid?: PinExclusion | null,
 ): { x: number; y: number } {
   if (!Number.isFinite(boxW) || !Number.isFinite(boxH) || boxW <= 0 || boxH <= 0) {
     return { x: leftPx, y: topPx };
   }
-  const inset = Number.isFinite(marginPx) ? marginPx : PIN_EDGE_MARGIN_PX;
-  const safe = Number.isFinite(safeTopPx) && safeTopPx > 0 ? safeTopPx : 0;
+  const inEdgeZone = leftPx < PIN_EDGE_MARGIN_PX || leftPx > boxW - PIN_EDGE_MARGIN_PX ||
+    topPx < PIN_EDGE_MARGIN_PX || topPx > boxH - PIN_EDGE_MARGIN_PX;
+  if (!inEdgeZone && !(avoid && insideZone(leftPx, topPx, avoid))) return { x: leftPx, y: topPx };
+  const inset = PIN_EDGE_MARGIN_PX + PIN_DISC_RADIUS_PX;
   const minX = inset;
   const maxX = Math.max(inset, boxW - inset);
-  const minY = inset + safe;
+  const minY = inset;
   const maxY = Math.max(minY, boxH - inset);
   const center = {
     x: clamp(leftPx, minX, maxX),
     y: clamp(topPx, minY, maxY),
   };
-  // Clear the entire control, including the hit area's half-size. Choose the
-  // closest available side so a sample under Back can still be grabbed.
-  if (avoid && center.x + inset > avoid.left && center.x - inset < avoid.right &&
-    center.y + inset > avoid.top && center.y - inset < avoid.bottom) {
+  // The illegal centers form the zone expanded by the disc's radius. Project
+  // onto each available side, then choose by distance from the TRUE point.
+  const radius = PIN_DISC_RADIUS_PX;
+  if (avoid && insideZone(center.x, center.y, {
+    left: avoid.left - radius, top: avoid.top - radius,
+    right: avoid.right + radius, bottom: avoid.bottom + radius,
+  })) {
     const candidates = [
-      { x: avoid.left - inset, y: center.y },
-      { x: avoid.right + inset, y: center.y },
-      { x: center.x, y: avoid.top - inset },
-      { x: center.x, y: avoid.bottom + inset },
+      { x: avoid.left - radius, y: center.y },
+      { x: avoid.right + radius, y: center.y },
+      { x: center.x, y: avoid.top - radius },
+      { x: center.x, y: avoid.bottom + radius },
     ].filter(({ x, y }) => x >= minX && x <= maxX && y >= minY && y <= maxY);
-    candidates.sort((a, b) => Math.hypot(a.x - center.x, a.y - center.y) - Math.hypot(b.x - center.x, b.y - center.y));
+    candidates.sort((a, b) => Math.hypot(a.x - leftPx, a.y - topPx) - Math.hypot(b.x - leftPx, b.y - topPx));
     return candidates[0] ?? center;
   }
   return center;

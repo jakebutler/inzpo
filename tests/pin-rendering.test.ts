@@ -5,7 +5,7 @@ import { parseHTML } from "linkedom";
 import { describe, expect, it, vi } from "vitest";
 import { KitResult } from "@/app/components/KitResult";
 import type { TokenEditor } from "@/app/components/TokenEditor";
-import { coverWindowForPins, mapCoverPin, PIN_HIT_SIZE_PX } from "@/lib/cover-pin";
+import { coverWindowForPins, mapCoverPin, PIN_DISC_RADIUS_PX } from "@/lib/cover-pin";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("gsap", () => ({ gsap: { registerPlugin: vi.fn() } }));
@@ -27,20 +27,27 @@ function photo(pinX: number, pinY: number, openRole: "primary" | null) {
     disc: document.querySelector<HTMLElement>('[data-pin="primary"]')!,
     hit: document.querySelector<HTMLElement>('[data-pin-hit="primary"]')!,
     back: document.querySelector<HTMLElement>("[data-photo-back]")!,
+    tick: document.querySelector<SVGElement>("[data-pin-tick]")!,
   };
 }
 
 describe.each([null, "primary"] as const)("true pin drawing (open role: %s)", (openRole) => {
-  it("draws the disc over the sampled source pixel while clamping only its hit area", () => {
+  it("displaces an edge disc and its hit area while keeping the sampled coordinates", () => {
     const pinX = 0.5;
     const pinY = 2 / 390;
-    const { disc, hit } = photo(pinX, pinY, openRole);
+    const { disc, hit, tick } = photo(pinX, pinY, openRole);
     const crop = coverWindowForPins(390, 390, 390, 337, [{ x: pinX, y: pinY }])!;
     const mapped = mapCoverPin(pinX, pinY, 390, 390, 390, 337, crop)!;
     expect(parseFloat(disc.style.left)).toBeCloseTo(mapped.left * 390);
-    expect(parseFloat(disc.style.top)).toBeCloseTo(mapped.top * 337);
-    expect(parseFloat(disc.style.top)).toBeCloseTo(2);
-    expect(parseFloat(hit.style.top)).toBe(16);
+    expect(parseFloat(disc.style.top)).toBe(11 + PIN_DISC_RADIUS_PX);
+    expect(hit.style.left).toBe(disc.style.left);
+    expect(hit.style.top).toBe(disc.style.top);
+    expect(disc.dataset.pinDisplaced).toBe("true");
+    expect(Number(tick.getAttribute("x1"))).toBe(parseFloat(disc.style.left));
+    expect(Number(tick.getAttribute("y1"))).toBe(parseFloat(disc.style.top));
+    expect(Number(tick.getAttribute("x2"))).toBeCloseTo(mapped.left * 390);
+    expect(Number(tick.getAttribute("y2"))).toBeCloseTo(2);
+    expect(tick.getAttribute("stroke-width")).toBe("1");
     expect(disc.classList.contains("pointer-events-none")).toBe(true);
     expect(hit.classList.contains("pointer-events-auto")).toBe(true);
     expect(disc.dataset.pinX).toBe(String(pinX));
@@ -48,20 +55,33 @@ describe.each([null, "primary"] as const)("true pin drawing (open role: %s)", (o
     expect(disc.dataset.origin).toBe("sampled");
   });
 
-  it("moves the hit area of a pin under Back without displacing its disc", () => {
-    const { disc, hit, back } = photo(30 / 390, 30 / 390, openRole);
+  it("displaces the disc under Back and centers its hit area on it", () => {
+    const { disc, hit, back, tick } = photo(30 / 390, 30 / 390, openRole);
     expect(parseFloat(disc.style.left)).toBeCloseTo(30);
-    expect(parseFloat(disc.style.top)).toBeCloseTo(30);
-    const x = parseFloat(hit.style.left);
-    const y = parseFloat(hit.style.top);
-    const radius = PIN_HIT_SIZE_PX / 2;
-    expect(x - radius >= 56 || y - radius >= 52).toBe(true);
+    expect(parseFloat(disc.style.top)).toBeCloseTo(56 + PIN_DISC_RADIUS_PX);
+    expect(hit.style.left).toBe(disc.style.left);
+    expect(hit.style.top).toBe(disc.style.top);
+    expect(disc.dataset.pinDisplaced).toBe("true");
+    expect(Number(tick.getAttribute("x2"))).toBeCloseTo(30);
+    expect(Number(tick.getAttribute("y2"))).toBeCloseTo(30);
     expect(back.style.pointerEvents).toBe("auto");
     expect(back.classList.contains("z-[21]")).toBe(true);
+    expect(back.style.left).toBe("12px");
+    expect(back.style.top).toBe("calc(env(safe-area-inset-top, 0px) + 8px)");
+  });
+
+  it("leaves a non-zone disc and hit area at the true point without a tick", () => {
+    const { disc, hit, tick } = photo(100 / 390, 100 / 390, openRole);
+    expect(parseFloat(disc.style.left)).toBeCloseTo(100);
+    expect(parseFloat(disc.style.top)).toBeCloseTo(100);
+    expect(hit.style.left).toBe(disc.style.left);
+    expect(hit.style.top).toBe(disc.style.top);
+    expect(disc.hasAttribute("data-pin-displaced")).toBe(false);
+    expect(tick).toBeNull();
   });
 });
 
-it("freezes the editing crop, hides a pin moved outside it, and reveals its true point on close", async () => {
+it("freezes the editing crop, hides a pin moved outside it, and reveals its displaced disc on close", async () => {
   const { window, document } = parseHTML("<html><body><div id='root'></div></body></html>");
   window.matchMedia = vi.fn().mockReturnValue({ matches: false });
   vi.stubGlobal("window", window);
@@ -89,6 +109,14 @@ it("freezes the editing crop, hides a pin moved outside it, and reveals its true
     const frozenPosition = image.style.objectPosition;
     const frozenCrop = editor.props!.crop;
     expect(document.querySelector('[data-pin="primary"]')).not.toBeNull();
+    await act(async () => editor.props!.onPinDrag!({ role: "primary", x: 3, y: 2 }));
+    const draggingDisc = document.querySelector<HTMLElement>('[data-pin="primary"]')!;
+    expect(parseFloat(draggingDisc.style.left)).toBe(3);
+    expect(parseFloat(draggingDisc.style.top)).toBe(2);
+    expect(draggingDisc.dataset.pinY).toBe("0.6");
+    expect(document.querySelector("[data-pin-tick]")).toBeNull();
+    expect(document.querySelector<HTMLElement>('[data-pin-hit="primary"]')!.style.top).toBe(draggingDisc.style.top);
+    await act(async () => editor.props!.onPinDrag!(null));
     await act(async () => editor.props!.onColorsChange!([
       { role: "primary", position: 0, hex: "#abcdef", origin: "sampled", pinX: 0.5, pinY: 0.005 },
     ]));
@@ -99,7 +127,8 @@ it("freezes the editing crop, hides a pin moved outside it, and reveals its true
     await act(async () => editor.props!.onOpenChange!(null));
     expect(image.style.objectPosition).not.toBe(frozenPosition);
     const disc = document.querySelector<HTMLElement>('[data-pin="primary"]')!;
-    expect(parseFloat(disc.style.top)).toBeCloseTo(5);
+    expect(parseFloat(disc.style.top)).toBe(11 + PIN_DISC_RADIUS_PX);
+    expect(disc.dataset.pinDisplaced).toBe("true");
     expect(disc.dataset.pinY).toBe("0.005");
   } finally {
     await act(async () => root.unmount());

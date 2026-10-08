@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { INK, PAPER, PHOTO_BACK_PX } from "@/lib/brand";
+import { INK, PAPER, PHOTO_BACK_PX, PHOTO_BACK_LEFT_PX, PHOTO_BACK_TOP_PX } from "@/lib/brand";
 
 export function PhotoBackButton({
   href,
@@ -18,13 +18,14 @@ export function PhotoBackButton({
       data-photo-back
       className={
         photo
-          ? "absolute left-3 z-[21] flex items-center justify-center rounded-full"
+          ? "absolute z-[21] flex items-center justify-center rounded-full"
           : "relative z-[21] flex shrink-0 items-center justify-center rounded-full"
       }
       style={{
         width: PHOTO_BACK_PX,
         height: PHOTO_BACK_PX,
-        top: photo ? "calc(env(safe-area-inset-top, 0px) + 8px)" : undefined,
+        left: photo ? PHOTO_BACK_LEFT_PX : undefined,
+        top: photo ? `calc(env(safe-area-inset-top, 0px) + ${PHOTO_BACK_TOP_PX}px)` : undefined,
         backgroundColor: `color-mix(in srgb, ${PAPER} 85%, transparent)`,
         color: INK,
         pointerEvents: "auto",

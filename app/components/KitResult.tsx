@@ -13,7 +13,7 @@ import { kitFromColors } from "@/lib/mascot";
 import { MOTION, MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { rolesFromColors } from "@/lib/tokens";
-import { clampPinCenter, coverWindowForPins, mapCoverPin, objectPositionCss, PIN_HIT_SIZE_PX } from "@/lib/cover-pin";
+import { coverWindowForPins, mapCoverPin, objectPositionCss, photoBackZone, pinPlacement, PIN_HIT_SIZE_PX } from "@/lib/cover-pin";
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
 import { useKitDisplayName } from "./useKitDisplayName";
 import { SavedKitHeader } from "./SavedKitHeader";
@@ -31,7 +31,6 @@ import {
   PAPER,
   PHOTO_FOLD_CSS,
   PHOTO_FOLD_PX,
-  PHOTO_BACK_PX,
   PIN_HAIRLINE_S,
   pinDiscStyle,
 } from "@/lib/brand";
@@ -140,6 +139,8 @@ export function KitResult({
   const imgRef = useRef<HTMLImageElement>(null);
   const bandRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [box, setBox] = useState({ w: width, h: PHOTO_FOLD_PX });
+  const [safeTop, setSafeTop] = useState(0);
+  const [dragPin, setDragPin] = useState<{ role: ColorRole; x: number; y: number } | null>(null);
   const [stripeCount, setStripeCount] = useState(
     preview?.reveal === "play" || preview?.reveal === "hold" ? 0 : 6,
   );
@@ -181,15 +182,33 @@ export function KitResult({
     const pins = editingPins ?? pinsForCrop(displayColors);
     return coverWindowForPins(width, height, box.w, box.h, pins);
   }, [displayColors, editingPins, width, height, box.w, box.h]);
+  const backZone = showBack && !saved && backHref ? photoBackZone(safeTop) : null;
+  const drawnPins = displayColors.flatMap((color) => {
+    if (!color.role || color.pinX == null || color.pinY == null) return [];
+    const mapped = mapCoverPin(color.pinX, color.pinY, width, height, box.w, box.h, crop);
+    if (!mapped) return [];
+    const placement = dragPin?.role === color.role
+      ? { disc: dragPin, hit: dragPin, displaced: false, tick: null }
+      : pinPlacement(mapped.left * box.w, mapped.top * box.h, box.w, box.h, backZone);
+    return [{ color, ...placement }];
+  });
+  // The reveal ticker keeps its callback for the life of the photo. Read the
+  // latest disc geometry so resize, safe-area changes and drags cannot stale it.
+  const hairlineGeometry = useRef({ pins: drawnPins, photoBottom: box.h });
+  useEffect(() => {
+    hairlineGeometry.current = { pins: drawnPins, photoBottom: box.h };
+  });
 
   useEffect(() => {
     const el = photoRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
+    const measure = () => {
       setBox({ w: el.clientWidth, h: el.clientHeight });
-    });
+      setSafeTop(readSafeTop(el));
+    };
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
-    setBox({ w: el.clientWidth, h: el.clientHeight });
+    measure();
     return () => ro.disconnect();
   }, [imageSrc]);
 
@@ -258,21 +277,17 @@ export function KitResult({
 
   function syncHairlines() {
     const stage = stageRef.current;
-    if (!stage || !crop) {
+    if (!stage) {
       setLeaders([]);
       return;
     }
     const stackEl = stage.querySelector<HTMLElement>("[data-band-stack]");
+    const { pins, photoBottom } = hairlineGeometry.current;
     const lines: Array<Hairline | null> = [];
     for (let i = 0; i < COLOR_ROLES.length; i++) {
       const role = COLOR_ROLES[i]!;
-      const row = displayColors.find((c) => c.role === role);
-      if (!row || row.pinX == null || row.pinY == null) {
-        lines.push(null);
-        continue;
-      }
-      const mapped = mapCoverPin(row.pinX, row.pinY, width, height, box.w, box.h, crop);
-      if (!mapped) {
+      const pin = pins.find(({ color }) => color.role === role);
+      if (!pin) {
         lines.push(null);
         continue;
       }
@@ -281,9 +296,9 @@ export function KitResult({
         lines.push(null);
         continue;
       }
-      const sampleX = mapped.left * box.w;
-      const sampleY = mapped.top * box.h;
-      lines.push(preferredHairline(sampleX, sampleY, band, box.h));
+      // Leaders originate at the visible disc, including during drag, and end
+      // at the photo bottom. The clipped SVG never draws through band rows.
+      lines.push(preferredHairline(pin.disc.x, pin.disc.y, band, photoBottom));
     }
     setLeaders(lines);
   }
@@ -402,7 +417,7 @@ export function KitResult({
   useEffect(() => {
     if (focusedRole) syncHairlines();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedRole, box.w, box.h, displayColors]);
+  }, [focusedRole, box.w, box.h, displayColors, safeTop, dragPin]);
 
   async function moveCrop() {
     setMoving(true);
@@ -423,10 +438,6 @@ export function KitResult({
   };
   const objectPosition = crop ? objectPositionCss(crop) : "50% 50%";
   const hideBrief = false;
-  const safeTop = readSafeTop(photoRef.current);
-  const backBox = showBack && !saved
-    ? { left: 12, top: safeTop + 8, right: 12 + PHOTO_BACK_PX, bottom: safeTop + 8 + PHOTO_BACK_PX }
-    : null;
 
   return (
     <>
@@ -480,6 +491,12 @@ export function KitResult({
             style={{ overflow: "hidden" }}
             aria-hidden
           >
+            {drawnPins.map(({ color, tick }) => tick ? (
+              <g key={`tick-${color.role}`}>
+                <line {...tick} stroke={INK} strokeWidth="3" strokeLinecap="round" />
+                <line data-pin-tick={color.role} {...tick} stroke={PAPER} strokeWidth="1" strokeLinecap="round" />
+              </g>
+            ) : null)}
             {COLOR_ROLES.map((role, i) => {
               const line = leaders[i];
               const row = displayColors.find((c) => c.role === role);
@@ -515,25 +532,20 @@ export function KitResult({
           </svg>
           {showBack && !saved ? <PhotoBackButton href={backHref} /> : null}
           <div className="pointer-events-none absolute inset-0 overflow-visible">
-            {displayColors.map((c) => {
-              if (!c.role || c.pinX == null || c.pinY == null) return null;
-              const mapped = mapCoverPin(c.pinX, c.pinY, width, height, box.w, box.h, crop);
-              if (!mapped) return null;
-              const x = mapped.left * box.w;
-              const y = mapped.top * box.h;
-              const hit = clampPinCenter(x, y, box.w, box.h, safeTop, PIN_HIT_SIZE_PX / 2, backBox);
+            {drawnPins.map(({ color: c, disc, hit, displaced }) => {
               return (
                 <Fragment key={`${c.role}-${c.position}`}>
                   <span
                     data-pin={c.role}
+                    data-pin-displaced={displaced ? "true" : undefined}
                     data-pin-x={c.pinX}
                     data-pin-y={c.pinY}
                     data-origin={c.origin ?? "extracted"}
                     className="pointer-events-none absolute rounded-full"
                     style={{
                       ...pinDiscStyle(c.hex),
-                      left: x,
-                      top: y,
+                      left: disc.x,
+                      top: disc.y,
                       transform: "translate(-50%, -50%)",
                     }}
                   />
@@ -589,6 +601,7 @@ export function KitResult({
         imageSize={{ width, height }}
         simulateLoupe={preview?.loupe === true}
         onLoupe={setLoupe}
+        onPinDrag={setDragPin}
         onColorsChange={(next) => {
           const rows = next.map((row, position) => ({ ...row, position }));
           setEditedColors(rows);
