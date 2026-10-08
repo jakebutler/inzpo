@@ -1,6 +1,6 @@
 import { describe, expect, it, afterEach } from "vitest";
 import { LEGACY_OWNER_ID, ownerIdsFor } from "@/lib/auth/owner-ids";
-import { classifyAuthError, INVITE_ONLY_MESSAGE, messageForAuthError } from "@/lib/auth/clerk-errors";
+import { classifyAuthError, INVITE_ONLY_MESSAGE, RETRY_MESSAGE, messageForAuthError } from "@/lib/auth/clerk-errors";
 
 describe("ownerIdsFor", () => {
   afterEach(() => {
@@ -31,5 +31,14 @@ describe("classifyAuthError", () => {
 
   it("does not leak identifier-not-found as a different message", () => {
     expect(messageForAuthError(classifyAuthError({ code: "form_identifier_not_found" }))).toBe(INVITE_ONLY_MESSAGE);
+  });
+
+  it("uses a generic retry line for unknown, network, and rate-limit errors", () => {
+    expect(classifyAuthError({ code: "too_many_requests" })).toBe("retry");
+    expect(classifyAuthError({ code: "network_error" })).toBe("retry");
+    expect(classifyAuthError({ message: "fetch failed" })).toBe("retry");
+    expect(messageForAuthError("retry")).toBe(RETRY_MESSAGE);
+    expect(messageForAuthError(classifyAuthError({ code: "something_else" }))).toBe(RETRY_MESSAGE);
+    expect(RETRY_MESSAGE).not.toBe(INVITE_ONLY_MESSAGE);
   });
 });

@@ -11,12 +11,14 @@ import { bulkCollectionAction, bulkDeleteAction } from "@/app/actions/bulk";
 import { bulkBoardAction } from "@/app/actions/boards";
 import { ActionForm } from "@/app/components/ActionForm";
 import { MascotStage } from "@/app/components/MascotStage";
-import { BandStripe, rolesFromHexes } from "@/app/components/BandStripe";
+import { KitCard } from "@/app/components/KitCard";
+import { kitDisplayName } from "@/lib/kit-name";
 
 export interface WallCard {
   id: string;
   kind: string;
   title: string | null;
+  note?: string | null;
   displayKey: string | null;
   aspect: number | null;
   hexColors: string[];
@@ -307,7 +309,7 @@ export function WallGrid({
                 role="checkbox"
                 tabIndex={0}
                 aria-checked={on}
-                aria-label={item.title ?? "Untitled"}
+                aria-label={kitDisplayName({ title: item.title, briefText: item.note })}
                 onPointerDown={() => startLongPress(item.id)}
                 onPointerUp={cancelLongPress}
                 onPointerLeave={cancelLongPress}
@@ -322,7 +324,11 @@ export function WallGrid({
                 }}
                 className={`relative cursor-pointer break-inside-avoid ${on ? "outline outline-2 outline-offset-2 outline-primary" : ""}`}
               >
-                <BandStripe roles={rolesFromHexes(item.hexColors)} title={item.title ?? "Untitled"} />
+                <KitCard
+                  title={kitDisplayName({ title: item.title, briefText: item.note })}
+                  imageSrc={item.displayKey ? `/media/${item.displayKey}` : null}
+                  hexes={item.hexColors}
+                />
                 <span
                   aria-hidden
                   className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full ${
@@ -354,12 +360,6 @@ export function WallGrid({
       {items.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 py-32 text-center" role="status">
           <MascotStage moment="empty" className="justify-center text-left" />
-          <p className="text-sm text-muted-foreground">
-            <Link href="/capture" className="underline underline-offset-2 hover:text-foreground">
-              Snap something
-            </Link>{" "}
-            to begin.
-          </p>
         </div>
       ) : null}
       <div className="grid grid-cols-1 gap-6 items-start sm:grid-cols-2 md:grid-cols-3">
@@ -381,12 +381,16 @@ export function WallGrid({
             }}
             className="block"
           >
-            <BandStripe roles={rolesFromHexes(item.hexColors)} title={item.title ?? "Untitled"} />
+            <KitCard
+              title={kitDisplayName({ title: item.title, briefText: item.note })}
+              imageSrc={item.displayKey ? `/media/${item.displayKey}` : null}
+              hexes={item.hexColors}
+            />
           </Link>
           <div className="pointer-events-none absolute right-0 top-0 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
             <button
               type="button"
-              aria-label={`Select ${item.title ?? "Untitled"}`}
+              aria-label={`Select ${kitDisplayName({ title: item.title, briefText: item.note })}`}
               onClick={() => {
                 setSelectMode(true);
                 setSelected((prev) => new Set(prev).add(item.id));

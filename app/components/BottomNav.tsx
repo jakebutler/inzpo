@@ -35,7 +35,7 @@ export function BottomNav() {
         {item("/", "Wall", Images)}
         <Link
           href="/capture"
-          aria-label="Capture"
+          aria-label="Snap something"
           className="-mt-6 flex h-14 w-14 items-center justify-center bg-primary text-primary-foreground transition-transform active:scale-95"
         >
           <Plus className="h-7 w-7" />

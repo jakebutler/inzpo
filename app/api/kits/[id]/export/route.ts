@@ -27,7 +27,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const zip = new JSZip();
   zip.file("tokens.json", tokensJson(item));
   zip.file("tokens.css", tokensCss(item));
-  zip.file("brief.md", briefMarkdown(brief?.text ?? item.note));
+  zip.file("brief.md", briefMarkdown(brief?.text ?? item.note, brief?.status ?? "none"));
   zip.file("texture.svg", textureSvg(tile));
   const body = await zip.generateAsync({ type: "uint8array" });
   return new NextResponse(Buffer.from(body), {

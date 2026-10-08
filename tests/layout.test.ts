@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { PHOTO_MAX_SVH, SAVE_BAR_PAD } from "@/lib/layout";
-import { BAND_H_EDITOR, BAND_H_RESULT, BAND_STAGGER_S, INK, PAPER, VERMILION } from "@/lib/brand";
+import { PHOTO_FOLD_PX, PHOTO_MAX_SVH, SAVE_BAR_PAD } from "@/lib/layout";
+import { BAND_H_EDITOR, BAND_H_RESULT, BAND_STAGGER_S, INK, PAPER, PIN_LEADER_X, VERMILION } from "@/lib/brand";
 
 describe("result fold tokens", () => {
-  it("caps the photo at 45svh and uses stacked band heights", () => {
+  it("locks the photo frame at 337px and uses stacked band heights", () => {
+    expect(PHOTO_FOLD_PX).toBe(337);
     expect(PHOTO_MAX_SVH).toBe("45svh");
+    expect(PIN_LEADER_X).toBe(16);
     expect(SAVE_BAR_PAD).toContain("8.5rem");
     expect(BAND_H_RESULT).toBe(40);
     expect(BAND_H_EDITOR).toBe(56);

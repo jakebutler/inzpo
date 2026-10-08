@@ -24,6 +24,25 @@ describe("contrastLineCopy", () => {
   });
 });
 
+describe("gated kit text", () => {
+  it("uses the kit text token at 4.5:1 and falls back to ink or paper", async () => {
+    const { gatedTextColor, contrastRatio } = await import("@/lib/contrast");
+    const { INK, PAPER } = await import("@/lib/brand");
+    const darkBg = "#384B5F";
+    expect(contrastRatio("#5C574E", darkBg)).toBeLessThan(4.5);
+    const ink = gatedTextColor("#5C574E", darkBg, 4.5);
+    expect([INK, PAPER]).toContain(ink);
+    expect(contrastRatio(ink, darkBg)).toBeGreaterThanOrEqual(4.5);
+    expect(gatedTextColor("#bec6cd", darkBg, 4.5)).toBe("#bec6cd");
+  });
+
+  it("labels AA pass or fail", async () => {
+    const { aaPassLabel } = await import("@/lib/contrast");
+    expect(aaPassLabel(4.5)).toBe("AA pass");
+    expect(aaPassLabel(4.49)).toBe("fail");
+  });
+});
+
 describe("band and save contrast", () => {
   it("labels a band with a kit color that passes 4.5:1, else ink or paper", async () => {
     const { bandLabelColor, saveControlColors } = await import("@/lib/contrast");

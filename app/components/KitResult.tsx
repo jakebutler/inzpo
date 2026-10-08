@@ -6,14 +6,25 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { TokenEditor } from "./TokenEditor";
 import { BriefSlot, type BriefSlotStatus } from "./BriefSlot";
+import { ContrastAa } from "./ContrastAa";
 import { kitFromColors } from "@/lib/mascot";
 import { MOTION, MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
-import { pinNumbers, rolesFromColors } from "@/lib/tokens";
-import { mapCoverPin } from "@/lib/cover-pin";
+import { rolesFromColors } from "@/lib/tokens";
+import { coverWindowForPins, mapCoverPin, objectPositionCss } from "@/lib/cover-pin";
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
-import { PHOTO_MAX_SVH, SAVE_BAR_PAD } from "@/lib/layout";
-import { BAND_H_RESULT, BAND_STAGGER_S, INK, PAPER, PIN_HAIRLINE_S, PIN_SIZE } from "@/lib/brand";
+import { kitDisplayName } from "@/lib/kit-name";
+import { SAVE_BAR_PAD } from "@/lib/layout";
+import {
+  BAND_H_RESULT,
+  BAND_STAGGER_S,
+  INK,
+  PAPER,
+  PHOTO_FOLD_PX,
+  PIN_HAIRLINE_S,
+  PIN_LEADER_X,
+  PIN_SIZE,
+} from "@/lib/brand";
 import { saveControlColors } from "@/lib/contrast";
 
 gsap.registerPlugin(useGSAP);
@@ -59,13 +70,13 @@ export function KitResult({
   const router = useRouter();
   const kit = kitFromColors(colors);
   const roles = rolesFromColors(colors);
-  const numbers = useMemo(() => pinNumbers(colors), [colors]);
   const kicked = useRef(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const photoRef = useRef<HTMLDivElement>(null);
-  const [box, setBox] = useState({ w: width, h: height });
+  const [box, setBox] = useState({ w: width, h: PHOTO_FOLD_PX });
   const [stripeCount, setStripeCount] = useState(preview?.reveal === "play" ? 0 : 6);
-  const [hairlines, setHairlines] = useState(false);
+  const [linePulse, setLinePulse] = useState(false);
+  const [focusedRole, setFocusedRole] = useState<ColorRole | null>(null);
   const [brief, setBrief] = useState<{
     status: BriefSlotStatus;
     text: string | null;
@@ -82,6 +93,19 @@ export function KitResult({
   const pageBg = roles.background ?? PAPER;
   const pageInk = roles.text ?? INK;
   const save = saveControlColors(roles.accent, roles.background);
+  const displayTitle = kitDisplayName({
+    title,
+    briefText: brief.text,
+    namedColors: brief.namedColors,
+    pending: brief.status === "pending" || brief.stub,
+  });
+
+  const crop = useMemo(() => {
+    const pins = colors
+      .filter((c) => c.pinX != null && c.pinY != null)
+      .map((c) => ({ x: c.pinX as number, y: c.pinY as number }));
+    return coverWindowForPins(width, height, box.w, box.h, pins);
+  }, [colors, width, height, box.w, box.h]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -167,20 +191,20 @@ export function KitResult({
       if (reduced || mode === "landed") {
         gsap.set(bands, { y: 0 });
         setStripeCount(6);
-        setHairlines(false);
+        setLinePulse(false);
         return;
       }
       const stack = BAND_H_RESULT * COLOR_ROLES.length;
       if (mode === "mid") {
         gsap.set(bands, { y: (i) => (i < 3 ? 0 : stack * 0.35) });
         setStripeCount(3);
-        setHairlines(false);
+        setLinePulse(false);
         return;
       }
       gsap.set(bands, { y: stack });
+      setLinePulse(true);
       const tl = gsap.timeline({
         defaults: { duration: MOTION.enter.duration, ease: MOTION.enter.ease },
-        onComplete: () => setHairlines(true),
       });
       bands.forEach((band, i) => {
         tl.to(band, { y: 0 }, i * BAND_STAGGER_S);
@@ -192,12 +216,12 @@ export function KitResult({
 
   useGSAP(
     () => {
-      if (!hairlines || reduced) return;
+      if (!linePulse || reduced) return;
       const lines = stageRef.current?.querySelectorAll("[data-pin-line]");
       if (!lines || lines.length === 0) return;
       gsap.fromTo(
         lines,
-        { strokeDashoffset: 120, opacity: 1 },
+        { strokeDashoffset: 160, opacity: 1 },
         {
           strokeDashoffset: 0,
           duration: PIN_HAIRLINE_S,
@@ -205,11 +229,12 @@ export function KitResult({
           stagger: 0.04,
           onComplete: () => {
             gsap.to(lines, { opacity: 0, duration: MOTION.leave.duration, ease: MOTION.leave.ease, delay: 0.08 });
+            setLinePulse(false);
           },
         },
       );
     },
-    { dependencies: [hairlines, reduced, box.w, box.h] },
+    { dependencies: [linePulse, reduced, box.w, box.h] },
   );
 
   async function moveCrop() {
@@ -222,7 +247,7 @@ export function KitResult({
     }
   }
 
-  const pinRing = roles.text ?? INK;
+  const pinRing = pageInk;
   const wearStyle = {
     backgroundColor: pageBg,
     color: pageInk,
@@ -235,42 +260,54 @@ export function KitResult({
     ["--primary-foreground" as string]: save.ink,
     paddingBottom: SAVE_BAR_PAD,
   };
+  const objectPosition = crop ? objectPositionCss(crop) : "50% 50%";
+  const hideBrief = brief.stub && !saved;
 
   return (
     <div ref={stageRef} className="relative w-full" style={wearStyle} data-kit-wear>
       {imageSrc ? (
         <div
           ref={photoRef}
-          className="relative w-full overflow-hidden"
+          className="relative w-full"
           data-photo-fold
-          style={{ height: PHOTO_MAX_SVH }}
+          style={{ height: PHOTO_FOLD_PX }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imageSrc} alt={title ?? "Photo"} className="h-full w-full object-cover" style={{ filter: "none" }} />
-          {colors.map((c) => {
-            if (!c.role || c.pinX == null || c.pinY == null) return null;
-            const mapped = mapCoverPin(c.pinX, c.pinY, width, height, box.w, box.h);
-            if (!mapped) return null;
-            return (
-              <span
-                key={`${c.role}-${c.position}`}
-                data-pin={c.role}
-                className="absolute rounded-full"
-                style={{
-                  width: PIN_SIZE,
-                  height: PIN_SIZE,
-                  left: `${mapped.left * 100}%`,
-                  top: `${mapped.top * 100}%`,
-                  transform: "translate(-50%, -50%)",
-                  backgroundColor: c.hex,
-                  boxShadow: `0 0 0 2px ${pinRing}`,
-                }}
-              />
-            );
-          })}
+          <div className="absolute inset-0 overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageSrc}
+              alt={displayTitle}
+              className="h-full w-full object-cover"
+              style={{ filter: "none", objectPosition }}
+            />
+          </div>
+          <div className="pointer-events-none absolute inset-0 overflow-visible">
+            {colors.map((c) => {
+              if (!c.role || c.pinX == null || c.pinY == null) return null;
+              const mapped = mapCoverPin(c.pinX, c.pinY, width, height, box.w, box.h, crop);
+              if (!mapped) return null;
+              return (
+                <span
+                  key={`${c.role}-${c.position}`}
+                  data-pin={c.role}
+                  className="absolute rounded-full"
+                  style={{
+                    width: PIN_SIZE,
+                    height: PIN_SIZE,
+                    left: `${mapped.left * 100}%`,
+                    top: `${mapped.top * 100}%`,
+                    transform: "translate(-50%, -50%)",
+                    backgroundColor: c.hex,
+                    border: `2px solid ${pinRing}`,
+                    boxSizing: "content-box",
+                  }}
+                />
+              );
+            })}
+          </div>
         </div>
       ) : null}
-      {hairlines && imageSrc ? (
+      {imageSrc ? (
         <svg
           className="pointer-events-none absolute left-0 top-0 w-full overflow-visible"
           style={{ height: box.h + BAND_H_RESULT * COLOR_ROLES.length }}
@@ -279,26 +316,38 @@ export function KitResult({
           {COLOR_ROLES.map((role, i) => {
             const row = colors.find((c) => c.role === role);
             if (!row || row.pinX == null || row.pinY == null) return null;
-            const mapped = mapCoverPin(row.pinX, row.pinY, width, height, box.w, box.h);
+            const mapped = mapCoverPin(row.pinX, row.pinY, width, height, box.w, box.h, crop);
             if (!mapped) return null;
             const x1 = mapped.left * box.w;
             const y1 = mapped.top * box.h;
-            const x2 = 24;
+            const x2 = PIN_LEADER_X;
             const y2 = box.h + (i + 0.5) * BAND_H_RESULT;
             const d = Math.hypot(x2 - x1, y2 - y1);
+            const visible = linePulse || focusedRole === role;
             return (
-              <line
-                key={role}
-                data-pin-line
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
-                stroke={pinRing}
-                strokeWidth="1"
-                strokeDasharray={d}
-                strokeDashoffset={d}
-              />
+              <g key={role} opacity={visible ? 1 : 0}>
+                <line
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  stroke={INK}
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                />
+                <line
+                  data-pin-line
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  stroke={PAPER}
+                  strokeWidth="1"
+                  strokeLinecap="round"
+                  strokeDasharray={d}
+                  strokeDashoffset={linePulse ? d : 0}
+                />
+              </g>
             );
           })}
         </svg>
@@ -311,73 +360,65 @@ export function KitResult({
         namedColors={brief.namedColors}
         size="result"
         pageBackground={pageBg}
+        pageInk={pageInk}
         initialOpen={preview?.openRole ?? null}
+        onFocusRole={setFocusedRole}
       />
       <span data-stripe-count={stripeCount} className="sr-only">
         {stripeCount} stripes
       </span>
-      {brief.stub && brief.status === "ready" ? (
-        <p className="mt-2 px-4 text-base">Brief is a stub — no DO_INFERENCE_API_KEY.</p>
-      ) : null}
-      <div className="px-4">
-        <BriefSlot
-          status={brief.status}
-          kit={kit}
-          note={brief.text}
-          stripeReveal={stripeCount}
-          onRetry={() => {
-            kicked.current = true;
-            void fetch(`/api/briefs/${itemId}`, { method: "POST" }).then(async (res) => {
-              if (!res.ok) return;
-              const job = (await res.json()) as {
-                status: BriefSlotStatus;
-                text: string | null;
-                namedHexes?: string[];
-                namedColors?: unknown;
-                stub?: boolean;
-              };
-              setBrief({
-                status: job.status,
-                text: job.text,
-                namedColors: parseNamedColors(job.namedColors, job.namedHexes ?? []),
-                stub: job.stub === true,
-              });
+      <BriefSlot
+        status={brief.status}
+        kit={kit}
+        note={brief.stub ? null : brief.text}
+        hidden={hideBrief}
+        saved={saved}
+        stripeReveal={stripeCount}
+        pageBackground={pageBg}
+        pageInk={pageInk}
+        onRetry={() => {
+          kicked.current = true;
+          void fetch(`/api/briefs/${itemId}`, { method: "POST" }).then(async (res) => {
+            if (!res.ok) return;
+            const job = (await res.json()) as {
+              status: BriefSlotStatus;
+              text: string | null;
+              namedHexes?: string[];
+              namedColors?: unknown;
+              stub?: boolean;
+            };
+            setBrief({
+              status: job.status,
+              text: job.text,
+              namedColors: parseNamedColors(job.namedColors, job.namedHexes ?? []),
+              stub: job.stub === true,
             });
-          }}
-        />
-        {tileSrc ? (
-          <section className="mt-6">
-            <div
-              className="h-40 overflow-hidden"
-              style={{
-                backgroundImage: `url(${tileSrc})`,
-                backgroundRepeat: "repeat",
-                backgroundSize: `${TILE_PX}px ${TILE_PX}px`,
-              }}
-              aria-label="Texture tile"
-            />
-            <button
-              type="button"
-              onClick={() => void moveCrop()}
-              disabled={moving}
-              className="mt-2 min-h-11 text-base"
-              style={{ transitionDuration: `${MOTION_CSS.tapMs}ms` }}
-            >
-              {moving ? "Moving…" : "Move crop"}
-            </button>
-          </section>
-        ) : null}
-        {saved ? (
-          <p
-            data-saved-note
-            className="mt-4 text-base"
-            role="status"
-            style={{ transitionDuration: `${MOTION_CSS.enterMs}ms` }}
+          });
+        }}
+      />
+      <ContrastAa roles={roles} />
+      {tileSrc ? (
+        <section className="mt-5 px-5">
+          <div
+            className="h-40 overflow-hidden"
+            style={{
+              backgroundImage: `url(${tileSrc})`,
+              backgroundRepeat: "repeat",
+              backgroundSize: `${TILE_PX}px ${TILE_PX}px`,
+            }}
+            aria-label="Texture tile"
+          />
+          <button
+            type="button"
+            onClick={() => void moveCrop()}
+            disabled={moving}
+            className="mt-2 min-h-11 text-base"
+            style={{ transitionDuration: `${MOTION_CSS.tapMs}ms` }}
           >
-            Saved. Baku is full.
-          </p>
-        ) : null}
-      </div>
+            {moving ? "Moving…" : "Move crop"}
+          </button>
+        </section>
+      ) : null}
     </div>
   );
 }

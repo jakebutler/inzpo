@@ -24,8 +24,13 @@ describe("kit export files", () => {
     expect(json.color.surface.$value).toBe("#384b5f");
   });
 
-  it("keeps brief.md running copy when the job has no text yet", () => {
-    expect(briefMarkdown(null)).toContain("still running");
+  it("differentiates pending, failed, and none in brief.md", () => {
+    expect(briefMarkdown(null, "pending")).toBe("# Brief\n\nThe brief is still running.\n");
+    expect(briefMarkdown(null, "failed")).toBe("# Brief\n\nThe brief didn't finish. Re-run it from the kit in Inzpo.\n");
+    expect(briefMarkdown(null, "none")).toBe("# Brief\n");
+    expect(briefMarkdown(null, "ready")).toBe("# Brief\n");
+    expect(briefMarkdown("Warm stone against shade.", "ready")).toBe("Warm stone against shade.\n");
+    expect(briefMarkdown(null, "failed")).not.toContain("still running");
   });
 
   it("embeds a tile png in texture.svg and stays empty without one", () => {

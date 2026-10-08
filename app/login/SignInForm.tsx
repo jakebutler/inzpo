@@ -170,7 +170,7 @@ export function SignInForm({ next, ticket }: { next: string; ticket: string | nu
         <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Inzpo</p>
         <h1 className="mt-2 text-[28px] font-semibold tracking-tight">Steal the colors off anything</h1>
         <p className="mt-2 text-base text-muted-foreground">
-          {step === "email" ? "Enter the email Jake invited." : `Enter the code sent to your email.`}
+          {step === "email" ? "Enter the email your invite went to." : `Enter the code sent to your email.`}
         </p>
       </header>
 
@@ -182,7 +182,7 @@ export function SignInForm({ next, ticket }: { next: string; ticket: string | nu
         ) : null}
         {uiState === "done" ? (
           <p role="status" className="rounded-xl border border-border bg-card px-4 py-3 text-base">
-            Signed in. Opening Snap…
+            You're in.
           </p>
         ) : null}
 
@@ -245,7 +245,7 @@ export function SignInForm({ next, ticket }: { next: string; ticket: string | nu
                 {error}
               </p>
             ) : (
-              <p className="mt-3 text-sm text-muted-foreground">Check Mail. iPhone can autofill the code.</p>
+              <p className="mt-3 text-sm text-muted-foreground">Check your email. Your iPhone can fill in the code.</p>
             )}
             <button
               type="button"
@@ -275,6 +275,15 @@ export function SignInForm({ next, ticket }: { next: string; ticket: string | nu
         )}
       </div>
     </div>
+  );
+}
+
+export function SignInUnavailable() {
+  return (
+    <main className="flex min-h-[100dvh] flex-col bg-background px-6 pt-[max(1.5rem,env(safe-area-inset-top))] text-foreground">
+      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Inzpo</p>
+      <h1 className="mt-2 text-[28px] font-semibold tracking-tight">Sign-in isn't available right now.</h1>
+    </main>
   );
 }
 

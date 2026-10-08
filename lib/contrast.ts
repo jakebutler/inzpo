@@ -89,3 +89,21 @@ export function saveControlColors(
   if (contrastRatio(INK, bg) >= 3) return { fill: INK, ink: PAPER };
   return { fill: PAPER, ink: INK };
 }
+
+/**
+ * Kit text on kit background at 4.5:1, else ink or paper.
+ * Same gate as Save (preferred token, then INK/PAPER) with AA body contrast.
+ */
+export function gatedTextColor(
+  preferred: string | null | undefined,
+  background: string,
+  minRatio = 4.5,
+): string {
+  const bg = background || PAPER;
+  if (preferred && contrastRatio(preferred, bg) >= minRatio) return preferred;
+  return contrastRatio(INK, bg) >= contrastRatio(PAPER, bg) ? INK : PAPER;
+}
+
+export function aaPassLabel(ratio: number): "AA pass" | "fail" {
+  return ratio >= 4.5 ? "AA pass" : "fail";
+}

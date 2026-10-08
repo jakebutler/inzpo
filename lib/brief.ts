@@ -102,29 +102,26 @@ export async function w640ImageUrl(itemId: string): Promise<string | null> {
   }
 }
 
-function stubJob(filled: Set<string>): BriefJob {
-  const dropped: NamedColor[] = [];
-  const candidate = { hex: "#e8c36a", label: "yellow door" };
-  if (!filled.has(candidate.hex.toLowerCase())) dropped.push(candidate);
+function stubJob(): BriefJob {
   return jobPayload({
     status: "ready",
-    text: "[stub — no DO_INFERENCE_API_KEY] Warm stone against shade. Save is safe; the brief is a stub.",
-    namedColors: dropped,
+    text: null,
+    namedColors: [],
     stub: true,
   });
 }
 
-/** Runs off the request. Without DO_INFERENCE_API_KEY the job stubs a labeled brief so Save stays unblocked. */
+/** Runs off the request. Without a key, Save stays unblocked and the brief stays empty. */
 export async function runBriefJob(itemId: string): Promise<BriefJob> {
   const key = process.env.DO_INFERENCE_API_KEY;
   const base = process.env.DO_INFERENCE_BASE_URL ?? "https://inference.do-ai.run/v1";
   const model = briefModelId();
-  const filled = await filledHexes(itemId).catch(() => new Set<string>());
   if (!key) {
-    const stub = stubJob(filled);
+    const stub = stubJob();
     await writeBriefJob(itemId, stub);
     return stub;
   }
+  const filled = await filledHexes(itemId).catch(() => new Set<string>());
   try {
     const imageUrl = await w640ImageUrl(itemId);
     if (!imageUrl) throw new Error("brief image missing");

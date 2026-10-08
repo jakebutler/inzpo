@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { CaptureMascotLayer } from "@/app/components/CaptureMascotLayer";
@@ -13,9 +13,11 @@ gsap.registerPlugin(useGSAP);
 export function CaptureForm({
   shareToken,
   firstOpen = false,
+  children,
 }: {
   shareToken: string | null;
   firstOpen?: boolean;
+  children?: ReactNode;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
@@ -75,8 +77,13 @@ export function CaptureForm({
       if (!put.ok) throw new Error("Upload failed");
       setUploadKey(signed.key);
       queueMicrotask(() => formRef.current?.requestSubmit());
-    } catch {
-      setUploadError("That photo could not be uploaded. Try another.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      if (/could not read/i.test(message)) {
+        window.location.assign("/capture?error=bad-image");
+        return;
+      }
+      setUploadError("That photo didn't upload. Try again, or pick another.");
       setUploadKey(null);
     } finally {
       setUploading(false);
@@ -109,6 +116,8 @@ export function CaptureForm({
           {uploadError}
         </p>
       ) : null}
+
+      {!hasSubstance ? children : null}
 
       {hasSubstance ? (
         <div ref={stageRef}>

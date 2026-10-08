@@ -61,4 +61,9 @@ describe("brief job lifetime", () => {
     expect(src("app/api/briefs/[id]/route.ts")).toContain("export const maxDuration = 60");
     expect(src("app/api/briefs/[id]/route.ts")).toContain("runBriefJob");
   });
+
+  it("does not write env var names into the stub brief", () => {
+    expect(src("lib/brief.ts")).not.toContain("DO_INFERENCE_API_KEY]");
+    expect(src("lib/brief.ts")).not.toContain("no DO_INFERENCE");
+  });
 });

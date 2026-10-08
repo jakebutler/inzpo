@@ -8,6 +8,7 @@ import { chooseTextureCrop, makeSeamlessTile } from "@/lib/texture";
 import { startBriefJob } from "@/lib/brief";
 import { EMPTY_FILTER } from "@/lib/filter";
 import { processImage, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
+import { isCameraFilename } from "@/lib/kit-name";
 import { extractPalette } from "@/lib/palette-extract";
 import { buildWallQuery } from "@/lib/wall-query";
 import type { FilterState } from "@/lib/filter";
@@ -174,7 +175,7 @@ export async function createImageItem(input: {
     id,
     ownerId: input.ownerId,
     kind,
-    title: deriveTitleFromFilename(input.filename),
+    title: isCameraFilename(input.filename) ? null : deriveTitleFromFilename(input.filename),
     captureState: "preparing",
   });
   try {

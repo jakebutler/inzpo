@@ -2,7 +2,7 @@ import { COLOR_ROLES } from "@/lib/db/schema";
 import { EMPTY_ROLE_COPY } from "@/lib/brief-copy";
 import { bandLabelColor, matchesPageBackground } from "@/lib/contrast";
 import { PAPER } from "@/lib/brand";
-import { emptyRoles, type RoleColors } from "@/lib/tokens";
+import { designTokenColors, emptyRoles, type RoleColors } from "@/lib/tokens";
 
 export function rolesFromHexes(hexes: Array<string | null | undefined>): RoleColors {
   const roles = emptyRoles();
@@ -16,15 +16,19 @@ export function rolesFromHexes(hexes: Array<string | null | undefined>): RoleCol
 export function BandStripe({
   roles,
   title,
+  italicEmptyTitle = false,
 }: {
   roles: RoleColors;
   title?: string | null;
+  italicEmptyTitle?: boolean;
 }) {
+  const tokens = designTokenColors(roles);
   return (
     <figure className="inzpo-kit-stripe">
       <div className="inzpo-bands inzpo-bands-stripe" aria-hidden={title ? undefined : true}>
         {COLOR_ROLES.map((role) => {
-          const hex = roles[role];
+          const filled = roles[role];
+          const hex = filled ?? tokens?.[role]?.$value;
           if (!hex) {
             const emptyInk = bandLabelColor(PAPER, roles);
             return (
@@ -53,7 +57,11 @@ export function BandStripe({
           );
         })}
       </div>
-      {title ? <figcaption className="inzpo-kit-stripe-name">{title}</figcaption> : null}
+      {title ? (
+        <figcaption className={`inzpo-kit-stripe-name font-heading${italicEmptyTitle ? " italic" : ""}`}>
+          {title}
+        </figcaption>
+      ) : null}
     </figure>
   );
 }

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { chipCopy, EMPTY_ROLE_COPY, parseNamedColors, sanitizeChipLabel } from "@/lib/brief-copy";
+import { chipCopy, chipNoun, EMPTY_ROLE_COPY, labelMatchesSample, parseNamedColors, sanitizeChipLabel } from "@/lib/brief-copy";
 import { hexWithoutHash } from "@/lib/colors";
 
 describe("chip labels", () => {
   it("names the detail, not the hex", () => {
     expect(chipCopy("yellow door")).toBe("Baku spotted a yellow door. Add it?");
+    expect(chipNoun("yellow siding", "#e8c36a")).toBe("yellow siding");
+    expect(labelMatchesSample("yellow door", "#0a0c0b")).toBe(false);
+    expect(chipNoun("yellow door", "#0a0c0b")).toBe("black");
     expect(chipCopy("an old awning")).toBe("Baku spotted an old awning. Add it?");
     expect(chipCopy(null)).toBe("Baku spotted another color. Add it?");
   });

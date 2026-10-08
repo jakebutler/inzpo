@@ -64,7 +64,13 @@ export default async function ItemDetailPage({
           tileSrc={item.media?.tileKey ? `/media/${item.media.tileKey}` : null}
           saved={query.saved === "1"}
         />
-        <SaveBar itemId={item.id} collections={collections.map((c) => ({ id: c.id, name: c.name }))} />
+        <SaveBar
+          itemId={item.id}
+          collections={collections.map((c) => ({ id: c.id, name: c.name }))}
+          saved={query.saved === "1"}
+          collectionId={query.c ?? null}
+          collectionName={query.c ? collections.find((c) => c.id === query.c)?.name ?? null : null}
+        />
       </main>
     );
   }

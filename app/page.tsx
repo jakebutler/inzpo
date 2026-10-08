@@ -38,10 +38,10 @@ export default async function Wall({
             {collectionId ? collections.find((c) => c.id === collectionId)?.name ?? "Collection" : "Wall"}
           </h1>
           <div className="flex items-center gap-2">
-            {collectionId && wallItems[0] ? <ExportKitButton itemId={wallItems[0].id} /> : null}
+            {collectionId && wallItems.length > 0 ? <ExportKitButton collectionId={collectionId} /> : null}
             <Button asChild size="sm" className="hidden md:inline-flex">
               <a href="/capture">
-                <Plus className="h-4 w-4" /> Snap
+                <Plus className="h-4 w-4" /> Snap something
               </a>
             </Button>
             <Button asChild size="sm" variant="outline" className="hidden md:inline-flex">
@@ -60,13 +60,9 @@ export default async function Wall({
           {collectionId ? (
             <>
               {" "}
-              in{" "}
-              <Link href="/" className="text-foreground underline decoration-muted-foreground/60">
-                {collections.find((c) => c.id === collectionId)?.name ?? "collection"}
-              </Link>{" "}
-              —{" "}
+              in {collections.find((c) => c.id === collectionId)?.name ?? "collection"} ·{" "}
               <Link href="/" className="underline decoration-muted-foreground/60 hover:text-foreground">
-                clear scope
+                Show all
               </Link>
             </>
           ) : null}
@@ -79,6 +75,7 @@ export default async function Wall({
           id: w.id,
           kind: w.kind,
           title: w.title,
+          note: w.note,
           displayKey: w.displayKey,
           aspect: w.aspect,
           hexColors: w.hexColors,

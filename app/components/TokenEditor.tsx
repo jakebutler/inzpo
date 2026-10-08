@@ -2,16 +2,15 @@
 
 import { useRef, useState, useTransition, type MutableRefObject } from "react";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
-import { isHexColor, normalizeHex } from "@/lib/colors";
+import { hexWithoutHash, isHexColor, normalizeHex } from "@/lib/colors";
 import { MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { filledRoles, moveRole, rolesFromColors, setRoleColor } from "@/lib/tokens";
 import { pointerOnContainedImage, sampleImageAverage } from "@/lib/client-eyedropper";
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { chipCopy, EMPTY_ROLE_COPY, type NamedColor } from "@/lib/brief-copy";
+import { chipCopy, chipNoun, EMPTY_ROLE_COPY, type NamedColor } from "@/lib/brief-copy";
 import { PaletteBands } from "@/app/components/PaletteBands";
-import { ContrastAa } from "@/app/components/ContrastAa";
-import { PAPER } from "@/lib/brand";
+import { INK, PAPER, PIN_SIZE } from "@/lib/brand";
 
 type ColorRow = {
   hex: string;
@@ -21,6 +20,9 @@ type ColorRow = {
   position?: number;
 };
 
+const LOUPE_ZOOM = 3;
+const LOUPE_PX = 80;
+
 export function TokenEditor({
   itemId,
   imageSrc,
@@ -29,7 +31,9 @@ export function TokenEditor({
   initialOpen = null,
   size = "result",
   pageBackground = PAPER,
+  pageInk = INK,
   bandRefs,
+  onFocusRole,
 }: {
   itemId: string;
   imageSrc: string | null;
@@ -38,7 +42,9 @@ export function TokenEditor({
   initialOpen?: ColorRole | null;
   size?: "result" | "editor";
   pageBackground?: string;
+  pageInk?: string;
   bandRefs?: MutableRefObject<Array<HTMLButtonElement | null>>;
+  onFocusRole?: (role: ColorRole | null) => void;
 }) {
   const [roles, setRoles] = useState(() => rolesFromColors(colors));
   const [pins, setPins] = useState<Partial<Record<ColorRole, { pinX: number; pinY: number }>>>(() => {
@@ -117,6 +123,7 @@ export function TokenEditor({
   const chipAnim = reduced
     ? `${MOTION_CSS.reducedMs}ms ${MOTION_CSS.easeEnter}`
     : `${MOTION_CSS.enterMs}ms ${MOTION_CSS.easeEnter}`;
+  const img = imgRef.current;
 
   return (
     <section>
@@ -126,32 +133,46 @@ export function TokenEditor({
           size={size}
           pageBackground={pageBackground}
           onPick={openRole}
+          onFocusRole={onFocusRole}
           bandRefs={bandRefs}
         />
       </div>
-      <div className="mt-4">
-        <ContrastAa roles={roles} />
-      </div>
       {chips.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2 px-4">
-          {chips.map((color) => (
-            <button
-              key={color.hex}
-              type="button"
-              data-named-chip
-              className="min-h-11 border border-dashed border-current px-3 text-base"
-              style={{
-                animation: `inzpo-chip-in ${chipAnim} both`,
-                transitionDuration: `${MOTION_CSS.tapMs}ms`,
-              }}
-              onClick={() => onChip(color)}
-            >
-              {chipCopy(color.label)}
-            </button>
-          ))}
+        <div className="mt-3 flex flex-col gap-2 px-5">
+          {chips.map((color) => {
+            const noun = chipNoun(color.label, color.hex);
+            return (
+              <div
+                key={color.hex}
+                data-named-chip
+                className="flex min-h-11 items-center gap-3 border border-solid px-3"
+                style={{
+                  borderWidth: 1,
+                  animation: `inzpo-chip-in ${chipAnim} both`,
+                  transitionDuration: `${MOTION_CSS.tapMs}ms`,
+                }}
+              >
+                <span
+                  aria-hidden
+                  className="shrink-0 rounded-full"
+                  style={{ width: PIN_SIZE, height: PIN_SIZE, backgroundColor: color.hex }}
+                />
+                <span className="font-mono text-base tabular-nums">#{hexWithoutHash(color.hex)}</span>
+                <span className="min-w-0 flex-1 truncate text-base">{noun}</span>
+                <button
+                  type="button"
+                  className="min-h-11 px-2 text-base"
+                  aria-label={chipCopy(color.label, color.hex)}
+                  onClick={() => onChip(color)}
+                >
+                  Add
+                </button>
+              </div>
+            );
+          })}
         </div>
       ) : null}
-      {pending ? <p className="mt-1 px-4 text-base">Saving…</p> : null}
+      {pending ? <p className="mt-1 px-5 text-base">Saving…</p> : null}
 
       <Sheet
         open={open !== null}
@@ -163,7 +184,11 @@ export function TokenEditor({
           }
         }}
       >
-        <SheetContent side="bottom" className="max-h-[85vh] bg-background pb-[max(1rem,env(safe-area-inset-bottom))] text-foreground shadow-none">
+        <SheetContent
+          side="bottom"
+          className="max-h-[85vh] bg-background pb-[max(1rem,env(safe-area-inset-bottom))] text-foreground shadow-none"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
           <SheetHeader>
             <SheetTitle className="font-heading text-2xl">{open ? `Edit ${open}` : "Edit color"}</SheetTitle>
           </SheetHeader>
@@ -200,21 +225,22 @@ export function TokenEditor({
               {loupe ? (
                 <span
                   aria-hidden
-                  className="pointer-events-none absolute h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border-2"
+                  className="pointer-events-none absolute h-20 w-20 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full"
                   style={{
                     left: loupe.x,
                     top: loupe.y,
-                    borderColor: loupe.hex,
+                    boxShadow: `0 0 0 2px ${pageInk}`,
                     backgroundImage: `url(${imageSrc})`,
                     backgroundRepeat: "no-repeat",
-                    backgroundSize: imgRef.current
-                      ? `${imgRef.current.naturalWidth * 2.5}px ${imgRef.current.naturalHeight * 2.5}px`
-                      : "250%",
-                    backgroundPosition: imgRef.current
-                      ? `${-(loupe.x * 2.5 - 40)}px ${-(loupe.y * 2.5 - 40)}px`
-                      : "center",
+                    backgroundSize: img
+                      ? `${img.getBoundingClientRect().width * LOUPE_ZOOM}px ${img.getBoundingClientRect().height * LOUPE_ZOOM}px`
+                      : `${LOUPE_ZOOM * 100}%`,
+                    backgroundPosition: `${-(loupe.x * LOUPE_ZOOM - LOUPE_PX / 2)}px ${-(loupe.y * LOUPE_ZOOM - LOUPE_PX / 2)}px`,
                   }}
-                />
+                >
+                  <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-current" style={{ color: pageInk }} />
+                  <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-current" style={{ color: pageInk }} />
+                </span>
               ) : null}
             </div>
           ) : (
@@ -231,7 +257,8 @@ export function TokenEditor({
               onBlur={() => open && applyHex(open, hexDraft)}
               spellCheck={false}
               autoCapitalize="off"
-              className="min-h-11 w-full border border-current bg-background px-3 font-mono text-base tabular-nums"
+              className="min-h-11 w-full border border-current bg-background px-3 font-mono text-base tabular-nums outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              style={{ outlineColor: pageInk }}
             />
             <p className="text-base">Role</p>
             <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Role">
@@ -243,8 +270,14 @@ export function TokenEditor({
                     type="button"
                     role="radio"
                     aria-checked={selected}
-                    className={`min-h-11 border px-2 text-base ${selected ? "border-current bg-secondary" : "border-current/30 bg-background"}`}
-                    style={{ transitionDuration: `${MOTION_CSS.tapMs}ms` }}
+                    className="min-h-11 border px-2 text-base outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                    style={{
+                      transitionDuration: `${MOTION_CSS.tapMs}ms`,
+                      borderColor: pageInk,
+                      backgroundColor: selected ? pageInk : "transparent",
+                      color: selected ? pageBackground : pageInk,
+                      outlineColor: pageInk,
+                    }}
                     onClick={() => {
                       if (!open || role === open) {
                         if (pendingHex) applyHex(role, pendingHex);

@@ -1,11 +1,12 @@
 /**
- * r2_ visual-direction stills: real photos, both viewports, reduced off/on.
+ * r3_ visual-direction stills: real photos, both viewports, reduced off/on.
+ * Mid and result are shot from the top of the page so the 337px crop lock can be compared.
  */
 import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { webkit } from "playwright";
 import { MOTION, MOTION_CSS } from "../lib/motion.ts";
-import { BAND_H_EDITOR, BAND_H_RESULT, BAND_STAGGER_S, INK, PAPER, PIN_HAIRLINE_S, VERMILION } from "../lib/brand.ts";
+import { BAND_H_EDITOR, BAND_H_RESULT, BAND_STAGGER_S, INK, PAPER, PHOTO_FOLD_PX, PIN_HAIRLINE_S, PIN_LEADER_X, VERMILION } from "../lib/brand.ts";
 
 const ARTIFACTS = "/opt/cursor/artifacts";
 const BASE = process.env.QA_BASE ?? "http://127.0.0.1:3000";
@@ -30,6 +31,7 @@ const PER_PHOTO: Shot[] = [
 
 const EXTRA: Shot[] = [
   { state: "collection", photo: "IMG_6505" },
+  { state: "empty-collection", photo: "IMG_6505" },
   { state: "empty-roles", photo: "IMG_6208" },
   { state: "dark", photo: "IMG_6208" },
 ];
@@ -39,7 +41,7 @@ function urlFor(shot: Shot, photo: string): string {
   return `${BASE}/dev/fold?state=${shot.state}&photo=${p}`;
 }
 
-const ABOVE_BAR = new Set(["result", "pending", "chips", "saved", "empty-roles", "dark"]);
+const ABOVE_BAR = new Set(["pending", "chips", "saved", "empty-roles", "dark"]);
 
 async function hideChrome(page: import("playwright").Page): Promise<void> {
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
@@ -79,7 +81,6 @@ async function revealAboveSaveBar(page: import("playwright").Page): Promise<void
       document.querySelector("[data-named-chip]"),
       document.querySelector('[aria-label="Brief"]'),
       document.querySelector("[data-contrast-line]"),
-      document.querySelector("[data-saved-note]"),
     ].filter((el): el is Element => el !== null);
     if (!bar || candidates.length === 0) return;
     const fade = 48;
@@ -102,10 +103,11 @@ async function main(): Promise<void> {
     `band stagger ${BAND_STAGGER_S}s × 6 + enter ${MOTION.enter.duration}s = ${BAND_STAGGER_S * 5 + MOTION.enter.duration}s`,
     `pin hairline ${PIN_HAIRLINE_S}s then fade ${MOTION.leave.duration}s`,
     `band height result ${BAND_H_RESULT}px editor ${BAND_H_EDITOR}px`,
+    `photo fold ${PHOTO_FOLD_PX}px leader x ${PIN_LEADER_X}px`,
     `paper ${PAPER} ink ${INK} vermilion ${VERMILION}`,
     `fonts Fraunces / Geist / Geist Mono via next/font`,
   ].join("\n") + "\n";
-  await writeFile(path.join(ARTIFACTS, "r2_motion.txt"), motionTxt);
+  await writeFile(path.join(ARTIFACTS, "r3_motion.txt"), motionTxt);
   await writeFile(path.join(ARTIFACTS, "motion.txt"), motionTxt);
 
   const browser = await webkit.launch();
@@ -123,7 +125,7 @@ async function main(): Promise<void> {
           await hideChrome(page);
           if (ABOVE_BAR.has(shot.state)) await revealAboveSaveBar(page);
           await page.waitForTimeout(reduced ? 200 : 700);
-          const name = `r2_${photo}_${vp.name}_${shot.state}_${label}.png`;
+          const name = `r3_${photo}_${vp.name}_${shot.state}_${label}.png`;
           await page.screenshot({ path: path.join(ARTIFACTS, name), animations: reduced ? "disabled" : "allow" });
         }
       }
@@ -132,7 +134,7 @@ async function main(): Promise<void> {
         await hideChrome(page);
         if (ABOVE_BAR.has(shot.state)) await revealAboveSaveBar(page);
         await page.waitForTimeout(reduced ? 200 : 700);
-        const name = `r2_${shot.photo}_${vp.name}_${shot.state}_${label}.png`;
+        const name = `r3_${shot.photo}_${vp.name}_${shot.state}_${label}.png`;
         await page.screenshot({ path: path.join(ARTIFACTS, name), animations: reduced ? "disabled" : "allow" });
       }
       await page.close();
@@ -171,14 +173,14 @@ async function main(): Promise<void> {
     await context.close();
     if (video) {
       const raw = await video.path();
-      const dest = path.join(ARTIFACTS, `r2_flow_${label}.webm`);
+      const dest = path.join(ARTIFACTS, `r3_flow_${label}.webm`);
       await copyFile(raw, dest);
-      await writeFile(path.join(ARTIFACTS, `r2_flow_${label}_path.txt`), `${dest}\n`);
+      await writeFile(path.join(ARTIFACTS, `r3_flow_${label}_path.txt`), `${dest}\n`);
     }
   }
 
   await browser.close();
-  console.log("r2_ fold shots written");
+  console.log("r3_ fold shots written");
 }
 
 main().catch((err) => {

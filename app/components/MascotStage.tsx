@@ -23,6 +23,9 @@ export function MascotStage({
   onShown,
   className,
   revealedCount,
+  ink,
+  hideCopy = false,
+  glow = false,
 }: {
   moment: MascotMoment;
   kit?: MascotKit | null;
@@ -32,6 +35,9 @@ export function MascotStage({
   onShown?: () => void;
   className?: string;
   revealedCount?: number | null;
+  ink?: string;
+  hideCopy?: boolean;
+  glow?: boolean;
 }) {
   const pose = poseForMoment(moment);
   const delayed = waitBeforeShow(moment);
@@ -72,12 +78,15 @@ export function MascotStage({
 
   return (
     <div className={["flex items-start gap-3", className].filter(Boolean).join(" ")} style={{ minHeight: size }}>
-      <div style={{ width: size, height: size, flex: "0 0 auto" }} className={shown ? "opacity-100" : "opacity-0"}>
+      <div
+        style={{ width: size, height: size, flex: "0 0 auto" }}
+        className={[shown ? "opacity-100" : "opacity-0", glow ? "baku-glow" : ""].filter(Boolean).join(" ")}
+      >
         <Mascot pose={pose} kit={kit} size={size} snapReady={snapReady} revealedCount={revealedCount} />
       </div>
-      {shown ? (
+      {shown && !hideCopy ? (
         <div className="min-w-0 pt-1">
-          <p aria-live="polite" className="text-sm text-muted-foreground">
+          <p aria-live="polite" className="text-sm" style={ink ? { color: ink } : undefined}>
             {copy}
           </p>
           {moment === "error-brief" ? (

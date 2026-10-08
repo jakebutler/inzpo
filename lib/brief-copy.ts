@@ -1,3 +1,5 @@
+import { hexToFamily } from "@/lib/colors";
+
 const STREET =
   /\b(street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|highway|hwy|address)\b/i;
 const PLATE = /\b(plate|license|number plate)\b/i;
@@ -19,8 +21,54 @@ export function sanitizeChipLabel(raw: unknown): string | null {
   return label;
 }
 
-export function chipCopy(label: string | null): string {
+const COLOR_WORD =
+  /\b(red|orange|yellow|gold|green|teal|blue|purple|pink|brown|black|white|gray|grey|cream|beige)\b/i;
+
+const FAMILY_NOUN: Record<string, string> = {
+  red: "red",
+  orange: "orange",
+  yellow: "yellow",
+  "cream/beige": "beige",
+  brown: "brown",
+  gold: "gold",
+  green: "green",
+  teal: "teal",
+  blue: "blue",
+  purple: "purple",
+  pink: "pink",
+  black: "black",
+  white: "white",
+  gray: "gray",
+};
+
+function colorWordMatchesFamily(word: string, family: string): boolean {
+  const w = word.toLowerCase();
+  if (family === "cream/beige") return w === "cream" || w === "beige";
+  if (family === "gray") return w === "gray" || w === "grey";
+  if (family === "gold") return w === "gold" || w === "yellow";
+  return w === family;
+}
+
+/** True when the brief's noun does not contradict the sampled swatch. */
+export function labelMatchesSample(label: string | null, hex: string): boolean {
   const clean = sanitizeChipLabel(label);
+  if (!clean) return false;
+  const mentioned = clean.match(COLOR_WORD)?.[1];
+  if (!mentioned) return true;
+  return colorWordMatchesFamily(mentioned, hexToFamily(hex));
+}
+
+/** Noun under the pin. If the brief color-word disagrees with the sample, use the color name. */
+export function chipNoun(label: string | null, hex: string): string {
+  if (labelMatchesSample(label, hex)) {
+    const clean = sanitizeChipLabel(label);
+    if (clean) return clean;
+  }
+  return FAMILY_NOUN[hexToFamily(hex)] ?? "color";
+}
+
+export function chipCopy(label: string | null, hex?: string): string {
+  const clean = hex ? chipNoun(label, hex) : sanitizeChipLabel(label);
   if (!clean) return "Baku spotted another color. Add it?";
   if (/^(a|an|the)\s/i.test(clean)) return `Baku spotted ${clean}. Add it?`;
   const article = /^[aeiou]/i.test(clean) ? "an" : "a";

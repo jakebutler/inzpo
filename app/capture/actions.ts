@@ -18,18 +18,23 @@ export async function capture(formData: FormData): Promise<void> {
   const uploadKey = ((formData.get("uploadKey") as string) ?? "").trim() || shareToken;
 
   if (uploadKey && isReadableUploadKey(ownerId, uploadKey)) {
+    let result;
+    try {
+      result = await r2().send(new GetObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: uploadKey }));
+    } catch {
+      redirect("/capture?error=capture-failed");
+    }
+    const length = result.ContentLength ?? 0;
+    if (length > MAX_UPLOAD_BYTES) redirect("/capture?error=bad-image");
     let itemId: string;
     try {
-      const result = await r2().send(new GetObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: uploadKey }));
-      const length = result.ContentLength ?? 0;
-      if (length > MAX_UPLOAD_BYTES) redirect("/capture?error=bad-image");
       const buffer = Buffer.from(await result.Body!.transformToByteArray());
       const filename = ((formData.get("filename") as string) ?? "").trim() || "shared-image";
       itemId = await createImageItem({ ownerId, buffer, filename });
       await r2().send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: uploadKey }));
       revalidatePath("/");
     } catch {
-      redirect("/capture?error=capture-failed");
+      redirect("/capture?error=bad-image");
     }
     after(async () => {
       await runBriefJob(itemId);
@@ -37,11 +42,11 @@ export async function capture(formData: FormData): Promise<void> {
     redirect(`/items/${itemId}`);
   }
 
-  if (file instanceof File && file.size > 0 && file.size <= MAX_UPLOAD_BYTES) {
-    const buffer = Buffer.from(await file.arrayBuffer());
+  if (file instanceof File && file.size > 0) {
+    if (file.size > MAX_UPLOAD_BYTES) redirect("/capture?error=bad-image");
     let itemId: string;
     try {
-      itemId = await createImageItem({ ownerId, buffer, filename: file.name });
+      itemId = await createImageItem({ ownerId, buffer: Buffer.from(await file.arrayBuffer()), filename: file.name });
     } catch {
       redirect("/capture?error=bad-image");
     }

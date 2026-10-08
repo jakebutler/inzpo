@@ -1,11 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isDevAuthBypassEnabled } from "@/lib/auth/dev-bypass";
 import { KitResult } from "@/app/components/KitResult";
 import { SaveBar } from "@/app/components/SaveBar";
 import { KitCard } from "@/app/components/KitCard";
 import { CaptureForm } from "@/app/capture/CaptureForm";
-import { BandStripe } from "@/app/components/BandStripe";
+import { MascotStage } from "@/app/components/MascotStage";
 import { ExportKitButton } from "@/app/components/ExportKitButton";
 import { dropRoles, loadFoldKit, type FoldPhoto } from "@/lib/fold-kit";
 import { HANDOFF_KITS } from "@/lib/mascot";
@@ -26,9 +25,16 @@ const STATES = [
   "saved",
   "collection",
   "empty-roles",
+  "empty-collection",
   "dark",
 ] as const;
 type FoldState = (typeof STATES)[number];
+
+const FOLD_TITLES: Record<FoldPhoto, string> = {
+  IMG_6505: "Yellow Victorian",
+  IMG_6208: "Blue storefront",
+  IMG_5859: "Red mural",
+};
 
 export default async function FoldPage({
   searchParams,
@@ -38,7 +44,11 @@ export default async function FoldPage({
   if (!isDevAuthBypassEnabled()) notFound();
   const params = await searchParams;
   const state = (STATES.includes(params.state as FoldState) ? params.state : "result") as FoldState;
-  const photo = (PHOTOS.includes(params.photo as FoldPhoto) ? params.photo : state === "dark" || state === "empty-roles" || state === "chips" ? "IMG_6208" : "IMG_6505") as FoldPhoto;
+  const photo = (PHOTOS.includes(params.photo as FoldPhoto)
+    ? params.photo
+    : state === "dark" || state === "empty-roles" || state === "chips"
+      ? "IMG_6208"
+      : "IMG_6505") as FoldPhoto;
   const extracted = await loadFoldKit(photo);
   let colors = extracted.colors;
   if (state === "empty-roles") colors = dropRoles(colors, ["accent", "surface"] as ColorRole[]);
@@ -47,22 +57,45 @@ export default async function FoldPage({
   const reveal =
     state === "mid"
       ? "mid"
-      : state === "first" || state === "collection"
+      : state === "first" || state === "collection" || state === "empty-collection"
         ? "play"
         : "landed";
+  const displayTitle = FOLD_TITLES[photo];
 
   if (state === "first") {
     return (
       <main className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto max-w-xl px-4 pb-36 pt-6">
-          <p className="text-base">← Wall</p>
-          <h1 className="font-heading mt-8 max-w-[14ch] text-left text-[40px] leading-[1.15] tracking-tight">
-            Steal the colors off anything
-          </h1>
-          <div className="mt-8">
-            <KitCard title={extracted.title} imageSrc={extracted.imageSrc} roles={rolesFromColors(colors)} />
+        <div className="mx-auto max-w-xl pb-36 pt-6">
+          <div className="px-4">
+            <h1 className="font-heading mt-4 max-w-[14ch] text-left text-[40px] leading-[1.15] tracking-tight">
+              Steal the colors off anything
+            </h1>
           </div>
-          <CaptureForm shareToken={null} firstOpen={false} />
+          <div className="mt-5 px-4">
+            <CaptureForm shareToken={null} firstOpen>
+              <div className="-mx-4 mt-8 flex flex-col">
+                <KitCard title={displayTitle} imageSrc={extracted.imageSrc} roles={rolesFromColors(colors)} />
+                <KitCard
+                  title="Blue storefront"
+                  imageSrc="/sample/IMG_6208.jpg"
+                  roles={{ ...HANDOFF_KITS.IMG_6208 }}
+                />
+              </div>
+            </CaptureForm>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (state === "empty-collection") {
+    return (
+      <main className="min-h-screen bg-background text-foreground">
+        <header className="flex items-center justify-between px-4 py-3">
+          <h1 className="font-heading text-2xl">Street walks</h1>
+        </header>
+        <div className="flex flex-col items-center justify-center py-32" role="status">
+          <MascotStage moment="empty" className="justify-center text-left" />
         </div>
       </main>
     );
@@ -73,11 +106,11 @@ export default async function FoldPage({
       <main className="min-h-screen bg-background text-foreground">
         <header className="flex items-center justify-between px-4 py-3">
           <h1 className="font-heading text-2xl">Street walks</h1>
-          <ExportKitButton itemId="fold" />
+          <ExportKitButton collectionId="c1" />
         </header>
-        <div className="flex flex-col gap-6 px-4 pt-4">
-          <BandStripe roles={rolesFromColors(colors)} title={extracted.title} />
-          <BandStripe roles={HANDOFF_KITS.IMG_6208} title="IMG_6208" />
+        <div className="flex flex-col">
+          <KitCard title={displayTitle} imageSrc={extracted.imageSrc} roles={rolesFromColors(colors)} />
+          <KitCard title="Blue storefront" imageSrc="/sample/IMG_6208.jpg" roles={{ ...HANDOFF_KITS.IMG_6208 }} />
         </div>
       </main>
     );
@@ -86,14 +119,11 @@ export default async function FoldPage({
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="sticky top-0 z-10 flex items-center justify-between bg-background px-4 py-3">
-        <Link href="/" className="text-base">
-          ← Wall
-        </Link>
-        {saved ? <ExportKitButton itemId="fold" /> : null}
+        {saved ? <ExportKitButton itemId="fold" /> : <span />}
       </div>
       <KitResult
         itemId="fold"
-        title={extracted.title}
+        title={displayTitle}
         imageSrc={extracted.imageSrc}
         width={extracted.width}
         height={extracted.height}
@@ -101,9 +131,9 @@ export default async function FoldPage({
         tileSrc={null}
         saved={saved}
         preview={{
-          namedColors: chips ? [{ hex: "#e8c36a", label: "yellow door" }] : [],
-          status: state === "pending" ? "pending" : chips || saved ? "ready" : "pending",
-          text: chips || saved ? "Warm stone against shade." : null,
+          namedColors: chips ? [{ hex: "#e8c36a", label: "yellow siding" }] : [],
+          status: state === "pending" ? "pending" : "ready",
+          text: state === "pending" ? null : "Warm stone against shade.",
           stub: false,
           reveal,
           openRole: state === "edit" ? "primary" : null,
@@ -113,6 +143,9 @@ export default async function FoldPage({
         itemId="fold"
         collections={[{ id: "c1", name: "Street walks" }]}
         defaultOpen={state === "save"}
+        saved={saved}
+        collectionId={saved ? "c1" : null}
+        collectionName={saved ? "Street walks" : null}
       />
     </main>
   );

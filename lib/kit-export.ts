@@ -2,6 +2,8 @@ import { COLOR_ROLES } from "@/lib/db/schema";
 import { designTokenColors, rolesFromColors, type RoleColors } from "@/lib/tokens";
 import type { ItemDetail } from "@/lib/items";
 
+export type BriefExportStatus = "pending" | "ready" | "failed" | "none";
+
 export const KIT_EXPORT_FILES = ["tokens.json", "tokens.css", "brief.md", "texture.svg"] as const;
 
 export function tokensJsonFromRoles(roles: RoleColors): string {
@@ -32,8 +34,12 @@ export function tokensCss(item: ItemDetail): string {
   return `:root {\n${lines.join("\n")}\n}\n`;
 }
 
-export function briefMarkdown(text: string | null): string {
-  return text ? `${text.trim()}\n` : "# Brief\n\nThe brief is still running.\n";
+export function briefMarkdown(text: string | null, status?: BriefExportStatus): string {
+  const notes = text?.trim() ?? "";
+  if (notes.length > 0) return `${notes}\n`;
+  if (status === "failed") return "# Brief\n\nThe brief didn't finish. Re-run it from the kit in Inzpo.\n";
+  if (status === "pending") return "# Brief\n\nThe brief is still running.\n";
+  return "# Brief\n";
 }
 
 /** Wrap the tile PNG. Empty when the crop was flat and no tile exists. */

@@ -2,22 +2,31 @@
 
 import { useState } from "react";
 
-export function ExportKitButton({ itemId }: { itemId: string }) {
+export function ExportKitButton({
+  itemId,
+  collectionId,
+}: {
+  itemId?: string;
+  collectionId?: string;
+}) {
   const [note, setNote] = useState<string | null>(null);
+  const href = collectionId ? `/api/collections/${collectionId}/export` : `/api/kits/${itemId ?? ""}/export`;
+  const filename = collectionId ? "collection.zip" : "kit.zip";
+  const label = collectionId ? "Export collection" : "Export kit";
 
   async function exportKit() {
     setNote(null);
-    const res = await fetch(`/api/kits/${itemId}/export`);
+    const res = await fetch(href);
     if (!res.ok) {
-      setNote("Could not export.");
+      setNote("Couldn't export. Try again.");
       return;
     }
     const blob = await res.blob();
-    const file = new File([blob], "kit.zip", { type: "application/zip" });
+    const file = new File([blob], filename, { type: "application/zip" });
     const payload = { files: [file] };
     if (typeof navigator.canShare === "function" && navigator.canShare(payload)) {
       try {
-        await navigator.share({ files: [file], title: "Export kit" });
+        await navigator.share({ files: [file], title: label });
         setNote("share");
         return;
       } catch {
@@ -27,7 +36,7 @@ export function ExportKitButton({ itemId }: { itemId: string }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "kit.zip";
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
     setNote("download");
@@ -41,7 +50,7 @@ export function ExportKitButton({ itemId }: { itemId: string }) {
         className="inline-flex min-h-11 items-center border border-current px-4 text-base"
         data-export-path={note ?? ""}
       >
-        Export kit
+        {label}
       </button>
       {note ? (
         <p className="text-[11px] text-muted-foreground" data-export-path={note}>

@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { BAKU_MET_STORAGE_KEY } from "@/lib/mascot";
+import { BAKU_MET_STORAGE_KEY, MASCOT_SIZE_INTRO_PX } from "@/lib/mascot";
+import { gatedTextColor } from "@/lib/contrast";
+import { INK, PAPER } from "@/lib/brand";
 import { MascotStage } from "./MascotStage";
 
 export function CaptureMascotLayer({
@@ -16,7 +18,8 @@ export function CaptureMascotLayer({
 }) {
   const { pending } = useFormStatus();
   const waiting = pending || uploading;
-  const [met, setMet] = useState(true);
+  const [met, setMet] = useState(!firstOpen);
+  const introInk = gatedTextColor(INK, PAPER, 4.5);
 
   useEffect(() => {
     setMet(window.localStorage.getItem(BAKU_MET_STORAGE_KEY) === "1");
@@ -38,7 +41,10 @@ export function CaptureMascotLayer({
       <MascotStage
         moment="first-open"
         snapReady
-        className="mt-4"
+        size={MASCOT_SIZE_INTRO_PX}
+        className="mt-6"
+        glow
+        ink={introInk}
         onShown={() => {
           window.localStorage.setItem(BAKU_MET_STORAGE_KEY, "1");
         }}

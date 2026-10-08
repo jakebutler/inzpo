@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     if (contentType.includes("multipart/form-data")) {
       const key = clientKey(clientIp(request));
       if (shareUploadLimited(key)) {
-        return new NextResponse("Too many requests", { status: 429 });
+        return new NextResponse("Too many photos at once. Wait a minute and try again.", { status: 429 });
       }
       const fd = await request.formData();
       const file = fd.get("image");

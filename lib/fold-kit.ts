@@ -64,7 +64,7 @@ export async function loadFoldKit(which: FoldPhoto = "IMG_6505"): Promise<FoldKi
       });
     });
     return {
-      title: which,
+      title: which === "IMG_6505" ? "Yellow Victorian" : which === "IMG_6208" ? "Blue storefront" : "Red mural",
       imageSrc,
       width: meta.width ?? 1500,
       height: meta.height ?? 2000,
@@ -72,7 +72,7 @@ export async function loadFoldKit(which: FoldPhoto = "IMG_6505"): Promise<FoldKi
     };
   } catch {
     return {
-      title: which,
+      title: which === "IMG_6505" ? "Yellow Victorian" : which === "IMG_6208" ? "Blue storefront" : "Red mural",
       imageSrc,
       width: 1500,
       height: 2000,

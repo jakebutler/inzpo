@@ -13,12 +13,14 @@ export function PaletteBands({
   size,
   pageBackground = PAPER,
   onPick,
+  onFocusRole,
   bandRefs,
 }: {
   roles: RoleColors;
   size: "result" | "editor";
   pageBackground?: string;
   onPick?: (role: ColorRole) => void;
+  onFocusRole?: (role: ColorRole | null) => void;
   bandRefs?: MutableRefObject<Array<HTMLButtonElement | null>>;
 }) {
   const height = size === "editor" ? BAND_H_EDITOR : BAND_H_RESULT;
@@ -37,6 +39,9 @@ export function PaletteBands({
                 if (bandRefs) bandRefs.current[i] = el;
               }}
               onClick={() => onPick?.(role)}
+              onPointerDown={() => onFocusRole?.(role)}
+              onFocus={() => onFocusRole?.(role)}
+              onBlur={() => onFocusRole?.(null)}
               aria-label={EMPTY_ROLE_COPY(role)}
               className="inzpo-band inzpo-band-empty"
               style={{
@@ -60,6 +65,9 @@ export function PaletteBands({
               if (bandRefs) bandRefs.current[i] = el;
             }}
             onClick={() => onPick?.(role)}
+            onPointerDown={() => onFocusRole?.(role)}
+            onFocus={() => onFocusRole?.(role)}
+            onBlur={() => onFocusRole?.(null)}
             aria-label={`${role} ${hex}`}
             className="inzpo-band"
             data-role={role}
