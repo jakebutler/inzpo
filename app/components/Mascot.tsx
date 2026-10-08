@@ -37,6 +37,8 @@ export type MascotProps = {
   faceText?: boolean;
   /** Band/page hex under the sprite, used to bake the ground-shadow multiply. */
   ground?: string;
+  /** Skip the cream-boxed color PNG and use the transparent pose asset. */
+  forcePoseAsset?: boolean;
 };
 
 export function Mascot({
@@ -48,6 +50,7 @@ export function Mascot({
   revealedCount = null,
   faceText = false,
   ground,
+  forcePoseAsset = false,
 }: MascotProps) {
   const rawId = useId().replace(/:/g, "");
   const clipId = `baku-clip-${rawId}`;
@@ -132,6 +135,7 @@ export function Mascot({
         revealedCount={revealedCount}
         faceText={faceText}
         ground={ground}
+        forcePoseAsset={forcePoseAsset}
         fallback={svg}
       />
     </div>

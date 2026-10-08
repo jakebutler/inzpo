@@ -94,6 +94,7 @@ export function BakuSprite({
   revealedCount = null,
   faceText = false,
   ground = PAPER,
+  forcePoseAsset = false,
   fallback,
 }: {
   pose: BakuSrcPose;
@@ -102,17 +103,16 @@ export function BakuSprite({
   revealedCount?: number | null;
   faceText?: boolean;
   ground?: string;
+  forcePoseAsset?: boolean;
   fallback: ReactNode;
 }) {
   const colors = kitForPose(pose as "idle" | "chewing" | "success" | "empty" | "error-brief" | "error-unreadable" | "404" | "error-photo", kit);
   const density = useDensity();
-  const canTint = bakuCanTint(pose) && kitHasPalette(colors);
+  const canTint = bakuCanTint(pose) && kitHasPalette(colors) && !forcePoseAsset;
   const paletteKey = COLOR_ROLES.map((role) => colors[role] ?? "").join(",");
-  const baseSrc = canTint
+  const baseSrc = canTint || forcePoseAsset || !bakuCanTint(pose)
     ? bakuV6PoseSrc(pose, density)
-    : bakuCanTint(pose)
-      ? bakuV6ColorSrc(pose, density)
-      : bakuV6PoseSrc(pose, density);
+    : bakuV6ColorSrc(pose, density);
   const squashRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLImageElement>(null);
   const [pngFailed, setPngFailed] = useState(false);

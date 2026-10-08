@@ -28,7 +28,11 @@ describe("r3 string audit", () => {
     expect(login).toContain("SignInUnavailable");
     expect(login).toContain("INZPO_DEV_AUTH");
     expect(src("app/login/SignInForm.tsx")).toContain("Sign-in isn't available right now.");
-    expect(src("app/login/SignInForm.tsx")).toContain("Enter the email your invite went to.");
+    expect(src("app/login/SignInForm.tsx")).toContain("Enter your email and we'll send you a code.");
+    expect(src("app/login/SignInForm.tsx")).toContain("font-heading");
+    expect(src("app/login/LoginIdleMark.tsx")).toContain("forcePoseAsset");
+    expect(src("app/login/LoginIdleMark.tsx")).not.toContain("baku-glow");
+    expect(src("app/login/LoginIdleMark.tsx")).not.toContain("PAPER");
     expect(src("app/login/SignInForm.tsx")).toContain('id="clerk-captcha"');
     expect(src("app/login/SignInForm.tsx")).toContain("LoginIdleMark");
     expect(src("app/login/SignInForm.tsx")).toContain("decorateUrl");
