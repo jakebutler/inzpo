@@ -87,6 +87,7 @@ async function main(): Promise<void> {
     });
   });
   await exportPage.goto(`${BASE}/dev/qa?issue=59&state=kit-export`, { waitUntil: "networkidle" });
+  await exportPage.addStyleTag({ content: "nextjs-portal{display:none!important}" });
   const canShare = await exportPage.evaluate(async () => {
     const file = new File([new Uint8Array([80, 75])], "kit.zip", { type: "application/zip" });
     const payload = { files: [file] };
