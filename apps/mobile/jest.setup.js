@@ -62,11 +62,11 @@ jest.mock('expo-router', () => {
   const React = require('react');
   const { Text } = require('react-native');
   const Stack = ({ children }) => children;
-  Stack.Screen = () => null;
+  Stack.Screen = jest.fn(() => null);
   return {
     Stack,
     Redirect: ({ href }) => React.createElement(Text, null, `redirect:${href}`),
-    router: { push: jest.fn() },
+    router: { push: jest.fn(), dismissTo: jest.fn(), setParams: jest.fn() },
     useLocalSearchParams: jest.fn(() => ({ id: 'kit-1' })),
   };
 });

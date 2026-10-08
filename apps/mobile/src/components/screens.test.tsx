@@ -4,7 +4,8 @@ import { act, fireEvent, render, waitFor, within } from '@testing-library/react-
 import * as ImagePicker from 'expo-image-picker';
 import * as ExpoHaptics from 'expo-haptics';
 import * as Reanimated from 'react-native-reanimated';
-import { router } from 'expo-router';
+import { router, Stack } from 'expo-router';
+import { BottomSheetModal, type BottomSheetModalProps } from '@gorhom/bottom-sheet';
 import SignInScreen from '@/app/(auth)/sign-in';
 import SnapScreen from '@/app/(app)/index';
 import ResultScreen from '@/app/(app)/kit/[id]';
@@ -339,4 +340,104 @@ test('Save failure emits one Error haptic and shows errorBrief in Result without
   expect(within(view.getByTestId('result-baku')).getByTestId('baku-errorBrief')).toBeTruthy();
   expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
   await view.unmount();
+});
+
+
+test('choosing an Edit role and swatch saves the changed role and updates the result', async () => {
+  completedResultKits.add('kit-1');
+  const view = await render(<ResultScreen />);
+  await fireEvent.press(view.getByRole('button', { name: 'Edit' }));
+  await fireEvent.press(view.getByTestId('edit-role-accent'));
+  expect(view.getByText('Pick a accent color')).toBeTruthy();
+  expect(view.getByRole('button', { name: 'Save colors' })).toBeDisabled();
+  await fireEvent.press(view.getByRole('button', { name: 'Color #B35831' }));
+  expect(view.getByTestId('edit-role-accent')).toHaveStyle({ backgroundColor: '#b35831' });
+  await fireEvent.press(view.getByRole('button', { name: 'Save colors' }));
+  expect(client.updateKitColors).toHaveBeenCalledWith('kit-1', { roles: { accent: '#b35831' } });
+  expect(view.getByTestId('role-swatch-accent')).toHaveStyle({ backgroundColor: '#b35831' });
+  expect(view.queryByText('No accent in this one.')).toBeNull();
+  expect(ExpoHaptics.notificationAsync).toHaveBeenCalledTimes(1);
+  expect(ExpoHaptics.notificationAsync).toHaveBeenCalledWith(ExpoHaptics.NotificationFeedbackType.Success);
+  expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
+});
+
+test('Edit rejects invalid hex and accepts six digits without a hash', async () => {
+  completedResultKits.add('kit-1');
+  const view = await render(<ResultScreen />);
+  await fireEvent.press(view.getByRole('button', { name: 'Edit' }));
+  await fireEvent.press(view.getByTestId('edit-role-primary'));
+  await fireEvent.changeText(view.getByLabelText('Hex color'), '123');
+  expect(view.getByText('Enter 6 hex digits.')).toBeTruthy();
+  expect(view.getByRole('button', { name: 'Save colors' })).toBeDisabled();
+  await fireEvent(view.getByLabelText('Hex color'), 'submitEditing');
+  expect(client.updateKitColors).not.toHaveBeenCalled();
+  await fireEvent.changeText(view.getByLabelText('Hex color'), '12AB34');
+  await fireEvent.press(view.getByRole('button', { name: 'Save colors' }));
+  expect(client.updateKitColors).toHaveBeenCalledWith('kit-1', { roles: { primary: '#12ab34' } });
+});
+
+test('Edit failure keeps the draft and displays one error haptic', async () => {
+  completedResultKits.add('kit-1');
+  client.updateKitColors.mockRejectedValue(new Error('offline'));
+  const view = await render(<ResultScreen />);
+  await fireEvent.press(view.getByRole('button', { name: 'Edit' }));
+  await fireEvent.press(view.getByTestId('edit-role-primary'));
+  await fireEvent.press(view.getByRole('button', { name: 'Clear' }));
+  await fireEvent.press(view.getByRole('button', { name: 'Save colors' }));
+  expect(client.updateKitColors).toHaveBeenCalledWith('kit-1', { roles: { primary: null } });
+  expect(view.getByText('Couldn’t save these colors. Please try again.')).toBeTruthy();
+  expect(view.getByTestId('edit-role-primary')).toHaveStyle({ backgroundColor: '#F3EEE4' });
+  expect(ExpoHaptics.notificationAsync).toHaveBeenCalledTimes(1);
+  expect(ExpoHaptics.notificationAsync).toHaveBeenCalledWith(ExpoHaptics.NotificationFeedbackType.Error);
+});
+
+test('saving enters the saved state, sets the title, and offers Snap another house', async () => {
+  jest.useFakeTimers();
+  completedResultKits.add('kit-1');
+  const view = await render(<ResultScreen />);
+  await fireEvent.press(view.getByRole('button', { name: 'Save' }));
+  await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
+  await fireEvent.press(view.getAllByRole('button', { name: 'Save' }).at(-1)!);
+  expect(view.getByText('✓ Saved to Neighborhood')).toBeTruthy();
+  expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
+  expect(Stack.Screen).toHaveBeenLastCalledWith(expect.objectContaining({ options: { title: kitFixture.title } }), undefined);
+  expect(router.setParams).toHaveBeenCalledWith({ saved: '1', c: 'collection-1' });
+  await fireEvent.press(view.getByRole('button', { name: 'Snap another house' }));
+  expect(router.dismissTo).toHaveBeenCalledWith('/');
+  await view.rerender(<ResultScreen />);
+  expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
+});
+
+test('a kit with collectionIds loads directly into its saved state', async () => {
+  client.getKit.mockResolvedValue({ ...kitFixture, collectionIds: ['collection-1'] });
+  const view = await render(<ResultScreen />);
+  expect(await view.findByText('✓ Saved to Neighborhood')).toBeTruthy();
+  expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
+  expect(view.getByRole('button', { name: 'Edit' })).toBeTruthy();
+  expect(Stack.Screen).toHaveBeenLastCalledWith(expect.objectContaining({ options: { title: kitFixture.title } }), undefined);
+});
+
+test('saved kit collection lookup failure uses the fallback name', async () => {
+  client.getKit.mockResolvedValue({ ...kitFixture, collectionIds: ['missing'] });
+  client.listCollections.mockRejectedValue(new Error('offline'));
+  const view = await render(<ResultScreen />);
+  expect(await view.findByText('✓ Saved to your collection')).toBeTruthy();
+  expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
+});
+
+test('a delayed Save dismissal cannot close the Edit sheet', async () => {
+  completedResultKits.add('kit-1');
+  let saveProps!: BottomSheetModalProps;
+  const prototype = (BottomSheetModal as unknown as { prototype: { render: () => unknown; props: BottomSheetModalProps } }).prototype;
+  const originalRender = prototype.render;
+  jest.spyOn(prototype, 'render').mockImplementation(function (this: typeof prototype) {
+    if (this.props.name === 'save-kit') saveProps = this.props;
+    return originalRender.call(this);
+  });
+  const view = await render(<ResultScreen />);
+  await fireEvent.press(view.getByRole('button', { name: 'Save' }));
+  const dismissSave = saveProps.onDismiss;
+  await fireEvent.press(view.getByRole('button', { name: 'Edit' }));
+  await act(async () => dismissSave?.());
+  expect(view.getByTestId('edit-role-primary')).toBeTruthy();
 });

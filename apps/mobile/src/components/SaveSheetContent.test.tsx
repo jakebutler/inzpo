@@ -91,3 +91,38 @@ test.each([false, true])('success holds for 2s then returns to idle (reduced mot
   await view.unmount();
   jest.useRealTimers();
 });
+
+
+test('success reports the collection and automatically dismisses after 900ms', async () => {
+  jest.useFakeTimers();
+  const onSaved = jest.fn();
+  const view = await render(<SaveSheetContent kitId="kit-1" onClose={onClose} onSaved={onSaved} />);
+  await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
+  await fireEvent.press(view.getByRole('button', { name: 'Save' }));
+  expect(onSaved).toHaveBeenCalledWith({ collectionId: 'collection-1', collectionName: 'Neighborhood' });
+  expect(onSaved).toHaveBeenCalledTimes(1);
+  await act(async () => { jest.advanceTimersByTime(899); });
+  expect(onClose).not.toHaveBeenCalled();
+  await act(async () => { jest.advanceTimersByTime(1); });
+  expect(onClose).toHaveBeenCalledTimes(1);
+  await view.unmount();
+  jest.useRealTimers();
+});
+
+test('success reports the trimmed new collection name', async () => {
+  const onSaved = jest.fn();
+  const view = await render(<SaveSheetContent kitId="kit-1" onClose={onClose} onSaved={onSaved} />);
+  await fireEvent.changeText(view.getByLabelText('New collection name'), '  Walks  ');
+  await fireEvent.press(view.getByRole('button', { name: 'Save' }));
+  expect(onSaved).toHaveBeenCalledWith({ collectionId: 'collection-1', collectionName: 'Walks' });
+});
+
+test('unmounting after success cancels the automatic dismissal timer', async () => {
+  jest.useFakeTimers();
+  const view = await render(<SaveSheetContent kitId="kit-1" onClose={onClose} />);
+  await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
+  await fireEvent.press(view.getByRole('button', { name: 'Save' }));
+  await view.unmount();
+  await act(async () => { jest.advanceTimersByTime(3000); });
+  expect(onClose).not.toHaveBeenCalled();
+});

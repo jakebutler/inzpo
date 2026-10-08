@@ -1,7 +1,7 @@
-import { BottomSheetModal, type BottomSheetModalProps } from '@gorhom/bottom-sheet';
+import { BottomSheetModal, type BottomSheetModalProps, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { act, fireEvent, render, renderHook } from '@testing-library/react-native';
 import * as ExpoHaptics from 'expo-haptics';
-import { createRef, type ReactNode } from 'react';
+import { createRef, type ReactNode, type ReactElement } from 'react';
 import { Dimensions } from 'react-native';
 import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { useInzpoClient } from '@/lib/api';
@@ -24,8 +24,10 @@ type ModalInstance = {
 };
 const MockModal = BottomSheetModal as unknown as { prototype: ModalInstance };
 let sheetProps: BottomSheetModalProps;
+let client: ReturnType<typeof mockClient>;
 beforeEach(() => {
-  jest.mocked(useInzpoClient).mockReturnValue(mockClient());
+  client = mockClient();
+  jest.mocked(useInzpoClient).mockReturnValue(client);
   jest.mocked(useReducedMotion).mockReturnValue(false);
   Object.assign(haptics, createHaptics());
   const originalRender = MockModal.prototype.render;
@@ -63,16 +65,17 @@ test.each([false, true])('Save modal sizes to content, handles the keyboard, and
   expect(onClose).toHaveBeenCalledTimes(1);
 });
 
-test('Edit peeks with six chips, expands to the placeholder, and exposes snapToPeek', async () => {
+test('Edit peeks with six chips, expands to the picker, and exposes snapToPeek', async () => {
   const ref = createRef<EditSheetHandle>();
   const snap = jest.spyOn(MockModal.prototype, 'snapToIndex');
-  const view = await render(<EditSheet ref={ref} visible roles={kitFixture.roles} onClose={jest.fn()} />);
+  const view = await render(<EditSheet ref={ref} visible kit={kitFixture} onUpdated={jest.fn()} onClose={jest.fn()} />);
   expect(sheetProps).toMatchObject({ snapPoints: [156, '64%'], index: 0, enableDynamicSizing: false, enablePanDownToClose: true });
   expect(view.getByTestId('edit-role-primary')).toHaveStyle({ backgroundColor: '#b35831' });
   expect(view.getByTestId('edit-role-accent')).toHaveStyle({ backgroundColor: '#F3EEE4', borderStyle: 'dashed' });
   expect(view.queryByText('Color picking comes next')).toBeNull();
-  await act(async () => sheetProps.onChange?.(1, 300, 0));
-  expect(view.getByText('Color picking comes next')).toBeTruthy();
+  await fireEvent.press(view.getByTestId('edit-role-primary'));
+  expect(snap).toHaveBeenCalledWith(1);
+  expect(view.getByText('Pick a primary color')).toBeTruthy();
   await act(async () => ref.current?.snapToPeek());
   expect(snap).toHaveBeenCalledWith(0);
   await act(async () => sheetProps.onChange?.(0, 156, 0));
@@ -83,4 +86,34 @@ test('Save and Edit backdrops dim at their highest snap only', async () => {
   const { result } = await renderHook(() => ({ animatedIndex: useSharedValue(0), animatedPosition: useSharedValue(0) }));
   expect(SaveBackdrop(result.current).props).toMatchObject({ opacity: 0.35, appearsOnIndex: 0, disappearsOnIndex: -1 });
   expect(EditBackdrop(result.current).props).toMatchObject({ opacity: 0.35, appearsOnIndex: 1, disappearsOnIndex: 0 });
+});
+
+test.each(['save', 'edit'])('%s keeps the modal open during a write so its success reaches the result', async (kind) => {
+  let finish!: () => void;
+  const onSuccess = jest.fn();
+  const onClose = jest.fn();
+  client.saveKit.mockReturnValue(new Promise((resolve) => { finish = () => resolve({ collectionId: 'collection-1' }); }));
+  if (kind === 'edit') {
+    client.updateKitColors.mockReturnValue(new Promise((resolve) => { finish = () => resolve(kitFixture); }));
+  }
+  const view = await render(kind === 'save'
+    ? <SaveSheet visible kitId="kit-1" onClose={onClose} onSaved={onSuccess} />
+    : <EditSheet visible kit={kitFixture} onClose={onClose} onUpdated={onSuccess} />);
+  if (kind === 'save') {
+    await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
+    await fireEvent.press(view.getByRole('button', { name: 'Save' }));
+  } else {
+    await fireEvent.press(view.getByTestId('edit-role-primary'));
+    await fireEvent.press(view.getByRole('button', { name: 'Clear' }));
+    await fireEvent.press(view.getByRole('button', { name: 'Save colors' }));
+  }
+  const { result } = await renderHook(() => ({ animatedIndex: useSharedValue(0), animatedPosition: useSharedValue(0) }));
+  const backdrop = () => (sheetProps.backdropComponent as (props: BottomSheetBackdropProps) => ReactElement<{ pressBehavior: string }>)(result.current);
+  expect(sheetProps.enablePanDownToClose).toBe(false);
+  expect(backdrop().props.pressBehavior).toBe('none');
+  expect(onSuccess).not.toHaveBeenCalled();
+  await act(async () => finish());
+  expect(onSuccess).toHaveBeenCalledTimes(1);
+  expect(sheetProps.enablePanDownToClose).toBe(true);
+  expect(backdrop().props.pressBehavior).toBe('close');
 });

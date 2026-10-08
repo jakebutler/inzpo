@@ -19,6 +19,8 @@ export function mockClient(): jest.Mocked<InzpoClient> {
       .mockResolvedValue(undefined),
     createKit: jest.fn<ReturnType<InzpoClient['createKit']>, Parameters<InzpoClient['createKit']>>()
       .mockResolvedValue({ itemId: 'kit-1' }),
+    updateKitColors: jest.fn<ReturnType<InzpoClient['updateKitColors']>, Parameters<InzpoClient['updateKitColors']>>()
+      .mockImplementation(async (_id, input) => ({ ...kitFixture, roles: { ...kitFixture.roles, ...input.roles } })),
     getKit: jest.fn<ReturnType<InzpoClient['getKit']>, Parameters<InzpoClient['getKit']>>()
       .mockResolvedValue(kitFixture),
     getBrief: jest.fn<ReturnType<InzpoClient['getBrief']>, Parameters<InzpoClient['getBrief']>>()

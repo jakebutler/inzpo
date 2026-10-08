@@ -61,6 +61,10 @@ export interface MobileKit {
   collectionIds: string[];
 }
 
+export interface UpdateKitColorsRequest {
+  roles: Partial<Record<ColorRole, string | null>>;
+}
+
 export interface SaveKitRequest {
   collectionId?: string;
   newName?: string;

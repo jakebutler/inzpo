@@ -187,7 +187,7 @@ export function useResultSequence({ kitId, ready, roles, jiggle }: { kitId: stri
       cancel();
       // React Strict Mode may tear down and restart effects before the first
       // frame. Resume an interrupted pre-landing run instead of marking it done.
-      if (!scope.current.landed && !scope.current.skipped) scope.current.started = false;
+      if (!scope.current.landed && !scope.current.skipped && !completedResultKits.has(kitId)) scope.current.started = false;
     };
   }, [kitId, ready, reducedMotion, bands, primary.opacity, stripeProgress, filledStripes, bakuY, bakuScaleX, bakuScaleY, bakuOpacity,
     markerScale, markerOpacity, briefY, briefOpacity, cancel, setEndValues, jiggle]);

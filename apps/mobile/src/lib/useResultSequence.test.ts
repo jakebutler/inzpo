@@ -282,3 +282,17 @@ test.each([false, true])('swallow jiggles pupils once at t=0, respecting reduced
   await hook.rerender({ ready: true });
   expect(jiggle).toHaveBeenCalledTimes(reduced ? 0 : 1);
 });
+
+
+test.each([false, true])('completed kit edits fill and clear stripes immediately without replay (reduced: %s)', async (reduced) => {
+  jest.mocked(Reanimated.useReducedMotion).mockReturnValue(reduced);
+  completedResultKits.add('edited');
+  const hook = await renderHook(useSequence, { initialProps: { kitId: 'edited', ready: true, roles: { ...roles, accent: null } } });
+  const timing = jest.spyOn(Reanimated, 'withTiming');
+  await hook.rerender({ kitId: 'edited', ready: true, roles: { ...roles, primary: null } });
+  expect(hook.result.current.stripeProgress.map((progress) => progress.value)).toEqual([0, 1, 1, 1, 1, 1]);
+  expect(hook.result.current.interactive).toBe(true);
+  expect(timing).not.toHaveBeenCalled();
+  await advance(2000);
+  expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
+});

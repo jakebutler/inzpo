@@ -12,8 +12,11 @@ import { ActionButton } from './ActionButton';
 import { Baku } from './Baku';
 import { SaveButton } from './SaveButton';
 
-export function SaveSheetContent({ kitId, onClose, onSaved, onSaveError }: {
-  kitId: string; onClose: () => void; onSaved?: () => void; onSaveError?: () => void;
+export type SavedCollection = { collectionId: string; collectionName: string };
+
+export function SaveSheetContent({ kitId, onClose, onSaved, onSaveError, onSavingChange }: {
+  kitId: string; onClose: () => void; onSaved?: (collection: SavedCollection) => void; onSaveError?: () => void;
+  onSavingChange?: (saving: boolean) => void;
 }) {
   const client = useInzpoClient();
   const insets = useSafeAreaInsets();
@@ -29,6 +32,7 @@ export function SaveSheetContent({ kitId, onClose, onSaved, onSaveError }: {
   const [attempt, setAttempt] = useState(0);
   const saveInFlight = useRef(false);
   const active = useRef(true);
+  useEffect(() => { onSavingChange?.(saving); }, [saving, onSavingChange]);
 
   useEffect(() => {
     active.current = true;
@@ -47,6 +51,13 @@ export function SaveSheetContent({ kitId, onClose, onSaved, onSaveError }: {
     const timer = setTimeout(() => setSuccessPose(false), HOP_TIMELINE.successHoldMs);
     return () => clearTimeout(timer);
   }, [saved]);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    if (!saved) return;
+    const timer = setTimeout(() => onCloseRef.current(), 900);
+    return () => clearTimeout(timer);
+  }, [saved]);
 
   async function save() {
     if (saveInFlight.current || saved || (!selectedId && !newName.trim())) return;
@@ -54,12 +65,13 @@ export function SaveSheetContent({ kitId, onClose, onSaved, onSaveError }: {
     setSaving(true);
     setSaveError(null);
     try {
-      await client.saveKit(kitId, selectedId ? { collectionId: selectedId } : { newName: newName.trim() });
+      const result = await client.saveKit(kitId, selectedId ? { collectionId: selectedId } : { newName: newName.trim() });
       if (!active.current) return;
       setSaved(true);
       setSuccessPose(true);
       void haptics.success();
-      onSaved?.();
+      onSaved?.({ collectionId: result.collectionId,
+        collectionName: selectedId ? collections.find((collection) => collection.id === selectedId)?.name ?? 'your collection' : newName.trim() });
     } catch {
       if (!active.current) return;
       setSaveError('Couldn’t save this kit. Please try again.');

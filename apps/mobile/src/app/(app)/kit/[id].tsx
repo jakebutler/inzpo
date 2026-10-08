@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
-import { useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
@@ -10,6 +10,8 @@ import { BriefBlock } from '@/components/BriefBlock';
 import { EditSheet, type EditSheetHandle } from '@/components/EditSheet';
 import { RoleBands } from '@/components/RoleBands';
 import { SaveSheet } from '@/components/SaveSheet';
+import { useInzpoClient } from '@/lib/api';
+import type { SavedCollection } from '@/components/SaveSheetContent';
 import { useKit } from '@/lib/use-kit';
 import { useResultSequence } from '@/lib/useResultSequence';
 import { useBakuPupils } from '@/lib/useBakuPupils';
@@ -18,9 +20,24 @@ import { INK } from '@/theme/tokens';
 import { ui } from '@/theme/styles';
 
 export default function ResultScreen() {
-  const params = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; saved?: string; c?: string }>();
   const id = typeof params.id === 'string' ? params.id : '';
-  const { kit, loading, error, briefFailed, retry } = useKit(id);
+  const { kit, loading, error, briefFailed, retry, replaceKit } = useKit(id);
+  const client = useInzpoClient();
+  const [savedCollection, setSavedCollection] = useState<(SavedCollection & { kitId: string }) | null>(null);
+  const savedId = savedCollection?.kitId === id ? savedCollection.collectionId
+    : kit?.collectionIds[0] ?? (params.saved === '1' ? params.c ?? '' : null);
+  const isSaved = savedId !== null;
+  const collectionName = savedCollection?.kitId === id ? savedCollection.collectionName : 'your collection';
+  useEffect(() => {
+    if (savedId === null || savedCollection?.kitId === id) return;
+    let active = true;
+    client.listCollections().then((collections) => {
+      if (active) setSavedCollection({ kitId: id, collectionId: savedId,
+        collectionName: collections.find((collection) => collection.id === savedId)?.name ?? 'your collection' });
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [client, id, savedId, savedCollection?.kitId]);
   const [sheet, setSheet] = useState<{ kitId: string; type: 'save' | 'edit' } | null>(null);
   const editSheet = useRef<EditSheetHandle>(null);
   const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
@@ -34,6 +51,7 @@ export default function ResultScreen() {
 
   return (
     <SafeAreaView style={ui.screen} edges={['bottom', 'left', 'right']} onTouchStart={sequence.skipToEnd}>
+      <Stack.Screen options={{ title: isSaved && kit ? kit.title : 'Your colors' }} />
       <ScrollView
         testID="result-content"
         contentContainerStyle={[ui.content, !kit && { flexGrow: 1 }]}
@@ -97,14 +115,21 @@ export default function ResultScreen() {
             {(briefFailed || kit.brief.status === 'failed') && <ActionButton label="Check brief again" onPress={retry} />}
           </>
         ) : null}
-        <ActionButton label="Save" primary disabled={!sequence.interactive} onPress={() => setSheet({ kitId: id, type: 'save' })} />
+        {isSaved ? <View accessibilityRole="text" style={styles.saved}>
+          <Text allowFontScaling style={ui.body}>✓ Saved to {collectionName}</Text>
+        </View> : <ActionButton label="Save" primary disabled={!sequence.interactive} onPress={() => setSheet({ kitId: id, type: 'save' })} />}
         <ActionButton label="Edit" disabled={!sequence.interactive} onPress={() => setSheet({ kitId: id, type: 'edit' })} />
+        {isSaved && <ActionButton label="Snap another house" primary onPress={() => router.dismissTo('/')} />}
         {/* TODO(motion): Kit overflow/export sheet with dynamic sizing and 52pt action rows. */}
       </ScrollView>
       {kit && (
         <>
-          <SaveSheet visible={sheet?.kitId === id && sheet.type === 'save'} kitId={kit.id} onClose={() => setSheet(null)} onSaved={hop.onSaved} onSaveError={hop.onSaveError} />
-          <EditSheet ref={editSheet} visible={sheet?.kitId === id && sheet.type === 'edit'} roles={kit.roles} onClose={() => setSheet(null)} />
+          <SaveSheet visible={sheet?.kitId === id && sheet.type === 'save'} kitId={kit.id} onClose={() => setSheet((current) => current?.kitId === id && current.type === 'save' ? null : current)} onSaved={(collection) => {
+            hop.onSaved();
+            setSavedCollection({ ...collection, kitId: id });
+            router.setParams({ saved: '1', c: collection.collectionId });
+          }} onSaveError={hop.onSaveError} />
+          <EditSheet ref={editSheet} visible={sheet?.kitId === id && sheet.type === 'edit'} kit={kit} onUpdated={replaceKit} onClose={() => setSheet((current) => current?.kitId === id && current.type === 'edit' ? null : current)} />
         </>
       )}
     </SafeAreaView>
@@ -112,6 +137,7 @@ export default function ResultScreen() {
 }
 
 const styles = StyleSheet.create({
+  saved: { minHeight: 52, alignItems: 'center', justifyContent: 'center', padding: 14 },
   photo: { width: '100%', borderRadius: 18, overflow: 'hidden' },
   photoPlaceholder: { alignItems: 'center', justifyContent: 'center', gap: 16 },
   baku: { alignItems: 'center' },

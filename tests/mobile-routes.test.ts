@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   send: vi.fn(), getSignedUrl: vi.fn(), presignUpload: vi.fn(), createImageItem: vi.fn(), getItemDetail: vi.fn(),
   readBriefJob: vi.fn(), runBriefJob: vi.fn(), persistKitTitleFromBrief: vi.fn(), getItemCollections: vi.fn(),
   assertItemOwned: vi.fn(), listCollections: vi.fn(), createCollection: vi.fn(), addToCollection: vi.fn(),
-  revalidatePath: vi.fn(), after: vi.fn(),
+  revalidatePath: vi.fn(), after: vi.fn(), replaceItemTokens: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ verifyToken: mocks.verifyToken }));
@@ -29,6 +29,7 @@ vi.mock("@aws-sdk/s3-request-presigner", () => ({ getSignedUrl: mocks.getSignedU
 vi.mock("@/lib/uploads", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/uploads")>(), presignUpload: mocks.presignUpload,
 }));
+vi.mock("@/lib/item-tokens", () => ({ replaceItemTokens: mocks.replaceItemTokens }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/server", async (importOriginal) => ({
   ...await importOriginal<typeof import("next/server")>(), after: mocks.after,
@@ -42,6 +43,8 @@ import { GET as getKit } from "@/app/api/mobile/kits/[id]/route";
 import { GET as getBrief, POST as runBrief } from "@/app/api/mobile/kits/[id]/brief/route";
 import { GET as collections } from "@/app/api/mobile/collections/route";
 import { POST as saveKit } from "@/app/api/mobile/kits/[id]/save/route";
+
+import { PATCH as updateColors } from "@/app/api/mobile/kits/[id]/colors/route";
 
 const context = () => ({ params: Promise.resolve({ id: "kit_1" }) });
 const pending: BriefJob = { status: "pending", text: null, namedHexes: [], namedColors: [], stub: false, updatedAt: 0 };
@@ -95,6 +98,7 @@ describe("mobile route authentication", () => {
   const routes = [
     { name: "uploads POST", call: (req: Request) => presign(req) },
     { name: "kits POST", call: (req: Request) => createKit(req) },
+    { name: "colors PATCH", call: (req: Request) => updateColors(req, context()) },
     { name: "kit GET", call: (req: Request) => getKit(req, context()) },
     { name: "brief GET", call: (req: Request) => getBrief(req, context()) },
     { name: "brief POST", call: (req: Request) => runBrief(req, context()) },
@@ -307,5 +311,67 @@ describe("mobile collections and saves", () => {
     const response = await saveKit(request("POST", { collectionId: "foreign" }), context());
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({ error: "Not found" });
+  });
+});
+
+
+describe("mobile color editing", () => {
+  it.each<unknown>([null, [], {}, { roles: [] }, { roles: { other: "#123456" } },
+    { roles: { accent: "#abc" } }, { roles: { accent: "123456" } },
+    { roles: { accent: "#gggggg" } }, { roles: { accent: 123 } }, { roles: null },
+    { roles: {}, extra: true }, { roles: { constructor: "#123456" } }])("rejects invalid roles (%j)", async (body) => {
+    expect((await updateColors(request("PATCH", body), context())).status).toBe(400);
+    expect(mocks.replaceItemTokens).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed JSON", async () => {
+    const req = new Request("https://inzpo.test", { method: "PATCH", headers: { Authorization: "Bearer valid-token" }, body: "{" });
+    expect((await updateColors(req, context())).status).toBe(400);
+  });
+
+  it.each([null, { ...item, kind: "url" }])("returns 404 for missing or non-kit items", async (detail) => {
+    mocks.getItemDetail.mockResolvedValue(detail);
+    expect((await updateColors(request("PATCH", { roles: {} }), context())).status).toBe(404);
+    expect(mocks.replaceItemTokens).not.toHaveBeenCalled();
+  });
+
+  it("preserves unchanged sampled pins and omitted roles, returns the fresh GET shape, and revalidates", async () => {
+    const original = { ...item, colors: [{ ...item.colors[0]!, pinX: 0.2, pinY: 0.4, origin: "sampled" }] };
+    const fresh = { ...original, colors: [...original.colors, { ...item.colors[0]!, role: "accent" as const, hex: "#123456", pinX: null, pinY: null }] };
+    mocks.getItemDetail.mockResolvedValueOnce(original).mockResolvedValue(fresh);
+    const response = await updateColors(request("PATCH", { roles: { primary: "#abcdef", accent: "#123456" } }), context());
+    expect(response.status).toBe(200);
+    expect(mocks.replaceItemTokens).toHaveBeenCalledWith("user_1", "kit_1",
+      { primary: "#abcdef", secondary: null, accent: "#123456", background: null, surface: null, text: null },
+      { primary: { pinX: 0.2, pinY: 0.4 } }, { primary: "sampled" });
+    expect(mocks.revalidatePath.mock.calls).toEqual([["/items/kit_1"], ["/"]]);
+    const dto = await response.json();
+    expect(dto).toEqual(await (await getKit(request(), context())).json());
+    expect(dto.roles.accent).toBe("#123456");
+    expect(dto.colors).toHaveLength(2);
+  });
+
+  it("drops changed pins and origins, clears a role, and preserves an omitted role", async () => {
+    mocks.getItemDetail.mockResolvedValue({ ...item, colors: [
+      { ...item.colors[0]!, pinX: 0.3, pinY: 0.4, origin: "sampled" },
+      { ...item.colors[0]!, role: "secondary", hex: "#111111", pinX: 0.5, pinY: 0.6, origin: "sampled" },
+      { ...item.colors[0]!, role: "accent", hex: "#222222" },
+    ] });
+    expect((await updateColors(request("PATCH", { roles: { primary: "#654321", accent: null } }), context())).status).toBe(200);
+    expect(mocks.replaceItemTokens).toHaveBeenCalledWith("user_1", "kit_1",
+      { primary: "#654321", secondary: "#111111", accent: null, background: null, surface: null, text: null },
+      { secondary: { pinX: 0.5, pinY: 0.6 } }, { secondary: "sampled" });
+  });
+
+  it.each(["#ABC", " ABC ", "#AABBCC", " AABBCC "])("preserves sampled pins for normalized omitted and unchanged roles (%s)", async (hex) => {
+    mocks.getItemDetail.mockResolvedValue({ ...item, colors: [
+      { ...item.colors[0]!, hex, pinX: 0, pinY: 1, origin: "sampled" },
+      { ...item.colors[0]!, role: "secondary", hex, pinX: 0.2, pinY: 0.4, origin: "sampled" },
+    ] });
+    expect((await updateColors(request("PATCH", { roles: { primary: "#AABBCC" } }), context())).status).toBe(200);
+    expect(mocks.replaceItemTokens).toHaveBeenCalledWith("user_1", "kit_1",
+      { primary: "#aabbcc", secondary: "#aabbcc", accent: null, background: null, surface: null, text: null },
+      { primary: { pinX: 0, pinY: 1 }, secondary: { pinX: 0.2, pinY: 0.4 } },
+      { primary: "sampled", secondary: "sampled" });
   });
 });
