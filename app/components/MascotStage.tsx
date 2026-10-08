@@ -26,6 +26,8 @@ export function MascotStage({
   ink,
   hideCopy = false,
   glow = false,
+  immediate = false,
+  progress = null,
 }: {
   moment: MascotMoment;
   kit?: MascotKit | null;
@@ -38,9 +40,11 @@ export function MascotStage({
   ink?: string;
   hideCopy?: boolean;
   glow?: boolean;
+  immediate?: boolean;
+  progress?: string | null;
 }) {
   const pose = poseForMoment(moment);
-  const delayed = waitBeforeShow(moment);
+  const delayed = waitBeforeShow(moment) && !immediate;
   const [shown, setShown] = useState(!delayed);
   const [chewElapsedMs, setChewElapsedMs] = useState(0);
   const shownOnce = useRef(false);
@@ -89,6 +93,11 @@ export function MascotStage({
           <p aria-live="polite" className="text-sm" style={ink ? { color: ink } : undefined}>
             {copy}
           </p>
+          {progress ? (
+            <p role="status" className="mt-1 text-sm text-muted-foreground">
+              {progress}
+            </p>
+          ) : null}
           {moment === "error-brief" ? (
             <button
               type="button"

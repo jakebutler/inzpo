@@ -11,10 +11,12 @@ export function CaptureMascotLayer({
   firstOpen,
   hasSubstance,
   uploading = false,
+  progress = null,
 }: {
   firstOpen: boolean;
   hasSubstance: boolean;
   uploading?: boolean;
+  progress?: string | null;
 }) {
   const { pending } = useFormStatus();
   const waiting = pending || uploading;
@@ -33,7 +35,7 @@ export function CaptureMascotLayer({
   }, [waiting, hasSubstance]);
 
   if (waiting) {
-    return <MascotStage moment="upload" snapReady className="mt-4" />;
+    return <MascotStage moment="upload" snapReady immediate className="mt-4" progress={progress} />;
   }
 
   if (firstOpen && !met && !hasSubstance) {

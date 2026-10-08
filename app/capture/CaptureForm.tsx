@@ -5,8 +5,10 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { CaptureMascotLayer } from "@/app/components/CaptureMascotLayer";
 import { prepareUploadFile } from "@/lib/client-image";
+import { buildCaptureFormData } from "@/lib/capture-form-data";
 import { MOTION, MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { BAR_FADE, SNAP_SCROLL_PAD } from "@/lib/layout";
+import { unstable_rethrow } from "next/navigation";
 import { capture } from "./actions";
 
 gsap.registerPlugin(useGSAP);
@@ -24,12 +26,13 @@ export function CaptureForm({
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [uploadKey, setUploadKey] = useState<string | null>(shareToken);
   const [uploading, setUploading] = useState(false);
+  const [uploadPhase, setUploadPhase] = useState<"reading" | "uploading" | "saving" | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const hasSubstance = !!file || !!shareToken;
+  const uploadKeyRef = useRef<string | null>(shareToken);
+  const hasSubstance = !!file || !!shareToken || uploading;
 
   useGSAP(
     () => {
@@ -46,15 +49,28 @@ export function CaptureForm({
   );
 
   async function pick(next: File | null) {
+    setUploadError(null);
+    if (!next) {
+      setFile(null);
+      setUploadKey(shareToken);
+      uploadKeyRef.current = shareToken;
+      setUploading(false);
+      setUploadPhase(null);
+      setFileUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+    setUploading(true);
+    setUploadPhase("reading");
     setFile(next);
     setUploadKey(shareToken);
-    setUploadError(null);
+    uploadKeyRef.current = shareToken;
     setFileUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
-      return next && next.type.startsWith("image/") ? URL.createObjectURL(next) : null;
+      return next.type.startsWith("image/") ? URL.createObjectURL(next) : null;
     });
-    if (!next) return;
-    setUploading(true);
     try {
       const prepared = await prepareUploadFile(next);
       if (prepared.mime === "image/jpeg" && prepared.blob !== next) {
@@ -63,6 +79,7 @@ export function CaptureForm({
           return URL.createObjectURL(prepared.blob);
         });
       }
+      setUploadPhase("uploading");
       const res = await fetch("/api/uploads/presign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -76,9 +93,14 @@ export function CaptureForm({
         body: prepared.blob,
       });
       if (!put.ok) throw new Error("Upload failed");
+      uploadKeyRef.current = signed.key;
       setUploadKey(signed.key);
-      queueMicrotask(() => formRef.current?.requestSubmit());
+      setUploadPhase("saving");
+      const key = uploadKeyRef.current;
+      if (!key) throw new Error("Could not start upload");
+      await capture(buildCaptureFormData({ uploadKey: key, filename: next.name, shareToken }));
     } catch (err) {
+      unstable_rethrow(err);
       const message = err instanceof Error ? err.message : "";
       if (/could not read/i.test(message)) {
         window.location.assign("/capture?error=bad-image");
@@ -86,14 +108,23 @@ export function CaptureForm({
       }
       setUploadError("That photo didn't upload. Try again, or pick another.");
       setUploadKey(null);
-    } finally {
+      uploadKeyRef.current = null;
       setUploading(false);
+      setUploadPhase(null);
     }
   }
 
+  const progressCopy =
+    uploadPhase === "reading" ? "Reading photo…" : uploadPhase === "uploading" ? "Uploading…" : uploadPhase === "saving" ? "Saving kit…" : null;
+
   return (
-    <form ref={formRef} action={capture} style={{ paddingBottom: SNAP_SCROLL_PAD }}>
-      <CaptureMascotLayer firstOpen={firstOpen} hasSubstance={hasSubstance} uploading={uploading} />
+    <form style={{ paddingBottom: SNAP_SCROLL_PAD }}>
+      <CaptureMascotLayer
+        firstOpen={firstOpen}
+        hasSubstance={hasSubstance}
+        uploading={uploading}
+        progress={progressCopy}
+      />
       <input
         ref={cameraRef}
         type="file"
@@ -127,7 +158,7 @@ export function CaptureForm({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={fileUrl} alt="Captured image" className="max-h-72 w-full object-cover" />
             ) : null}
-            <p className="mt-2 truncate text-base">{uploading ? "Uploading…" : file?.name ?? "Shared photo"}</p>
+            <p className="mt-2 truncate text-base">{uploading ? progressCopy ?? "Uploading…" : file?.name ?? "Shared photo"}</p>
           </div>
         </div>
       ) : null}
