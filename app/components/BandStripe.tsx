@@ -61,6 +61,10 @@ export function BandStripe({
         <figcaption className={`inzpo-kit-stripe-name font-heading${italicEmptyTitle ? " italic" : ""}`}>
           {title}
         </figcaption>
+      ) : title != null ? (
+        <figcaption className="inzpo-kit-stripe-name">
+          <span data-title-skeleton aria-hidden="true" className="block h-3 w-32 rounded bg-current opacity-10" />
+        </figcaption>
       ) : null}
     </figure>
   );

@@ -54,7 +54,7 @@ async function composeTint(
   return canvas.toDataURL("image/png");
 }
 
-async function bakeShadow(src: string, ground: string): Promise<string> {
+async function bakeShadow(src: string): Promise<string> {
   const img = await loadImage(src);
   const canvas = document.createElement("canvas");
   canvas.width = img.naturalWidth;
@@ -69,7 +69,7 @@ async function bakeShadow(src: string, ground: string): Promise<string> {
     canvas.width,
     canvas.height,
     4,
-    ground,
+    "#000000",
     BAKU_SHADOW_CLIP_PCT,
   );
   ctx.putImageData(data, 0, 0);
@@ -107,7 +107,7 @@ export function BakuSprite({
   fallback: ReactNode;
 }) {
   const colors = kitForPose(pose as "idle" | "chewing" | "success" | "empty" | "error-brief" | "error-unreadable" | "404" | "error-photo", kit);
-  const density = useDensity();
+  const density = bakuDensity(useDensity() * Math.max(1, size / 48));
   const canTint = bakuCanTint(pose) && kitHasPalette(colors) && !forcePoseAsset;
   const paletteKey = COLOR_ROLES.map((role) => colors[role] ?? "").join(",");
   const baseSrc = canTint || forcePoseAsset || !bakuCanTint(pose)
@@ -169,7 +169,7 @@ export function BakuSprite({
       return;
     }
     let alive = true;
-    void bakeShadow(src, ground)
+    void bakeShadow(src)
       .then((url) => {
         if (alive) setShadowSrc(url);
       })
@@ -208,7 +208,7 @@ export function BakuSprite({
       <div ref={squashRef} className="relative h-full w-full">
         {showPng ? (
           <>
-            {/* Blend the wrapper, not the img: WebKit skips mix-blend-mode on transformed replaced elements. */}
+            {/* Black at 18% alpha darkens any ground, including before the bake finishes. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={shadowSrc ?? src}
@@ -219,6 +219,8 @@ export function BakuSprite({
               className="pointer-events-none absolute inset-0 block h-full w-full"
               style={{
                 clipPath: shadowSrc ? undefined : shadowClip,
+                filter: "brightness(0)",
+                opacity: 0.18,
                 transform: flip,
                 transformOrigin: "50% 100%",
               }}

@@ -99,7 +99,9 @@ export function BriefSlot({
         <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText ground={pageBackground} />
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
-        {shown ? (
+        {status === "pending" && !saved ? (
+          <span data-brief-skeleton aria-hidden="true" className="mt-2 block h-2 w-32 rounded" style={{ backgroundColor: ink, opacity: 0.12 }} />
+        ) : shown ? (
           <p
             className="font-heading text-[18px] leading-6"
             data-brief-text

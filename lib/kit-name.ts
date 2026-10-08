@@ -107,9 +107,7 @@ export function kitDisplayName(input: {
   namedColors?: NamedColor[];
   pending?: boolean;
 }): string {
-  const title = input.title?.trim() ?? "";
-  // Display only the persisted title, even while a brief is loading or retrying.
-  return title && !isCameraFilename(title) ? title : UNTITLED_KIT;
+  return generatedKitTitle(input) ?? "";
 }
 
 export function generatedKitTitle(input: {
@@ -117,8 +115,8 @@ export function generatedKitTitle(input: {
   briefText?: string | null;
   namedColors?: NamedColor[];
 }): string | null {
-  const existing = kitDisplayName({ title: input.title });
-  if (existing !== UNTITLED_KIT) return existing;
+  const existing = input.title?.trim() ?? "";
+  if (existing && existing !== UNTITLED_KIT && !isCameraFilename(existing)) return existing;
   const color = colorWordFrom(input.namedColors);
   const subject = subjectFromBrief(input.briefText, color) ?? subjectFromChips(input.namedColors);
   const words = [...new Set(subject?.split(/\s+/).filter(Boolean) ?? [])];
@@ -128,7 +126,7 @@ export function generatedKitTitle(input: {
   return words.length ? titleCase(words.join(" ")) : null;
 }
 
-/** Photo alt uses the same persisted title as the visible kit name. */
+/** Photo alt uses the same name as the visible kit name. */
 export function kitAltText(input: {
   title?: string | null;
   briefText?: string | null;

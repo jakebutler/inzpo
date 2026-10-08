@@ -34,7 +34,7 @@ describe("r7 upload wait", () => {
     expect(form).toContain("data-upload-wait");
     expect(form).toContain('align="center"');
     expect(form).toContain("disabled={uploading}");
-    expect(form).toContain("MASCOT_SIZE_INTRO_PX");
+    expect(form).toContain("MASCOT_SIZE_UPLOAD_PX");
     expect(src("lib/media.ts")).toContain("Promise.all");
     expect(BRIEF_REQUEST.visionEdgePx).toBe(384);
   });

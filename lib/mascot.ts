@@ -28,6 +28,7 @@ export const MASCOT_SUCCESS_HOLD_MS = 2_000;
 export const MASCOT_SIZE_PX = 48;
 export const MASCOT_SIZE_BRIEF_PX = 56;
 export const MASCOT_SIZE_INTRO_PX = 64;
+export const MASCOT_SIZE_UPLOAD_PX = 96;
 export const BAKU_CREAM = "#f3ead8";
 export const BAKU_SEAM = "#b7a88a";
 export const BAKU_MET_STORAGE_KEY = "inzpo-met-baku";

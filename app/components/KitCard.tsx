@@ -2,7 +2,7 @@ import { BandStripe } from "@/app/components/BandStripe";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import { emptyRoles, type RoleColors } from "@/lib/tokens";
 import { HANDOFF_KITS } from "@/lib/mascot";
-import { UNTITLED_KIT } from "@/lib/kit-name";
+import { kitDisplayName } from "@/lib/kit-name";
 
 function rolesFromList(hexes?: Array<string | null>): RoleColors {
   if (hexes && hexes.length > 0) {
@@ -17,7 +17,7 @@ function rolesFromList(hexes?: Array<string | null>): RoleColors {
 }
 
 export function KitCard({
-  title,
+  title: rawTitle,
   imageSrc,
   hexes,
   roles,
@@ -28,14 +28,14 @@ export function KitCard({
   roles?: RoleColors;
 }) {
   const kit = roles ?? rolesFromList(hexes);
-  const untitled = title === UNTITLED_KIT;
+  const title = kitDisplayName({ title: rawTitle });
   return (
     <article className="inzpo-kit-card">
       {imageSrc ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={imageSrc} alt={title} className="inzpo-kit-card-photo" />
       ) : null}
-      <BandStripe roles={kit} title={title} italicEmptyTitle={untitled} />
+      <BandStripe roles={kit} title={title} />
     </article>
   );
 }

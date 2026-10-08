@@ -78,13 +78,16 @@ describe("persisted kit names", () => {
     },
   );
 
-  it("hides camera filenames without inventing a display title", () => {
+  it("generates a display name while the persisted title is missing or a camera filename", () => {
     expect(isCameraFilename("IMG_5859.jpg")).toBe(true);
     const input = { title: "IMG_6505", briefText: "Soft yellow.", namedColors: [{ hex: "#ffff00", label: "yellow" }] };
-    expect(kitDisplayName(input)).toBe(UNTITLED_KIT);
-    expect(kitAltText(input)).toBe(UNTITLED_KIT);
-    expect(kitDisplayName({ ...input, pending: true })).toBe(UNTITLED_KIT);
+    expect(kitDisplayName(input)).toBe("Soft Yellow");
+    expect(kitAltText(input)).toBe("Soft Yellow");
+    expect(kitDisplayName({ ...input, pending: true })).toBe("Soft Yellow");
     expect(generatedKitTitle(input)).toBe("Soft Yellow");
+    expect(kitDisplayName({ ...input, title: null })).toBe("Soft Yellow");
+    expect(kitDisplayName({ ...input, title: UNTITLED_KIT })).toBe("Soft Yellow");
+    expect(kitDisplayName({})).toBe("");
   });
 
   it("wires the saved header, Wall and collection cards, and photo to the persisted title", () => {
