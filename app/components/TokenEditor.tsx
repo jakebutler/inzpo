@@ -1,15 +1,17 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition, type MutableRefObject } from "react";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
-import { hexWithoutHash, isHexColor, normalizeHex } from "@/lib/colors";
+import { isHexColor, normalizeHex } from "@/lib/colors";
 import { MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
-import { filledRoles, moveRole, pinNumbers, rolesFromColors, setRoleColor } from "@/lib/tokens";
+import { filledRoles, moveRole, rolesFromColors, setRoleColor } from "@/lib/tokens";
 import { pointerOnContainedImage, sampleImageAverage } from "@/lib/client-eyedropper";
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { contrastLineCopy, swatchHairline, swatchInk } from "@/lib/contrast";
 import { chipCopy, EMPTY_ROLE_COPY, type NamedColor } from "@/lib/brief-copy";
+import { PaletteBands } from "@/app/components/PaletteBands";
+import { ContrastAa } from "@/app/components/ContrastAa";
+import { PAPER } from "@/lib/brand";
 
 type ColorRow = {
   hex: string;
@@ -25,12 +27,18 @@ export function TokenEditor({
   colors,
   namedColors = [],
   initialOpen = null,
+  size = "result",
+  pageBackground = PAPER,
+  bandRefs,
 }: {
   itemId: string;
   imageSrc: string | null;
   colors: ColorRow[];
   namedColors?: NamedColor[];
   initialOpen?: ColorRole | null;
+  size?: "result" | "editor";
+  pageBackground?: string;
+  bandRefs?: MutableRefObject<Array<HTMLButtonElement | null>>;
 }) {
   const [roles, setRoles] = useState(() => rolesFromColors(colors));
   const [pins, setPins] = useState<Partial<Record<ColorRole, { pinX: number; pinY: number }>>>(() => {
@@ -46,8 +54,6 @@ export function TokenEditor({
   const [loupe, setLoupe] = useState<{ x: number; y: number; hex: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const imgRef = useRef<HTMLImageElement>(null);
-  const numbers = useMemo(() => pinNumbers(colors), [colors]);
-  const contrastLine = contrastLineCopy(roles);
   const filledHex = new Set(
     Object.values(roles)
       .filter((hex): hex is string => typeof hex === "string")
@@ -114,70 +120,25 @@ export function TokenEditor({
 
   return (
     <section>
-      <div className="inzpo-swatches">
-        {COLOR_ROLES.map((role) => {
-          const hex = roles[role];
-          if (!hex) {
-            return (
-              <button
-                key={role}
-                type="button"
-                onClick={() => openRole(role)}
-                aria-label={EMPTY_ROLE_COPY(role)}
-                className="inzpo-swatch min-h-11 rounded-lg active:scale-[0.98]"
-                style={{ transitionDuration: `${MOTION_CSS.tapMs}ms` }}
-              >
-                <span className="inzpo-swatch-empty">
-                  <span className="inzpo-swatch-empty-copy">{EMPTY_ROLE_COPY(role)}</span>
-                  <span className="inzpo-swatch-empty-mark" aria-hidden>
-                    +
-                  </span>
-                </span>
-              </button>
-            );
-          }
-          const ink = swatchInk(hex);
-          const hair = swatchHairline(hex);
-          return (
-            <button
-              key={role}
-              type="button"
-              onClick={() => openRole(role)}
-              aria-label={`${role} ${hex}${numbers[role] ? `, pin ${numbers[role]}` : ""}`}
-              className="inzpo-swatch min-h-11 rounded-lg active:scale-[0.98]"
-              style={{ transitionDuration: `${MOTION_CSS.tapMs}ms` }}
-            >
-              <span
-                className="inzpo-swatch-fill"
-                style={{
-                  backgroundColor: hex,
-                  color: ink,
-                  boxShadow: `inset 0 0 0 1px ${hair}`,
-                }}
-              >
-                <span className="inzpo-swatch-role text-[11px] font-medium leading-none">{role}</span>
-                <span className="inzpo-swatch-meta font-mono text-[11px] tabular-nums leading-none">
-                  {hex}
-                  {numbers[role] ? ` · ${numbers[role]}` : ""}
-                </span>
-              </span>
-              <span className="inzpo-swatch-hex" data-swatch-hex>
-                {hexWithoutHash(hex)}
-              </span>
-            </button>
-          );
-        })}
+      <div data-band-stack>
+        <PaletteBands
+          roles={roles}
+          size={size}
+          pageBackground={pageBackground}
+          onPick={openRole}
+          bandRefs={bandRefs}
+        />
       </div>
-      <p data-contrast-line className="mt-3 text-base leading-snug text-muted-foreground">
-        {contrastLine}
-      </p>
+      <div className="mt-4">
+        <ContrastAa roles={roles} />
+      </div>
       {chips.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2 px-4">
           {chips.map((color) => (
             <button
               key={color.hex}
               type="button"
-              className="min-h-11 rounded-full border border-dashed border-border px-3 text-base"
+              className="min-h-11 border border-dashed border-current px-3 text-base"
               style={{
                 animation: `inzpo-chip-in ${chipAnim} both`,
                 transitionDuration: `${MOTION_CSS.tapMs}ms`,
@@ -189,7 +150,7 @@ export function TokenEditor({
           ))}
         </div>
       ) : null}
-      {pending ? <p className="mt-1 text-base text-muted-foreground">Saving…</p> : null}
+      {pending ? <p className="mt-1 px-4 text-base">Saving…</p> : null}
 
       <Sheet
         open={open !== null}
@@ -201,15 +162,15 @@ export function TokenEditor({
           }
         }}
       >
-        <SheetContent side="bottom" className="max-h-[85vh] rounded-t-2xl bg-background pb-[max(1rem,env(safe-area-inset-bottom))] text-foreground">
+        <SheetContent side="bottom" className="max-h-[85vh] bg-background pb-[max(1rem,env(safe-area-inset-bottom))] text-foreground shadow-none">
           <SheetHeader>
-            <SheetTitle>{open ? `Edit ${open}` : "Edit color"}</SheetTitle>
+            <SheetTitle className="font-heading text-2xl">{open ? `Edit ${open}` : "Edit color"}</SheetTitle>
           </SheetHeader>
           {open && !roles[open] ? (
-            <p className="px-4 text-base text-muted-foreground">{EMPTY_ROLE_COPY(open)}</p>
+            <p className="px-4 text-base">{EMPTY_ROLE_COPY(open)}</p>
           ) : null}
           {imageSrc ? (
-            <div className="relative mx-4 overflow-hidden rounded-xl">
+            <div className="relative mx-4 overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 ref={imgRef}
@@ -238,7 +199,7 @@ export function TokenEditor({
               {loupe ? (
                 <span
                   aria-hidden
-                  className="pointer-events-none absolute h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow-lg"
+                  className="pointer-events-none absolute h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border-2"
                   style={{
                     left: loupe.x,
                     top: loupe.y,
@@ -256,10 +217,10 @@ export function TokenEditor({
               ) : null}
             </div>
           ) : (
-            <p className="px-4 text-base text-muted-foreground">No photo to sample from.</p>
+            <p className="px-4 text-base">No photo to sample from.</p>
           )}
           <div className="grid gap-3 px-4">
-            <label className="block text-base text-muted-foreground" htmlFor="token-hex">
+            <label className="block text-base" htmlFor="token-hex">
               Hex
             </label>
             <input
@@ -269,9 +230,9 @@ export function TokenEditor({
               onBlur={() => open && applyHex(open, hexDraft)}
               spellCheck={false}
               autoCapitalize="off"
-              className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base tabular-nums"
+              className="min-h-11 w-full border border-current bg-background px-3 font-mono text-base tabular-nums"
             />
-            <p className="text-base text-muted-foreground">Role</p>
+            <p className="text-base">Role</p>
             <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Role">
               {COLOR_ROLES.map((role) => {
                 const selected = open === role;
@@ -281,7 +242,7 @@ export function TokenEditor({
                     type="button"
                     role="radio"
                     aria-checked={selected}
-                    className={`min-h-11 rounded-lg border px-2 text-base ${selected ? "border-foreground bg-muted" : "border-border bg-background"}`}
+                    className={`min-h-11 border px-2 text-base ${selected ? "border-current bg-secondary" : "border-current/30 bg-background"}`}
                     style={{ transitionDuration: `${MOTION_CSS.tapMs}ms` }}
                     onClick={() => {
                       if (!open || role === open) {
@@ -305,7 +266,7 @@ export function TokenEditor({
             {open && filledRoles(roles).includes(open) ? (
               <button
                 type="button"
-                className="min-h-11 text-base text-muted-foreground"
+                className="min-h-11 text-base"
                 onClick={() => {
                   commit(setRoleColor(roles, open, null));
                   setOpen(null);

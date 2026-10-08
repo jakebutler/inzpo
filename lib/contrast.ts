@@ -1,3 +1,5 @@
+import { COLOR_ROLES } from "@/lib/db/schema";
+import { INK, PAPER } from "@/lib/brand";
 import type { RoleColors } from "@/lib/tokens";
 
 function srgbToLin(c: number): number {
@@ -47,5 +49,43 @@ export function contrastLineCopy(roles: RoleColors): string {
   if (!hasText) return "Needs a text color to check contrast.";
   if (!hasBg) return "Needs a background color to check contrast.";
   const ratio = textOnBackgroundContrast(roles);
-  return `Text on background ${ratio!.toFixed(1)}:1`;
+  return `${ratio!.toFixed(1)}:1`;
+}
+
+/** Band label: a kit color at 4.5:1, else ink or paper. */
+export function bandLabelColor(bandHex: string, kit: RoleColors): string {
+  const candidates: string[] = [];
+  for (const role of COLOR_ROLES) {
+    const hex = kit[role];
+    if (hex) candidates.push(hex);
+  }
+  candidates.push(INK, PAPER);
+  let best = INK;
+  let bestRatio = 0;
+  for (const candidate of candidates) {
+    const ratio = contrastRatio(candidate, bandHex);
+    if (ratio >= 4.5 && ratio > bestRatio) {
+      best = candidate;
+      bestRatio = ratio;
+    }
+  }
+  if (bestRatio >= 4.5) return best;
+  return contrastRatio(INK, bandHex) >= contrastRatio(PAPER, bandHex) ? INK : PAPER;
+}
+
+export function matchesPageBackground(bandHex: string, pageHex: string): boolean {
+  return contrastRatio(bandHex, pageHex) < 1.15;
+}
+
+export function saveControlColors(
+  accent: string | null,
+  background: string | null,
+): { fill: string; ink: string } {
+  const bg = background ?? PAPER;
+  if (accent && contrastRatio(accent, bg) >= 3) {
+    const ink = contrastRatio(PAPER, accent) >= contrastRatio(INK, accent) ? PAPER : INK;
+    return { fill: accent, ink };
+  }
+  if (contrastRatio(INK, bg) >= 3) return { fill: INK, ink: PAPER };
+  return { fill: PAPER, ink: INK };
 }
