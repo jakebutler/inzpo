@@ -6,24 +6,36 @@ import { gsap } from "gsap";
 import { MOTION, motionFor } from "@/lib/motion";
 import { validateRelativePath } from "@/lib/auth/redirect";
 import {
+  CAPTCHA_MESSAGE,
   INVITE_ONLY_MESSAGE,
   OFFLINE_MESSAGE,
   classifyAuthError,
   messageForAuthError,
 } from "@/lib/auth/clerk-errors";
+import { LoginIdleMark } from "./LoginIdleMark";
 
 type Step = "email" | "code";
 type Mode = "signin" | "signup";
 type UiState = "empty" | "ready" | "loading" | "error" | "offline" | "done";
 
-export function SignInForm({ next, ticket }: { next: string; ticket: string | null }) {
+export function SignInForm({
+  next,
+  ticket,
+  seedError = null,
+}: {
+  next: string;
+  ticket: string | null;
+  seedError?: string | null;
+}) {
   const { signIn, fetchStatus: signInFetch } = useSignIn();
   const { signUp, fetchStatus: signUpFetch } = useSignUp();
   const [step, setStep] = useState<Step>("email");
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    seedError === "captcha_invalid" ? CAPTCHA_MESSAGE : null,
+  );
   const [offline, setOffline] = useState(false);
   const [done, setDone] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -211,6 +223,8 @@ export function SignInForm({ next, ticket }: { next: string; ticket: string | nu
                 {error}
               </p>
             ) : null}
+            <div id="clerk-captcha" className="mt-4" />
+            <LoginIdleMark />
             <div className="mt-auto pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-8">
               <button
                 type="submit"

@@ -1,6 +1,13 @@
 import { describe, expect, it, afterEach } from "vitest";
 import { LEGACY_OWNER_ID, ownerIdsFor } from "@/lib/auth/owner-ids";
-import { classifyAuthError, INVITE_ONLY_MESSAGE, RETRY_MESSAGE, messageForAuthError } from "@/lib/auth/clerk-errors";
+import {
+  ALLOWLIST_MESSAGE,
+  CAPTCHA_MESSAGE,
+  classifyAuthError,
+  INVITE_ONLY_MESSAGE,
+  RETRY_MESSAGE,
+  messageForAuthError,
+} from "@/lib/auth/clerk-errors";
 
 describe("ownerIdsFor", () => {
   afterEach(() => {
@@ -19,10 +26,20 @@ describe("ownerIdsFor", () => {
 });
 
 describe("classifyAuthError", () => {
-  it("maps restricted sign-up to invite-only without naming the email", () => {
-    expect(classifyAuthError({ code: "sign_up_restricted" })).toBe("invite-only");
+  it("maps restricted sign-up and missing identifiers to the allowlist line", () => {
+    expect(classifyAuthError({ code: "sign_up_restricted" })).toBe("allowlist");
+    expect(classifyAuthError({ code: "not_allowed_access" })).toBe("allowlist");
+    expect(messageForAuthError("allowlist")).toBe(ALLOWLIST_MESSAGE);
+    expect(ALLOWLIST_MESSAGE.toLowerCase()).not.toContain("@");
     expect(messageForAuthError("invite-only")).toBe(INVITE_ONLY_MESSAGE);
     expect(INVITE_ONLY_MESSAGE.toLowerCase()).not.toContain("@");
+  });
+
+  it("maps captcha failures to a reload line, not the generic retry", () => {
+    expect(classifyAuthError({ code: "captcha_invalid" })).toBe("captcha");
+    expect(classifyAuthError({ errors: [{ code: "form_captcha_invalid" }] })).toBe("captcha");
+    expect(messageForAuthError(classifyAuthError({ code: "captcha_invalid" }))).toBe(CAPTCHA_MESSAGE);
+    expect(CAPTCHA_MESSAGE).not.toBe(RETRY_MESSAGE);
   });
 
   it("maps bad OTP separately", () => {
@@ -30,7 +47,7 @@ describe("classifyAuthError", () => {
   });
 
   it("does not leak identifier-not-found as a different message", () => {
-    expect(messageForAuthError(classifyAuthError({ code: "form_identifier_not_found" }))).toBe(INVITE_ONLY_MESSAGE);
+    expect(messageForAuthError(classifyAuthError({ code: "form_identifier_not_found" }))).toBe(ALLOWLIST_MESSAGE);
   });
 
   it("uses a generic retry line for unknown, network, and rate-limit errors", () => {

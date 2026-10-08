@@ -14,11 +14,12 @@ function showClerkSetup(): boolean {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; __clerk_ticket?: string }>;
+  searchParams: Promise<{ next?: string; __clerk_ticket?: string; error?: string }>;
 }) {
   const params = await searchParams;
   const next = validateRelativePath(typeof params.next === "string" ? params.next : "/capture");
   const ticket = typeof params.__clerk_ticket === "string" ? params.__clerk_ticket : null;
+  const seedError = typeof params.error === "string" ? params.error : null;
 
   if (!isClerkConfigured()) {
     if (showClerkSetup()) return <ClerkMissing next={next} />;
@@ -27,5 +28,5 @@ export default async function LoginPage({
 
   if (isDevAuthBypassEnabled()) redirect(next);
 
-  return <SignInForm next={next} ticket={ticket} />;
+  return <SignInForm next={next} ticket={ticket} seedError={seedError} />;
 }
