@@ -1,7 +1,7 @@
 /**
  * r2_ visual-direction stills: real photos, both viewports, reduced off/on.
  */
-import { mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { webkit } from "playwright";
 import { MOTION, MOTION_CSS } from "../lib/motion.ts";
@@ -39,27 +39,45 @@ function urlFor(shot: Shot, photo: string): string {
   return `${BASE}/dev/fold?state=${shot.state}&photo=${p}`;
 }
 
+const ABOVE_BAR = new Set(["result", "pending", "chips", "saved", "empty-roles", "dark"]);
+
 async function hideChrome(page: import("playwright").Page): Promise<void> {
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
 }
 
+/** Scroll so Baku, chips, and the contrast line sit above the fixed save bar. */
+async function revealAboveSaveBar(page: import("playwright").Page): Promise<void> {
+  await page.evaluate(() => {
+    const bar = document.querySelector("[data-save-bar]");
+    const target =
+      document.querySelector("[data-named-chip]") ??
+      document.querySelector('[aria-label="Brief"]') ??
+      document.querySelector("[data-contrast-line]");
+    if (!bar || !target) return;
+    const fade = 48;
+    const gap = 12;
+    const limit = window.innerHeight - bar.getBoundingClientRect().height - fade - gap;
+    const need = target.getBoundingClientRect().bottom - limit;
+    if (need > 0) window.scrollBy(0, need);
+  });
+}
+
 async function main(): Promise<void> {
   await mkdir(ARTIFACTS, { recursive: true });
-  await writeFile(
-    path.join(ARTIFACTS, "r2_motion.txt"),
-    [
-      `tap ${MOTION.tap.duration}s ${MOTION.tap.ease} (${MOTION_CSS.tapMs}ms)`,
-      `small ${MOTION.small.duration}s ${MOTION.small.ease} (${MOTION_CSS.smallMs}ms)`,
-      `enter ${MOTION.enter.duration}s ${MOTION.enter.ease} (${MOTION_CSS.enterMs}ms)`,
-      `leave ${MOTION.leave.duration}s ${MOTION.leave.ease} (${MOTION_CSS.leaveMs}ms)`,
-      `reduced ${MOTION.reduced.duration}s ${MOTION.reduced.ease} (${MOTION_CSS.reducedMs}ms)`,
-      `band stagger ${BAND_STAGGER_S}s × 6 + enter ${MOTION.enter.duration}s = ${BAND_STAGGER_S * 5 + MOTION.enter.duration}s`,
-      `pin hairline ${PIN_HAIRLINE_S}s then fade ${MOTION.leave.duration}s`,
-      `band height result ${BAND_H_RESULT}px editor ${BAND_H_EDITOR}px`,
-      `paper ${PAPER} ink ${INK} vermilion ${VERMILION}`,
-      `fonts Fraunces / Geist / Geist Mono via next/font`,
-    ].join("\n") + "\n",
-  );
+  const motionTxt = [
+    `tap ${MOTION.tap.duration}s ${MOTION.tap.ease} (${MOTION_CSS.tapMs}ms)`,
+    `small ${MOTION.small.duration}s ${MOTION.small.ease} (${MOTION_CSS.smallMs}ms)`,
+    `enter ${MOTION.enter.duration}s ${MOTION.enter.ease} (${MOTION_CSS.enterMs}ms)`,
+    `leave ${MOTION.leave.duration}s ${MOTION.leave.ease} (${MOTION_CSS.leaveMs}ms)`,
+    `reduced ${MOTION.reduced.duration}s ${MOTION.reduced.ease} (${MOTION_CSS.reducedMs}ms)`,
+    `band stagger ${BAND_STAGGER_S}s × 6 + enter ${MOTION.enter.duration}s = ${BAND_STAGGER_S * 5 + MOTION.enter.duration}s`,
+    `pin hairline ${PIN_HAIRLINE_S}s then fade ${MOTION.leave.duration}s`,
+    `band height result ${BAND_H_RESULT}px editor ${BAND_H_EDITOR}px`,
+    `paper ${PAPER} ink ${INK} vermilion ${VERMILION}`,
+    `fonts Fraunces / Geist / Geist Mono via next/font`,
+  ].join("\n") + "\n";
+  await writeFile(path.join(ARTIFACTS, "r2_motion.txt"), motionTxt);
+  await writeFile(path.join(ARTIFACTS, "motion.txt"), motionTxt);
 
   const browser = await webkit.launch();
   for (const reduced of [false, true]) {
@@ -74,6 +92,7 @@ async function main(): Promise<void> {
         for (const shot of PER_PHOTO) {
           await page.goto(urlFor(shot, photo), { waitUntil: "networkidle", timeout: 60_000 });
           await hideChrome(page);
+          if (ABOVE_BAR.has(shot.state)) await revealAboveSaveBar(page);
           await page.waitForTimeout(reduced ? 200 : 700);
           const name = `r2_${photo}_${vp.name}_${shot.state}_${label}.png`;
           await page.screenshot({ path: path.join(ARTIFACTS, name), animations: reduced ? "disabled" : "allow" });
@@ -82,6 +101,7 @@ async function main(): Promise<void> {
       for (const shot of EXTRA) {
         await page.goto(urlFor(shot, shot.photo ?? "IMG_6505"), { waitUntil: "networkidle", timeout: 60_000 });
         await hideChrome(page);
+        if (ABOVE_BAR.has(shot.state)) await revealAboveSaveBar(page);
         await page.waitForTimeout(reduced ? 200 : 700);
         const name = `r2_${shot.photo}_${vp.name}_${shot.state}_${label}.png`;
         await page.screenshot({ path: path.join(ARTIFACTS, name), animations: reduced ? "disabled" : "allow" });
@@ -117,13 +137,15 @@ async function main(): Promise<void> {
     await page.goto(`${BASE}/dev/fold?state=saved&photo=IMG_6505`, { waitUntil: "networkidle" });
     await hideChrome(page);
     await page.waitForTimeout(500);
-    await page.close();
     const video = page.video();
+    await page.close();
+    await context.close();
     if (video) {
       const raw = await video.path();
-      await writeFile(path.join(ARTIFACTS, `r2_flow_${label}_path.txt`), `${raw}\n`);
+      const dest = path.join(ARTIFACTS, `r2_flow_${label}.webm`);
+      await copyFile(raw, dest);
+      await writeFile(path.join(ARTIFACTS, `r2_flow_${label}_path.txt`), `${dest}\n`);
     }
-    await context.close();
   }
 
   await browser.close();
