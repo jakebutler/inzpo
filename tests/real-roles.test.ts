@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import { rgbToHex } from "@/lib/colors";
+import { MIN_ROLE_DELTA_E, pairwiseRoleDeltaE } from "@/lib/color-distance";
 import { extractPalette, PALETTE_THUMB, type ExtractedPalette } from "@/lib/palette-extract";
 import { markDerivedRoles, REGION_ORIGIN, sampledColors } from "@/lib/derived-roles";
 import { emptyRoles, filledRoles, rolesFromColors } from "@/lib/tokens";
@@ -27,8 +28,8 @@ beforeAll(async () => {
     const palette = await extractPalette(input, (swatch, pixels, width, height) => {
       expect([width, height]).toEqual([info.width, info.height]);
       expect(pixels.length).toBeGreaterThan(0);
-      const pin = Math.round(swatch.pinY * height) * width + Math.round(swatch.pinX * width);
-      expect(pixels).toContain(pin);
+      expect(swatch.pinX).toBeCloseTo(pixels.reduce((sum, i) => sum + i % width, 0) / pixels.length / width, 12);
+      expect(swatch.pinY).toBeCloseTo(pixels.reduce((sum, i) => sum + Math.floor(i / width), 0) / pixels.length / height, 12);
       // Independently sum the decoded photo pixels: changed/padded token hexes
       // fail this even if they still have a valid-looking pin and share.
       const sums = [0, 0, 0];
@@ -37,8 +38,10 @@ beforeAll(async () => {
         for (let c = 0; c < 3; c++) sums[c]! += data[pixel * 3 + c]!;
       }
       expect(swatch.hex).toBe(rgbToHex(sums[0]! / pixels.length, sums[1]! / pixels.length, sums[2]! / pixels.length));
-      const visited = new Set([pin]);
-      const queue = [pin];
+      // A concave component's centroid can lie in a hole; connectivity is
+      // independently audited from a member, rather than a rounded centroid.
+      const visited = new Set([pixels[0]!]);
+      const queue = [pixels[0]!];
       for (let head = 0; head < queue.length; head++) {
         const i = queue[head]!;
         for (const next of [i % width ? i - 1 : -1, i % width < width - 1 ? i + 1 : -1, i - width, i + width]) {
@@ -68,26 +71,61 @@ describe("photo region provenance", () => {
     expect(palette.contrast).toBe(textOnBackgroundContrast(palette.roles));
   });
 
-  it("captures the storefront's light-blue tiles and white paint separately", () => {
+  it.each(photos)("%s separates every filled role by at least CIE76 ΔE 12", (photo) => {
+    for (const pair of pairwiseRoleDeltaE(palettes.get(photo)!.roles)) {
+      expect(pair.deltaE, `${photo}: ${pair.roleA}/${pair.roleB}`).toBeGreaterThanOrEqual(MIN_ROLE_DELTA_E);
+    }
+  });
+
+  it("keeps distinct storefront blue, pale paint and dark paint, leaving duplicates empty", () => {
     const { swatches, roles } = palettes.get("IMG_6208")!;
-    const tile = swatches.find((s) => s.pinX > 0.04 && s.pinX < 0.5 && s.pinY > 0.58 && s.pinY < 0.74 && s.lab[2] < -10);
-    const white = swatches.find((s) => s.lab[0] > 80 && Math.hypot(s.lab[1], s.lab[2]) < 8);
-    expect(tile).toBeDefined();
+    const blue = swatches.find((s) => s.lab[0] > 50 && s.lab[2] < -10);
+    const white = swatches.find((s) => s.lab[0] > 75 && Math.hypot(s.lab[1], s.lab[2]) < 8);
+    expect(blue).toBeDefined();
     expect(white).toBeDefined();
-    expect(tile!.role).not.toBe(white!.role);
-    expect(tile!.hex).not.toBe(white!.hex);
-    expect(roles.accent).toBeNull();
+    expect(blue!.role).not.toBe(white!.role);
+    expect(swatches.find((s) => s.role === "text")!.lab[0]).toBeLessThan(40);
+    expect(swatches).toHaveLength(5);
+    expect(roles).toEqual({ primary: "#719ebf", secondary: "#96a2ac", accent: null,
+      background: "#bbc3c9", surface: "#9cc2df", text: "#36485c" });
   });
 
   it("retains the Victorian's yellow, pale and dark regions and the mural's red, blue and orange", () => {
     const house = palettes.get("IMG_6505")!;
     expect(house.swatches.some((s) => s.lab[0] > 70 && s.lab[2] > 15)).toBe(true);
     expect(house.swatches.some((s) => s.lab[0] < 15)).toBe(true);
-    expect(house.swatches.some((s) => s.lab[0] > 80)).toBe(true);
+    const facade = house.swatches.find((s) => s.role === "primary")!;
+    expect(facade.hex).toBe("#d5d2aa");
+    expect(facade.lab[0]).toBeGreaterThan(70);
+    expect(facade.lab[2]).toBeGreaterThan(15);
+    expect(facade.family).not.toBe("blue");
+    expect(facade.patch).toBeGreaterThan(0.03);
+    // CIE76 retains this real shaded white trim on the lower left of the
+    // house; the region-mean audit above guards against whitening the token.
+    const trim = house.swatches.find((s) => s.role === "surface")!;
+    expect(trim.hex).toBe("#d1cdbe");
+    expect(trim.lab[0]).toBeGreaterThan(70);
+    expect(Math.hypot(trim.lab[1], trim.lab[2])).toBeLessThan(12);
+    expect(trim.pinX).toBeGreaterThan(0.12);
+    expect(trim.pinX).toBeLessThan(0.22);
+    expect(trim.pinY).toBeGreaterThan(0.55);
+    expect(trim.pinY).toBeLessThan(0.67);
+    const shutters = house.swatches.find((s) => s.role === "secondary")!;
+    expect(shutters.hex).toBe("#3c4952");
+    expect(shutters.lab[0]).toBeLessThan(40);
+    expect(shutters.lab[1]).toBeLessThan(0);
+    expect(shutters.pinX).toBeGreaterThan(0.6);
+    expect(shutters.pinX).toBeLessThan(0.75);
+    expect(shutters.pinY).toBeGreaterThan(0.24);
+    expect(shutters.pinY).toBeLessThan(0.4);
     const mural = palettes.get("IMG_5859")!;
     expect(mural.swatches.some((s) => s.family === "red")).toBe(true);
     expect(mural.swatches.some((s) => s.lab[2] < -8)).toBe(true);
     expect(mural.swatches.some((s) => s.lab[2] > 35)).toBe(true);
+    expect(mural.swatches.find((s) => s.role === "primary")!.family).toBe("red");
+    expect(mural.roles.primary).toBe("#85232b");
+    expect(mural.roles.secondary).toBe("#05112d");
+    expect(mural.roles.accent).toBe("#ca721e");
   });
 
   it.each(photos)("%s gives Baku dyed stripes only for filled roles and oatmeal for the rest", (photo) => {

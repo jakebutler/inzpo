@@ -18,6 +18,7 @@ import { clampPinCenter, mapCoverPinRaw, PIN_EDGE_MARGIN_PX } from "@/lib/cover-
 import { preferredHairline, segmentsCross, uncrossHairlines } from "@/lib/hairlines";
 import { MOTION } from "@/lib/motion";
 import { COLOR_ROLES } from "@/lib/db/schema";
+import { MIN_ROLE_DELTA_E, pairwiseRoleDeltaE } from "@/lib/color-distance";
 import { HANDOFF_KITS, MASCOT_COPY, MASCOT_SIZE_BRIEF_PX, MASCOT_SIZE_PX } from "@/lib/mascot";
 import { loadFoldKit } from "@/lib/fold-kit";
 import { FOLD_BRIEFS } from "@/lib/fold-briefs";
@@ -125,8 +126,15 @@ describe("legacy padded roles", () => {
       const kit = await loadFoldKit(id);
       expect(kit.colors.every((c) => c.origin === "region")).toBe(true);
       expect(sampledColors(kit.colors)).toHaveLength(kit.colors.length);
-      expect(kit.colors.length).toBeGreaterThanOrEqual(5);
-      if (id === "IMG_6208") expect(kit.colors.some((c) => c.role === "accent")).toBe(false);
+      expect(kit.colors.length).toBeGreaterThan(0);
+      for (const pair of pairwiseRoleDeltaE(Object.fromEntries(kit.colors.map((c) => [c.role, c.hex])))) {
+        expect(pair.deltaE).toBeGreaterThanOrEqual(MIN_ROLE_DELTA_E);
+      }
+      if (id === "IMG_6208") {
+        expect(kit.colors).toHaveLength(5);
+        expect(kit.colors.some((c) => c.role === "accent")).toBe(false);
+        expect(kit.colors.map((c) => c.role).sort()).toEqual(["background", "primary", "secondary", "surface", "text"]);
+      }
     }
   }, 30_000);
 });
