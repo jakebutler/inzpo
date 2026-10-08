@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { clampPinCenter, coverWindow, coverWindowForPins, coverPinPlacement, mapCoverPin, mapCoverPinRaw, pointerOnCoverBox, PIN_CROP_MARGIN_PX, PIN_EDGE_MARGIN_PX, PIN_DISC_RADIUS_PX, photoBackZone, pinPlacement } from "@/lib/cover-pin";
+import { clampPinCenter, coverWindow, coverWindowForPins, coverPinPlacement, layoutPins, mapCoverPin, mapCoverPinRaw, pointerOnCoverBox, PIN_CROP_MARGIN_PX, PIN_EDGE_MARGIN_PX, PIN_DISC_RADIUS_PX, PIN_HIT_SIZE_PX, PIN_MIN_SPACING_PX, photoBackZone, pinPlacement } from "@/lib/cover-pin";
+import { photoFoldHeight } from "@/lib/brand";
+import { PIN_6505_COLORS } from "./fixtures/pins";
 
 describe("mapCoverPin", () => {
   it("maps source pixels onto an object-fit cover box", () => {
@@ -66,6 +68,124 @@ describe("mapCoverPin", () => {
   it("does not map an out-of-crop pin to a false edge point in a frozen crop", () => {
     const frozen = coverWindowForPins(1500, 2000, 390, 337, [{ x: 0.5, y: 0.8 }])!;
     expect(mapCoverPin(0.5, 0.005, 1500, 2000, 390, 337, frozen)).toBeNull();
+  });
+});
+
+describe("kit pin layout", () => {
+  const inset = PIN_EDGE_MARGIN_PX + PIN_DISC_RADIUS_PX;
+  const distance = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+
+  it.each([[390, 844], [375, 667]])("separates 6505-like discs at %sx%s without changing true samples", (width, height) => {
+    const box = { w: width, h: photoFoldHeight(height) };
+    const crop = Object.freeze({ vx: 0, vy: 0, vw: 1, vh: box.h / (width / 0.75) });
+    const saved = Object.freeze(PIN_6505_COLORS.map(c => Object.freeze({ ...c })));
+    const before = JSON.stringify(saved);
+    const points = Object.freeze(saved.map(pin => {
+      const raw = mapCoverPinRaw(pin.pinX, pin.pinY, 1500, 2000, box.w, box.h, crop)!;
+      return Object.freeze({ x: raw.left * box.w, y: raw.top * box.h });
+    }));
+    const original = points.map(p => pinPlacement(p.x, p.y, box.w, box.h, photoBackZone()));
+    // This is the collision produced by independently clamping the trim disc.
+    expect(distance(original[0]!.disc, original[3]!.disc)).toBeLessThan(44);
+    const placements = layoutPins(points, box, photoBackZone());
+    expect(PIN_MIN_SPACING_PX).toBe(44);
+    expect(PIN_MIN_SPACING_PX).toBeGreaterThanOrEqual(PIN_HIT_SIZE_PX);
+    placements.forEach((placement, i) => {
+      placements.slice(i + 1).forEach(other => {
+        expect(distance(placement.disc, other.disc)).toBeGreaterThanOrEqual(44);
+        // Browser layout quantizes CSS coordinates before measuring disc centers.
+        const cssPoint = (p: { x: number; y: number }) => ({ x: Math.floor(p.x * 64) / 64, y: Math.floor(p.y * 64) / 64 });
+        expect(distance(cssPoint(placement.disc), cssPoint(other.disc))).toBeGreaterThanOrEqual(44);
+      });
+      expect(placement.hit).toEqual(placement.disc);
+      if (!original[i]!.displaced) {
+        expect(placement.disc).toEqual(points[i]);
+        expect(placement.tick).toBeNull();
+        return;
+      }
+      const { disc, tick } = placement;
+      expect(disc.x - PIN_DISC_RADIUS_PX).toBeGreaterThanOrEqual(11);
+      expect(disc.y - PIN_DISC_RADIUS_PX).toBeGreaterThanOrEqual(11);
+      expect(disc.x + PIN_DISC_RADIUS_PX).toBeLessThanOrEqual(box.w - 11);
+      expect(disc.y + PIN_DISC_RADIUS_PX).toBeLessThanOrEqual(box.h - 11);
+      expect(tick).toMatchObject({ x1: disc.x, y1: disc.y });
+      const trueDx = points[i]!.x - disc.x;
+      const trueDy = points[i]!.y - disc.y;
+      expect((tick!.x2 - disc.x) * trueDy - (tick!.y2 - disc.y) * trueDx).toBeCloseTo(0, 8);
+      expect((tick!.x2 - disc.x) * trueDx + (tick!.y2 - disc.y) * trueDy).toBeGreaterThan(0);
+      if (placement.offcrop) {
+        expect(Math.min(Math.abs(tick!.x2), Math.abs(tick!.x2 - box.w), Math.abs(tick!.y2), Math.abs(tick!.y2 - box.h))).toBeLessThan(1e-9);
+        expect(distance({ x: tick!.x2, y: tick!.y2 }, disc) - PIN_DISC_RADIUS_PX).toBeGreaterThanOrEqual(8);
+      } else {
+        expect({ x: tick!.x2, y: tick!.y2 }).toEqual(points[i]);
+      }
+    });
+    expect(placements[0]!.displaced).toBe(false);
+    expect(placements[3]!.disc.y).toBe(box.h - inset);
+    expect(placements[3]!.offcrop).toBe(true);
+    expect(placements[2]!.offcrop).toBe(false);
+    expect(layoutPins(points, box, photoBackZone())).toEqual(placements);
+    expect(JSON.stringify(saved)).toBe(before);
+  });
+
+  it("places two off-crop discs on the same edge in stable order and re-aims their ticks", () => {
+    const points = [{ x: 100, y: 400 }, { x: 102, y: 420 }];
+    const placed = layoutPins(points, { w: 390, h: 337 });
+    expect(placed[0]!.disc).toEqual({ x: 100, y: 337 - inset });
+    expect(placed[1]!.disc.x).toBeCloseTo(144, 1);
+    expect(placed[1]!.disc.y).toBe(337 - inset);
+    expect(distance(placed[0]!.disc, placed[1]!.disc)).toBeGreaterThanOrEqual(44);
+    expect(placed[1]!.tick!.x2).toBeLessThan(placed[1]!.disc.x);
+    expect(placed[1]!.tick!.y2).toBe(337);
+    expect(layoutPins(points, { w: 390, h: 337 })).toEqual(placed);
+    expect(points).toEqual([{ x: 100, y: 400 }, { x: 102, y: 420 }]);
+  });
+
+  it.each([30, inset])("slides a Back disc at x=%s along its chosen boundary beside an anchor", (x) => {
+    // Put the anchor later: every anchor is an obstacle before displaced pins.
+    const points = [{ x, y: 30 }, { x, y: 72 }];
+    const placed = layoutPins(points, { w: 390, h: 337 }, photoBackZone());
+    expect(placed[1]!.disc).toEqual(points[1]);
+    expect(placed[0]!.disc.y).toBe(photoBackZone().bottom + PIN_DISC_RADIUS_PX);
+    expect(placed[0]!.disc.x).toBeCloseTo(x + Math.sqrt(44 ** 2 - 3.5 ** 2), 1);
+    expect(distance(placed[0]!.disc, placed[1]!.disc)).toBeGreaterThanOrEqual(44);
+    expect(placed[0]!.tick).toEqual({ x1: placed[0]!.disc.x, y1: placed[0]!.disc.y, x2: x, y2: 30 });
+  });
+
+  it.each([
+    [{ x: -20, y: 150 }, { x: 30, y: 150 }, "x", inset],
+    [{ x: 420, y: 150 }, { x: 360, y: 150 }, "x", 390 - inset],
+    [{ x: 150, y: 3 }, { x: 150, y: 30 }, "y", inset],
+    [{ x: 150, y: 334 }, { x: 150, y: 307 }, "y", 337 - inset],
+  ] as const)("keeps a slid edge disc on the same inset boundary (%j)", (displaced, anchor, axis, fixed) => {
+    const placed = layoutPins([displaced, anchor], { w: 390, h: 337 });
+    expect(placed[1]!.disc).toEqual(anchor);
+    expect(placed[0]!.disc[axis]).toBe(fixed);
+    expect(distance(placed[0]!.disc, anchor)).toBeGreaterThanOrEqual(44);
+    if (!placed[0]!.offcrop) expect(placed[0]!.tick).toMatchObject({ x2: displaced.x, y2: displaced.y });
+  });
+
+  it("slides an off-crop corner along the photo edge while clearing Back", () => {
+    const placed = layoutPins([{ x: -50, y: 30 }, { x: 30, y: 75 }], { w: 390, h: 337 }, photoBackZone());
+    expect(placed[0]!.disc.x).toBe(inset);
+    expect(placed[0]!.disc.y).toBeGreaterThanOrEqual(photoBackZone().bottom + PIN_DISC_RADIUS_PX);
+    expect(distance(placed[0]!.disc, placed[1]!.disc)).toBeGreaterThanOrEqual(44);
+  });
+
+  it("keeps close true anchors exactly in place", () => {
+    const anchors = [{ x: 100, y: 100 }, { x: 101, y: 101 }];
+    const placed = layoutPins(anchors, { w: 390, h: 337 });
+    expect(placed.map(p => p.disc)).toEqual(anchors);
+    expect(placed.every(p => !p.displaced && !p.tick)).toBe(true);
+  });
+
+  it("uses the best-separated deterministic fallback when a tiny edge has no 44px spot", () => {
+    const pins = [{ x: 23.5, y: 70 }, { x: 46.5, y: 70 }, { x: 34, y: 150 }];
+    const placed = layoutPins(pins, { w: 70, h: 100 });
+    expect(placed[2]!.disc).toEqual({ x: 35, y: 100 - inset });
+    expect(layoutPins(pins, { w: 70, h: 100 })).toEqual(placed);
+    const tiny = layoutPins([{ x: -10, y: 10 }, { x: 20, y: 50 }], { w: 24, h: 24 });
+    expect(tiny.map(p => p.disc)).toEqual([{ x: 12, y: 12 }, { x: 12, y: 12 }]);
   });
 });
 

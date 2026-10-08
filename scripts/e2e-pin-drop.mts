@@ -33,6 +33,7 @@ type Row = {
 type PinCountRow = {
   photo: string; viewport: string; surface: "result" | "editor";
   filledRoles: number | null; visiblePins: number | null; pass: boolean; failures: string[];
+  minDiscDistance: number | null; closestPair: [string, string] | null; spacing: boolean | null;
 };
 const rows: Row[] = [];
 const pinCounts: PinCountRow[] = [];
@@ -64,9 +65,9 @@ function table() {
 }
 function pinCountTable() {
   return [
-    "| Photo | Viewport | Surface | Filled roles | Visible pins | Result |",
-    "| --- | --- | --- | --- | --- | --- |",
-    ...pinCounts.map(r => `| ${r.photo} | ${r.viewport} | ${r.surface} | ${r.filledRoles ?? "unavailable"} | ${r.visiblePins ?? "unavailable"} | ${r.pass ? "PASS" : "FAIL"} |`),
+    "| Photo | Viewport | Surface | Filled roles | Visible pins | Min disc distance (px) | Closest pair roles | Spacing | Result |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...pinCounts.map(r => `| ${r.photo} | ${r.viewport} | ${r.surface} | ${r.filledRoles ?? "unavailable"} | ${r.visiblePins ?? "unavailable"} | ${r.minDiscDistance?.toFixed(2) ?? "n/a"} | ${r.closestPair?.join(" / ") ?? "n/a"} | ${r.spacing === null ? "unavailable" : r.spacing ? "PASS" : "FAIL"} | ${r.pass ? "PASS" : "FAIL"} |`),
   ].join("\n");
 }
 async function writeResults() {
@@ -108,7 +109,8 @@ async function runPinCounts(page: Page, photo: string) {
     for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }]) {
       for (const surface of ["result", "editor"] as const) {
         const row: PinCountRow = { photo, viewport: `${viewport.width}x${viewport.height}`, surface,
-          filledRoles: null, visiblePins: null, pass: false, failures: [] };
+          filledRoles: null, visiblePins: null, minDiscDistance: null, closestPair: null, spacing: null,
+          pass: false, failures: [] };
         pinCounts.push(row);
         try {
           await page.setViewportSize(viewport);
@@ -127,18 +129,38 @@ async function runPinCounts(page: Page, photo: string) {
             const filledRoles = bands.filter(band => /^#[0-9a-f]{6}$/i.test(
               (band.dataset.hex ?? band.querySelector("[data-swatch-hex]")?.textContent ?? "").trim(),
             )).length;
-            const visiblePins = Array.from(photo.querySelectorAll<HTMLElement>("[data-pin]")).filter(pin => {
+            const pins = Array.from(photo.querySelectorAll<HTMLElement>("[data-pin]")).filter(pin => {
               const rect = pin.getBoundingClientRect();
               return pin.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) &&
                 rect.width > 0 && rect.height > 0 &&
                 rect.left >= box.left && rect.top >= box.top && rect.right <= box.right && rect.bottom <= box.bottom;
-            }).length;
-            return { filledRoles, visiblePins };
+            }).map(pin => {
+              const rect = pin.getBoundingClientRect();
+              return { role: pin.dataset.pin!, x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+            });
+            let minDiscDistance: number | null = null;
+            let closestPair: [string, string] | null = null;
+            for (let a = 0; a < pins.length; a++) {
+              for (let b = a + 1; b < pins.length; b++) {
+                const first = pins[a]!;
+                const second = pins[b]!;
+                const distance = Math.hypot(first.x - second.x, first.y - second.y);
+                if (minDiscDistance === null || distance < minDiscDistance) {
+                  minDiscDistance = distance;
+                  closestPair = [first.role, second.role];
+                }
+              }
+            }
+            return { filledRoles, visiblePins: pins.length, minDiscDistance, closestPair,
+              spacing: minDiscDistance === null || minDiscDistance >= 44 };
           });
           Object.assign(row, counts);
           await page.screenshot({ path: path.join(OUT, `r8_${photo}_${row.viewport}_${surface}-pins.png`) });
           if (counts.visiblePins !== counts.filledRoles) {
             row.failures.push(`Expected ${counts.filledRoles} visible pins, got ${counts.visiblePins}`);
+          }
+          if (!counts.spacing) {
+            row.failures.push(`Closest discs ${counts.closestPair?.join(" / ")} are ${counts.minDiscDistance?.toFixed(2)}px apart; expected at least 44px`);
           }
         } catch (error) {
           row.failures.push(error instanceof Error ? error.message.split("\n")[0]! : String(error));

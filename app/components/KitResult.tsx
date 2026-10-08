@@ -13,7 +13,7 @@ import { kitFromColors } from "@/lib/mascot";
 import { MOTION, MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { rolesFromColors } from "@/lib/tokens";
-import { coverWindowForPins, coverPinPlacement, objectPositionCss, photoBackZone, PIN_HIT_SIZE_PX } from "@/lib/cover-pin";
+import { coverWindowForPins, layoutPins, mapCoverPinRaw, objectPositionCss, photoBackZone, PIN_HIT_SIZE_PX } from "@/lib/cover-pin";
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
 import { useKitDisplayName } from "./useKitDisplayName";
 import { SavedKitHeader } from "./SavedKitHeader";
@@ -183,14 +183,21 @@ export function KitResult({
     return coverWindowForPins(width, height, box.w, box.h, pins);
   }, [displayColors, editingPins, width, height, box.w, box.h]);
   const backZone = showBack && !saved && backHref ? photoBackZone(safeTop) : null;
-  const drawnPins = displayColors.flatMap((color) => {
+  const mappedPins = COLOR_ROLES.flatMap((role) => {
+    const color = displayColors.find(c => c.role === role);
+    if (!color) return [];
     if (!color.role || color.pinX == null || color.pinY == null) return [];
-    const placed = coverPinPlacement(color.pinX, color.pinY, width, height, box.w, box.h, crop, backZone);
-    if (!placed) return [];
-    const placement = dragPin?.role === color.role
+    const mapped = mapCoverPinRaw(color.pinX, color.pinY, width, height, box.w, box.h, crop);
+    return mapped ? [{ color, x: mapped.left * box.w, y: mapped.top * box.h }] : [];
+  });
+  // Use saved points for the whole layout during a drag, then override only the
+  // dragged disc. Other discs keep their settled positions under the pointer.
+  const placements = layoutPins(mappedPins, box, backZone);
+  const drawnPins = mappedPins.map(({ color }, i) => {
+    const placement = dragPin && dragPin.role === color.role
       ? { disc: dragPin, hit: dragPin, displaced: false, offcrop: false, tick: null }
-      : placed;
-    return [{ color, ...placement }];
+      : placements[i]!;
+    return { color, ...placement };
   });
   // The reveal ticker keeps its callback for the life of the photo. Read the
   // latest disc geometry so resize, safe-area changes and drags cannot stale it.

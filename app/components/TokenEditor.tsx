@@ -18,7 +18,7 @@ import { isNoopPinDrag, isNoopPinSample, resolvePinDropPoint, type PinDragPoint,
 import { FIX_ORIGIN, REGION_ORIGIN, sampledColors, SAMPLED_ORIGIN } from "@/lib/derived-roles";
 import { pageChromeColors, textContrastFix, textOnBackgroundContrast } from "@/lib/contrast";
 import { kitWearStyle } from "@/lib/kit-wear";
-import { coverPinPlacement, photoBackZone, pointerOnCoverBox, type CoverWindow } from "@/lib/cover-pin";
+import { layoutPins, mapCoverPinRaw, photoBackZone, pointerOnCoverBox, type CoverWindow } from "@/lib/cover-pin";
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { chipCopy, chipNoun, EMPTY_ROLE_COPY, type NamedColor } from "@/lib/brief-copy";
@@ -322,10 +322,16 @@ export function TokenEditor({
     const safeTop = surface?.querySelector<HTMLElement>("[data-safe-top]");
     const safeTopPx = safeTop ? Number.parseFloat(getComputedStyle(safeTop).paddingTop) || 0 : 0;
     const avoid = surface?.querySelector("[data-photo-back]") ? photoBackZone(safeTopPx) : null;
-    const placement = coverPinPlacement(pin.pinX, pin.pinY, imageSize.width, imageSize.height,
-      photoBox.w, photoBox.h, crop, avoid);
+    const mappedPins = COLOR_ROLES.flatMap(role => {
+      const sample = pins[role];
+      if (!roles[role] || !sample) return [];
+      const mapped = mapCoverPinRaw(sample.pinX, sample.pinY, imageSize.width, imageSize.height,
+        photoBox.w, photoBox.h, crop);
+      return mapped ? [{ role, x: mapped.left * photoBox.w, y: mapped.top * photoBox.h }] : [];
+    });
+    const placement = layoutPins(mappedPins, photoBox, avoid)[mappedPins.findIndex(p => p.role === open)];
     if (placement) setLoupe({ ...placement.disc, hex });
-  }, [simulateLoupe, open, crop, photoBox, imageSize, photoRef, pins, roles]);
+  }, [simulateLoupe, open, crop, photoBox?.w, photoBox?.h, imageSize?.width, imageSize?.height, photoRef, pins, roles]);
 
   const reduced = prefersReducedMotion();
   const { background: editorBackground, ink: editorInk } = showContrast

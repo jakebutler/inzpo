@@ -1,12 +1,13 @@
-import { act, createElement, type ComponentProps, type ReactNode } from "react";
+import { act, createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { parseHTML } from "linkedom";
 import { describe, expect, it, vi } from "vitest";
 import { KitResult } from "@/app/components/KitResult";
 import { photoFoldHeight } from "@/lib/brand";
-import { photoBackZone, PIN_DISC_RADIUS_PX, PIN_EDGE_MARGIN_PX } from "@/lib/cover-pin";
+import { photoBackZone, PIN_DISC_RADIUS_PX, PIN_EDGE_MARGIN_PX, PIN_MIN_SPACING_PX } from "@/lib/cover-pin";
 import * as coverPins from "@/lib/cover-pin";
 import { COLOR_ROLES } from "@/lib/db/schema";
+import { PIN_6505_COLORS as colors } from "./fixtures/pins";
 
 const mocks = vi.hoisted(() => ({ save: vi.fn(), pixel: vi.fn(), average: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
@@ -22,19 +23,11 @@ vi.mock("@/components/ui/sheet", () => ({
   SheetTitle: ({ children }: { children: ReactNode }) => children,
 }));
 
-// IMG_6505-like measured samples: the sky and cream trim span more than cover can show.
-const colors: ComponentProps<typeof KitResult>["colors"] = [
-  { role: "primary", hex: "#d5cea0", pinX: 0.55, pinY: 0.4, position: 0, origin: "region" },
-  { role: "secondary", hex: "#a25938", pinX: 0.7, pinY: 0.65, position: 1, origin: "region" },
-  { role: "accent", hex: "#426092", pinX: 0.075, pinY: 0.07, position: 2, origin: "region" },
-  { role: "background", hex: "#d0c7b2", pinX: 0.393, pinY: 0.847, position: 3, origin: "region" },
-  { role: "text", hex: "#0a0c0b", pinX: 0.5, pinY: 0.6, position: 5, origin: "region" },
-];
-
 describe.each([[390, 844], [375, 667]])("6505 pins at %sx%s", (width, height) => {
   it.each([
     { openRole: null, topCrop: false }, { openRole: "accent", topCrop: false },
     { openRole: null, topCrop: true }, { openRole: "accent", topCrop: true },
+    { openRole: "background", topCrop: true },
   ] as const)("renders five discs and preserves same-spot drops (open=$openRole, top crop=$topCrop)", async ({ openRole, topCrop }) => {
     vi.clearAllMocks();
     const { window, document } = parseHTML("<html><body><div id='root'></div></body></html>");
@@ -73,7 +66,8 @@ describe.each([[390, 844], [375, 667]])("6505 pins at %sx%s", (width, height) =>
     try {
       await act(async () => root.render(createElement(KitResult, {
         itemId: "6505", title: "Yellow Victorian", imageSrc: "/photo.jpg", tileSrc: null,
-        width: 1500, height: 2000, colors, preview: { reveal: "landed", openRole },
+        width: 1500, height: 2000, colors: topCrop ? [...colors].reverse() : colors,
+        preview: { reveal: "landed", openRole, loupe: openRole === "background" },
       })));
       const photo = document.querySelector<HTMLImageElement>("[data-photo-fold] img")!;
       Object.defineProperties(photo, { naturalWidth: { value: 1500 }, naturalHeight: { value: 2000 } });
@@ -86,18 +80,35 @@ describe.each([[390, 844], [375, 667]])("6505 pins at %sx%s", (width, height) =>
       expect(discs()).toHaveLength(5);
       expect(new Set(discs().map(disc => disc.dataset.pin)).size).toBe(5);
       expect(document.querySelector('[role="dialog"]') !== null).toBe(openRole !== null);
-      for (const disc of discs()) {
+      for (const [i, disc] of discs().entries()) {
         const x = parseFloat(disc.style.left);
         const y = parseFloat(disc.style.top);
+        for (const other of discs().slice(i + 1)) {
+          expect(Math.hypot(x - parseFloat(other.style.left), y - parseFloat(other.style.top)))
+            .toBeGreaterThanOrEqual(PIN_MIN_SPACING_PX);
+        }
         expect(parseFloat(disc.style.width)).toBeGreaterThan(0);
         expect(parseFloat(disc.style.height)).toBeGreaterThan(0);
-        expect(x - PIN_DISC_RADIUS_PX).toBeGreaterThanOrEqual(PIN_EDGE_MARGIN_PX);
-        expect(y - PIN_DISC_RADIUS_PX).toBeGreaterThanOrEqual(PIN_EDGE_MARGIN_PX);
-        expect(x + PIN_DISC_RADIUS_PX).toBeLessThanOrEqual(width - PIN_EDGE_MARGIN_PX);
-        expect(y + PIN_DISC_RADIUS_PX).toBeLessThanOrEqual(photoH - PIN_EDGE_MARGIN_PX);
+        const margin = disc.hasAttribute("data-pin-displaced") ? PIN_EDGE_MARGIN_PX : 0;
+        expect(x - PIN_DISC_RADIUS_PX).toBeGreaterThanOrEqual(margin);
+        expect(y - PIN_DISC_RADIUS_PX).toBeGreaterThanOrEqual(margin);
+        expect(x + PIN_DISC_RADIUS_PX).toBeLessThanOrEqual(width - margin);
+        expect(y + PIN_DISC_RADIUS_PX).toBeLessThanOrEqual(photoH - margin);
         const saved = colors.find(c => c.role === disc.dataset.pin)!;
         expect(disc.dataset.pinX).toBe(String(saved.pinX));
         expect(disc.dataset.pinY).toBe(String(saved.pinY));
+      }
+      if (topCrop) {
+        const primary = document.querySelector<HTMLElement>('[data-pin="primary"]')!;
+        expect(parseFloat(primary.style.left)).toBeCloseTo(colors[0]!.pinX * width);
+        expect(parseFloat(primary.style.top)).toBeCloseTo(colors[0]!.pinY * width / 0.75);
+        expect(primary.hasAttribute("data-pin-displaced")).toBe(false);
+      }
+      if (openRole === "background") {
+        const disc = document.querySelector<HTMLElement>('[data-pin="background"]')!;
+        const loupePointer = document.querySelector<HTMLElement>("[data-qa-pointer]")!;
+        expect(loupePointer.style.left).toBe(disc.style.left);
+        expect(loupePointer.style.top).toBe(disc.style.top);
       }
       const zone = photoBackZone();
       for (const role of ["accent", "background"]) {
@@ -122,8 +133,15 @@ describe.each([[390, 844], [375, 667]])("6505 pins at %sx%s", (width, height) =>
           await act(async () => { target.dispatchEvent(event); });
         };
         // Real out-and-back drag from the visible disc, far from its saved source point.
+        const others = () => discs().filter(d => d.dataset.pin !== role).map(d => [d.dataset.pin, d.style.left, d.style.top]);
+        const settledOthers = others();
         await pointer("pointerdown", x, y, hit);
         await pointer("pointermove", width / 2, photoH / 2);
+        expect(others()).toEqual(settledOthers);
+        expect(parseFloat(disc.style.left)).toBe(width / 2);
+        expect(parseFloat(disc.style.top)).toBe(photoH / 2);
+        expect(hit.style.left).toBe(disc.style.left);
+        expect(hit.style.top).toBe(disc.style.top);
         await pointer("pointerup", x, y);
         expect(mocks.save).not.toHaveBeenCalled();
         expect(mocks.pixel).not.toHaveBeenCalled();
