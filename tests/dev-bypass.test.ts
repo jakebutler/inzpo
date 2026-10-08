@@ -65,6 +65,8 @@ describe("preview /dev fold does not skip Clerk context", () => {
       /if \(isFoldQaEnabled\(\) && isDevQaRoute\(request\)\) return NextResponse\.next\(\);/,
     );
     expect(mw).toContain("return clerkHandler(request, event as never)");
+    expect(mw).toMatch(/jpe\?g/);
+    expect(mw).toMatch(/png/);
     const owner = readFileSync(join(process.cwd(), "lib/auth/owner.ts"), "utf8");
     expect(owner).toContain("auth() throws when clerkMiddleware did not run");
   });
