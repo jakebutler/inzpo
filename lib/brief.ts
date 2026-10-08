@@ -5,9 +5,12 @@ import { r2, briefKey, variantKey } from "@/lib/r2";
 import { assertItemOwned } from "@/lib/auth/owner";
 import { db } from "@/lib/db";
 import { itemColors } from "@/lib/db/schema";
+import sharp from "sharp";
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
+import { persistKitTitleFromBrief } from "@/lib/kit-title";
 import {
   BRIEF_IMAGE_EXPIRES_S,
+  BRIEF_REQUEST,
   BriefTimeoutError,
   briefModelId,
   bytesToDataUrl,
@@ -79,7 +82,7 @@ async function filledHexes(itemId: string): Promise<Set<string>> {
   return new Set(rows.map((r) => r.hex.toLowerCase()));
 }
 
-/** w640 as a data URL, or a short-lived signed GET if the object cannot be read into memory. */
+/** Compact JPEG data URL for vision, or a short-lived signed GET if the object cannot be read. */
 export async function w640ImageUrl(itemId: string): Promise<string | null> {
   if (typeof itemId !== "string" || itemId.length === 0) return null;
   const bucket = process.env.R2_BUCKET;
@@ -90,8 +93,17 @@ export async function w640ImageUrl(itemId: string): Promise<string | null> {
     const body = result.Body;
     if (!body) throw new Error("empty object");
     const bytes = await body.transformToByteArray();
-    const mime = result.ContentType?.startsWith("image/") ? result.ContentType : "image/webp";
-    return bytesToDataUrl(bytes, mime);
+    const compact = await sharp(Buffer.from(bytes), { failOn: "error" })
+      .rotate()
+      .resize({
+        width: BRIEF_REQUEST.visionEdgePx,
+        height: BRIEF_REQUEST.visionEdgePx,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: BRIEF_REQUEST.visionJpegQuality, chromaSubsampling: "4:2:0" })
+      .toBuffer();
+    return bytesToDataUrl(compact, "image/jpeg");
   } catch {
     try {
       return await getSignedUrl(r2(), new GetObjectCommand({ Bucket: bucket, Key: key }), {
@@ -143,6 +155,7 @@ export async function runBriefJob(itemId: string): Promise<BriefJob> {
       stub: false,
     });
     await writeBriefJob(itemId, ready);
+    await persistKitTitleFromBrief(itemId, ready);
     return ready;
   } catch (err) {
     if (err instanceof BriefTimeoutError) {

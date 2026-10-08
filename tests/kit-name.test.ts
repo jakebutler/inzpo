@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCameraFilename, kitAltText, kitDisplayName, UNTITLED_KIT } from "@/lib/kit-name";
+import { generatedKitTitle, isCameraFilename, kitAltText, kitDisplayName, UNTITLED_KIT } from "@/lib/kit-name";
 
 describe("kitDisplayName", () => {
   it("never uses camera filenames and stays Untitled while pending", () => {
@@ -27,5 +27,12 @@ describe("kitDisplayName", () => {
       "Yellow Victorian",
     );
     expect(kitAltText({ pending: true, title: "IMG_1" })).toBe("Photo");
+    expect(
+      generatedKitTitle({
+        title: null,
+        briefText: "A yellow Victorian with a black door.",
+        namedColors: [{ hex: "#e8c36a", label: "yellow siding" }],
+      }),
+    ).toBe("Yellow Victorian");
   });
 });

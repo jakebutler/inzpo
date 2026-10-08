@@ -105,6 +105,16 @@ export function kitDisplayName(input: {
   return UNTITLED_KIT;
 }
 
+export function generatedKitTitle(input: {
+  title?: string | null;
+  briefText?: string | null;
+  namedColors?: NamedColor[];
+}): string | null {
+  const name = kitDisplayName({ ...input, pending: false });
+  if (!name || name === UNTITLED_KIT) return null;
+  return name;
+}
+
 /** Short photo alt from the kit name; never a camera filename or Untitled kit. */
 export function kitAltText(input: {
   title?: string | null;
