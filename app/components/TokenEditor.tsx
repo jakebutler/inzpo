@@ -112,7 +112,9 @@ export function TokenEditor({
       .filter((hex): hex is string => typeof hex === "string")
       .map((hex) => hex.toLowerCase()),
   );
-  const chips = namedColors.filter((c) => !filledHex.has(c.hex.toLowerCase()));
+  const chips = COLOR_ROLES.some((role) => !roles[role])
+    ? namedColors.filter((c) => !filledHex.has(c.hex.toLowerCase()))
+    : [];
 
   function setOpenRole(role: ColorRole | null) {
     setOpen(role);

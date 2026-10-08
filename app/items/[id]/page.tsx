@@ -49,8 +49,11 @@ export default async function ItemDetailPage({
   const collections = await listCollections(ownerId);
   const isKit = item.kind === "photo" || item.kind === "screenshot";
   if (isKit) {
-    const saved = query.saved === "1";
-    const collectionHref = query.c ? `/?c=${query.c}` : "/";
+    const memberships = await getItemCollections(ownerId, id, "recent");
+    const saved = memberships.length > 0 || query.saved === "1";
+    const savedCollection = memberships[0] ?? (saved ? collections.find((c) => c.id === query.c) : null);
+    const collectionId = savedCollection?.id ?? query.c ?? null;
+    const collectionHref = collectionId ? `/?c=${collectionId}` : "/";
     return (
       <main className="min-h-screen bg-background text-foreground">
         <KitChrome roles={rolesFromColors(item.colors)}>
@@ -72,8 +75,8 @@ export default async function ItemDetailPage({
             itemId={item.id}
             collections={collections.map((c) => ({ id: c.id, name: c.name }))}
             saved={saved}
-            collectionId={query.c ?? null}
-            collectionName={query.c ? collections.find((c) => c.id === query.c)?.name ?? null : null}
+            collectionId={collectionId}
+            collectionName={savedCollection?.name ?? null}
           />
         </KitChrome>
       </main>

@@ -2,8 +2,9 @@ import { createElement, act, type ReactElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { parseHTML } from "linkedom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ColorRole } from "@/lib/db/schema";
+import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { sampledColors } from "@/lib/derived-roles";
+import type { NamedColor } from "@/lib/brief-copy";
 
 const mocks = vi.hoisted(() => ({ save: vi.fn(), sheet: null as ReactNode, pixel: vi.fn(), average: vi.fn() }));
 vi.mock("@/app/actions/tokens", () => ({ saveItemTokensAction: mocks.save }));
@@ -59,10 +60,11 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-async function render(colors: Row[], initialOpen: ColorRole | null = "primary", showContrast = false) {
+async function render(colors: Row[], initialOpen: ColorRole | null = "primary", showContrast = false, suggestions?: { namedColors: NamedColor[]; children: ReactNode }) {
   await act(async () => root.render(createElement(TokenEditor, {
     itemId: "kit", imageSrc: "photo.jpg", colors, initialOpen, showContrast,
     photoRef: { current: photo }, crop: { vx: 0, vy: 0, vw: 1, vh: 1 },
+    ...suggestions,
   })));
 }
 
@@ -222,5 +224,30 @@ describe("token editor with real and empty roles", () => {
     await pointer("pointerup", 30, 40, back);
     expect(mocks.pixel).not.toHaveBeenCalled();
     expect(mocks.save).not.toHaveBeenCalled();
+  });
+});
+
+describe("Add suggestions need an empty slot", () => {
+  const fullKit = COLOR_ROLES.map((role, i) => ({ role, hex: `#12345${i}`, origin: "sampled" }));
+  const suggestions = {
+    namedColors: [{ hex: "#b9cfe2", label: "blue window pane" }],
+    children: createElement("p", { "data-brief-text": true }, "A blue window pane."),
+  };
+
+  it.each([0, 1, 3, 6])("shows Add suggestions only with empty roles (%s empty)", async (emptyCount) => {
+    await render(fullKit.slice(emptyCount), null, false, suggestions);
+    expect(document.querySelectorAll("[data-named-chip]")).toHaveLength(emptyCount > 0 ? 1 : 0);
+    expect(document.querySelector("[data-brief-text]")?.textContent).toBe("A blue window pane.");
+    if (emptyCount > 0) expect(document.querySelector("[data-named-chip] button")?.textContent).toBe("Add");
+  });
+
+  it("hides suggestions as the last empty role fills and restores them when a role is cleared", async () => {
+    await render(fullKit.slice(1), "primary", false, suggestions);
+    expect(document.querySelectorAll("[data-named-chip]")).toHaveLength(1);
+    await typeHex("#ff0000");
+    expect(document.querySelectorAll("[data-named-chip]")).toHaveLength(0);
+    await act(async () => control((p) => p.children === "Clear this role").props.onClick());
+    expect(document.querySelectorAll("[data-named-chip]")).toHaveLength(1);
+    expect(document.querySelector("[data-brief-text]")?.textContent).toBe("A blue window pane.");
   });
 });
