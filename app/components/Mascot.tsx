@@ -79,12 +79,17 @@ export function Mascot({ pose, kit, size = 48, snapReady = false, className }: M
           <g className="baku-body">
             <path className="baku-coat" d={BAKU_BODY_D} />
             <g clipPath={`url(#${clipId})`}>
-              {BAKU_STRIPE_DS.map((d, i) => (
-                <path key={STRIPE_CLASS[i]} className={STRIPE_CLASS[i]} d={d} />
-              ))}
-              {BAKU_SEAM_DS.map((d) => (
-                <path key={d} className="baku-seam" d={d} />
-              ))}
+              {BAKU_STRIPE_DS.map((d, i) => {
+                const role = COLOR_ROLES[i];
+                if (!role || !colors[role]) return null;
+                return <path key={STRIPE_CLASS[i]} className={STRIPE_CLASS[i]} d={d} />;
+              })}
+              {BAKU_SEAM_DS.map((d, i) => {
+                const above = COLOR_ROLES[i];
+                const below = COLOR_ROLES[i + 1];
+                if (!above || !below || !colors[above] || !colors[below]) return null;
+                return <path key={d} className="baku-seam" d={d} />;
+              })}
             </g>
           </g>
           <g className="baku-eyes">

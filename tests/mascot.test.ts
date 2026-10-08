@@ -2,7 +2,6 @@ import { gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import {
-  BAKU_CREAM,
   HANDOFF_KITS,
   MASCOT_CHEW_COPY_MS,
   MASCOT_COPY,
@@ -77,7 +76,7 @@ describe("Baku copy", () => {
 });
 
 describe("stripe kit", () => {
-  it("draws six stripes in token order", () => {
+  it("draws filled stripes in token order and skips empty roles", () => {
     expect(COLOR_ROLES).toEqual(["primary", "secondary", "accent", "background", "surface", "text"]);
     expect(BAKU_STRIPE_DS).toHaveLength(6);
     expect(BAKU_STRIPE_VARS).toEqual([
@@ -92,6 +91,7 @@ describe("stripe kit", () => {
     expect(Object.keys(vars).filter((k) => k.startsWith("--baku-") && !k.includes("cream") && !k.includes("seam"))).toEqual(
       COLOR_ROLES.map((role) => `--baku-${role}`),
     );
+    expect(stripeFills(HAND_OFF())).toHaveLength(6);
   });
 
   it("keeps the palette on error-brief and chewing/success", () => {
@@ -101,16 +101,17 @@ describe("stripe kit", () => {
     expect(kitForPose("success", kit)).toEqual(kit);
   });
 
-  it("returns a cream coat only for idle, empty, and error-unreadable", () => {
+  it("returns a cream coat with no stripes for idle, empty, and error-unreadable", () => {
     const kit = HANDOFF_KITS.IMG_6505;
     expect(kitForPose("error-unreadable", kit)).toEqual(creamKit());
     expect(kitForPose("empty", kit)).toEqual(creamKit());
     expect(kitForPose("idle", kit)).toEqual(creamKit());
     expect(kitHasPalette(kitForPose("error-unreadable", kit))).toBe(false);
     expect(kitHasPalette(kitForPose("error-brief", kit))).toBe(true);
+    expect(stripeFills(creamKit())).toEqual([]);
   });
 
-  it("pads missing roles with cream (IMG_6208 four swatches)", () => {
+  it("leaves missing roles empty (IMG_6208 four swatches, no cream pad)", () => {
     const kit = kitFromColors([
       { hex: "#7fafd4", role: "primary" },
       { hex: "#a2afbd", role: "secondary" },
@@ -118,16 +119,17 @@ describe("stripe kit", () => {
       { hex: "#bec6cd", role: "text" },
     ]);
     expect(kit).toEqual(HANDOFF_KITS.IMG_6208);
-    expect(kit.accent).toBe(BAKU_CREAM);
-    expect(kit.surface).toBe(BAKU_CREAM);
-    expect(stripeFills(kit)).toHaveLength(6);
+    expect(kit.accent).toBeNull();
+    expect(kit.surface).toBeNull();
+    expect(stripeFills(kit)).toEqual(["#7fafd4", "#a2afbd", "#384b5f", "#bec6cd"]);
   });
 
-  it("fills token order from unscoped swatches", () => {
+  it("does not invent roles from unscoped swatches", () => {
     const kit = kitFromColors([{ hex: "#ff0000" }, { hex: "#00ff00" }]);
-    expect(kit.primary).toBe("#ff0000");
-    expect(kit.secondary).toBe("#00ff00");
-    expect(kit.accent).toBe(BAKU_CREAM);
+    expect(kit.primary).toBeNull();
+    expect(kit.secondary).toBeNull();
+    expect(kit.accent).toBeNull();
+    expect(stripeFills(kit)).toEqual([]);
   });
 
   it("renders at 48px", () => {

@@ -59,6 +59,53 @@ export function QaStates({ issue, state }: { issue: string; state: string }) {
         {state === "uploading" ? <MascotStage moment="upload" snapReady className="mt-8" /> : null}
         {state === "saved" ? <MascotStage moment="success" kit={HANDOFF_KITS.IMG_6505} snapReady className="mt-8" /> : null}
         {state === "unreadable" ? <MascotStage moment="error-unreadable" snapReady className="mt-8" /> : null}
+        {state === "empty-roles" ? (
+          <div className="mt-8">
+            <MascotStage moment="success" kit={HANDOFF_KITS.IMG_6208} snapReady />
+            <div className="mt-6 grid grid-cols-3 gap-2">
+              {["primary", "secondary", "accent", "background", "surface", "text"].map((role) => {
+                const hex = HANDOFF_KITS.IMG_6208[role as keyof typeof HANDOFF_KITS.IMG_6208];
+                return hex ? (
+                  <div key={role} className="h-16 rounded-lg" style={{ backgroundColor: hex }}>
+                    <p className="px-2 pt-1 text-[10px] text-white">{role}</p>
+                  </div>
+                ) : (
+                  <button
+                    key={role}
+                    type="button"
+                    className="flex h-16 items-center justify-center rounded-lg border border-dashed border-muted-foreground/50 text-[11px] text-muted-foreground"
+                  >
+                    add a color
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">Contrast hidden: text and background are both filled, so the line would show.</p>
+          </div>
+        ) : null}
+        {state === "one-role" ? (
+          <div className="mt-8">
+            <MascotStage moment="success" kit={{ ...HANDOFF_KITS.IMG_6505, secondary: null, accent: null, surface: null, text: null, primary: null }} snapReady />
+            <div className="mt-6 grid grid-cols-3 gap-2">
+              {["primary", "secondary", "accent", "background", "surface", "text"].map((role) =>
+                role === "background" ? (
+                  <div key={role} className="h-16 rounded-lg" style={{ backgroundColor: HANDOFF_KITS.IMG_6505.background }}>
+                    <p className="px-2 pt-1 text-[10px] text-black">{role}</p>
+                  </div>
+                ) : (
+                  <button
+                    key={role}
+                    type="button"
+                    className="flex h-16 items-center justify-center rounded-lg border border-dashed border-muted-foreground/50 text-[11px] text-muted-foreground"
+                  >
+                    add a color
+                  </button>
+                ),
+              )}
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">No contrast line — text is empty.</p>
+          </div>
+        ) : null}
         <dl className="mt-10 space-y-1 text-xs text-muted-foreground" data-motion>
           <div>tap {MOTION.tap.duration}s {MOTION.tap.ease} ({MOTION_CSS.tapMs}ms)</div>
           <div>small {MOTION.small.duration}s {MOTION.small.ease} ({MOTION_CSS.smallMs}ms)</div>

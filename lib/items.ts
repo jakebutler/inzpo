@@ -5,8 +5,7 @@ import { assertItemOwned, ownerClause } from "@/lib/auth/owner";
 import { newId } from "@/lib/ids";
 import { itemPrefix, originalKey, PutObjectCommand, GetObjectCommand, deletePrefix, r2 } from "@/lib/r2";
 import { processImage, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
-import { extractColors } from "@/lib/extract-colors";
-import { hexToFamily } from "@/lib/colors";
+import { extractPalette } from "@/lib/palette-extract";
 import { buildWallQuery } from "@/lib/wall-query";
 import type { FilterState } from "@/lib/filter";
 
@@ -210,16 +209,20 @@ export async function createImageItem(input: {
       placeholder: processed.placeholder,
     });
 
-    const extracted = await extractColors(processed.original);
-    if (extracted.length > 0) {
+    const palette = await extractPalette(processed.original);
+    if (palette.swatches.length > 0) {
       await db.insert(itemColors).values(
-        extracted.map((c, index) => ({
+        palette.swatches.map((c, index) => ({
           id: newId(),
           itemId: id,
           hex: c.hex,
-          family: hexToFamily(c.hex),
-          origin: c.origin,
+          family: c.family,
+          origin: "extracted",
           position: index,
+          name: c.name,
+          role: c.role,
+          pinX: c.pinX,
+          pinY: c.pinY,
         })),
       );
     }

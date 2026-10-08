@@ -1,5 +1,5 @@
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
-import { isHexColor, normalizeHex } from "@/lib/colors";
+import { emptyRoles, filledRoles, rolesFromColors, type RoleColors } from "@/lib/tokens";
 
 export const MASCOT_POSES = [
   "idle",
@@ -34,7 +34,7 @@ export const MASCOT_RIVE_STATE_MACHINE = "Baku";
 export const MASCOT_RIVE_POSE_INPUT = "pose";
 export const MASCOT_RIVE_COLOR_INPUTS = COLOR_ROLES;
 
-export type MascotKit = Record<ColorRole, string>;
+export type MascotKit = RoleColors;
 
 export const MASCOT_COPY = {
   "first-open": "This is Baku. It eats colors.",
@@ -48,7 +48,7 @@ export const MASCOT_COPY = {
 
 export type MascotCopyKey = keyof typeof MASCOT_COPY;
 
-/** #53 handoff palettes, token order. IMG_6208 has four swatches — pad with cream. */
+/** #53 handoff palettes, token order. IMG_6208 has four real swatches — empty roles stay null. */
 export const HANDOFF_KITS = {
   IMG_6505: {
     primary: "#6b6656",
@@ -61,22 +61,20 @@ export const HANDOFF_KITS = {
   IMG_6208: {
     primary: "#7fafd4",
     secondary: "#a2afbd",
-    accent: BAKU_CREAM,
+    accent: null,
     background: "#384b5f",
-    surface: BAKU_CREAM,
+    surface: null,
     text: "#bec6cd",
   },
 } as const satisfies Record<string, MascotKit>;
 
+export function emptyKit(): MascotKit {
+  return emptyRoles();
+}
+
+/** Cream coat with no stripes. Empty roles stay null — never pad with cream. */
 export function creamKit(): MascotKit {
-  return {
-    primary: BAKU_CREAM,
-    secondary: BAKU_CREAM,
-    accent: BAKU_CREAM,
-    background: BAKU_CREAM,
-    surface: BAKU_CREAM,
-    text: BAKU_CREAM,
-  };
+  return emptyKit();
 }
 
 export function poseForMoment(moment: MascotMoment): MascotPose {
@@ -104,18 +102,17 @@ export function waitBeforeShow(moment: MascotMoment): boolean {
 
 /**
  * error-brief keeps the saved palette. Only error-unreadable (and idle/empty,
- * which have not eaten a kit yet) go back to a cream coat.
+ * which have not eaten a kit yet) go back to a cream coat with no stripes.
  */
 export function kitForPose(pose: MascotPose, kit: MascotKit | null | undefined): MascotKit {
   if (pose === "error-unreadable" || pose === "empty" || pose === "idle") {
-    return creamKit();
+    return emptyKit();
   }
-  return kit ?? creamKit();
+  return kit ?? emptyKit();
 }
 
 export function kitHasPalette(kit: MascotKit): boolean {
-  const cream = BAKU_CREAM.toLowerCase();
-  return COLOR_ROLES.some((role) => kit[role].toLowerCase() !== cream);
+  return filledRoles(kit).length > 0;
 }
 
 export function copyForMoment(
@@ -132,45 +129,24 @@ export function copyForMoment(
   return MASCOT_COPY["error-unreadable"];
 }
 
-function hexOrCream(value: string): string {
-  if (!isHexColor(value)) return BAKU_CREAM;
-  return normalizeHex(value);
-}
-
 export function kitFromColors(
   colors: ReadonlyArray<{ hex: string; role?: ColorRole | null }>,
 ): MascotKit {
-  const kit = creamKit();
-  const used = new Set<number>();
-  for (const role of COLOR_ROLES) {
-    const index = colors.findIndex((color, i) => color.role === role && !used.has(i));
-    if (index < 0) continue;
-    kit[role] = hexOrCream(colors[index]!.hex);
-    used.add(index);
-  }
-  for (const role of COLOR_ROLES) {
-    if (kit[role] !== BAKU_CREAM) continue;
-    const index = colors.findIndex((_, i) => !used.has(i));
-    if (index < 0) break;
-    kit[role] = hexOrCream(colors[index]!.hex);
-    used.add(index);
-  }
-  return kit;
+  return rolesFromColors(colors);
 }
 
 export function stripeCssVars(kit: MascotKit): Record<`--baku-${string}`, string> {
-  return {
+  const vars: Record<`--baku-${string}`, string> = {
     "--baku-cream": BAKU_CREAM,
     "--baku-seam": BAKU_SEAM,
-    "--baku-primary": kit.primary,
-    "--baku-secondary": kit.secondary,
-    "--baku-accent": kit.accent,
-    "--baku-background": kit.background,
-    "--baku-surface": kit.surface,
-    "--baku-text": kit.text,
   };
+  for (const role of COLOR_ROLES) {
+    vars[`--baku-${role}`] = kit[role] ?? BAKU_CREAM;
+  }
+  return vars;
 }
 
+/** Filled roles only, in token order. Empty roles do not get a stripe. */
 export function stripeFills(kit: MascotKit): string[] {
-  return COLOR_ROLES.map((role) => kit[role]);
+  return filledRoles(kit).map((role) => kit[role]!);
 }
