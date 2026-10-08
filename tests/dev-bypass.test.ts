@@ -54,3 +54,18 @@ describe("dev auth bypass", () => {
     expect(isFoldQaEnabled()).toBe(false);
   });
 });
+
+describe("preview /dev fold does not skip Clerk context", () => {
+  it("still runs clerkMiddleware on /dev so layout auth() cannot 500", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const mw = readFileSync(join(process.cwd(), "middleware.ts"), "utf8");
+    expect(mw).toContain("isFoldQaEnabled() && isDevQaRoute(request)");
+    expect(mw).not.toMatch(
+      /if \(isFoldQaEnabled\(\) && isDevQaRoute\(request\)\) return NextResponse\.next\(\);/,
+    );
+    expect(mw).toContain("return clerkHandler(request, event as never)");
+    const owner = readFileSync(join(process.cwd(), "lib/auth/owner.ts"), "utf8");
+    expect(owner).toContain("auth() throws when clerkMiddleware did not run");
+  });
+});

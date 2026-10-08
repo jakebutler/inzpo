@@ -112,7 +112,13 @@ export async function claimLegacyLibrary(userId: string, email: string | undefin
 
 export async function claimLegacyIfNeeded(): Promise<void> {
   if (!isClerkConfigured()) return;
-  const { userId } = await auth();
+  let userId: string | null = null;
+  try {
+    userId = (await auth()).userId ?? null;
+  } catch {
+    // auth() throws when clerkMiddleware did not run (local bypass / public /dev).
+    return;
+  }
   if (!userId) return;
   const user = await currentUser();
   const email = user?.primaryEmailAddress?.emailAddress;

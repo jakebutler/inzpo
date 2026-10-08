@@ -201,6 +201,8 @@ describe("r5 shots", () => {
     expect(shots).toContain("assertCaptureReady");
     expect(shots).toContain("document.fonts.check");
     expect(shots).toContain("/_next/static");
+    expect(shots).toContain("__next_error__");
+    expect(shots).toContain("documentStatus");
     expect(shots).toContain("empty-collection");
     expect(shots).toContain('state: "pending"');
     expect(shots).toContain("arrived_");
@@ -321,6 +323,19 @@ describe("r5 capture guard", () => {
         geist: true,
       }),
     ).toEqual([]);
+    expect(
+      captureGuardIssues({
+        staticFails: [],
+        sheetCount: 2,
+        ruleCount: 40,
+        backgroundHex: "#f3eee4",
+        kitWear: false,
+        fraunces: true,
+        geist: true,
+        documentStatus: 500,
+        errorDocument: true,
+      }),
+    ).toEqual(["document HTTP 500", "Next.js error document"]);
   });
 });
 

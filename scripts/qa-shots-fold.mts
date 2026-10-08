@@ -63,6 +63,7 @@ const ABOVE_BAR = new Set(["chips", "saved", "empty-roles", "dark"]);
 
 const GUARD = { pass: 0, fail: 0 };
 const PAGE_STATIC_FAILS = new WeakMap<Page, string[]>();
+const PAGE_DOC_STATUS = new WeakMap<Page, number>();
 
 function watchStatic(page: Page): string[] {
   const existing = PAGE_STATIC_FAILS.get(page);
@@ -72,6 +73,7 @@ function watchStatic(page: Page): string[] {
   page.on("response", (res) => {
     const url = res.url();
     const type = res.request().resourceType();
+    if (type === "document") PAGE_DOC_STATUS.set(page, res.status());
     if (url.includes("/_next/static") || type === "stylesheet") {
       if (res.status() !== 200) fails.push(`${res.status()} ${url}`);
     }
@@ -103,6 +105,7 @@ async function assertCaptureReady(page: Page): Promise<void> {
       ruleCount,
       backgroundColor: getComputedStyle(node).backgroundColor,
       kitWear: Boolean(wear),
+      errorDocument: document.documentElement.id === "__next_error__",
       fraunces: document.fonts.check("18px Fraunces") || families.some((f) => /fraunces/i.test(f)),
       geist: document.fonts.check("16px Geist") || families.some((f) => /geist/i.test(f) && !/mono/i.test(f)),
     };
@@ -115,6 +118,8 @@ async function assertCaptureReady(page: Page): Promise<void> {
     kitWear: raw.kitWear,
     fraunces: raw.fraunces,
     geist: raw.geist,
+    documentStatus: PAGE_DOC_STATUS.get(page),
+    errorDocument: raw.errorDocument,
   });
   if (issues.length > 0) {
     GUARD.fail += 1;

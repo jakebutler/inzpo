@@ -22,15 +22,18 @@ function loginRedirect(request: NextRequest): NextResponse {
 
 const clerkHandler = clerkMiddleware(async (auth, request) => {
   if (isPublicRoute(request)) return;
+  // Keep Clerk context on /dev so layout auth() does not 500; do not require a session.
+  if (isFoldQaEnabled() && isDevQaRoute(request)) return;
   const { userId } = await auth();
   if (!userId) return loginRedirect(request);
 });
 
 export default function middleware(request: NextRequest, event: unknown) {
   if (isDevAuthBypassEnabled()) return NextResponse.next();
-  if (isFoldQaEnabled() && isDevQaRoute(request)) return NextResponse.next();
   if (!isClerkConfigured()) {
-    if (isPublicRoute(request)) return NextResponse.next();
+    if (isPublicRoute(request) || (isFoldQaEnabled() && isDevQaRoute(request))) {
+      return NextResponse.next();
+    }
     return loginRedirect(request);
   }
   return clerkHandler(request, event as never);

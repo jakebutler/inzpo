@@ -57,10 +57,16 @@ export type CaptureGuardSnapshot = {
   kitWear: boolean;
   fraunces: boolean;
   geist: boolean;
+  documentStatus?: number;
+  errorDocument?: boolean;
 };
 
 export function captureGuardIssues(snap: CaptureGuardSnapshot): string[] {
   const issues: string[] = [];
+  if (snap.documentStatus !== undefined && snap.documentStatus !== 200) {
+    issues.push(`document HTTP ${snap.documentStatus}`);
+  }
+  if (snap.errorDocument) issues.push("Next.js error document");
   if (snap.staticFails.length > 0) {
     issues.push(`static not 200: ${snap.staticFails.slice(0, 3).join("; ")}`);
   }
