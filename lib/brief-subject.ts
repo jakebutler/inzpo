@@ -40,6 +40,17 @@ export function sanitizeBriefSubject(raw: unknown): string | null {
   return words.join(" ");
 }
 
+/** Kit names prefer a recognized modifier ("Victorian house", "storefront mural"), else the head noun. */
+export function briefSubjectWord(raw: unknown): string | null {
+  const subject = sanitizeBriefSubject(raw);
+  if (!subject) return null;
+  const words = subject.split(" ");
+  const modifier = noun(words[0]);
+  return words.length === 2 && (SUBJECT_MODIFIERS.has(modifier) || SUBJECT_GROUPS.some((group) => group.has(modifier)))
+    ? modifier
+    : words[words.length - 1];
+}
+
 export function subjectFromBrief(text: string | null | undefined): string | null {
   const words = (text?.toLowerCase().replace(/\bspray tags?\b/g, "graffiti").match(/[a-z]+/g) ?? []).map(noun);
   for (const group of SUBJECT_GROUPS) {

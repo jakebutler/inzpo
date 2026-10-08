@@ -1,6 +1,6 @@
 import { hexToFamily, hexToHsl, isHexColor } from "@/lib/colors";
 import { sanitizeChipLabel, type NamedColor } from "@/lib/brief-copy";
-import { sanitizeBriefSubject, subjectFromBrief } from "@/lib/brief-subject";
+import { briefSubjectWord, subjectFromBrief } from "@/lib/brief-subject";
 import { isRecentPendingBrief, STALE_PENDING_MS, type BriefState } from "@/lib/brief-state";
 
 export const UNTITLED_KIT = "Untitled kit";
@@ -53,9 +53,7 @@ function primaryFamily(hex: string | null | undefined): string | null {
   return family;
 }
 
-const ADJECTIVE_MODIFIERS = new Set("soft pale deep light dark bright muted dusty warm cool rich".split(" "));
-
-function colorPart(input: KitNameInput, family: string, nounModifiersOnly = false): string {
+function colorPart(input: KitNameInput, family: string): string {
   const sources = [input.briefText, ...(input.namedColors ?? []).map((chip) => sanitizeChipLabel(chip.label))];
   for (const source of sources) {
     // Only adjacent modifier + colour pairs; punctuation cannot join unrelated phrases.
@@ -63,7 +61,6 @@ function colorPart(input: KitNameInput, family: string, nounModifiersOnly = fals
     for (const pair of pairs) {
       const [, phrase, modifier, color] = pair;
       if (colorFamily(color) !== family || !COLOR_MODIFIERS.has(modifier)) continue;
-      if (nounModifiersOnly && ADJECTIVE_MODIFIERS.has(modifier)) continue;
       const modifierFamily = colorFamily(modifier);
       if (modifierFamily && modifierFamily !== family) continue;
       const next = source?.slice(pair.index! + phrase.length).match(/^[- ]+([a-z]+)\b/i)?.[1].toLowerCase();
@@ -87,7 +84,7 @@ export type KitNameInput = {
 
 /** Stable colour-only name, also used to recognise a fallback on a later retry. */
 export function fallbackKitName(primaryHex: string | null | undefined): string {
-  return titleCase(colorPart({}, primaryFamily(primaryHex) ?? "gray"));
+  return titleCase(primaryFamily(primaryHex) ?? "gray");
 }
 
 export function kitDisplayName(input: KitNameInput, now = Date.now()): string {
@@ -105,11 +102,11 @@ export function kitDisplayName(input: KitNameInput, now = Date.now()): string {
 export function generatedKitTitle(input: KitNameInput): string | null {
   const existing = input.title?.trim() ?? "";
   if (existing && existing !== UNTITLED_KIT && !isCameraFilename(existing)) return existing;
-  const subject = sanitizeBriefSubject(input.subject) ?? subjectFromBrief(input.briefText);
+  const subject = briefSubjectWord(input.subject) ?? subjectFromBrief(input.briefText);
   const family = primaryFamily(input.primaryHex);
-  // With a subject, only a noun modifier ("Facade Butter Yellow") joins it, never "Facade Pale Yellow".
-  const color = family ? colorPart(input, family, Boolean(subject)) : null;
-  return subject || color ? titleCase([subject, color].filter(Boolean).join(" ")) : null;
+  if (!family) return null;
+  // A subject gets one colour-family word; colour-only names may keep a two-word pair.
+  return titleCase(subject ? `${family} ${subject}` : colorPart(input, family));
 }
 
 /** Photo alt uses the same name as the visible kit name. */

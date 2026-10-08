@@ -68,7 +68,7 @@ describe("persistKitTitleFromBrief", () => {
       role: savedRole, hex: savedRole === role ? "#0000ff" : "#ff0000", origin: "sampled",
     }));
     existingTitle(null, colors);
-    expect(await persistKitTitleFromBrief("kit", { ...ready, text: "A yellow facade." })).toBe("Facade Blue");
+    expect(await persistKitTitleFromBrief("kit", { ...ready, text: "A yellow facade." })).toBe("Blue Facade");
   });
 
   it("skips legacy derived padding and invalid or unassigned colours", async () => {
@@ -79,11 +79,11 @@ describe("persistKitTitleFromBrief", () => {
       { role: "accent", hex: "#0000ff", origin: "sampled" },
       { role: "background", hex: "#ffffff", origin: "sampled" },
     ]);
-    expect(await persistKitTitleFromBrief("kit", { ...ready, text: "A mural." })).toBe("Mural Blue");
+    expect(await persistKitTitleFromBrief("kit", { ...ready, text: "A mural." })).toBe("Blue Mural");
   });
 
   it("persists the model's subject", async () => {
-    expect(await persistKitTitleFromBrief("kit", { ...ready, text: "A facade.", subject: "victorian house" })).toBe("Victorian House Yellow");
+    expect(await persistKitTitleFromBrief("kit", { ...ready, text: "A facade.", subject: "victorian house" })).toBe("Yellow Victorian");
   });
 
   it("writes the corrected generated name once and preserves it on later briefs", async () => {
@@ -94,7 +94,7 @@ describe("persistKitTitleFromBrief", () => {
     expect(mocks.update).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["Red Crimson", "Yellow Soft", "Yellow Butter", "Studio 54", "Main Street"])(
+  it.each(["Red Crimson", "Yellow Soft", "Yellow Butter", "Studio 54", "Main Street", "Victorian House Cream", "Mural Red", "My favourite blue house palette"])(
     "never renames existing kit %s", async (title) => {
       existingTitle(title);
       expect(await persistKitTitleFromBrief("kit", ready)).toBe(title);
@@ -125,8 +125,8 @@ describe("persistKitTitleFromBrief", () => {
       { hex: "#ff0000", role: "primary", origin: "extracted", pinX: 0.5, pinY: 0.5 },
       { hex: "#a0adbb", role: "secondary", origin: "sampled" },
     ]);
-    expect(await persistKitTitleFromBrief("kit", { ...ready, subject: "storefront" })).toBe("Storefront Gray");
-    expect(mocks.set).toHaveBeenCalledWith({ title: "Storefront Gray", updatedAt: expect.any(Date) });
+    expect(await persistKitTitleFromBrief("kit", { ...ready, subject: "storefront" })).toBe("Gray Storefront");
+    expect(mocks.set).toHaveBeenCalledWith({ title: "Gray Storefront", updatedAt: expect.any(Date) });
   });
 
   it.each([null, "Yellow"])("guards against a concurrent user edit when replacing %s", async (title) => {
@@ -179,6 +179,6 @@ describe("brief API persisted title", () => {
     mocks.readBriefJob.mockResolvedValue(job);
     existingTitle(null, [{ hex: "#3f5e92", role: "primary", origin: "sampled" }]);
     const response = await handler(new NextRequest("http://localhost/api/briefs/kit"), { params: Promise.resolve({ id: "kit" }) });
-    expect(await response.json()).toMatchObject({ title: "House Blue", subject: "house" });
+    expect(await response.json()).toMatchObject({ title: "Blue House", subject: "house" });
   });
 });

@@ -1,4 +1,5 @@
 import { act, createElement, type ReactNode } from "react";
+import { readFileSync } from "node:fs";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { parseHTML } from "linkedom";
@@ -15,7 +16,7 @@ vi.mock("next/navigation", () => {
 vi.mock("gsap", () => ({ gsap: { registerPlugin: vi.fn() } }));
 vi.mock("@gsap/react", () => ({ useGSAP: vi.fn() }));
 vi.mock("next/link", () => ({ default: ({ children, ...props }: { children: ReactNode; href: string }) => createElement("a", props, children) }));
-vi.mock("@/app/components/ExportKitButton", () => ({ ExportKitButton: () => null }));
+vi.mock("@/app/components/ExportKitButton", () => ({ ExportKitButton: () => createElement("button", null, "Export kit") }));
 vi.mock("@/app/components/TokenEditor", () => ({ TokenEditor: ({ children }: { children: ReactNode }) => children }));
 vi.mock("@/app/components/BriefSlot", () => ({
   BriefSlot: ({ status, onRetry }: { status: string; onRetry: () => void }) => {
@@ -46,6 +47,55 @@ const cases: Array<{ label: string; brief: BriefState | null; title: string | nu
 describe("kit title placeholders", () => {
   beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(now); });
   afterEach(() => vi.useRealTimers());
+
+  it.each(["Cream Victorian", "Victorian House Cream", "Mural Red", "My favourite blue house palette"])("wraps the saved header name %s without ellipsis", (title) => {
+    const { document } = parseHTML(renderToStaticMarkup(createElement(SavedKitHeader, {
+      title, itemId: "kit", primaryHex: roles.primary, backHref: "/",
+    })));
+    const heading = document.querySelector("h1")!;
+    expect(heading.textContent).toBe(title);
+    expect(heading.classList.contains("truncate")).toBe(false);
+    expect(heading.className).not.toMatch(/line-clamp|overflow-hidden/);
+    expect(heading.classList.contains("whitespace-normal")).toBe(true);
+    expect(heading.classList.contains("break-words")).toBe(true);
+    expect(heading.classList.contains("text-balance")).toBe(true);
+    expect(heading.classList.contains("min-w-0")).toBe(true);
+    expect(heading.classList.contains("flex-1")).toBe(true);
+    expect(heading.classList.contains("text-[22px]")).toBe(true);
+    expect(heading.classList.contains("leading-7")).toBe(true);
+    expect(document.querySelector("header")?.classList.contains("items-center")).toBe(true);
+    expect(document.querySelector("a")?.classList.contains("shrink-0")).toBe(true);
+    expect(document.querySelector("button")?.textContent).toBe("Export kit");
+    expect(document.querySelector("button")?.parentElement?.classList.contains("shrink-0")).toBe(true);
+  });
+
+  it("wraps kit captions shared by Wall, collection and recent cards", () => {
+    const title = "Victorian House Cream";
+    for (const view of [
+      createElement(KitCard, { title, roles, imageSrc: "photo.jpg" }),
+      createElement(BandStripe, { title, roles }),
+    ]) {
+      const { document } = parseHTML(renderToStaticMarkup(view));
+      const caption = document.querySelector("figcaption")!;
+      expect(caption.textContent).toBe(title);
+      expect(caption.className).not.toMatch(/truncate|line-clamp|overflow-hidden/);
+      expect(caption.classList.contains("whitespace-normal")).toBe(true);
+      expect(caption.classList.contains("break-words")).toBe(true);
+      expect(caption.classList.contains("text-balance")).toBe(true);
+    }
+  });
+
+  it("keeps board and library kit titles free of truncation and line clamps", () => {
+    for (const file of ["app/boards/[id]/BoardEditor.tsx", "app/boards/[id]/LibraryPicker.tsx"]) {
+      const source = readFileSync(file, "utf8");
+      const titles = source.split("\n").filter((line) => /\{(?:p|row)\.title \?\?/.test(line) && line.includes("className="));
+      expect(titles.length).toBeGreaterThan(0);
+      for (const title of titles) {
+        expect(title).not.toMatch(/truncate|line-clamp/);
+        expect(title).toContain("whitespace-normal break-words text-balance");
+      }
+    }
+  });
 
   it.each(cases)("renders $label in the saved header", ({ brief, title, name }) => {
     expect(kitDisplayName({ title, primaryHex: roles.primary, brief })).toBe(name);

@@ -339,7 +339,7 @@ export function LibraryPicker({
                       <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
                         {KIND_LABELS[row.kind] ?? row.kind}
                       </span>
-                      <span className="block truncate text-xs">{row.title ?? "Untitled"}</span>
+                      <span className="block whitespace-normal break-words text-balance text-xs">{row.title ?? "Untitled"}</span>
                       {row.colors.length > 0 ? (
                         <span className="mt-1 flex gap-1">
                           {row.colors.slice(0, 6).map((hex, i) => (

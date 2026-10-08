@@ -62,7 +62,7 @@ export function BandStripe({
         })}
       </div>
       {title != null && name ? (
-        <figcaption className={`inzpo-kit-stripe-name font-heading${italicEmptyTitle ? " italic" : ""}`}>
+        <figcaption className={`inzpo-kit-stripe-name font-heading whitespace-normal break-words text-balance${italicEmptyTitle ? " italic" : ""}`}>
           {name}
         </figcaption>
       ) : title != null ? (

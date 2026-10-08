@@ -57,7 +57,7 @@ describe("generated kit title", () => {
         briefText: "A yellow Victorian with a black door.",
         namedColors: [{ hex: "#e8c36a", label: "yellow siding" }],
       }),
-    ).toBe("Victorian Yellow");
+    ).toBe("Yellow Victorian");
     expect(src("lib/brief.ts")).toContain("persistKitTitleFromBrief");
     expect(src("app/api/briefs/[id]/route.ts")).toContain("persistKitTitleFromBrief");
   });
