@@ -54,7 +54,7 @@ const ready: BriefJob = {
   status: "ready",
   text: "Warm brick in shade.",
   namedHexes: ["#c9341f"],
-  namedColors: [{ hex: "#c9341f", label: "brick" }],
+  namedColors: [{ hex: "#c9341f", label: "brick", source: "region" }],
   stub: false,
   updatedAt: 123,
 };
@@ -120,7 +120,7 @@ describe("brief persistence", () => {
     const job = await runBriefJob("kit");
     expect(job.status).toBe("ready");
     expect(stored).toMatchObject({
-      namedColors: [{ hex: region.hex, label: fallback ? null : "yellow siding", pinX: 0.2, pinY: 0.3 }],
+      namedColors: [{ hex: region.hex, label: fallback ? null : "yellow siding", source: "region", pinX: 0.2, pinY: 0.3 }],
       namedHexes: [region.hex],
     });
     expect(JSON.stringify(stored)).not.toContain(modelHex);
@@ -130,6 +130,29 @@ describe("brief persistence", () => {
     expect(mocks.send.mock.calls.filter(([command]) => command instanceof GetObjectCommand && command.input.Key === "items/kit/w640.webp")).toHaveLength(1);
     expect(mocks.generate).toHaveBeenCalledWith(expect.objectContaining({ imageUrl: expect.stringMatching(/^data:image\/jpeg;base64,/), keptHexes: ["#1c1b19"] }));
     expect(mocks.signedUrl).not.toHaveBeenCalled();
+  });
+
+  it("suppresses a split sky using the filled role's pin and extraction adjacency", async () => {
+    stored = null;
+    const spatial = { touchesTop: true, upperShare: 0.9, texture: 0, borderEdges: 1, centralShare: 0 };
+    const role = { hex: "#426092", lab: hexToLab("#426092"), patch: 0.2, pinX: 0.4, pinY: 0.1, spatial };
+    const chip = { ...role, hex: "#778bae", lab: hexToLab("#778bae"), pinX: 0.6 };
+    const regionAtPin = vi.fn(() => role);
+    mocks.select.mockReturnValue({ from: () => ({ where: async () => [
+      { hex: "#416091", role: "accent", origin: "sampled", pinX: 0.4, pinY: 0.1 },
+    ] }) });
+    mocks.extractPalette.mockResolvedValue({ regions: [role, chip], regionAtPin,
+      neighbours: new Map([[role, new Set([chip])], [chip, new Set([role])]]) });
+    mocks.generate.mockResolvedValue({ text: "Blue sky over siding.", namedColors: [{ hex: chip.hex, label: "blue sky" }], namedHexes: [] });
+    await runBriefJob("kit");
+    expect(stored).toMatchObject({ status: "ready", namedColors: [], namedHexes: [] });
+    expect(regionAtPin).toHaveBeenCalledWith(0.4, 0.1);
+  });
+
+  it("hides model-only chips on read without rewriting the stored job", async () => {
+    stored = { ...ready, namedColors: [{ hex: "#c9341f", label: "brick" }] };
+    expect(await readBriefJob("kit")).toMatchObject({ namedColors: [], namedHexes: [] });
+    expect(writes).toBe(0);
   });
 
   it("hides snapped siding near any current filled role in the stored job", async () => {

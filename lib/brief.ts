@@ -7,7 +7,7 @@ import { assertItemOwned } from "@/lib/auth/owner";
 import { db } from "@/lib/db";
 import { itemColors } from "@/lib/db/schema";
 import sharp from "sharp";
-import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
+import { parseNamedColorCandidates, parseNamedColors, type NamedColor } from "@/lib/brief-copy";
 import { snapNamedColors } from "@/lib/named-color-snap";
 import { extractPalette } from "@/lib/palette-extract";
 import { sanitizeBriefSubject } from "@/lib/brief-subject";
@@ -84,12 +84,12 @@ export async function startBriefJob(ownerId: string, itemId: string): Promise<vo
   );
 }
 
-async function filledHexes(itemId: string): Promise<Set<string>> {
+async function filledHexes(itemId: string) {
   const rows = await db.select({
     hex: itemColors.hex, role: itemColors.role, origin: itemColors.origin,
     pinX: itemColors.pinX, pinY: itemColors.pinY,
   }).from(itemColors).where(eq(itemColors.itemId, itemId));
-  return new Set(sampledColors(rows).map((r) => r.hex.toLowerCase()));
+  return sampledColors(rows).map((r) => ({ hex: r.hex.toLowerCase(), pinX: r.pinX, pinY: r.pinY }));
 }
 
 async function readW640Image(itemId: string): Promise<{ imageUrl: string; bytes: Buffer | null } | null> {
@@ -159,22 +159,22 @@ export async function runBriefJob(itemId: string, { retry = false } = {}): Promi
     await persistKitTitleFromBrief(itemId, stub);
     return stub;
   }
-  const filled = await filledHexes(itemId).catch(() => new Set<string>());
+  const filled = await filledHexes(itemId).catch(() => []);
   try {
     const image = await readW640Image(itemId);
     if (!image) throw new Error("brief image missing");
     const parsed = await requestBriefCompletionWithRetry({
       imageUrl: image.imageUrl,
-      keptHexes: [...filled],
+      keptHexes: filled.map((color) => color.hex),
       apiKey: key,
       baseUrl: base,
       model,
     });
-    const regions = image.bytes
-      ? await extractPalette(image.bytes).then((palette) => palette.regions).catch(() => [])
-      : [];
+    const palette = image.bytes
+      ? await extractPalette(image.bytes).catch(() => null)
+      : null;
     const namedColors = snapNamedColors(
-      parseNamedColors(parsed.namedColors, parsed.namedHexes), regions, filled,
+      parseNamedColorCandidates(parsed.namedColors, parsed.namedHexes), palette?.regions ?? [], filled, palette ?? {},
     );
     const ready = jobPayload({
       status: "ready",

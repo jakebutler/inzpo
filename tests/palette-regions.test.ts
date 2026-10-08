@@ -142,6 +142,21 @@ describe("background eligibility", () => {
       <rect x="360" width="24" height="192" fill="#050404"/>
     </svg>`)).png().toBuffer();
     const palette = await extractPalette(input);
+    const shadow = palette.regionAtPin(0.1, 0.1)!;
+    const facade = palette.regionAtPin(0.5, 0.1)!;
+    const cream = palette.regionAtPin(0.1, 0.98)!;
+    const text = palette.regionAtPin(1, 1)!;
+    expect(shadow.hex).toBe("#8b8778");
+    expect(facade.hex).toBe("#d2d0a8");
+    expect(cream.hex).toBe("#d5cfbe");
+    expect(text.hex).toBe("#050404");
+    expect(palette.neighbours.get(shadow)?.has(facade)).toBe(true);
+    expect(palette.neighbours.get(facade)?.has(shadow)).toBe(true);
+    expect(palette.neighbours.get(shadow)?.has(cream)).toBe(true);
+    expect(palette.neighbours.get(shadow)?.has(text)).toBe(false);
+    for (const [x, y] of [[-0.1, 0.2], [0.2, 1.1], [NaN, 0.2], [0.2, Infinity]]) {
+      expect(palette.regionAtPin(x, y)).toBeUndefined();
+    }
     expect(palette.roles.background).toBe("#d5cfbe");
     expect(palette.roles.text).toBe("#050404");
     expect(palette.contrast).toBeGreaterThanOrEqual(4.5);

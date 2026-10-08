@@ -21,7 +21,7 @@ import { kitWearStyle } from "@/lib/kit-wear";
 import { layoutPins, mapCoverPinRaw, photoBackZone, pointerOnCoverBox, type CoverWindow } from "@/lib/cover-pin";
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { chipCopy, chipNoun, EMPTY_ROLE_COPY, type NamedColor } from "@/lib/brief-copy";
+import { chipCopy, chipNoun, EMPTY_ROLE_COPY, parseNamedColors, type NamedColor } from "@/lib/brief-copy";
 import { PaletteBands } from "@/app/components/PaletteBands";
 import { ContrastAa } from "./ContrastAa";
 import { CHIP_SWATCH_PX, INK, PAPER } from "@/lib/brand";
@@ -115,7 +115,7 @@ export function TokenEditor({
       .map((hex) => hex.toLowerCase()),
   );
   const chips = COLOR_ROLES.some((role) => !roles[role])
-    ? namedColors.filter((c) => !filledHex.has(c.hex.toLowerCase()))
+    ? parseNamedColors(namedColors).filter((c) => !filledHex.has(c.hex.toLowerCase()))
     : [];
 
   function setOpenRole(role: ColorRole | null) {
@@ -364,6 +364,7 @@ export function TokenEditor({
               <div
                 key={color.hex}
                 data-named-chip
+                data-chip-source={color.source ?? "region"}
                 className="flex min-h-11 items-center gap-3 border border-solid px-3"
                 style={{
                   borderWidth: 1,

@@ -34,6 +34,10 @@ export interface ExtractedPalette {
   swatches: PaletteSwatch[];
   /** All connected region means, including components not selected for roles. */
   regions: PaletteSwatch[];
+  /** Components sharing a pixel edge; not merely nearby centroids. */
+  neighbours: ReadonlyMap<PaletteSwatch, ReadonlySet<PaletteSwatch>>;
+  /** Resolve a normalized pin to the component owning that pixel. */
+  regionAtPin: (pinX: number, pinY: number) => PaletteSwatch | undefined;
   roles: RoleColors;
   contrast: number | null;
 }
@@ -145,7 +149,7 @@ function connectedRegions(mask: Uint8Array, w: number, h: number): number[][] {
   return regions;
 }
 
-export function isSkyLike(swatch: PaletteSwatch): boolean {
+export function isSkyLike(swatch: Pick<PaletteSwatch, "lab" | "spatial">): boolean {
   const spatial = swatch.spatial;
   return Boolean(spatial?.touchesTop && spatial.upperShare >= 0.6 && spatial.texture < 6 &&
     (swatch.lab[2] < -12 || (swatch.lab[0] > 85 && Math.hypot(swatch.lab[1], swatch.lab[2]) < 12)));
@@ -434,7 +438,13 @@ export async function extractPalette(
     roles[swatch.role!] = swatch.hex;
     auditRegion?.(swatch, region, w, h);
   }
-  return { swatches, regions: candidates, roles, contrast: textOnBackgroundContrast(roles) };
+  return { swatches, regions: candidates, neighbours,
+    regionAtPin: (pinX, pinY) => {
+      if (!Number.isFinite(pinX) || !Number.isFinite(pinY) || pinX < 0 || pinX > 1 || pinY < 0 || pinY > 1) return undefined;
+      const pixel = Math.min(h - 1, Math.floor(pinY * h)) * w + Math.min(w - 1, Math.floor(pinX * w));
+      return candidates[owners[pixel]!];
+    },
+    roles, contrast: textOnBackgroundContrast(roles) };
 }
 
 export async function areaAverage(

@@ -249,9 +249,23 @@ describe("token editor with real and empty roles", () => {
 describe("Add suggestions need an empty slot", () => {
   const fullKit = COLOR_ROLES.map((role, i) => ({ role, hex: `#12345${i}`, origin: "sampled" }));
   const suggestions = {
-    namedColors: [{ hex: "#b9cfe2", label: "blue window pane" }],
+    namedColors: [{ hex: "#b9cfe2", label: "blue window pane", source: "region" }],
     children: createElement("p", { "data-brief-text": true }, "A blue window pane."),
   };
+
+  it.each([
+    { provenance: {}, visible: false },
+    { provenance: { pinX: 0.2, pinY: 0.3 }, visible: true },
+    { provenance: { source: "region" }, visible: true },
+    { provenance: { source: "model", pinX: 0.2, pinY: 0.3 }, visible: false },
+  ])("renders only measured suggestions ($provenance)", async ({ provenance, visible }) => {
+    await render([], null, false, {
+      ...suggestions, namedColors: [{ hex: "#b9cfe2", label: "blue window pane", ...provenance }],
+    });
+    const chip = document.querySelector("[data-named-chip]");
+    expect(Boolean(chip)).toBe(visible);
+    if (visible) expect(chip?.getAttribute("data-chip-source")).toBe("region");
+  });
 
   it.each([0, 1, 3, 6])("shows Add suggestions only with empty roles (%s empty)", async (emptyCount) => {
     await render(fullKit.slice(emptyCount), null, false, suggestions);

@@ -7,6 +7,7 @@ const PLATE = /\b(plate|license|number plate)\b/i;
 export interface NamedColor {
   hex: string;
   label: string | null;
+  source?: string;
   pinX?: number;
   pinY?: number;
 }
@@ -86,7 +87,8 @@ export function namedColorHex(raw: unknown): string | null {
   return /^#[0-9a-f]{6}$/.test(hex) ? hex : null;
 }
 
-export function parseNamedColors(raw: unknown, fallbackHexes: string[] = []): NamedColor[] {
+/** Model suggestions are untrusted candidates until snapped to measured regions. */
+export function parseNamedColorCandidates(raw: unknown, fallbackHexes: string[] = []): NamedColor[] {
   const out: NamedColor[] = [];
   if (Array.isArray(raw)) {
     for (const entry of raw) {
@@ -98,11 +100,12 @@ export function parseNamedColors(raw: unknown, fallbackHexes: string[] = []): Na
       if (entry && typeof entry === "object" && "hex" in entry && typeof (entry as { hex: unknown }).hex === "string") {
         const hex = namedColorHex((entry as { hex: string }).hex);
         if (!hex) continue;
-        const row = entry as { hex: string; label?: unknown; pinX?: unknown; pinY?: unknown };
+        const row = entry as { hex: string; label?: unknown; source?: unknown; pinX?: unknown; pinY?: unknown };
         const pin = typeof row.pinX === "number" && Number.isFinite(row.pinX) && row.pinX >= 0 && row.pinX <= 1 &&
           typeof row.pinY === "number" && Number.isFinite(row.pinY) && row.pinY >= 0 && row.pinY <= 1
           ? { pinX: row.pinX, pinY: row.pinY } : {};
-        out.push({ hex, label: sanitizeChipLabel(row.label), ...pin });
+        out.push({ hex, label: sanitizeChipLabel(row.label),
+          ...(typeof row.source === "string" ? { source: row.source } : row.source === undefined ? {} : { source: "unknown" }), ...pin });
       }
     }
   }
@@ -113,6 +116,12 @@ export function parseNamedColors(raw: unknown, fallbackHexes: string[] = []): Na
     }
   }
   return out;
+}
+
+/** Display only measured suggestions; unmarked r8.3 records have valid region pins. */
+export function parseNamedColors(raw: unknown, fallbackHexes: string[] = []): NamedColor[] {
+  return parseNamedColorCandidates(raw, fallbackHexes).filter((color) =>
+    color.source === "region" || (color.source === undefined && color.pinX !== undefined && color.pinY !== undefined));
 }
 
 export const EMPTY_ROLE_COPY = (role: string): string => `No ${role} in this one. Add a color.`;
