@@ -7,6 +7,8 @@ const PLATE = /\b(plate|license|number plate)\b/i;
 export interface NamedColor {
   hex: string;
   label: string | null;
+  pinX?: number;
+  pinY?: number;
 }
 
 /** Common noun phrase, 4 words or fewer. No addresses, street names, plates, or house numbers. */
@@ -96,8 +98,11 @@ export function parseNamedColors(raw: unknown, fallbackHexes: string[] = []): Na
       if (entry && typeof entry === "object" && "hex" in entry && typeof (entry as { hex: unknown }).hex === "string") {
         const hex = namedColorHex((entry as { hex: string }).hex);
         if (!hex) continue;
-        const row = entry as { hex: string; label?: unknown };
-        out.push({ hex, label: sanitizeChipLabel(row.label) });
+        const row = entry as { hex: string; label?: unknown; pinX?: unknown; pinY?: unknown };
+        const pin = typeof row.pinX === "number" && Number.isFinite(row.pinX) && row.pinX >= 0 && row.pinX <= 1 &&
+          typeof row.pinY === "number" && Number.isFinite(row.pinY) && row.pinY >= 0 && row.pinY <= 1
+          ? { pinX: row.pinX, pinY: row.pinY } : {};
+        out.push({ hex, label: sanitizeChipLabel(row.label), ...pin });
       }
     }
   }

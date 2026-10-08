@@ -201,6 +201,20 @@ describe("shadow definition", () => {
 });
 
 describe("real region merge and refill", () => {
+  it("exposes connected components omitted from the role swatches for suggestion snapping", async () => {
+    const input = await sharp(Buffer.from(`<svg width="384" height="192" xmlns="http://www.w3.org/2000/svg">
+      <rect width="384" height="192" fill="#d5cfbe"/>
+      <rect width="120" height="192" fill="#85232b"/>
+      <rect x="264" width="120" height="192" fill="#85232b"/>
+    </svg>`)).png().toBuffer();
+    const palette = await extractPalette(input);
+    const reds = palette.regions.filter((s) => s.hex === "#85232b");
+    expect(reds).toHaveLength(2);
+    expect(reds[0].pinX).toBeLessThan(reds[1].pinX);
+    expect(palette.swatches.filter((s) => s.hex === "#85232b")).toHaveLength(1);
+    for (const swatch of palette.swatches) expect(palette.regions).toContain(swatch);
+  });
+
   it("keeps the dominant representative and refills from the next distinct component", () => {
     const rows = [region("#d9ce99", 0.1, { score: 0.8 }), region("#d2d0a8", 0.4),
       region("#e3d8b6", 0.04), region("#bcbcbc", 0.15),

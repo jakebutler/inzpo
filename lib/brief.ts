@@ -8,6 +8,8 @@ import { db } from "@/lib/db";
 import { itemColors } from "@/lib/db/schema";
 import sharp from "sharp";
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
+import { snapNamedColors } from "@/lib/named-color-snap";
+import { extractPalette } from "@/lib/palette-extract";
 import { sanitizeBriefSubject } from "@/lib/brief-subject";
 import { persistKitTitleFromBrief } from "@/lib/kit-title";
 import {
@@ -90,18 +92,18 @@ async function filledHexes(itemId: string): Promise<Set<string>> {
   return new Set(sampledColors(rows).map((r) => r.hex.toLowerCase()));
 }
 
-/** Compact JPEG data URL for vision, or a short-lived signed GET if the object cannot be read. */
-export async function w640ImageUrl(itemId: string): Promise<string | null> {
+async function readW640Image(itemId: string): Promise<{ imageUrl: string; bytes: Buffer | null } | null> {
   if (typeof itemId !== "string" || itemId.length === 0) return null;
   const bucket = process.env.R2_BUCKET;
   if (!bucket) return null;
   const key = variantKey(itemId, "w640");
+  let bytes: Buffer | null = null;
   try {
     const result = await r2().send(new GetObjectCommand({ Bucket: bucket, Key: key }));
     const body = result.Body;
     if (!body) throw new Error("empty object");
-    const bytes = await body.transformToByteArray();
-    const compact = await sharp(Buffer.from(bytes), { failOn: "error" })
+    bytes = Buffer.from(await body.transformToByteArray());
+    const compact = await sharp(bytes, { failOn: "error" })
       .rotate()
       .resize({
         width: BRIEF_REQUEST.visionEdgePx,
@@ -111,16 +113,22 @@ export async function w640ImageUrl(itemId: string): Promise<string | null> {
       })
       .jpeg({ quality: BRIEF_REQUEST.visionJpegQuality, chromaSubsampling: "4:2:0" })
       .toBuffer();
-    return bytesToDataUrl(compact, "image/jpeg");
+    return { imageUrl: bytesToDataUrl(compact, "image/jpeg"), bytes };
   } catch {
     try {
-      return await getSignedUrl(r2(), new GetObjectCommand({ Bucket: bucket, Key: key }), {
+      const imageUrl = await getSignedUrl(r2(), new GetObjectCommand({ Bucket: bucket, Key: key }), {
         expiresIn: BRIEF_IMAGE_EXPIRES_S,
       });
+      return { imageUrl, bytes };
     } catch {
       return null;
     }
   }
+}
+
+/** Compact JPEG data URL for vision, or a short-lived signed GET if the object cannot be read. */
+export async function w640ImageUrl(itemId: string): Promise<string | null> {
+  return (await readW640Image(itemId))?.imageUrl ?? null;
 }
 
 function stubJob(): BriefJob {
@@ -153,17 +161,20 @@ export async function runBriefJob(itemId: string, { retry = false } = {}): Promi
   }
   const filled = await filledHexes(itemId).catch(() => new Set<string>());
   try {
-    const imageUrl = await w640ImageUrl(itemId);
-    if (!imageUrl) throw new Error("brief image missing");
+    const image = await readW640Image(itemId);
+    if (!image) throw new Error("brief image missing");
     const parsed = await requestBriefCompletionWithRetry({
-      imageUrl,
+      imageUrl: image.imageUrl,
       keptHexes: [...filled],
       apiKey: key,
       baseUrl: base,
       model,
     });
-    const namedColors = parseNamedColors(parsed.namedColors, parsed.namedHexes).filter(
-      (c) => !filled.has(c.hex.toLowerCase()),
+    const regions = image.bytes
+      ? await extractPalette(image.bytes).then((palette) => palette.regions).catch(() => [])
+      : [];
+    const namedColors = snapNamedColors(
+      parseNamedColors(parsed.namedColors, parsed.namedHexes), regions, filled,
     );
     const ready = jobPayload({
       status: "ready",

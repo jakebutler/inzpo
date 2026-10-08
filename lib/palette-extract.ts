@@ -32,6 +32,8 @@ export interface PaletteSwatch {
 
 export interface ExtractedPalette {
   swatches: PaletteSwatch[];
+  /** All connected region means, including components not selected for roles. */
+  regions: PaletteSwatch[];
   roles: RoleColors;
   contrast: number | null;
 }
@@ -432,7 +434,7 @@ export async function extractPalette(
     roles[swatch.role!] = swatch.hex;
     auditRegion?.(swatch, region, w, h);
   }
-  return { swatches, roles, contrast: textOnBackgroundContrast(roles) };
+  return { swatches, regions: candidates, roles, contrast: textOnBackgroundContrast(roles) };
 }
 
 export async function areaAverage(

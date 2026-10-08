@@ -37,6 +37,14 @@ describe("chip labels", () => {
     expect(parseNamedColors([{ hex: "not-a-color", label: "fog" }, { hex: "#gg0000", label: "bad" }])).toEqual([]);
     expect(parseNamedColors(["c9c9c4", "nope"])).toEqual([{ hex: "#c9c9c4", label: null }]);
   });
+
+  it("preserves measured pins on stored suggestions and ignores invalid positions", () => {
+    const named = { hex: "#c6c09a", label: "yellow siding" };
+    expect(parseNamedColors([{ ...named, pinX: 0.2, pinY: 0.3 }])).toEqual([{ ...named, pinX: 0.2, pinY: 0.3 }]);
+    for (const pin of [{ pinX: -0.1, pinY: 0.3 }, { pinX: 0.2, pinY: 1.1 }, { pinX: NaN, pinY: 0.3 }, { pinX: 0.2 }]) {
+      expect(parseNamedColors([{ ...named, ...pin }])).toEqual([named]);
+    }
+  });
 });
 
 describe("empty role copy", () => {

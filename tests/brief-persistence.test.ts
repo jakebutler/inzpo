@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
   generate: vi.fn(),
   persistTitle: vi.fn(),
   revalidatePath: vi.fn(),
+  extractPalette: vi.fn(),
+  readImage: vi.fn(),
+  signedUrl: vi.fn(),
 }));
 
 vi.mock("@/lib/r2", async (importOriginal) => ({
@@ -33,6 +36,11 @@ vi.mock("@/lib/brief-request", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/brief-request")>(),
   requestBriefCompletionWithRetry: mocks.generate,
 }));
+vi.mock("@/lib/palette-extract", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/palette-extract")>(),
+  extractPalette: mocks.extractPalette,
+}));
+vi.mock("@aws-sdk/s3-request-presigner", () => ({ getSignedUrl: mocks.signedUrl }));
 
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { GET, POST } from "@/app/api/briefs/[id]/route";
@@ -40,6 +48,7 @@ import { readBriefJob, runBriefJob, startBriefJob, writeBriefJob, type BriefJob 
 import { briefKey } from "@/lib/r2";
 import { itemColors } from "@/lib/db/schema";
 import { BriefTimeoutError } from "@/lib/brief-request";
+import { hexToLab } from "@/lib/color-distance";
 
 const ready: BriefJob = {
   status: "ready",
@@ -51,6 +60,7 @@ const ready: BriefJob = {
 };
 let stored: BriefJob | null;
 let writes: number;
+let image: Buffer;
 
 beforeEach(async () => {
   vi.clearAllMocks();
@@ -58,8 +68,11 @@ beforeEach(async () => {
   vi.stubEnv("R2_BUCKET", "test-bucket");
   stored = structuredClone(ready);
   writes = 0;
-  const image = await sharp({ create: { width: 1, height: 1, channels: 3, background: "#f3eee4" } })
+  image = await sharp({ create: { width: 1, height: 1, channels: 3, background: "#f3eee4" } })
     .jpeg().toBuffer();
+  mocks.readImage.mockResolvedValue(image);
+  mocks.extractPalette.mockResolvedValue({ regions: [] });
+  mocks.signedUrl.mockResolvedValue("https://storage.test/kit/w640.webp");
   mocks.send.mockImplementation(async (command) => {
     if (command instanceof PutObjectCommand && command.input.Key === briefKey("kit")) {
       stored = JSON.parse(String(command.input.Body));
@@ -71,7 +84,7 @@ beforeEach(async () => {
       return { Body: { transformToString: async () => JSON.stringify(stored) } };
     }
     if (command instanceof GetObjectCommand && command.input.Key === "items/kit/w640.webp") {
-      return { Body: { transformToByteArray: async () => image } };
+      return { Body: { transformToByteArray: mocks.readImage } };
     }
     throw new Error("Unexpected storage access");
   });
@@ -94,6 +107,57 @@ function request(retry = false) {
 const params = () => ({ params: Promise.resolve({ id: "kit" }) });
 
 describe("brief persistence", () => {
+  it.each([false, true])("stores only snapped region hexes, including legacy model output (hex fallback: %s)", async (fallback) => {
+    stored = null;
+    const modelHex = "#e9e388";
+    const region = { hex: "#c6c09a", lab: hexToLab("#c6c09a"), patch: 0.1, pinX: 0.2, pinY: 0.3 };
+    mocks.extractPalette.mockResolvedValue({ swatches: [], regions: [region] });
+    mocks.select.mockReturnValue({ from: () => ({ where: async () => [
+      { hex: "#1c1b19", role: "text", origin: "region", pinX: 0.1, pinY: 0.1 },
+    ] }) });
+    mocks.generate.mockResolvedValue({ text: "Yellow siding over shade.", namedColors: fallback ? undefined : [{ hex: modelHex, label: "yellow siding" }], namedHexes: [modelHex] });
+
+    const job = await runBriefJob("kit");
+    expect(job.status).toBe("ready");
+    expect(stored).toMatchObject({
+      namedColors: [{ hex: region.hex, label: fallback ? null : "yellow siding", pinX: 0.2, pinY: 0.3 }],
+      namedHexes: [region.hex],
+    });
+    expect(JSON.stringify(stored)).not.toContain(modelHex);
+    expect(await readBriefJob("kit")).toEqual(job);
+    expect(mocks.extractPalette).toHaveBeenCalledExactlyOnceWith(image);
+    expect(mocks.readImage).toHaveBeenCalledTimes(1);
+    expect(mocks.send.mock.calls.filter(([command]) => command instanceof GetObjectCommand && command.input.Key === "items/kit/w640.webp")).toHaveLength(1);
+    expect(mocks.generate).toHaveBeenCalledWith(expect.objectContaining({ imageUrl: expect.stringMatching(/^data:image\/jpeg;base64,/), keptHexes: ["#1c1b19"] }));
+    expect(mocks.signedUrl).not.toHaveBeenCalled();
+  });
+
+  it("hides snapped siding near any current filled role in the stored job", async () => {
+    stored = null;
+    mocks.select.mockReturnValue({ from: () => ({ where: async () => [
+      { hex: "#1c1b19", role: "text", origin: "sampled" },
+      { hex: "#d1cb9e", role: "primary", origin: "sampled" },
+    ] }) });
+    mocks.extractPalette.mockResolvedValue({ regions: [{ hex: "#c6c09a", lab: hexToLab("#c6c09a"), patch: 0.1, pinX: 0.2, pinY: 0.3 }] });
+    mocks.generate.mockResolvedValue({ text: "Yellow siding over shade.", namedColors: [{ hex: "#e9e388", label: "yellow siding" }], namedHexes: [] });
+    await runBriefJob("kit");
+    expect(stored).toMatchObject({ status: "ready", namedColors: [], namedHexes: [] });
+  });
+
+  it.each(["empty", "extraction error", "missing image"])("drops model colours when sampling is unavailable (%s)", async (failure) => {
+    stored = null;
+    if (failure === "extraction error") mocks.extractPalette.mockRejectedValue(new Error("Cannot extract"));
+    if (failure === "missing image") mocks.readImage.mockRejectedValue(new Error("Not found"));
+    mocks.generate.mockResolvedValue({ text: "Yellow siding over shade.", namedColors: [{ hex: "#e9e388", label: "yellow siding" }], namedHexes: ["#e9e388"] });
+    const job = await runBriefJob("kit");
+    expect(job).toMatchObject({ status: "ready", namedColors: [], namedHexes: [] });
+    expect(stored).toEqual(job);
+    if (failure === "missing image") {
+      expect(mocks.extractPalette).not.toHaveBeenCalled();
+      expect(mocks.generate).toHaveBeenCalledWith(expect.objectContaining({ imageUrl: "https://storage.test/kit/w640.webp" }));
+    }
+  });
+
   it("stores contrast fix provenance and no fabricated text pin without changing the brief", async () => {
     const form = new FormData();
     form.set("itemId", "kit");
