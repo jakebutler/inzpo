@@ -156,6 +156,9 @@ async function flow(browser: Browser, vp: Viewport, label: string, authenticated
     const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height },
       deviceScaleFactor: 2, isMobile: true, hasTouch: true, reducedMotion: "no-preference", serviceWorkers: "block" });
     try {
+      // tsx/esbuild keepNames wraps named functions in __name(); page.evaluate
+      // bodies run in the browser where that helper does not exist.
+      await context.addInitScript({ content: "globalThis.__name = globalThis.__name || ((f) => f);" });
       await context.addInitScript(() => {
         const style = document.createElement("style");
         style.textContent = "nextjs-portal{display:none!important}";
