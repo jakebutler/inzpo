@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition, type MutableRefObject } from "react";
+import { useRef, useState, useTransition, type MutableRefObject, type ReactNode } from "react";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { hexWithoutHash, isHexColor, normalizeHex } from "@/lib/colors";
 import { MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
@@ -34,6 +34,7 @@ export function TokenEditor({
   pageInk = INK,
   bandRefs,
   onFocusRole,
+  children,
 }: {
   itemId: string;
   imageSrc: string | null;
@@ -45,6 +46,7 @@ export function TokenEditor({
   pageInk?: string;
   bandRefs?: MutableRefObject<Array<HTMLButtonElement | null>>;
   onFocusRole?: (role: ColorRole | null) => void;
+  children?: ReactNode;
 }) {
   const [roles, setRoles] = useState(() => rolesFromColors(colors));
   const [pins, setPins] = useState<Partial<Record<ColorRole, { pinX: number; pinY: number }>>>(() => {
@@ -137,6 +139,7 @@ export function TokenEditor({
           bandRefs={bandRefs}
         />
       </div>
+      {children}
       {chips.length > 0 ? (
         <div className="mt-3 flex flex-col gap-2 px-5">
           {chips.map((color) => {

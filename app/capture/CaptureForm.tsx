@@ -91,7 +91,7 @@ export function CaptureForm({
   }
 
   return (
-    <form ref={formRef} action={capture} className="pb-4">
+    <form ref={formRef} action={capture} className="pb-[calc(9.5rem+env(safe-area-inset-bottom,0px))]">
       <CaptureMascotLayer firstOpen={firstOpen} hasSubstance={hasSubstance} uploading={uploading} />
       <input
         ref={cameraRef}

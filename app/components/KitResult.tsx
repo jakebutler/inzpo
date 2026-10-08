@@ -363,40 +363,41 @@ export function KitResult({
         pageInk={pageInk}
         initialOpen={preview?.openRole ?? null}
         onFocusRole={setFocusedRole}
-      />
-      <span data-stripe-count={stripeCount} className="sr-only">
-        {stripeCount} stripes
-      </span>
-      <BriefSlot
-        status={brief.status}
-        kit={kit}
-        note={brief.stub ? null : brief.text}
-        hidden={hideBrief}
-        saved={saved}
-        stripeReveal={stripeCount}
-        pageBackground={pageBg}
-        pageInk={pageInk}
-        onRetry={() => {
-          kicked.current = true;
-          void fetch(`/api/briefs/${itemId}`, { method: "POST" }).then(async (res) => {
-            if (!res.ok) return;
-            const job = (await res.json()) as {
-              status: BriefSlotStatus;
-              text: string | null;
-              namedHexes?: string[];
-              namedColors?: unknown;
-              stub?: boolean;
-            };
-            setBrief({
-              status: job.status,
-              text: job.text,
-              namedColors: parseNamedColors(job.namedColors, job.namedHexes ?? []),
-              stub: job.stub === true,
+      >
+        <span data-stripe-count={stripeCount} className="sr-only">
+          {stripeCount} stripes
+        </span>
+        <BriefSlot
+          status={brief.status}
+          kit={kit}
+          note={brief.stub ? null : brief.text}
+          hidden={hideBrief}
+          saved={saved}
+          stripeReveal={stripeCount}
+          pageBackground={pageBg}
+          pageInk={pageInk}
+          onRetry={() => {
+            kicked.current = true;
+            void fetch(`/api/briefs/${itemId}`, { method: "POST" }).then(async (res) => {
+              if (!res.ok) return;
+              const job = (await res.json()) as {
+                status: BriefSlotStatus;
+                text: string | null;
+                namedHexes?: string[];
+                namedColors?: unknown;
+                stub?: boolean;
+              };
+              setBrief({
+                status: job.status,
+                text: job.text,
+                namedColors: parseNamedColors(job.namedColors, job.namedHexes ?? []),
+                stub: job.stub === true,
+              });
             });
-          });
-        }}
-      />
-      <ContrastAa roles={roles} />
+          }}
+        />
+        <ContrastAa roles={roles} />
+      </TokenEditor>
       {tileSrc ? (
         <section className="mt-5 px-5">
           <div
