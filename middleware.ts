@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { isClerkConfigured } from "@/lib/auth/clerk-configured";
+import { isDevAuthBypassEnabled } from "@/lib/auth/dev-bypass";
 
 const isPublicRoute = createRouteMatcher([
   "/login(.*)",
@@ -25,6 +26,7 @@ const clerkHandler = clerkMiddleware(async (auth, request) => {
 });
 
 export default function middleware(request: NextRequest, event: unknown) {
+  if (isDevAuthBypassEnabled()) return NextResponse.next();
   if (!isClerkConfigured()) {
     if (isPublicRoute(request)) return NextResponse.next();
     return loginRedirect(request);

@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/app/components/SubmitButton";
 import { CaptureMascotLayer } from "@/app/components/CaptureMascotLayer";
+import { prepareUploadFile } from "@/lib/client-image";
+import { MOTION, prefersReducedMotion as motionPrefersReduce } from "@/lib/motion";
 import { capture } from "./actions";
 import { TagTray, type TrayFacet } from "./TagTray";
 import { autoTagsFor, relevantFacetsFor } from "@/lib/relevance";
@@ -16,8 +18,7 @@ import type { ItemKind } from "@/lib/db/schema";
 
 gsap.registerPlugin(useGSAP);
 
-const prefersReducedMotion = () =>
-  typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const prefersReducedMotion = () => motionPrefersReduce();
 
 interface Preview {
   kind: ItemKind;
@@ -59,6 +60,9 @@ export function CaptureForm({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [uploadKey, setUploadKey] = useState<string | null>(shareToken);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -74,19 +78,51 @@ export function CaptureForm({
     () => {
       if (!hasSubstance) return;
       if (prefersReducedMotion()) return; // content simply appears
-      gsap.from("[data-stage='preview-card']", { opacity: 0, y: 24, duration: 0.4, ease: "power3.out" });
-      gsap.from("[data-stage='tray-label']", { opacity: 0, y: 10, duration: 0.3, ease: "power3.out", delay: 0.15 });
+      gsap.from("[data-stage='preview-card']", { opacity: 0, y: 24, duration: MOTION.enter.duration, ease: MOTION.enter.ease });
+      gsap.from("[data-stage='tray-label']", { opacity: 0, y: 10, duration: MOTION.small.duration, ease: MOTION.enter.ease, delay: 0.15 });
     },
     { scope: stageRef, dependencies: [hasSubstance, preview?.kind, file?.name] },
   );
 
-  function pick(next: File | null) {
+  async function pick(next: File | null) {
     setFile(next);
+    setUploadKey(shareToken);
+    setUploadError(null);
     setFileUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return next && next.type.startsWith("image/") ? URL.createObjectURL(next) : null;
     });
     setPreview(null);
+    if (!next) return;
+    setUploading(true);
+    try {
+      const prepared = await prepareUploadFile(next);
+      if (prepared.mime === "image/jpeg" && prepared.blob !== next) {
+        setFileUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return URL.createObjectURL(prepared.blob);
+        });
+      }
+      const res = await fetch("/api/uploads/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType: prepared.mime, bytes: prepared.blob.size }),
+      });
+      if (!res.ok) throw new Error("Could not start upload");
+      const signed = (await res.json()) as { url: string; key: string; contentType: string };
+      const put = await fetch(signed.url, {
+        method: "PUT",
+        headers: { "Content-Type": signed.contentType },
+        body: prepared.blob,
+      });
+      if (!put.ok) throw new Error("Upload failed");
+      setUploadKey(signed.key);
+    } catch {
+      setUploadError("That photo could not be uploaded. Try another.");
+      setUploadKey(null);
+    } finally {
+      setUploading(false);
+    }
   }
 
   function onUrlChange(value: string) {
@@ -125,16 +161,22 @@ export function CaptureForm({
 
   return (
     <form action={capture} className="pb-4">
-      <CaptureMascotLayer firstOpen={firstOpen} hasSubstance={hasSubstance} />
+      <CaptureMascotLayer firstOpen={firstOpen} hasSubstance={hasSubstance} uploading={uploading} />
       <input
         ref={inputRef}
         type="file"
-        name="image"
-        accept="image/*"
+        accept="image/*,.heic,.heif"
         className="hidden"
-        onChange={(e) => pick(e.target.files?.[0] ?? null)}
+        onChange={(e) => void pick(e.target.files?.[0] ?? null)}
       />
-      {shareToken ? <input type="hidden" name="shareToken" value={shareToken} /> : null}
+      {uploadKey ? <input type="hidden" name="uploadKey" value={uploadKey} /> : null}
+      {file ? <input type="hidden" name="filename" value={file.name} /> : null}
+      {shareToken && !uploadKey ? <input type="hidden" name="shareToken" value={shareToken} /> : null}
+      {uploadError ? (
+        <p role="alert" className="mt-3 text-sm text-destructive">
+          {uploadError}
+        </p>
+      ) : null}
 
       <div className="relative">
       <div className="flex gap-2">
@@ -205,7 +247,7 @@ export function CaptureForm({
             onDrop={(e) => {
               e.preventDefault();
               setDragging(false);
-              pick(e.dataTransfer.files?.[0] ?? null);
+              void pick(e.dataTransfer.files?.[0] ?? null);
             }}
             className={`flex min-h-[180px] w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${
               dragging ? "border-ring bg-accent" : "border-border bg-card hover:border-muted-foreground/40"
@@ -221,7 +263,12 @@ export function CaptureForm({
       )}
 
       <div className="sticky bottom-0 -mx-6 mt-6 border-t border-border bg-background/95 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
-        <SubmitButton size="lg" className="h-12 w-full rounded-xl text-base font-medium" pendingLabel="Saving…">
+        <SubmitButton
+          size="lg"
+          className="h-12 w-full rounded-xl text-base font-medium"
+          pendingLabel="Saving…"
+          disabled={uploading || (!uploadKey && !shareToken && !file && !urlDraft.trim())}
+        >
           Save
         </SubmitButton>
       </div>

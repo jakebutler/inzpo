@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { processImage, exceedsPixelBudget, MAX_INPUT_PIXELS, MAX_INPUT_DIMENSION, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
+import { processImage, exceedsPixelBudget, MAX_INPUT_PIXELS, MAX_INPUT_DIMENSION, MAX_STORE_EDGE, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
 import { MEDIA_VARIANTS } from "@/lib/r2";
 
 async function testImage(width: number, height: number, format: "png" | "jpeg" = "png"): Promise<Buffer> {
@@ -9,32 +9,77 @@ async function testImage(width: number, height: number, format: "png" | "jpeg" =
 }
 
 describe("processImage", () => {
-  it("produces the fixed variant set, placeholder, and true metadata", async () => {
+  it("stores a jpeg at most 2000px on the long edge, plus the fixed variant set", async () => {
     const input = await testImage(2000, 1200);
     const id = "01TESTITEM";
     const result = await processImage(input, id);
 
     expect(result.width).toBe(2000);
     expect(result.height).toBe(1200);
-    expect(result.mime).toBe("image/png");
-    expect(result.ext).toBe("png");
+    expect(result.mime).toBe("image/jpeg");
+    expect(result.ext).toBe("jpg");
     expect(result.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(Object.keys(result.variants).sort()).toEqual([...MEDIA_VARIANTS].sort());
+
+    const stored = await sharp(result.original).metadata();
+    expect(stored.format).toBe("jpeg");
+    expect(stored.space).toBe("srgb");
 
     for (const [name, variant] of Object.entries(result.variants)) {
       expect(variant.key).toBe(`items/${id}/${name}.webp`);
       const meta = await sharp(variant.buffer).metadata();
       expect(meta.format).toBe("webp");
-      expect(meta.width).toBe(Math.min(2000, parseInt(name.slice(1), 10)));
+      expect(meta.width).toBe(Math.min(result.width, parseInt(name.slice(1), 10)));
     }
 
     const tall = await processImage(await testImage(1200, 1600, "jpeg"), id);
     expect(tall.ext).toBe("jpg");
+    expect(tall.width).toBe(1200);
+    expect(tall.height).toBe(1600);
     expect(tall.placeholder).toMatch(/^data:image\/webp;base64,/);
+  });
+
+  it("downscales a larger original to the 2000px store copy", async () => {
+    const input = await testImage(6000, 4000);
+    const result = await processImage(input, "x");
+    expect(result.width).toBe(MAX_STORE_EDGE);
+    expect(result.height).toBe(Math.round((4000 * MAX_STORE_EDGE) / 6000));
+    expect(result.mime).toBe("image/jpeg");
+  });
+
+  it("does not enlarge a small original", async () => {
+    const input = await testImage(800, 600);
+    const result = await processImage(input, "x");
+    expect(result.width).toBe(800);
+    expect(result.height).toBe(600);
   });
 
   it("rejects non-images", async () => {
     await expect(processImage(Buffer.from("definitely not an image"), "x")).rejects.toThrow();
+  });
+});
+
+describe("P3 to sRGB", () => {
+  it("converts through the embedded Display P3 profile and stores sRGB jpeg", async () => {
+    const p3 = await sharp({
+      create: { width: 16, height: 16, channels: 3, background: { r: 255, g: 32, b: 64 } },
+    })
+      .withIccProfile("p3")
+      .png()
+      .toBuffer();
+
+    const tagged = await sharp(p3).keepIccProfile().metadata();
+    expect((tagged.icc?.byteLength ?? tagged.icc?.length ?? 0) > 0).toBe(true);
+
+    const converted = await sharp(p3).toColourspace("srgb").resize(16, 16).removeAlpha().raw().toBuffer();
+    const result = await processImage(p3, "p3");
+    expect(result.mime).toBe("image/jpeg");
+    const outMeta = await sharp(result.original).metadata();
+    expect(outMeta.format).toBe("jpeg");
+    expect(outMeta.space).toBe("srgb");
+    const stored = await sharp(result.original).resize(16, 16).removeAlpha().raw().toBuffer();
+    const delta = stored.reduce((sum, value, i) => sum + Math.abs(value - converted[i]!), 0);
+    expect(delta).toBeLessThan(16 * 16 * 3 * 8);
   });
 });
 
@@ -51,6 +96,7 @@ describe("pixel budget caps", () => {
     expect(exceedsPixelBudget(MAX_INPUT_DIMENSION, 1000)).toBe(false);
     expect(MAX_INPUT_PIXELS).toBe(40_000_000);
     expect(MAX_INPUT_DIMENSION).toBe(12_000);
+    expect(MAX_STORE_EDGE).toBe(2000);
   });
 
   it("processImage rejects an oversized sharp-generated buffer", async () => {
@@ -63,11 +109,11 @@ describe("pixel budget caps", () => {
     await expect(processImage(wide, "x")).rejects.toThrow(/too large/i);
   });
 
-  it("processImage still accepts an image just under both caps", async () => {
+  it("processImage still accepts an image just under both caps and stores 2000px", async () => {
     const ok = await sharp({ create: { width: 6000, height: 4000, channels: 3, background: { r: 120, g: 40, b: 200 } } }).png().toBuffer();
     const result = await processImage(ok, "x");
-    expect(result.width).toBe(6000);
-    expect(result.height).toBe(4000);
+    expect(result.width).toBe(2000);
+    expect(result.height).toBe(1333);
   });
 });
 

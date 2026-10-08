@@ -8,22 +8,27 @@ import { attachTags, parseTagSelection } from "@/lib/ontology";
 import { isHttpUrl } from "@/lib/url";
 import { r2, GetObjectCommand, DeleteObjectCommand } from "@/lib/r2";
 import { requireOwnerId } from "@/lib/auth/owner";
+import { isReadableUploadKey, MAX_UPLOAD_BYTES } from "@/lib/uploads";
 
 export async function capture(formData: FormData): Promise<void> {
   const ownerId = await requireOwnerId();
   const file = formData.get("image");
   const rawUrl = ((formData.get("url") as string) ?? "").trim();
   const shareToken = ((formData.get("shareToken") as string) ?? "").trim();
+  const uploadKey = ((formData.get("uploadKey") as string) ?? "").trim() || shareToken;
   const tags = parseTagSelection(formData.get("tags"));
 
-  if (shareToken.startsWith("tmp/") && !shareToken.includes("..")) {
+  if (uploadKey && isReadableUploadKey(ownerId, uploadKey)) {
     let itemId: string;
     try {
-      const result = await r2().send(new GetObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: shareToken }));
+      const result = await r2().send(new GetObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: uploadKey }));
+      const length = result.ContentLength ?? 0;
+      if (length > MAX_UPLOAD_BYTES) redirect("/capture?error=bad-image");
       const buffer = Buffer.from(await result.Body!.transformToByteArray());
-      itemId = await createImageItem({ ownerId, buffer, filename: "shared-image" });
+      const filename = ((formData.get("filename") as string) ?? "").trim() || "shared-image";
+      itemId = await createImageItem({ ownerId, buffer, filename });
       await attachTags(ownerId, itemId, tags);
-      await r2().send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: shareToken }));
+      await r2().send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: uploadKey }));
       revalidatePath("/");
     } catch {
       redirect("/capture?error=capture-failed");
@@ -31,7 +36,7 @@ export async function capture(formData: FormData): Promise<void> {
     redirect(`/capture?saved=${itemId}`);
   }
 
-  if (file instanceof File && file.size > 0) {
+  if (file instanceof File && file.size > 0 && file.size <= MAX_UPLOAD_BYTES) {
     const buffer = Buffer.from(await file.arrayBuffer());
     let itemId: string;
     try {

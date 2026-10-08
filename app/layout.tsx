@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "@/components/ui/sonner";
 import { isClerkConfigured } from "@/lib/auth/clerk-configured";
-import { claimLegacyIfNeeded } from "@/lib/auth/owner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,6 +17,7 @@ export const viewport: Viewport = {
 };
 
 async function LegacyClaim() {
+  const { claimLegacyIfNeeded } = await import("@/lib/auth/owner");
   await claimLegacyIfNeeded();
   return null;
 }

@@ -8,11 +8,14 @@ import { MascotStage } from "./MascotStage";
 export function CaptureMascotLayer({
   firstOpen,
   hasSubstance,
+  uploading = false,
 }: {
   firstOpen: boolean;
   hasSubstance: boolean;
+  uploading?: boolean;
 }) {
   const { pending } = useFormStatus();
+  const waiting = pending || uploading;
   const [met, setMet] = useState(true);
 
   useEffect(() => {
@@ -20,13 +23,13 @@ export function CaptureMascotLayer({
   }, []);
 
   useEffect(() => {
-    if (!pending && !hasSubstance) return;
+    if (!waiting && !hasSubstance) return;
     if (window.localStorage.getItem(BAKU_MET_STORAGE_KEY) === "1") return;
     window.localStorage.setItem(BAKU_MET_STORAGE_KEY, "1");
     setMet(true);
-  }, [pending, hasSubstance]);
+  }, [waiting, hasSubstance]);
 
-  if (pending) {
+  if (waiting) {
     return <MascotStage moment="upload" snapReady className="mt-4" />;
   }
 

@@ -4,12 +4,15 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { boards, collections, facets, freeTags, items, smartCollections } from "@/lib/db/schema";
 import { isClerkConfigured } from "@/lib/auth/clerk-configured";
+import { devOwnerId } from "@/lib/auth/dev-bypass";
 import { LEGACY_OWNER_ID, ownerClause } from "@/lib/auth/owner-ids";
 
 export { isClerkConfigured, LEGACY_OWNER_ID, ownerClause };
 export { ownerIdsFor, ownerSql } from "@/lib/auth/owner-ids";
 
 export async function requireOwnerId(): Promise<string> {
+  const bypass = devOwnerId();
+  if (bypass) return bypass;
   if (!isClerkConfigured()) redirect("/login");
   const { userId } = await auth();
   if (!userId) redirect("/login");
@@ -17,6 +20,8 @@ export async function requireOwnerId(): Promise<string> {
 }
 
 export async function optionalOwnerId(): Promise<string | null> {
+  const bypass = devOwnerId();
+  if (bypass) return bypass;
   if (!isClerkConfigured()) return null;
   const { userId } = await auth();
   return userId ?? null;

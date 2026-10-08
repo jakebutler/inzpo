@@ -210,7 +210,7 @@ export async function createImageItem(input: {
       placeholder: processed.placeholder,
     });
 
-    const extracted = await extractColors(input.buffer);
+    const extracted = await extractColors(processed.original);
     if (extracted.length > 0) {
       await db.insert(itemColors).values(
         extracted.map((c, index) => ({
