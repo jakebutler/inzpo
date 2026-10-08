@@ -12,6 +12,7 @@ import {
   bakuV6ColorSrc,
   bakuV6ShadeSrc,
   type BakuDensity,
+  type BakuAssetSize,
   type BakuSrcPose,
 } from "@/lib/baku-v6";
 import { tintRoles, tintSpriteWithBands } from "@/lib/baku-tint";
@@ -32,12 +33,13 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 async function composeTint(
   pose: BakuSrcPose,
   density: BakuDensity,
+  assetSize: BakuAssetSize,
   colors: Array<string | null>,
 ): Promise<string> {
   const [spriteImg, bandImg, shadeImg] = await Promise.all([
-    loadImage(bakuV6ColorSrc(pose, density)),
-    loadImage(bakuV6BandsSrc(pose, density)),
-    loadImage(bakuV6ShadeSrc(pose, density)),
+    loadImage(bakuV6ColorSrc(pose, density, assetSize)),
+    loadImage(bakuV6BandsSrc(pose, density, assetSize)),
+    loadImage(bakuV6ShadeSrc(pose, density, assetSize)),
   ]);
   if ([bandImg, shadeImg].some((img) => img.naturalWidth !== spriteImg.naturalWidth || img.naturalHeight !== spriteImg.naturalHeight)) {
     throw new Error("Baku tint assets must match the colour sprite dimensions");
@@ -75,6 +77,7 @@ export function BakuSprite({
   pose,
   kit,
   size,
+  assetSize = 48,
   revealedCount = null,
   faceText = false,
   forcePoseAsset = false,
@@ -83,6 +86,7 @@ export function BakuSprite({
   pose: BakuSrcPose;
   kit?: MascotKit | null;
   size: number;
+  assetSize?: BakuAssetSize;
   revealedCount?: number | null;
   faceText?: boolean;
   ground?: string;
@@ -90,12 +94,11 @@ export function BakuSprite({
   fallback: ReactNode;
 }) {
   const colors = kitForPose(pose as "idle" | "chewing" | "success" | "empty" | "error-brief" | "error-unreadable" | "404" | "error-photo", kit);
-  const density = bakuDensity(useDensity() * Math.max(1, size / 48));
+  const density = bakuDensity(useDensity() * Math.max(1, size / assetSize));
   const canTint = bakuCanTint(pose) && !forcePoseAsset;
   const paletteKey = COLOR_ROLES.map((role) => colors[role] ?? "").join(",");
-  const tintKey = `${pose}:${density}:${canTint}:${paletteKey}`;
-  const baseSrc = bakuV6ColorSrc(pose, density);
-  const squashRef = useRef<HTMLDivElement>(null);
+  const tintKey = `${pose}:${assetSize}:${density}:${canTint}:${paletteKey}`;
+  const baseSrc = bakuV6ColorSrc(pose, density, assetSize);
   const bodyRef = useRef<HTMLImageElement>(null);
   const [pngFailed, setPngFailed] = useState(false);
   const [tinted, setTinted] = useState<{ key: string; src: string } | null>(null);
@@ -105,7 +108,7 @@ export function BakuSprite({
     setPngFailed(false);
     setTinted(null);
     setTintFailed(null);
-  }, [pose, density, canTint]);
+  }, [pose, assetSize, density, canTint]);
 
   useEffect(() => {
     if (!canTint || pngFailed) {
@@ -114,7 +117,7 @@ export function BakuSprite({
     }
     let alive = true;
     const roles = tintRoles(colors, revealedCount);
-    void composeTint(pose, density, roles)
+    void composeTint(pose, density, assetSize, roles)
       .then((url) => {
         if (!alive) return;
         setTinted({ key: tintKey, src: url });
@@ -130,11 +133,12 @@ export function BakuSprite({
     };
     // paletteKey stands in for kit colors so we do not re-tint every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canTint, pngFailed, pose, density, paletteKey, tintKey, revealedCount]);
+  }, [canTint, pngFailed, pose, assetSize, density, paletteKey, tintKey, revealedCount]);
 
   useGSAP(
     () => {
-      const el = bodyRef.current ?? squashRef.current;
+      // Keep first-frame oatmeal in the loading SVG fully visible.
+      const el = bodyRef.current;
       if (!el || prefersReducedMotion()) return;
       gsap.fromTo(el, { opacity: 0.35 }, { opacity: 1, duration: BAKU_CROSSFADE_MS / 1000, ease: "power2.out" });
     },
@@ -148,7 +152,7 @@ export function BakuSprite({
   const showPng = !pngFailed && (!canTint || tintedSrc != null || failedTint);
 
   const failPng = () => {
-    if (canTint && src !== bakuV6ColorSrc(pose, density)) {
+    if (canTint && src !== bakuV6ColorSrc(pose, density, assetSize)) {
       setTintFailed(tintKey);
       return;
     }
@@ -169,7 +173,7 @@ export function BakuSprite({
         height: size,
       }}
     >
-      <div ref={squashRef} className="relative h-full w-full">
+      <div className="relative h-full w-full">
         {showPng ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}

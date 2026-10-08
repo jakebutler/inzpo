@@ -64,7 +64,7 @@ export function BriefSlot({
         data-brief-slot
         style={{ minHeight: BRIEF_SLOT_MIN_PX }}
       >
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
           <div
             data-baku-slot
             style={{
@@ -72,11 +72,11 @@ export function BriefSlot({
               height: MASCOT_SIZE_BRIEF_PX,
               flex: "0 0 auto",
               display: "flex",
-              alignItems: "flex-end",
+              alignItems: "center",
               justifyContent: "flex-start",
             }}
           >
-            <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText ground={pageBackground} />
+            <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} assetSize={72} revealedCount={stripeReveal} faceText ground={pageBackground} />
           </div>
         </div>
       </section>
@@ -84,7 +84,7 @@ export function BriefSlot({
   }
 
   const body = (
-    <div className="flex items-start gap-3">
+    <div className="flex items-center gap-3">
       <div
         data-baku-slot
         style={{
@@ -92,13 +92,13 @@ export function BriefSlot({
           height: MASCOT_SIZE_BRIEF_PX,
           flex: "0 0 auto",
           display: "flex",
-          alignItems: "flex-end",
+          alignItems: "center",
           justifyContent: "flex-start",
         }}
       >
-        <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText ground={pageBackground} />
+        <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} assetSize={72} revealedCount={stripeReveal} faceText ground={pageBackground} />
       </div>
-      <div className="min-w-0 flex-1 pt-0.5">
+      <div className="min-w-0 flex-1">
         {status === "pending" && !saved ? (
           <span data-brief-skeleton aria-hidden="true" className="mt-2 block h-2 w-32 rounded" style={{ backgroundColor: ink, opacity: 0.12 }} />
         ) : shown ? (

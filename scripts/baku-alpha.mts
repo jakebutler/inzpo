@@ -136,37 +136,45 @@ export function verifySprite(input: Uint8Array, output: Uint8Array, bands: Uint8
   for (const p of [0, width - 1, (height - 1) * width, width * height - 1]) assert.equal(output[p * 4 + 3], 0, "Corner must be transparent");
 }
 
+const SPRITE_NAME = /^baku-(idle|chewing|success|error-brief|404|empty|error-photo)(-lg)?(-color)?@[123]x\.png$/;
+
+/** Optional legacy conversion only; build/test consume the shipped Designer originals. */
+export async function processSprite(directory: string, name: string): Promise<"skipped" | "processed"> {
+  if (!SPRITE_NAME.test(name)) return "skipped"; // Never touch bands, bandN, shade, or masks.
+  const path = join(directory, name);
+  const original = await readFile(path);
+  // Designer originals with an alpha channel are authoritative: never decode/re-encode them.
+  if ((await sharp(original).metadata()).hasAlpha) return "skipped";
+  const { data: input, info } = await sharp(original).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const bandName = name.replace(/(-color)?@/, "-bands@");
+  const { data: bands, info: bandInfo } = await sharp(join(directory, bandName)).toColourspace("b-w").raw().toBuffer({ resolveWithObject: true });
+  assert.deepEqual([bandInfo.width, bandInfo.height, bandInfo.channels], [info.width, info.height, 1]);
+  const output = removePaper(input, bands, info.width, info.height);
+  verifySprite(input, output, bands, info.width, info.height);
+  if (!output.equals(input)) {
+    const png = await sharp(output, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
+    const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    assert.deepEqual([decoded.info.width, decoded.info.height], [info.width, info.height]);
+    assert.deepEqual(decoded.data, output, "PNG encoding must be lossless");
+    verifySprite(input, decoded.data, bands, info.width, info.height);
+    assert.deepEqual(removePaper(decoded.data, bands, info.width, info.height), output, "Conversion must be idempotent");
+    await writeFile(path, png);
+    return "processed";
+  }
+  return "skipped";
+}
+
 async function main() {
   const directory = resolve(dirname(fileURLToPath(import.meta.url)), "../public/baku/v6");
-  const names = (await readdir(directory)).filter(name => /^baku-(idle|chewing|success|error-brief|404|empty|error-photo)(-color)?@[123]x\.png$/.test(name)).sort();
-  assert.equal(names.length, 42, "Expected both sprite variants for all seven poses and densities");
+  const names = (await readdir(directory)).filter(name => SPRITE_NAME.test(name)).sort();
+  let skipped = 0, processed = 0;
   for (const name of names) {
-    const path = join(directory, name);
-    const original = await readFile(path);
-    const { data: input, info } = await sharp(original).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const bandName = name.replace(/(-color)?@/, "-bands@");
-    const { data: bands, info: bandInfo } = await sharp(join(directory, bandName)).toColourspace("b-w").raw().toBuffer({ resolveWithObject: true });
-    assert.deepEqual([bandInfo.width, bandInfo.height, bandInfo.channels], [info.width, info.height, 1]);
-    const output = removePaper(input, bands, info.width, info.height);
-    verifySprite(input, output, bands, info.width, info.height);
-    const changed = !output.equals(input);
-    if (changed) {
-      const png = await sharp(output, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
-      const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-      assert.deepEqual([decoded.info.width, decoded.info.height], [info.width, info.height]);
-      assert.deepEqual(decoded.data, output, "PNG encoding must be lossless");
-      verifySprite(input, decoded.data, bands, info.width, info.height);
-      assert.deepEqual(removePaper(decoded.data, bands, info.width, info.height), output, "Conversion must be idempotent");
-      await writeFile(path, png);
-    }
-    let transparent = 0, shadow = 0;
-    for (let p = 0; p < info.width * info.height; p++) {
-      const i = p * 4, alpha = output[i + 3]!;
-      if (alpha === 0) transparent++;
-      if (Math.floor(p / info.width) >= Math.floor(info.height * (1 - BAKU_SHADOW_CLIP_PCT / 100)) && alpha > 0 && alpha <= 128 && output[i] === 0 && output[i + 1] === 0 && output[i + 2] === 0) shadow++;
-    }
-    console.log(`${name}: transparent ${(100 * transparent / (info.width * info.height)).toFixed(2)}%, shadow ${shadow} pixels${changed ? "" : " (unchanged)"}`);
+    const result = await processSprite(directory, name);
+    if (result === "skipped") skipped++;
+    else processed++;
+    console.log(`${name}: ${result}`);
   }
+  console.log(`Baku alpha: ${skipped} skipped, ${processed} processed`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) await main();

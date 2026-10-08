@@ -6,7 +6,7 @@ import { emptyKit, HANDOFF_KITS } from "@/lib/mascot";
 import { BAKU_ART_POSES, bakuV6BandMaskSrc } from "@/lib/baku-v6";
 import { BAKU_UNDYED_KNIT, shadeRoleColor, tintRoles, tintSpriteWithBands } from "@/lib/baku-tint";
 
-vi.mock("gsap", () => ({ gsap: { registerPlugin: vi.fn() } }));
+vi.mock("gsap", () => ({ gsap: { registerPlugin: vi.fn(), fromTo: vi.fn() } }));
 vi.mock("@gsap/react", () => ({ useGSAP: vi.fn() }));
 vi.mock("@/app/components/load-mascot-rive", () => ({ loadMascotRive: vi.fn() }));
 
@@ -101,6 +101,10 @@ describe("Baku rendering flag", () => {
           expect(document.querySelector("[data-baku-shadow-baked]")?.getAttribute("data-baku-shadow-baked")).toBe("1");
         }
       }
+      await React.act(async () => root.render(React.createElement(Mascot, {
+        pose: "idle", size: 72, assetSize: 72, faceText: true,
+      })));
+      expect(document.querySelector("[data-baku-body]")?.getAttribute("src")).toBe("/baku/v6/baku-idle-lg-color@1x.png");
       expect(imageLoader).not.toHaveBeenCalled();
       expect(createElement.mock.calls.some(([tag]) => tag === "canvas")).toBe(false);
       expect(tintSpy).not.toHaveBeenCalled();
@@ -110,8 +114,11 @@ describe("Baku rendering flag", () => {
     }
   });
 
-  it.each(["bands", "shade", "color"])("tints by default and falls back to the colour sprite when %s fails", async (failedAsset) => {
+  it.each(([48, 72] as const).flatMap(assetSize => ([1, 2, 3] as const).flatMap(density =>
+    ["bands", "shade", "color"].map(failedAsset => ({ assetSize, density, failedAsset })))))(
+    "$assetSize px @$density x: falls back to the matching colour sprite when $failedAsset fails", async ({ assetSize, density, failedAsset }) => {
     const { React, root, document } = await renderEnvironment();
+    Object.defineProperty(window, "devicePixelRatio", { value: density, configurable: true });
     const requests: string[] = [];
     vi.stubGlobal("Image", class {
       naturalWidth = 48;
@@ -137,11 +144,16 @@ describe("Baku rendering flag", () => {
     expect(flags.bakuCanTint("error-unreadable")).toBe(false);
     try {
       await React.act(async () => root.render(React.createElement(BakuSprite, {
-        pose: "idle", kit: HANDOFF_KITS.IMG_6208, size: 48, fallback: null,
+        pose: "idle", kit: HANDOFF_KITS.IMG_6208, size: assetSize, assetSize, faceText: true, fallback: null,
       })));
-      expect(requests).toContain("/baku/v6/baku-idle-shade@1x.png");
-      expect(requests).toContain("/baku/v6/baku-idle-bands@1x.png");
-      expect(document.querySelector("[data-baku-body]")?.getAttribute("src")).toBe("/baku/v6/baku-idle-color@1x.png");
+      const prefix = `/baku/v6/baku-idle${assetSize === 72 ? "-lg" : ""}`;
+      expect(requests).toContain(`${prefix}-shade@${density}x.png`);
+      expect(requests).toContain(`${prefix}-bands@${density}x.png`);
+      expect(requests).toContain(`${prefix}-color@${density}x.png`);
+      const body = document.querySelector("[data-baku-body]");
+      expect(body?.getAttribute("src")).toBe(`${prefix}-color@${density}x.png`);
+      expect(body?.getAttribute("width")).toBe(String(assetSize));
+      expect(body?.getAttribute("style")).toContain("scaleX(-1)");
       expect(document.querySelector("[data-baku-tinted]")?.getAttribute("data-baku-tinted")).toBe("0");
       expect(tintSpy).not.toHaveBeenCalled();
     } finally {
@@ -182,6 +194,46 @@ describe("Baku rendering flag", () => {
           expect(document.querySelector("animate")).toBeNull();
         }
       }
+    } finally {
+      await unmount(root, React.act);
+    }
+  });
+
+  it.each([1, 2, 3] as const)("uses only the large set for every brief state at DPR %s, with oatmeal on the first frame", async (density) => {
+    const { React, root, document } = await renderEnvironment();
+    Object.defineProperty(window, "devicePixelRatio", { value: density, configurable: true });
+    const requests: string[] = [];
+    vi.stubGlobal("Image", class { set src(src: string) { requests.push(src); } });
+    const { BriefSlot } = await import("@/app/components/BriefSlot");
+    const { useGSAP } = await import("@gsap/react");
+    const { gsap } = await import("gsap");
+    const note = "Warm brick in late afternoon shade.";
+    try {
+      for (const state of [
+        { status: "ready", pose: "idle" }, { status: "pending", pose: "chewing" },
+        { status: "failed", pose: "error-brief" }, { status: "ready", hidden: true, pose: "idle" },
+        { status: "ready", saved: true, pose: "success" },
+      ] as const) {
+        await React.act(async () => root.render(React.createElement(BriefSlot, {
+          ...state, kit: HANDOFF_KITS.IMG_6208, note, stripeReveal: 0,
+        })));
+        const slot = document.querySelector("[data-baku-slot]");
+        expect(slot?.getAttribute("style")).toContain("width:72px;height:72px");
+        expect(slot?.parentElement?.className).toContain("items-center");
+        expect(document.querySelector("svg")?.getAttribute("width")).toBe("72");
+        const animate = vi.mocked(useGSAP).mock.calls.at(-1)?.[0] as (() => void) | undefined;
+        animate?.();
+        expect(gsap.fromTo).not.toHaveBeenCalled();
+        for (const role of ["accent", "surface"]) {
+          expect(document.querySelector(`.baku-stripe-${role}`)?.getAttribute("fill")).toBe(BAKU_UNDYED_KNIT);
+        }
+        for (const asset of ["color", "bands", "shade"]) {
+          expect(requests).toContain(`/baku/v6/baku-${state.pose}-lg-${asset}@${density}x.png`);
+        }
+      }
+      expect(requests.every(src => src.includes("-lg-"))).toBe(true);
+      expect(document.querySelector("[data-brief-text]")?.textContent).toBe(note);
+      expect(document.querySelector("[data-saved-caption]")?.textContent).toContain("Saved");
     } finally {
       await unmount(root, React.act);
     }

@@ -11,7 +11,7 @@ import {
   type MascotKit,
   type MascotPose,
 } from "@/lib/mascot";
-import { BAKU_TINT_ENABLED, type BakuSrcPose } from "@/lib/baku-v6";
+import { BAKU_TINT_ENABLED, type BakuSrcPose, type BakuAssetSize } from "@/lib/baku-v6";
 import { tintRoles } from "@/lib/baku-tint";
 import {
   BAKU_BODY_D,
@@ -30,6 +30,7 @@ export type MascotProps = {
   pose: MascotPose | BakuSrcPose;
   kit?: MascotKit | null;
   size?: number;
+  assetSize?: BakuAssetSize;
   /** Set true once Snap can be tapped. Loads the Rive runtime then; SVG stays up until it arrives. */
   snapReady?: boolean;
   className?: string;
@@ -47,6 +48,7 @@ export function Mascot({
   pose,
   kit,
   size = 48,
+  assetSize = 48,
   snapReady = false,
   className,
   revealedCount = null,
@@ -138,6 +140,7 @@ export function Mascot({
         pose={pose}
         kit={kit}
         size={size}
+        assetSize={assetSize}
         revealedCount={revealedCount}
         faceText={faceText}
         ground={ground}

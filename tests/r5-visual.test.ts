@@ -233,12 +233,12 @@ describe("r5 baku v6 art", () => {
     expect(multiplyGrayByHex(255, 255, 255, "#664422")).toEqual([0x66, 0x44, 0x22]);
     expect(tintRoles(HAND_OFF(), 2).filter(Boolean)).toHaveLength(2);
     expect(MASCOT_SIZE_PX).toBe(48);
-    expect(MASCOT_SIZE_BRIEF_PX).toBe(56);
+    expect(MASCOT_SIZE_BRIEF_PX).toBe(72);
     expect(BAKU_SHADOW_CLIP_PCT).toBe(10.5);
     const brief = src("app/components/BriefSlot.tsx");
     expect(brief).toMatch(/size=\{MASCOT_SIZE_BRIEF_PX\}/);
     expect(brief).not.toMatch(/size=\{MASCOT_SIZE_PX\}/);
-    expect(brief).toContain("alignItems: \"flex-end\"");
+    expect(brief).toContain("alignItems: \"center\"");
     const sprite = src("app/components/BakuSprite.tsx");
     expect(sprite).toContain("onError");
     expect(sprite).toContain("bakuDensity");

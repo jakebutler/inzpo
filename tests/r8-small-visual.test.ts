@@ -38,7 +38,7 @@ describe("small visual fixes", () => {
       expect(src(file)).toContain("size={MASCOT_SIZE_UPLOAD_PX}");
       expect(src(file)).toContain('align="center"');
     }
-    expect(src("app/components/BakuSprite.tsx")).toContain("bakuDensity(useDensity() * Math.max(1, size / 48))");
+    expect(src("app/components/BakuSprite.tsx")).toContain("bakuDensity(useDensity() * Math.max(1, size / assetSize))");
     const density = bakuDensity(1 * (MASCOT_SIZE_UPLOAD_PX / 48));
     const image = await sharp(`public${bakuV6PoseSrc("chewing", density)}`).metadata();
     expect(image.width).toBeGreaterThanOrEqual(MASCOT_SIZE_UPLOAD_PX);

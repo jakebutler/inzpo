@@ -30,6 +30,8 @@ export const BAKU_TINT_POSES: ReadonlySet<BakuArtPose> = new Set([
 ]);
 
 export type BakuDensity = 1 | 2 | 3;
+/** Native sprite size; only the brief opts into the 72px designer set. */
+export type BakuAssetSize = 48 | 72;
 export type BakuSrcPose = MascotPose | BakuArtPose;
 
 function isArtPose(pose: string): pose is BakuArtPose {
@@ -57,32 +59,32 @@ function densityOrThrow(density: BakuDensity): BakuDensity {
   return density;
 }
 
-export function bakuV6PoseSrc(pose: BakuSrcPose, density: BakuDensity = 1): string {
-  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}@${densityOrThrow(density)}x.png`;
+export function bakuV6PoseSrc(pose: BakuSrcPose, density: BakuDensity = 1, assetSize: BakuAssetSize = 48): string {
+  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}${assetSize === 72 ? "-lg" : ""}@${densityOrThrow(density)}x.png`;
 }
 
-export function bakuV6ColorSrc(pose: BakuSrcPose, density: BakuDensity = 1): string {
-  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}-color@${densityOrThrow(density)}x.png`;
+export function bakuV6ColorSrc(pose: BakuSrcPose, density: BakuDensity = 1, assetSize: BakuAssetSize = 48): string {
+  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}${assetSize === 72 ? "-lg" : ""}-color@${densityOrThrow(density)}x.png`;
 }
 
-export function bakuV6ShadeSrc(pose: BakuSrcPose, density: BakuDensity = 1): string {
-  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}-shade@${densityOrThrow(density)}x.png`;
+export function bakuV6ShadeSrc(pose: BakuSrcPose, density: BakuDensity = 1, assetSize: BakuAssetSize = 48): string {
+  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}${assetSize === 72 ? "-lg" : ""}-shade@${densityOrThrow(density)}x.png`;
 }
 
-export function bakuV6PoseSrcSet(pose: BakuSrcPose): string {
-  return `${bakuV6PoseSrc(pose, 1)} 1x, ${bakuV6PoseSrc(pose, 2)} 2x, ${bakuV6PoseSrc(pose, 3)} 3x`;
+export function bakuV6PoseSrcSet(pose: BakuSrcPose, assetSize: BakuAssetSize = 48): string {
+  return `${bakuV6PoseSrc(pose, 1, assetSize)} 1x, ${bakuV6PoseSrc(pose, 2, assetSize)} 2x, ${bakuV6PoseSrc(pose, 3, assetSize)} 3x`;
 }
 
 /** Combined grayscale knit mask at the sprite density. Band roles live at gray 40–240. */
-export function bakuV6BandsSrc(pose: BakuSrcPose, density: BakuDensity = 1): string {
-  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}-bands@${densityOrThrow(density)}x.png`;
+export function bakuV6BandsSrc(pose: BakuSrcPose, density: BakuDensity = 1, assetSize: BakuAssetSize = 48): string {
+  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}${assetSize === 72 ? "-lg" : ""}-bands@${densityOrThrow(density)}x.png`;
 }
 
 /** One-band 1-bit mask at the sprite density, in token order (band1 = primary). */
-export function bakuV6BandMaskSrc(pose: BakuSrcPose, role: ColorRole, density: BakuDensity = 1): string {
+export function bakuV6BandMaskSrc(pose: BakuSrcPose, role: ColorRole, density: BakuDensity = 1, assetSize: BakuAssetSize = 48): string {
   if (!COLOR_ROLES.includes(role)) throw new Error("Unknown color role");
   const n = COLOR_ROLES.indexOf(role) + 1;
-  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}-band${n}@${densityOrThrow(density)}x.png`;
+  return `${BAKU_V6_DIR}/baku-${bakuArtPose(pose)}${assetSize === 72 ? "-lg" : ""}-band${n}@${densityOrThrow(density)}x.png`;
 }
 
 export function bakuV6BandGray(role: ColorRole): number {

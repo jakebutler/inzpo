@@ -169,8 +169,8 @@ describe("stripe kit", () => {
     expect(MASCOT_SIZE_PX).toBe(48);
   });
 
-  it("fills the 56px brief slot and renders the baked-alpha ground shadow once", () => {
-    expect(MASCOT_SIZE_BRIEF_PX).toBe(56);
+  it("fills the 72px brief slot and renders the baked-alpha ground shadow once", () => {
+    expect(MASCOT_SIZE_BRIEF_PX).toBe(72);
     const brief = readFileSync(path.join(process.cwd(), "app/components/BriefSlot.tsx"), "utf8");
     const sprite = readFileSync(path.join(process.cwd(), "app/components/BakuSprite.tsx"), "utf8");
     expect(brief).toMatch(/size=\{MASCOT_SIZE_BRIEF_PX\}/);
