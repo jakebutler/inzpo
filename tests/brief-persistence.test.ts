@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
   values: vi.fn(),
   generate: vi.fn(),
+  persistTitle: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
@@ -24,7 +25,7 @@ vi.mock("@/lib/auth/owner", () => ({
   requireOwnerId: async () => "owner",
   assertItemOwned: async () => {},
 }));
-vi.mock("@/lib/kit-title", () => ({ persistKitTitleFromBrief: async () => "Warm Brick" }));
+vi.mock("@/lib/kit-title", () => ({ persistKitTitleFromBrief: mocks.persistTitle }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/brief-request", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/brief-request")>(),
@@ -76,6 +77,7 @@ beforeEach(async () => {
   mocks.values.mockResolvedValue(undefined);
   mocks.select.mockReturnValue({ from: () => ({ where: async () => [{ hex: "#112233" }] }) });
   mocks.generate.mockResolvedValue({ text: "Blue glass over shade.", namedColors: [], namedHexes: [] });
+  mocks.persistTitle.mockResolvedValue("Warm Brick");
 });
 
 afterEach(() => vi.unstubAllEnvs());
@@ -87,6 +89,25 @@ function request(retry = false) {
 const params = () => ({ params: Promise.resolve({ id: "kit" }) });
 
 describe("brief persistence", () => {
+  it("reads old jobs without subject and sanitizes subjects on stored jobs", async () => {
+    expect((await readBriefJob("kit"))?.subject).toBeUndefined();
+    stored = { ...ready, subject: " Victorian   houses " };
+    expect((await readBriefJob("kit"))?.subject).toBe("victorian house");
+    stored.subject = "54 Main Street";
+    expect((await readBriefJob("kit"))?.subject).toBeNull();
+  });
+
+  it("stores the model subject and passes it to title persistence", async () => {
+    stored = null;
+    mocks.generate.mockResolvedValue({ text: "Blue glass over shade.", subject: " Victorian   houses ", namedColors: [], namedHexes: [] });
+    const job = await runBriefJob("kit");
+    expect(job.status).toBe("ready");
+    expect(job.subject).toBe("victorian house");
+    expect(stored).toMatchObject({ subject: "victorian house" });
+    expect((await readBriefJob("kit"))?.subject).toBe("victorian house");
+    expect(mocks.persistTitle).toHaveBeenCalledWith("kit", expect.objectContaining({ subject: "victorian house" }));
+  });
+
   it.each([{ primary: "#112233" }, {}])("keeps the generated brief through a tokens save and revisit (%j)", async (roles) => {
     const form = new FormData();
     form.set("itemId", "kit");

@@ -2,57 +2,101 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { generatedKitTitle, isCameraFilename, kitAltText, kitDisplayName, UNTITLED_KIT } from "@/lib/kit-name";
+import { LIVE_KIT_NAMES } from "./fixtures/kit-names";
 
 describe("generatedKitTitle", () => {
-  it.each([
-    ["Soft", "yellow", "#ffff00", "Soft Yellow"],
-    ["Butter", "yellow", "#ffff00", "Butter Yellow"],
-    ["Crimson", "red", "#ff0000", "Crimson"],
-    ["Playful", "yellow", "#ffff00", "Playful Yellow"],
-    ["Deep", "blue", "#0000ff", "Deep Blue"],
-    ["Navy", "blue", "#0000ff", "Navy"],
-    ["Sage", "green", "#00ff00", "Sage"],
-    ["Lavender", "purple", "#800080", "Lavender"],
-    ["Blush", "pink", "#ff80c0", "Blush"],
-    ["Slate", "grey", "#808080", "Slate"],
-    ["Ivory", "beige", "#e8dcc8", "Ivory"],
-    ["Gold", "yellow", "#ffff00", "Gold"],
-  ])("composes %s with %s", (modifier, color, hex, expected) => {
-    for (const briefText of [`${modifier} ${color}.`, `${color} ${modifier}.`]) {
-      expect(generatedKitTitle({
-        briefText,
-        namedColors: [{ hex, label: color }],
-      })).toBe(expected);
-    }
+  it.each(LIVE_KIT_NAMES)("names $id from its dominant noun and saved primary", (fixture) => {
+    expect(generatedKitTitle(fixture)).toBe(fixture.expected);
+  });
+
+  it("uses the sanitized model subject ahead of the brief noun", () => {
+    expect(generatedKitTitle({
+      ...LIVE_KIT_NAMES[0], subject: " Victorian   houses ",
+    })).toBe("Victorian House Red");
+    expect(generatedKitTitle({
+      ...LIVE_KIT_NAMES[0], subject: "storefront",
+    })).toBe("Storefront Red");
   });
 
   it.each([
-    ["red", "#ff0000", ["crimson", "scarlet", "ruby"]],
-    ["yellow", "#ffff00", ["mustard", "canary", "gold"]],
-    ["blue", "#0000ff", ["navy", "cobalt", "azure", "indigo"]],
-    ["green", "#00ff00", ["sage", "olive", "emerald"]],
-  ])("collapses every specified %s shade", (family, hex, shades) => {
-    for (const shade of shades) {
-      expect(generatedKitTitle({
-        briefText: `${shade} ${family}.`,
-        namedColors: [{ hex, label: family }],
-      })).toBe(shade[0].toUpperCase() + shade.slice(1));
-    }
+    "pale", "painted", "dropped", "soft", "playful", "nostalgic", "red", "navy",
+    "red mural", "quiet mural", "dropped mural", "running mural", "mural 54",
+    "Main Street", "street sign", "license plate", "mural!", "large urban mural",
+  ])("rejects invalid model subject %s", (subject) => {
+    expect(generatedKitTitle({ ...LIVE_KIT_NAMES[0], subject })).toBe("Zigzag Red");
   });
 
-  it("keeps the colour word after a descriptive (non-colour) modifier", () => {
-    for (const [modifier, family, hex] of [["butter", "yellow", "#ffff00"], ["lemon", "yellow", "#ffff00"], ["sky", "blue", "#0000ff"], ["mint", "green", "#00ff00"], ["brick", "red", "#ff0000"]]) {
-      const expected = `${modifier[0].toUpperCase()}${modifier.slice(1)} ${family[0].toUpperCase()}${family.slice(1)}`;
-      expect(generatedKitTitle({ briefText: `${family} ${modifier}.`, namedColors: [{ hex, label: family }] })).toBe(expected);
-    }
+  it.each([
+    ["Doors with white trim", "Door"],
+    ["Windows in a wall", "Wall"],
+    ["Stairs and railings", "Stair"],
+    ["Panes across the storefront", "Storefront"],
+    ["Green spray tags", "Graffiti"],
+    ["Concrete beside green spray tags", "Graffiti"],
+    ["Soft painted concrete", "Concrete"],
+  ])("singularizes nouns and prefers whole objects in %s", (briefText, subject) => {
+    expect(generatedKitTitle({ briefText, primaryHex: "#ff0000" })).toBe(subject + " Red");
   });
 
-  it("deduplicates chip colour words and repeated modifiers", () => {
-    expect(generatedKitTitle({ namedColors: [{ hex: "#ff0000", label: "red red red" }] })).toBe("Red");
-    expect(generatedKitTitle({ namedColors: [{ hex: "#ffff00", label: "soft soft yellow" }] })).toBe("Soft Yellow");
-    expect(generatedKitTitle({ namedColors: [{ hex: "#ffff00", label: "butter yellow" }] })).toBe("Butter Yellow");
-    expect(generatedKitTitle({ namedColors: [{ hex: "#0000ff", label: null }] })).toBe("Blue");
+  it.each([
+    ["butter", "yellow", "#ffff00"],
+    ["lemon", "yellow", "#ffff00"],
+    ["sky", "blue", "#0000ff"],
+    ["mint", "green", "#00ff00"],
+    ["brick", "red", "#ff0000"],
+    ["slate", "gray", "#808080"],
+  ])("keeps a matching %s %s colour pair", (modifier, family, primaryHex) => {
+    const expected = modifier[0].toUpperCase() + modifier.slice(1) + " " + family[0].toUpperCase() + family.slice(1);
+    expect(generatedKitTitle({ briefText: "A " + modifier + "-" + family + " detail.", primaryHex })).toBe(expected);
+    expect(generatedKitTitle({ namedColors: [{ hex: primaryHex, label: modifier + " " + family }], primaryHex })).toBe(expected);
+  });
+
+  it("keeps Butter Yellow alone and alongside a subject", () => {
+    const namedColors = [{ hex: "#ffff00", label: "butter yellow" }];
+    expect(generatedKitTitle({ namedColors, primaryHex: "#ffff00" })).toBe("Butter Yellow");
+    expect(generatedKitTitle({ briefText: "Pale butter-yellow facade.", namedColors, primaryHex: "#ffff00" })).toBe("Facade Butter Yellow");
+    expect(generatedKitTitle({ subject: "house", namedColors, primaryHex: "#0000ff" })).toBe("House Blue");
+    expect(generatedKitTitle({ briefText: "A sky navy detail.", primaryHex: "#0000ff" })).toBe("Sky Blue");
+    expect(generatedKitTitle({ briefText: "A brick crimson detail.", primaryHex: "#ff0000" })).toBe("Brick Red");
+  });
+
+  it.each([
+    ["#ff0000", "Red"], ["#ff4500", "Orange"], ["#ffff00", "Yellow"],
+    ["#ffd700", "Yellow"], ["#00ff00", "Green"], ["#008080", "Teal"],
+    ["#0000ff", "Blue"], ["#800080", "Purple"], ["#ffc0cb", "Pink"],
+    ["#5c4033", "Brown"], ["#e8dcc8", "Cream"], ["#808080", "Gray"],
+    ["#000000", "Black"], ["#ffffff", "White"],
+    ["#a0adbb", "Gray"], ["#3f5e92", "Blue"],
+    ["#90a0ae", "Gray"], ["#90a0af", "Blue"],
+  ])("maps primary %s to %s", (primaryHex, color) => {
+    expect(generatedKitTitle({
+      primaryHex, namedColors: [{ hex: "#00ff00", label: "green spray tag" }],
+    })).toBe(color);
+  });
+
+  it("never uses a chip as the primary or a mood/verb as a subject", () => {
+    expect(generatedKitTitle({ briefText: "Dropped playful soft pale painted.", primaryHex: "#ff0000" })).toBe("Red");
+    expect(generatedKitTitle({ briefText: "Playful yellow.", primaryHex: "#ffff00" })).toBe("Yellow");
+    expect(generatedKitTitle({ namedColors: [{ hex: "#ff0000", label: "red mural" }] })).toBeNull();
+    expect(generatedKitTitle({ primaryHex: "invalid", namedColors: [{ hex: "#ff0000", label: "red" }] })).toBeNull();
     expect(generatedKitTitle({})).toBeNull();
+    expect(generatedKitTitle({ title: UNTITLED_KIT })).toBeNull();
+  });
+
+  it("never mixes colour families or copies addresses into generated names", () => {
+    const families = ["red", "orange", "yellow", "green", "teal", "blue", "purple", "pink", "brown", "cream", "gray", "black", "white"];
+    for (const fixture of LIVE_KIT_NAMES) {
+      const name = generatedKitTitle(fixture)!;
+      expect(families.filter((family) => name.toLowerCase().split(" ").includes(family))).toHaveLength(1);
+      expect(name).not.toMatch(/\d|\bstreet\b|\bavenue\b|\broad\b|untitled/i);
+    }
+    expect(generatedKitTitle({
+      primaryHex: "#ffff00", subject: "54 Main Street",
+      briefText: "Painted mural at 54 Main Street, soft blue-yellow.",
+      namedColors: [{ hex: "#ffff00", label: "navy yellow" }],
+    })).toBe("Mural Yellow");
+    expect(generatedKitTitle({ primaryHex: "#0000ff", briefText: "A slate blue mural." })).toBe("Mural Blue");
+    expect(generatedKitTitle({ primaryHex: "#ff0000", briefText: "A brick red-orange mural." })).toBe("Mural Red");
   });
 });
 
@@ -80,7 +124,7 @@ describe("persisted kit names", () => {
 
   it("generates a display name while the persisted title is missing or a camera filename", () => {
     expect(isCameraFilename("IMG_5859.jpg")).toBe(true);
-    const input = { title: "IMG_6505", briefText: "Soft yellow.", namedColors: [{ hex: "#ffff00", label: "yellow" }] };
+    const input = { title: "IMG_6505", primaryHex: "#ffff00", briefText: "Soft yellow.", namedColors: [{ hex: "#ffff00", label: "yellow" }] };
     expect(kitDisplayName(input)).toBe("Soft Yellow");
     expect(kitAltText(input)).toBe("Soft Yellow");
     expect(kitDisplayName({ ...input, pending: true })).toBe("Soft Yellow");
@@ -100,5 +144,12 @@ describe("persisted kit names", () => {
     expect(result).toContain("const displayTitle = kitDisplayName({ title });");
     expect(result).toContain("alt={displayTitle}");
     expect(result.match(/if \(job.title && job.title !== title\) router.refresh\(\);/g)).toHaveLength(2);
+  });
+});
+
+describe("subject names skip adjective colour modifiers", () => {
+  it("never yields Subject + adjective + colour", () => {
+    expect(generatedKitTitle({ briefText: "The pale yellow facade with dark green shutters.", primaryHex: "#e8d14a" })).toBe("Facade Yellow");
+    expect(generatedKitTitle({ briefText: "Soft pale yellow tones.", primaryHex: "#e8d14a" })).toBe("Pale Yellow");
   });
 });

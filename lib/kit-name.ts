@@ -1,14 +1,10 @@
-import { hexToFamily } from "@/lib/colors";
+import { hexToFamily, hexToHsl, isHexColor } from "@/lib/colors";
 import { sanitizeChipLabel, type NamedColor } from "@/lib/brief-copy";
+import { sanitizeBriefSubject, subjectFromBrief } from "@/lib/brief-subject";
 
 export const UNTITLED_KIT = "Untitled kit";
 
-const CAMERA_FILE =
-  /^(img|dscn?|pxl|mvimg|screenshot)[\s._-]?\d/i;
-const STREET =
-  /\b(street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|highway|hwy|address)\b/i;
-const COLOR_WORDS =
-  /\b(red|orange|yellow|gold|green|teal|blue|purple|pink|brown|black|white|gray|grey|cream|beige)\b/i;
+const CAMERA_FILE = /^(img|dscn?|pxl|mvimg|screenshot)[\s._-]?\d/i;
 const COLOR_NAMES: Record<string, string[]> = {
   red: ["red", "crimson", "scarlet", "ruby"],
   orange: ["orange", "tangerine", "apricot", "amber", "rust"],
@@ -24,30 +20,14 @@ const COLOR_NAMES: Record<string, string[]> = {
   black: ["black", "ebony", "onyx", "jet"],
   white: ["white", "alabaster"],
 };
+const COLOR_MODIFIERS = new Set((
+  "butter lemon honey sky ocean sea midnight mint forest moss leaf brick terracotta copper steel slate stone pearl sand snow eggshell " +
+  "soft pale deep light dark bright muted dusty warm cool rich"
+).split(" "));
 
 function colorFamily(word: string): string | undefined {
   return Object.keys(COLOR_NAMES).find((family) => COLOR_NAMES[family].includes(word));
 }
-const STOPWORDS = new Set([
-  "the",
-  "a",
-  "an",
-  "and",
-  "or",
-  "of",
-  "with",
-  "its",
-  "this",
-  "that",
-  "from",
-  "into",
-  "onto",
-  "for",
-  "on",
-  "in",
-  "at",
-  "to",
-]);
 
 export function isCameraFilename(filename: string | null | undefined): boolean {
   if (!filename) return false;
@@ -56,82 +36,67 @@ export function isCameraFilename(filename: string | null | undefined): boolean {
 }
 
 function titleCase(value: string): string {
-  return value
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
+  return value.split(/\s+/).filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(" ");
 }
 
-function colorWordFrom(namedColors: NamedColor[] | undefined): string | null {
-  const first = namedColors?.find((c) => c.label || c.hex);
-  if (!first) return null;
-  const fromLabel = first.label?.match(COLOR_WORDS)?.[1];
-  if (fromLabel) return fromLabel.toLowerCase();
-  const family = hexToFamily(first.hex);
+function primaryFamily(hex: string | null | undefined): string | null {
+  if (!hex || !isHexColor(hex)) return null;
+  const family = hexToFamily(hex.trim());
+  // RGB chroma below 0.12 (~31/255) reads neutral in muted blues, including #a0adbb.
+  // Keep this naming threshold local so palette taxonomy/extraction is unchanged.
+  const { h, chroma } = hexToHsl(hex.trim());
+  if (h >= 160 && h < 255 && chroma < 0.12 && family !== "black" && family !== "white") return "gray";
   if (family === "cream/beige") return "cream";
+  if (family === "gold") return "yellow";
   return family;
 }
 
-function subjectFromBrief(briefText: string | null | undefined, color: string | null): string | null {
-  if (!briefText) return null;
-  const cleaned = briefText.replace(/[^\p{L}\s]/gu, " ").replace(/\s+/g, " ").trim();
-  if (!cleaned) return null;
-  const family = color ? colorFamily(color) : null;
-  const words = cleaned.split(" ").filter(
-    (word) =>
-      word.length > 2 &&
-      (!COLOR_WORDS.test(word) ||
-        (word.toLowerCase() !== color && colorFamily(word.toLowerCase()) === family)) &&
-      !STREET.test(word) &&
-      !STOPWORDS.has(word.toLowerCase()),
-  );
-  const pick = words.find((word) => /^[A-Z]/.test(word)) ?? words[0];
-  if (!pick) return null;
-  return pick.toLowerCase();
-}
+const ADJECTIVE_MODIFIERS = new Set("soft pale deep light dark bright muted dusty warm cool rich".split(" "));
 
-function subjectFromChips(namedColors: NamedColor[] | undefined): string | null {
-  for (const color of namedColors ?? []) {
-    const label = sanitizeChipLabel(color.label);
-    if (!label) continue;
-    const withoutColor = label.replace(COLOR_WORDS, "").trim();
-    if (withoutColor.length > 0) return withoutColor.toLowerCase();
+function colorPart(input: KitNameInput, family: string, nounModifiersOnly = false): string {
+  const sources = [input.briefText, ...(input.namedColors ?? []).map((chip) => sanitizeChipLabel(chip.label))];
+  for (const source of sources) {
+    // Only adjacent modifier + colour pairs; punctuation cannot join unrelated phrases.
+    const pairs = source?.toLowerCase().matchAll(/(?=\b(([a-z]+)[ -]+([a-z]+))\b)/g) ?? [];
+    for (const pair of pairs) {
+      const [, phrase, modifier, color] = pair;
+      if (colorFamily(color) !== family || !COLOR_MODIFIERS.has(modifier)) continue;
+      if (nounModifiersOnly && ADJECTIVE_MODIFIERS.has(modifier)) continue;
+      const modifierFamily = colorFamily(modifier);
+      if (modifierFamily && modifierFamily !== family) continue;
+      const next = source?.slice(pair.index! + phrase.length).match(/^[- ]+([a-z]+)\b/i)?.[1].toLowerCase();
+      if (next && colorFamily(next) && colorFamily(next) !== family) continue;
+      return modifier + " " + family;
+    }
   }
-  return null;
+  return family;
 }
 
-export function kitDisplayName(input: {
+type KitNameInput = {
   title?: string | null;
   briefText?: string | null;
+  subject?: string | null;
+  primaryHex?: string | null;
   namedColors?: NamedColor[];
   pending?: boolean;
-}): string {
+};
+
+export function kitDisplayName(input: KitNameInput): string {
   return generatedKitTitle(input) ?? "";
 }
 
-export function generatedKitTitle(input: {
-  title?: string | null;
-  briefText?: string | null;
-  namedColors?: NamedColor[];
-}): string | null {
+export function generatedKitTitle(input: KitNameInput): string | null {
   const existing = input.title?.trim() ?? "";
   if (existing && existing !== UNTITLED_KIT && !isCameraFilename(existing)) return existing;
-  const color = colorWordFrom(input.namedColors);
-  const subject = subjectFromBrief(input.briefText, color) ?? subjectFromChips(input.namedColors);
-  const words = [...new Set(subject?.split(/\s+/).filter(Boolean) ?? [])];
-  if (color && !words.some((word) => colorFamily(word) === colorFamily(color))) {
-    words.push(color);
-  }
-  return words.length ? titleCase(words.join(" ")) : null;
+  const subject = sanitizeBriefSubject(input.subject) ?? subjectFromBrief(input.briefText);
+  const family = primaryFamily(input.primaryHex);
+  // With a subject, only a noun modifier ("Facade Butter Yellow") joins it, never "Facade Pale Yellow".
+  const color = family ? colorPart(input, family, Boolean(subject)) : null;
+  return subject || color ? titleCase([subject, color].filter(Boolean).join(" ")) : null;
 }
 
 /** Photo alt uses the same name as the visible kit name. */
-export function kitAltText(input: {
-  title?: string | null;
-  briefText?: string | null;
-  namedColors?: NamedColor[];
-  pending?: boolean;
-}): string {
+export function kitAltText(input: KitNameInput): string {
   return kitDisplayName(input);
 }

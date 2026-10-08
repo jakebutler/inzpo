@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { generatedKitTitle, kitAltText, kitDisplayName } from "@/lib/kit-name";
+import { COLOR_ROLES, itemColors, items, type ColorRole } from "@/lib/db/schema";
+import { LIVE_KIT_NAMES } from "./fixtures/kit-names";
 
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
@@ -25,8 +27,11 @@ const ready = {
   stub: false,
 };
 
-function existingTitle(title: string | null) {
-  mocks.select.mockReturnValue({ from: () => ({ where: () => ({ limit: async () => [{ title }] }) }) });
+type SavedColor = { hex: string; role: ColorRole | null; origin: string; pinX?: number; pinY?: number };
+function existingTitle(title: string | null, colors: SavedColor[] = [{ hex: "#ffff00", role: "primary", origin: "sampled" }]) {
+  mocks.select.mockReturnValue({ from: (table: unknown) => ({ where: () =>
+    table === items ? { limit: async () => [{ title }] } : Promise.resolve(colors),
+  }) });
 }
 
 beforeEach(() => {
@@ -39,6 +44,45 @@ beforeEach(() => {
 });
 
 describe("persistKitTitleFromBrief", () => {
+  it.each(LIVE_KIT_NAMES)("persists $id using its actual role, not the named chip", async (fixture) => {
+    existingTitle("IMG_1234", [
+      { role: "background", hex: "#ffffff", origin: "sampled" },
+      { role: "accent", hex: "#00ff00", origin: "sampled" },
+      { role: "primary", hex: fixture.primaryHex, origin: "sampled" },
+    ]);
+    expect(await persistKitTitleFromBrief("kit", {
+      ...ready, text: fixture.briefText, namedColors: fixture.namedColors,
+    })).toBe(fixture.expected);
+    expect(mocks.set).toHaveBeenCalledWith({ title: fixture.expected, updatedAt: expect.any(Date) });
+    expect(mocks.select).toHaveBeenLastCalledWith({
+      hex: itemColors.hex, role: itemColors.role, origin: itemColors.origin,
+      pinX: itemColors.pinX, pinY: itemColors.pinY,
+    });
+  });
+
+  it.each(COLOR_ROLES)("uses %s when earlier real roles are empty", async (role) => {
+    const colors = COLOR_ROLES.slice(COLOR_ROLES.indexOf(role)).reverse().map((savedRole) => ({
+      role: savedRole, hex: savedRole === role ? "#0000ff" : "#ff0000", origin: "sampled",
+    }));
+    existingTitle(null, colors);
+    expect(await persistKitTitleFromBrief("kit", { ...ready, text: "A yellow facade." })).toBe("Facade Blue");
+  });
+
+  it("skips legacy derived padding and invalid or unassigned colours", async () => {
+    existingTitle(null, [
+      { role: null, hex: "#ff0000", origin: "sampled" },
+      { role: "primary", hex: "#ff0000", origin: "extracted", pinX: 0.5, pinY: 0.5 },
+      { role: "secondary", hex: "invalid", origin: "sampled" },
+      { role: "accent", hex: "#0000ff", origin: "sampled" },
+      { role: "background", hex: "#ffffff", origin: "sampled" },
+    ]);
+    expect(await persistKitTitleFromBrief("kit", { ...ready, text: "A mural." })).toBe("Mural Blue");
+  });
+
+  it("persists the model's subject", async () => {
+    expect(await persistKitTitleFromBrief("kit", { ...ready, text: "A facade.", subject: "victorian house" })).toBe("Victorian House Yellow");
+  });
+
   it("writes the corrected generated name once and preserves it on later briefs", async () => {
     expect(await persistKitTitleFromBrief("kit", ready)).toBe("Soft Yellow");
     expect(mocks.set).toHaveBeenCalledWith({ title: "Soft Yellow", updatedAt: expect.any(Date) });
@@ -67,7 +111,7 @@ describe("persistKitTitleFromBrief", () => {
 describe("brief API persisted title", () => {
   it.each([GET, POST])("returns the existing title despite a conflicting generated name (%#)", async (handler) => {
     existingTitle("Red Crimson");
-    expect(generatedKitTitle({ briefText: ready.text, namedColors: ready.namedColors })).toBe("Soft Yellow");
+    expect(generatedKitTitle({ briefText: ready.text, namedColors: ready.namedColors, primaryHex: "#ffff00" })).toBe("Soft Yellow");
     const response = await handler(new NextRequest("http://localhost/api/briefs/kit"), { params: Promise.resolve({ id: "kit" }) });
     const body = await response.json();
     expect(body.title).toBe("Red Crimson");
@@ -80,5 +124,13 @@ describe("brief API persisted title", () => {
     const response = await GET(new NextRequest("http://localhost/api/briefs/kit"), { params: Promise.resolve({ id: "kit" }) });
     expect((await response.json()).title).toBe("Soft Yellow");
     expect(mocks.set).toHaveBeenCalledWith({ title: "Soft Yellow", updatedAt: expect.any(Date) });
+  });
+
+  it.each([GET, POST])("returns the saved role title and model subject through the API (%#)", async (handler) => {
+    const job = { ...ready, subject: "house", text: "Pale yellow facade." };
+    mocks.readBriefJob.mockResolvedValue(job);
+    existingTitle(null, [{ hex: "#3f5e92", role: "primary", origin: "sampled" }]);
+    const response = await handler(new NextRequest("http://localhost/api/briefs/kit"), { params: Promise.resolve({ id: "kit" }) });
+    expect(await response.json()).toMatchObject({ title: "House Blue", subject: "house" });
   });
 });

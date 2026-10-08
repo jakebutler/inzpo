@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { itemColors } from "@/lib/db/schema";
 import sharp from "sharp";
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
+import { sanitizeBriefSubject } from "@/lib/brief-subject";
 import { persistKitTitleFromBrief } from "@/lib/kit-title";
 import {
   BRIEF_IMAGE_EXPIRES_S,
@@ -23,6 +24,7 @@ export type BriefStatus = "pending" | "ready" | "failed";
 export interface BriefJob {
   status: BriefStatus;
   text: string | null;
+  subject?: string | null;
   namedHexes: string[];
   namedColors: NamedColor[];
   stub: boolean;
@@ -60,6 +62,7 @@ export async function readBriefJob(itemId: string): Promise<BriefJob | null> {
     return {
       status: parsed.status,
       text: typeof parsed.text === "string" ? parsed.text : null,
+      ...(parsed.subject === undefined ? {} : { subject: sanitizeBriefSubject(parsed.subject) }),
       namedColors,
       namedHexes: namedColors.map((c) => c.hex),
       stub: parsed.stub === true,
@@ -161,6 +164,7 @@ export async function runBriefJob(itemId: string, { retry = false } = {}): Promi
     const ready = jobPayload({
       status: "ready",
       text: parsed.text,
+      subject: sanitizeBriefSubject(parsed.subject),
       namedColors,
       stub: false,
     });

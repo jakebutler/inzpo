@@ -53,6 +53,7 @@ describe("generated kit title", () => {
     expect(
       generatedKitTitle({
         title: null,
+        primaryHex: "#ffff00",
         briefText: "A yellow Victorian with a black door.",
         namedColors: [{ hex: "#e8c36a", label: "yellow siding" }],
       }),

@@ -62,8 +62,23 @@ describe("brief image payload", () => {
 
 describe("brief model path", () => {
   it("parses fenced JSON from the model", () => {
-    const parsed = parseBriefModelContent('```json\n{"text":"Warm brick in shade.","namedColors":[]}\n```');
+    const parsed = parseBriefModelContent('```json\n{"text":"Warm brick in shade.","subject":" Victorian   houses ","namedColors":[]}\n```');
     expect(parsed.text).toBe("Warm brick in shade.");
+    expect(parsed.subject).toBe("victorian house");
+  });
+
+  it.each([undefined, null, 42, "dropped", "pale", "soft", "blue", "serene", "running house", "54 Main Street", "mural sign wall", "mural!"])(
+    "tolerates a missing or invalid subject (%s)", (subject) => {
+      const parsed = parseBriefModelContent(JSON.stringify({ text: "A painted mural.", subject, namedColors: [] }));
+      expect(parsed.text).toBe("A painted mural.");
+      expect(parsed.subject).toBeNull();
+    },
+  );
+
+  it("requests a noun subject under the same address and digit ban", () => {
+    expect(BRIEF_PROMPT).toContain('"subject": string');
+    expect(BRIEF_PROMPT).toContain("1–2 word common noun");
+    expect(BRIEF_PROMPT).toContain("Forbidden in the paragraph, subject, and every label");
   });
 
   it("calls the chat completions path with the real image", async () => {
@@ -76,13 +91,14 @@ describe("brief model path", () => {
         calls.push(String(url));
         expect(init?.headers).toMatchObject({ Authorization: "Bearer test-key" });
         return new Response(
-          JSON.stringify({ choices: [{ message: { content: '{"text":"Blue glass over shade.","namedColors":[]}' } }] }),
+          JSON.stringify({ choices: [{ message: { content: '{"text":"Blue glass over shade.","subject":"glass door","namedColors":[]}' } }] }),
           { status: 200 },
         );
       }) as typeof fetch,
     });
     expect(calls[0]).toContain("/chat/completions");
     expect(result.text).toBe("Blue glass over shade.");
+    expect(result.subject).toBe("glass door");
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
   });
 
