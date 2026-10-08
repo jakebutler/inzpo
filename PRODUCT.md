@@ -103,9 +103,13 @@ expected to have:
 - Just-in-time discoverability: hints appear when needed, not upfront tours.
 - Respect `prefers-reduced-motion`.
 
-Design Critique (Critiquito) audits every screen from 390px preview
-screenshots. Fix-and-re-audit rounds repeat until it signs off with no
-high-priority issues left. Only then does Jake review on his phone.
+The full checklist is in [docs/QUALITY-BAR.md](docs/QUALITY-BAR.md).
+
+Design Critique (Critiquito) audits every screen from screenshots of every
+state at 390px, plus recordings and the code's duration and easing for each
+transition. Fix-and-re-audit rounds repeat until it signs off with no blockers
+and nothing left worth fixing. Then the device-only checks must pass on Jake's
+phone.
 
 ## Standing constraints
 
@@ -196,8 +200,10 @@ high-priority issues left. Only then does Jake review on his phone.
   the palette bar, ideally not a house.
 - HEIC: capture converts on phone; share sheet needs server decoder. P3→sRGB
   via embedded profile.
-- Quality bar: Critiquito audits 390px preview screenshots; rounds until no
-  high-priority issues; then Jake reviews on phone.
+- Quality bar ([docs/QUALITY-BAR.md](docs/QUALITY-BAR.md)): Critiquito audits
+  every state, plus recordings and duration and easing for each transition.
+  Rounds repeat until there are no blockers and nothing left worth fixing, then
+  the device-only checks must pass on Jake's phone.
 
 ## Still open
 
