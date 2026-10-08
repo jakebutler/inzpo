@@ -8,7 +8,7 @@ import { moveRole, pinNumbers, rolesFromColors, setRoleColor } from "@/lib/token
 import { sampleImageAverage } from "@/lib/client-eyedropper";
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { textOnBackgroundContrast } from "@/lib/palette-extract";
+import { textOnBackgroundContrast } from "@/lib/contrast";
 
 type ColorRow = {
   hex: string;

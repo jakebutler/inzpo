@@ -1,7 +1,10 @@
 import sharp from "sharp";
 import { hexToFamily, rgbToHex, type ColorFamily } from "@/lib/colors";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
+import { contrastRatio } from "@/lib/contrast";
 import { emptyRoles, type RoleColors } from "@/lib/tokens";
+
+export { contrastRatio, textOnBackgroundContrast } from "@/lib/contrast";
 
 export interface PaletteSwatch {
   hex: string;
@@ -58,19 +61,6 @@ function rgbToLab(r: number, g: number, b: number): [number, number, number] {
   const fy = f(y);
   const fz = f(z);
   return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
-}
-
-function relativeLuminance(hex: string): number {
-  const n = parseInt(hex.slice(1), 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  return 0.2126 * srgbToLin(r) + 0.7152 * srgbToLin(g) + 0.0722 * srgbToLin(b);
-}
-
-export function contrastRatio(a: string, b: string): number {
-  const [hi, lo] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
-  return (hi + 0.05) / (lo + 0.05);
 }
 
 function deltaE(a: [number, number, number], b: [number, number, number]): number {
@@ -340,11 +330,6 @@ export async function extractPalette(input: Buffer): Promise<ExtractedPalette> {
   const contrast =
     roles.text && roles.background ? contrastRatio(roles.text, roles.background) : null;
   return { swatches, roles, contrast };
-}
-
-export function textOnBackgroundContrast(roles: RoleColors): number | null {
-  if (!roles.text || !roles.background) return null;
-  return contrastRatio(roles.text, roles.background);
 }
 
 export async function areaAverage(
