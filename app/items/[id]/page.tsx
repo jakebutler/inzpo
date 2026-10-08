@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getItemDetail, getArticleHtml } from "@/lib/items";
-import { getItemTags } from "@/lib/ontology";
 import { getItemCollections, listCollectionOptions } from "@/lib/item-collections";
 import { getItemBoards, getBoards } from "@/lib/item-boards";
 import { DeleteButton } from "../DeleteButton";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Pencil, X } from "lucide-react";
 import { BottomNav } from "@/app/components/BottomNav";
@@ -33,7 +31,6 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
   const { id } = await params;
   const item = await getItemDetail(ownerId, id);
   if (!item) notFound();
-  const tags = await getItemTags(ownerId, id);
   const [memberships, options, articleHtml, boardMemberships, boardOptions] = await Promise.all([
     getItemCollections(ownerId, id),
     listCollectionOptions(ownerId),
@@ -46,11 +43,6 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
   const [originId, derived] = await Promise.all([getOrigin(ownerId, id), getDerivedItems(ownerId, id)]);
 
   const embedSrc = item.oembedHtml?.match(/src=["']([^"']+)["']/i)?.[1] ?? null;
-
-  const facetGroups = new Map<string, string[]>();
-  for (const t of tags.facetTags) {
-    facetGroups.set(t.facet, [...(facetGroups.get(t.facet) ?? []), t.value]);
-  }
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -156,34 +148,6 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
               note={item.note}
             />
           </>
-        ) : null}
-
-        {facetGroups.size > 0 || tags.freeTags.length > 0 ? (
-          <section className="mt-6">
-            <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Tags</h2>
-            <div className="mt-2 space-y-3">
-              {[...facetGroups.entries()].map(([facet, values]) => (
-                <div key={facet} className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs uppercase tracking-wide text-muted-foreground w-24">{facet}</span>
-                  {values.map((v) => (
-                    <Badge key={v} variant="outline" className="px-3 py-1.5 text-sm">
-                      {v}
-                    </Badge>
-                  ))}
-                </div>
-              ))}
-              {tags.freeTags.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs uppercase tracking-wide text-muted-foreground w-24">Free</span>
-                  {tags.freeTags.map((t) => (
-                    <Badge key={t} variant="secondary" className="px-3 py-1.5 text-sm">
-                      {t}
-                    </Badge>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </section>
         ) : null}
 
         {item.colors.length > 0 && (item.kind === "screenshot" || item.kind === "photo") ? (

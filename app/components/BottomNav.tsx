@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Images, LayoutGrid, Plus, Tags } from "lucide-react";
+import { Images, LayoutGrid, Plus } from "lucide-react";
 
 const HIDDEN_ON = ["/capture", "/login"];
 
@@ -41,7 +41,6 @@ export function BottomNav() {
           <Plus className="h-7 w-7" />
         </Link>
         {item("/boards", "Boards", LayoutGrid)}
-        {item("/vocab", "Vocabulary", Tags)}
       </div>
     </nav>
   );

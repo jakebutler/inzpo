@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { clientKey, recordShareUpload, shareUploadLimited } from "@/lib/auth/ratelimit";
 import { optionalOwnerId } from "@/lib/auth/owner";
 import { createImageItem } from "@/lib/items";
-import { createLinkedItem } from "@/lib/capture-url";
+import { LINKS_UNSUPPORTED_ERROR } from "@/lib/links";
 import { newId } from "@/lib/ids";
 import { r2, PutObjectCommand } from "@/lib/r2";
 
@@ -55,9 +55,12 @@ export async function POST(request: NextRequest) {
       text = text ?? (fd.get("text") as string | null);
     }
 
+    const link = url ?? firstHttpUrl(text ?? "");
     const target = stashedKey
       ? `/capture?shareToken=${encodeURIComponent(stashedKey)}`
-      : `/capture?url=${encodeURIComponent(url ?? firstHttpUrl(text ?? "") ?? "")}`;
+      : link
+        ? `/capture?error=${LINKS_UNSUPPORTED_ERROR}`
+        : "/capture";
     return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(target)}`, request.url), 303);
   }
 
@@ -81,8 +84,7 @@ export async function POST(request: NextRequest) {
 
   const link = url ?? firstHttpUrl(text ?? "");
   if (link) {
-    const result = await createLinkedItem({ ownerId, rawUrl: link });
-    return NextResponse.redirect(new URL(`/capture?saved=${result.itemId}`, request.url), 303);
+    return NextResponse.redirect(new URL(`/capture?error=${LINKS_UNSUPPORTED_ERROR}`, request.url), 303);
   }
 
   return NextResponse.redirect(new URL("/capture", request.url), 303);

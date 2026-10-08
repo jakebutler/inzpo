@@ -1,20 +1,19 @@
 import Link from "next/link";
 import { CaptureForm } from "./CaptureForm";
 import { SavedToast } from "./SavedToast";
-import { loadTrayFacets } from "./tray";
 import { getItemDetail } from "@/lib/items";
 import { kitFromColors } from "@/lib/mascot";
 import { MascotStage } from "@/app/components/MascotStage";
 import { requireOwnerId } from "@/lib/auth/owner";
+import { LINKS_UNSUPPORTED_ERROR, LINKS_UNSUPPORTED_MESSAGE, isLinksUnsupportedRequest } from "@/lib/links";
 
 export const dynamic = "force-dynamic";
 
 const ERRORS: Record<string, string> = {
-  "missing-image": "Paste a URL or choose an image first.",
-  "bad-url": "That doesn't look like a valid http(s) URL.",
-  "blocked-url": "That address is blocked (private/internal networks are not fetchable).",
+  "missing-image": "Choose a photo first.",
   "capture-failed": "Capture failed — try again.",
   "bad-image": "That file could not be processed as an image.",
+  [LINKS_UNSUPPORTED_ERROR]: LINKS_UNSUPPORTED_MESSAGE,
 };
 
 export default async function CapturePage({
@@ -24,8 +23,6 @@ export default async function CapturePage({
 }) {
   const ownerId = await requireOwnerId();
   const params = await searchParams;
-  const facets = await loadTrayFacets(ownerId);
-
   let savedTitle: string | null = null;
   let savedKit = kitFromColors([]);
   if (params.saved) {
@@ -34,6 +31,7 @@ export default async function CapturePage({
     if (saved) savedKit = kitFromColors(saved.colors);
   }
   const unreadable = params.error === "bad-image";
+  const linksBlocked = isLinksUnsupportedRequest(params);
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -47,10 +45,8 @@ export default async function CapturePage({
 
         {params.saved ? <SavedToast itemId={params.saved} title={savedTitle} /> : null}
 
-        <h1 className="mt-6 text-xl font-semibold tracking-tight">Capture</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Paste a link or drop an image. Inzpo detects what it is — tag if you feel like it.
-        </p>
+        <h1 className="mt-6 text-xl font-semibold tracking-tight">Snap</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Steal the colors off anything.</p>
 
         {params.saved ? (
           <div className="mt-4">
@@ -58,7 +54,11 @@ export default async function CapturePage({
           </div>
         ) : null}
 
-        {unreadable ? (
+        {linksBlocked ? (
+          <p role="status" className="mt-3 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+            {LINKS_UNSUPPORTED_MESSAGE}
+          </p>
+        ) : unreadable ? (
           <div className="mt-4">
             <MascotStage moment="error-unreadable" snapReady />
           </div>
@@ -69,12 +69,7 @@ export default async function CapturePage({
         ) : null}
 
         <div className="mt-5">
-          <CaptureForm
-            facets={facets}
-            prefilledUrl={params.url ?? ""}
-            shareToken={params.shareToken ?? null}
-            firstOpen={!params.saved && !params.error}
-          />
+          <CaptureForm shareToken={params.shareToken ?? null} firstOpen={!params.saved && !params.error} />
         </div>
       </div>
     </main>

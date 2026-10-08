@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Check, Square, X } from "lucide-react";
+import { Check, Square, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { activeFilterCount, serializeFilter, type FilterState } from "@/lib/filter";
-import { bulkAssignTagsAction, bulkCollectionAction, bulkDeleteAction, bulkRemoveTagsAction } from "@/app/actions/bulk";
+import { serializeFilter, type FilterState } from "@/lib/filter";
+import { bulkCollectionAction, bulkDeleteAction } from "@/app/actions/bulk";
 import { bulkBoardAction } from "@/app/actions/boards";
 import { ActionForm } from "@/app/components/ActionForm";
 import { MascotStage } from "@/app/components/MascotStage";
@@ -40,7 +39,6 @@ export function WallGrid({
   totalCount,
   collections,
   boards,
-  facetOptions,
   collectionId,
 }: {
   items: WallCard[];
@@ -48,7 +46,6 @@ export function WallGrid({
   totalCount: number;
   collections: Array<{ id: string; name: string }>;
   boards: Array<{ id: string; name: string }>;
-  facetOptions: Array<{ id: string; name: string }>;
   collectionId: string | null;
 }) {
   const [selectMode, setSelectMode] = useState(false);
@@ -56,7 +53,6 @@ export function WallGrid({
   const [allSelected, setAllSelected] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [colCount, setColCount] = useState(2);
-  const [bulkFacetId, setBulkFacetId] = useState("");
   const [bulkCollectionId, setBulkCollectionId] = useState("");
   const [bulkBoardId, setBulkBoardId] = useState("");
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -166,73 +162,6 @@ export function WallGrid({
           {selectedCount > 0 ? (
             <fieldset disabled={pending} aria-busy={pending || undefined} className="mx-auto mt-2 max-w-6xl space-y-2 disabled:opacity-60">
               <div className="flex flex-wrap items-center gap-2">
-                <form
-                  action={bulkAssignTagsAction}
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const fd = new FormData(e.currentTarget);
-                    if (!String(fd.get("facetValue") ?? "").trim() && !String(fd.get("freeTagName") ?? "").trim()) {
-                      toast.error("Type a facet value or a free tag first.");
-                      return;
-                    }
-                    hiddenTarget(fd);
-                    if (bulkFacetId) fd.set("facetId", bulkFacetId);
-                    run("assign", bulkAssignTagsAction, fd, `Tags assigned to ${selectedCount} Item${selectedCount === 1 ? "" : "s"}.`);
-                  }}
-                  className="flex flex-wrap items-center gap-1.5"
-                >
-                  <Select value={bulkFacetId} onValueChange={setBulkFacetId}>
-                    <SelectTrigger className="h-8 w-[120px] text-xs" aria-label="Facet">
-                      <SelectValue placeholder="Facet" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {facetOptions.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>
-                          {f.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input type="text" name="facetValue" placeholder="facet value" aria-label="Facet value" className="h-8 w-28 rounded text-xs" />
-                  <Input type="text" name="freeTagName" placeholder="free tag" aria-label="Free tag" className="h-8 w-24 rounded text-xs" />
-                  <Button type="submit" variant="outline" size="sm" className="h-8">
-                    {pendingKey === "assign" ? "Assigning…" : "Assign tags"}
-                  </Button>
-                </form>
-                <form
-                  action={bulkRemoveTagsAction}
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const fd = new FormData(e.currentTarget);
-                    if (!String(fd.get("facetValue") ?? "").trim() && !String(fd.get("freeTagName") ?? "").trim()) {
-                      toast.error("Type a facet value or a free tag first.");
-                      return;
-                    }
-                    hiddenTarget(fd);
-                    if (bulkFacetId) fd.set("facetId", bulkFacetId);
-                    run("remove", bulkRemoveTagsAction, fd, `Tags removed from ${selectedCount} Item${selectedCount === 1 ? "" : "s"}.`);
-                  }}
-                  className="flex flex-wrap items-center gap-1.5"
-                >
-                  <Select value={bulkFacetId} onValueChange={setBulkFacetId}>
-                    <SelectTrigger className="h-8 w-[120px] text-xs" aria-label="Facet to remove">
-                      <SelectValue placeholder="Facet" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {facetOptions.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>
-                          {f.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input type="text" name="facetValue" placeholder="facet value" aria-label="Facet value to remove" className="h-8 w-28 rounded text-xs" />
-                  <Input type="text" name="freeTagName" placeholder="free tag" aria-label="Free tag to remove" className="h-8 w-24 rounded text-xs" />
-                  <Button type="submit" variant="outline" size="sm" className="h-8">
-                    {pendingKey === "remove" ? "Removing…" : "Remove tags"}
-                  </Button>
-                </form>
-
                 <form
                   action={bulkCollectionAction}
                   onSubmit={(e) => {
@@ -436,22 +365,13 @@ export function WallGrid({
       <div className="mx-auto max-w-6xl px-4 py-4">
       {items.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 py-32 text-center" role="status">
-          {activeFilterCount(state) > 0 ? (
-            <>
-              <p className="text-foreground">Nothing matches the Filter bar.</p>
-              <p className="text-sm text-muted-foreground">Loosen a filter, or clear them all.</p>
-            </>
-          ) : (
-            <>
-              <MascotStage moment="empty" className="justify-center text-left" />
-              <p className="text-sm text-muted-foreground">
-                <Link href="/capture" className="underline underline-offset-2 hover:text-foreground">
-                  Capture something
-                </Link>{" "}
-                to begin.
-              </p>
-            </>
-          )}
+          <MascotStage moment="empty" className="justify-center text-left" />
+          <p className="text-sm text-muted-foreground">
+            <Link href="/capture" className="underline underline-offset-2 hover:text-foreground">
+              Snap something
+            </Link>{" "}
+            to begin.
+          </p>
         </div>
       ) : null}
       <div className="grid grid-cols-2 gap-4 items-start md:grid-cols-3 lg:grid-cols-4">
@@ -498,17 +418,6 @@ export function WallGrid({
             >
               <Square className="h-4 w-4" />
             </button>
-            {item.sourceUrl ? (
-              <a
-                href={item.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`Open source of ${item.title ?? "Untitled"}`}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-500 bg-black/60 text-white"
-              >
-                <ArrowUpRight className="h-4 w-4" />
-              </a>
-            ) : null}
           </div>
           <figcaption className="px-3 py-2">
             <div className="text-xs">
@@ -519,20 +428,6 @@ export function WallGrid({
               <div className="mt-1.5 flex gap-1">
                 {item.hexColors.slice(0, 6).map((hex, i) => (
                   <span key={`${item.id}-${hex}-${i}`} className="inline-block h-3 w-3 rounded-full border border-neutral-700" style={{ backgroundColor: hex }} />
-                ))}
-              </div>
-            ) : null}
-            {item.facetTags.length > 0 || item.freeTags.length > 0 ? (
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {item.facetTags.map((t) => (
-                  <span key={`${t.facet}:${t.value}`} className="rounded-full border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-400">
-                    {t.value}
-                  </span>
-                ))}
-                {item.freeTags.map((t) => (
-                  <span key={t} className="rounded-full border border-sky-500/40 px-2 py-0.5 text-[10px] text-sky-300">
-                    {t}
-                  </span>
                 ))}
               </div>
             ) : null}
