@@ -7,10 +7,11 @@ for (const line of fs.readFileSync(new URL("../.env", import.meta.url), "utf8").
   if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
 }
 const BASE = "https://inzpo-butlerjake-gmailcoms-projects.vercel.app";
+const { TEST_OWNER_ID: OWNER } = await import("../lib/auth/owner-ids");
 const { createImageItem } = await import("../lib/items");
 
 const png = await sharp({ create: { width: 200, height: 200, channels: 3, background: { r: 200, g: 200, b: 0 } } }).png().toBuffer();
-const id = await createImageItem({ buffer: png, filename: "delete-debug.png" });
+const id = await createImageItem({ ownerId: OWNER, buffer: png, filename: "delete-debug.png" });
 console.log("created:", id);
 
 const browser = await chromium.launch();
@@ -30,15 +31,12 @@ await page.click('form button[type="submit"]:has-text("Delete")');
 await page.waitForURL(`${BASE}/`, { timeout: 15000 });
 await page.waitForTimeout(800);
 const { getItemDetail } = await import("../lib/items");
-const still = await getItemDetail(id);
+const still = await getItemDetail(OWNER, id);
 console.log("item exists after UI delete:", still ? "YES — BUG" : "no ✓");
 await browser.close();
 if (still) {
-  await deleteItem(id);
+  const { deleteItem: del } = await import("../lib/items");
+  await del(OWNER, id);
   console.log("manually removed");
 }
 process.exit(0);
-async function deleteItem(itemId: string) {
-  const { deleteItem: del } = await import("../lib/items");
-  await del(itemId);
-}

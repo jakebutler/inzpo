@@ -1,25 +1,87 @@
 import type { Metadata, Viewport } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
+import { Akaya_Kanadaka, Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { isClerkConfigured } from "@/lib/auth/clerk-configured";
+import { INK, PAPER, VERMILION } from "@/lib/brand";
 import "./globals.css";
+
+// Headline face (Jake's pick): kit names, screen titles and the brief only. Geist elsewhere.
+const headline = Akaya_Kanadaka({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-headline",
+  adjustFontFallback: true,
+});
+
+const geist = Geist({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-geist",
+  adjustFontFallback: true,
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-geist-mono",
+  adjustFontFallback: true,
+});
 
 export const metadata: Metadata = {
   title: "Inzpo",
-  description: "A personal design-inspiration vault",
+  description: "Steal the colors off anything",
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/icon.svg" },
+  icons: {
+    icon: { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+    apple: { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+  },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0a0a",
+  themeColor: PAPER,
   viewportFit: "cover",
 };
 
+async function LegacyClaim() {
+  const { claimLegacyIfNeeded } = await import("@/lib/auth/owner");
+  await claimLegacyIfNeeded();
+  return null;
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const body = (
+    <>
+      {isClerkConfigured() ? <LegacyClaim /> : null}
+      {children}
+      <Toaster position="bottom-center" duration={4000} />
+    </>
+  );
+
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen bg-background text-foreground antialiased">
-        {children}
-        <Toaster position="bottom-center" duration={4000} />
+    <html lang="en" className={`${headline.variable} ${geist.variable} ${geistMono.variable}`}>
+      <body className="min-h-screen bg-background font-sans text-foreground antialiased">
+        {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
+          <ClerkProvider
+            signInUrl="/login"
+            signUpUrl="/login"
+            signInFallbackRedirectUrl="/capture"
+            signUpFallbackRedirectUrl="/capture"
+            afterSignOutUrl="/login"
+            appearance={{
+              variables: {
+                colorBackground: PAPER,
+                colorPrimary: VERMILION,
+                colorForeground: INK,
+              },
+            }}
+          >
+            {body}
+          </ClerkProvider>
+        ) : (
+          body
+        )}
       </body>
     </html>
   );

@@ -3,9 +3,10 @@ import { db } from "@/lib/db";
 import { facetValues, freeTags, itemFacetValues, itemFreeTags, smartCollections } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
 import { normalizeFilterState, type FilterState } from "@/lib/filter";
+import { assertFacetOwned, assertFreeTagOwned, ownerClause } from "@/lib/auth/owner";
 
-async function rewriteSavedStates(fn: (state: FilterState) => FilterState): Promise<void> {
-  const rows = await db.select().from(smartCollections);
+async function rewriteSavedStates(ownerId: string, fn: (state: FilterState) => FilterState): Promise<void> {
+  const rows = await db.select().from(smartCollections).where(ownerClause(smartCollections.ownerId, ownerId));
   for (const row of rows) {
     const before = normalizeFilterState(row.filterState);
     const after = fn(before);
@@ -18,7 +19,8 @@ async function rewriteSavedStates(fn: (state: FilterState) => FilterState): Prom
   }
 }
 
-export async function renameFacetValue(facetId: string, oldValue: string, newValue: string): Promise<void> {
+export async function renameFacetValue(ownerId: string, facetId: string, oldValue: string, newValue: string): Promise<void> {
+  await assertFacetOwned(ownerId, facetId);
   const clean = newValue.trim().slice(0, 60);
   if (clean.length === 0) throw new Error("Empty name");
   const result = await db
@@ -27,7 +29,7 @@ export async function renameFacetValue(facetId: string, oldValue: string, newVal
     .where(sql`${facetValues.facetId} = ${facetId} and lower(${facetValues.value}) = lower(${oldValue})`)
     .returning({ id: facetValues.id });
   if (result.length === 0) return;
-  await rewriteSavedStates((state) => ({
+  await rewriteSavedStates(ownerId, (state) => ({
     ...state,
     facetValues: state.facetValues.map((s) =>
       s.facetId === facetId && s.value.toLowerCase() === oldValue.toLowerCase() ? { ...s, value: clean } : s,
@@ -40,7 +42,8 @@ export function facetValueIdsIn(ids: string[]): SQL {
   return inArray(facetValues.id, ids);
 }
 
-export async function mergeFacetValues(facetId: string, survivorId: string, mergeValueIds: string[]): Promise<void> {
+export async function mergeFacetValues(ownerId: string, facetId: string, survivorId: string, mergeValueIds: string[]): Promise<void> {
+  await assertFacetOwned(ownerId, facetId);
   if (mergeValueIds.length === 0) return;
   const all = [survivorId, ...mergeValueIds];
   const values = await db.select().from(facetValues).where(facetValueIdsIn(all));
@@ -72,7 +75,7 @@ export async function mergeFacetValues(facetId: string, survivorId: string, merg
   )})`);
 
   const mergedNames = values.filter((v) => v.id !== survivorId).map((v) => v.value.toLowerCase());
-  await rewriteSavedStates((state) => {
+  await rewriteSavedStates(ownerId, (state) => {
     const seen = new Set<string>();
     const facetValues = state.facetValues
       .map((s) => {
@@ -91,14 +94,15 @@ export async function mergeFacetValues(facetId: string, survivorId: string, merg
   });
 }
 
-export async function removeFacetValue(facetValueId: string): Promise<void> {
+export async function removeFacetValue(ownerId: string, facetValueId: string): Promise<void> {
   const usage = await db.execute(sql`select count(*)::int as n from item_facet_values where facet_value_id = ${facetValueId}`);
   if ((usage.rows[0] as { n: number }).n > 0) throw new Error("Value is still in use — merge instead");
   await db.delete(facetValues).where(eq(facetValues.id, facetValueId));
-  await rewriteSavedStates((state) => ({ ...state }));
+  await rewriteSavedStates(ownerId, (state) => ({ ...state }));
 }
 
-export async function createFacetValue(facetId: string, value: string): Promise<void> {
+export async function createFacetValue(ownerId: string, facetId: string, value: string): Promise<void> {
+  await assertFacetOwned(ownerId, facetId);
   const clean = value.trim().slice(0, 60);
   if (clean.length === 0) throw new Error("Empty name");
   const existing = await db
@@ -111,27 +115,31 @@ export async function createFacetValue(facetId: string, value: string): Promise<
   }
 }
 
-export async function renameFreeTag(tagId: string, newName: string): Promise<void> {
+export async function renameFreeTag(ownerId: string, tagId: string, newName: string): Promise<void> {
+  await assertFreeTagOwned(ownerId, tagId);
   const clean = newName.trim().slice(0, 60);
   if (clean.length === 0) throw new Error("Empty name");
   const rows = await db.select({ name: freeTags.name }).from(freeTags).where(eq(freeTags.id, tagId)).limit(1);
   const old = rows[0]?.name;
   if (!old) return;
   await db.update(freeTags).set({ name: clean }).where(eq(freeTags.id, tagId));
-  await rewriteSavedStates((state) => ({
+  await rewriteSavedStates(ownerId, (state) => ({
     ...state,
     freeTags: state.freeTags.map((t) => (t.name.toLowerCase() === old.toLowerCase() ? { ...t, name: clean } : t)),
   }));
 }
 
-export async function removeFreeTag(tagId: string): Promise<void> {
+export async function removeFreeTag(ownerId: string, tagId: string): Promise<void> {
+  await assertFreeTagOwned(ownerId, tagId);
   const usage = await db.execute(sql`select count(*)::int as n from item_free_tags where free_tag_id = ${tagId}`);
   if ((usage.rows[0] as { n: number }).n > 0) throw new Error("Tag is still in use");
   await db.delete(freeTags).where(eq(freeTags.id, tagId));
-  await rewriteSavedStates((state) => ({ ...state }));
+  await rewriteSavedStates(ownerId, (state) => ({ ...state }));
 }
 
-export async function promoteFreeTag(tagId: string, targetFacetId: string): Promise<void> {
+export async function promoteFreeTag(ownerId: string, tagId: string, targetFacetId: string): Promise<void> {
+  await assertFreeTagOwned(ownerId, tagId);
+  await assertFacetOwned(ownerId, targetFacetId);
   const rows = await db.select().from(freeTags).where(eq(freeTags.id, tagId)).limit(1);
   const tag = rows[0];
   if (!tag) return;
@@ -165,7 +173,7 @@ export async function promoteFreeTag(tagId: string, targetFacetId: string): Prom
   await db.delete(itemFreeTags).where(eq(itemFreeTags.freeTagId, tagId));
   await db.delete(freeTags).where(eq(freeTags.id, tagId));
 
-  await rewriteSavedStates((state) => {
+  await rewriteSavedStates(ownerId, (state) => {
     const promoted = state.freeTags.filter((t) => t.name.toLowerCase() === tag.name.toLowerCase());
     const freeTags = state.freeTags.filter((t) => t.name.toLowerCase() !== tag.name.toLowerCase());
     const facetValues = [...state.facetValues];

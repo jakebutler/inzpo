@@ -1,0 +1,72 @@
+import { describe, expect, it } from "vitest";
+import { chipCopy, chipNoun, EMPTY_ROLE_COPY, labelMatchesSample, parseNamedColorCandidates, parseNamedColors, sanitizeChipLabel } from "@/lib/brief-copy";
+import { hexWithoutHash } from "@/lib/colors";
+
+describe("chip labels", () => {
+  it("names the detail, not the hex", () => {
+    expect(chipCopy("yellow door")).toBe("Baku spotted a yellow door. Add it?");
+    expect(chipNoun("yellow siding", "#e8c36a")).toBe("yellow siding");
+    expect(labelMatchesSample("yellow door", "#0a0c0b")).toBe(false);
+    expect(chipNoun("yellow door", "#0a0c0b")).toBe("black");
+    expect(chipCopy("an old awning")).toBe("Baku spotted an old awning. Add it?");
+    expect(chipCopy(null)).toBe("Baku spotted another color. Add it?");
+  });
+
+  it("drops addresses, street names, plates, and digits", () => {
+    expect(sanitizeChipLabel("12 Oak Street")).toBeNull();
+    expect(sanitizeChipLabel("license plate")).toBeNull();
+    expect(sanitizeChipLabel("door 4")).toBeNull();
+    expect(sanitizeChipLabel("yellow door and extra word")).toBeNull();
+    expect(sanitizeChipLabel("neon sign")).toBe("neon sign");
+  });
+
+  it("parses namedColors with a hex-only fallback", () => {
+    expect(parseNamedColorCandidates([{ hex: "#e8c36a", label: "yellow door" }])).toEqual([
+      { hex: "#e8c36a", label: "yellow door" },
+    ]);
+    expect(parseNamedColorCandidates(undefined, ["#abc123"])).toEqual([{ hex: "#abc123", label: null }]);
+  });
+
+  it("normalizes a hex missing its hash and drops invalid entries", () => {
+    expect(parseNamedColorCandidates([{ hex: "c9c9c4", label: "pale mortar" }])).toEqual([
+      { hex: "#c9c9c4", label: "pale mortar" },
+    ]);
+    expect(parseNamedColorCandidates([{ hex: "#C9C9C4", label: "pale mortar" }])).toEqual([
+      { hex: "#c9c9c4", label: "pale mortar" },
+    ]);
+    expect(parseNamedColorCandidates([{ hex: "not-a-color", label: "fog" }, { hex: "#gg0000", label: "bad" }])).toEqual([]);
+    expect(parseNamedColorCandidates(["c9c9c4", "nope"])).toEqual([{ hex: "#c9c9c4", label: null }]);
+  });
+
+  it("hides all pre-r8.4 suggestions and accepts only explicit region provenance", () => {
+    const named = { hex: "#778bae", label: "blue sky" };
+    expect(parseNamedColors([named], [named.hex])).toEqual([]);
+    expect(parseNamedColors(undefined, [named.hex])).toEqual([]);
+    expect(parseNamedColors([{ ...named, source: "region" }])).toEqual([{ ...named, source: "region" }]);
+    expect(parseNamedColors([{ ...named, pinX: 0, pinY: 1 }])).toEqual([]);
+    expect(parseNamedColors([{ ...named, pinX: 0.2, pinY: 0.3 }])).toEqual([]);
+    expect(parseNamedColors([{ ...named, source: "model", pinX: 0.2, pinY: 0.3 }])).toEqual([]);
+    expect(parseNamedColors([{ ...named, source: null, pinX: 0.2, pinY: 0.3 }])).toEqual([]);
+  });
+
+  it("preserves measured pins on stored suggestions and ignores invalid positions", () => {
+    const named = { hex: "#c6c09a", label: "yellow siding", source: "region" };
+    expect(parseNamedColors([{ ...named, pinX: 0.2, pinY: 0.3 }])).toEqual([{ ...named, pinX: 0.2, pinY: 0.3 }]);
+    for (const pin of [{ pinX: -0.1, pinY: 0.3 }, { pinX: 0.2, pinY: 1.1 }, { pinX: NaN, pinY: 0.3 }, { pinX: 0.2 }]) {
+      expect(parseNamedColors([{ ...named, ...pin }])).toEqual([named]);
+    }
+  });
+});
+
+describe("empty role copy", () => {
+  it("uses the add-a-color sentence", () => {
+    expect(EMPTY_ROLE_COPY("text")).toBe("No text in this one. Add a color.");
+  });
+});
+
+describe("hexWithoutHash", () => {
+  it("strips the leading hash for compact swatches", () => {
+    expect(hexWithoutHash("#6b6656")).toBe("6b6656");
+    expect(hexWithoutHash("6b6656")).toBe("6b6656");
+  });
+});

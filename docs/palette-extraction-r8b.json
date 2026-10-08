@@ -1,0 +1,399 @@
+{
+  "command": "node --conditions=react-server --import tsx scripts/palette-samples.mts",
+  "notes": [
+    "Before is the local extractor baseline, not a DB migration.",
+    "Share is measured colour-cluster coverage of the cropped thumbnail; roles can select distinct connected regions in one cluster.",
+    "After role hexes are independently audited RGB means of connected photo regions, with pins inside those regions. No DB rows were changed."
+  ],
+  "before": [
+    {
+      "photo": "IMG_6208",
+      "roles": [
+        {
+          "role": "primary",
+          "hex": "#7eafd5",
+          "share": 0.10695595003287311,
+          "pin": [
+            0.9322916666666666,
+            0.2421875
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "secondary",
+          "hex": "#a1cff2",
+          "share": 0,
+          "pin": [
+            0.5,
+            0.5
+          ],
+          "legacyDerived": true
+        },
+        {
+          "role": "accent",
+          "hex": "#7e8790",
+          "share": 0,
+          "pin": [
+            0.5,
+            0.5
+          ],
+          "legacyDerived": true
+        },
+        {
+          "role": "background",
+          "hex": "#afbac6",
+          "share": 0.20583826429980276,
+          "pin": [
+            0.5682701459390863,
+            0.12944162436548223
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "surface",
+          "hex": "#6e8aaa",
+          "share": 0,
+          "pin": [
+            0.5,
+            0.5
+          ],
+          "legacyDerived": true
+        },
+        {
+          "role": "text",
+          "hex": "#2e3e50",
+          "share": 0.09882971729125575,
+          "pin": [
+            0.32539008663122665,
+            0.7334313164500886
+          ],
+          "legacyDerived": true
+        }
+      ]
+    },
+    {
+      "photo": "IMG_6505",
+      "roles": [
+        {
+          "role": "primary",
+          "hex": "#6d6856",
+          "share": 0.129362261669954,
+          "pin": [
+            0.5052083333333334,
+            0.7578125
+          ],
+          "legacyDerived": true
+        },
+        {
+          "role": "secondary",
+          "hex": "#ccc6b5",
+          "share": 0.08060486522024983,
+          "pin": [
+            0.12687943852640923,
+            0.746494257656458
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "accent",
+          "hex": "#403e38",
+          "share": 0.07063773833004602,
+          "pin": [
+            0.21951698059360733,
+            0.5040534032534246
+          ],
+          "legacyDerived": true
+        },
+        {
+          "role": "background",
+          "hex": "#ccc8a0",
+          "share": 0.18753451676528599,
+          "pin": [
+            0.4090362602399064,
+            0.42529382588502046
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "surface",
+          "hex": "#595e60",
+          "share": 0.05433267587113741,
+          "pin": [
+            0.882286051212938,
+            0.1694743935309973
+          ],
+          "legacyDerived": true
+        },
+        {
+          "role": "text",
+          "hex": "#0a0b0a",
+          "share": 0.08986193293885601,
+          "pin": [
+            0.23620695320715035,
+            0.627082511829653
+          ],
+          "legacyDerived": false
+        }
+      ]
+    },
+    {
+      "photo": "IMG_5859",
+      "roles": [
+        {
+          "role": "primary",
+          "hex": "#c2d6e4",
+          "share": 0.19389875082182775,
+          "pin": [
+            0.5786242012779553,
+            0.2925069888178914
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "secondary",
+          "hex": "#c47122",
+          "share": 0.03374095989480605,
+          "pin": [
+            0.421875,
+            0.5625
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "accent",
+          "hex": "#959aa1",
+          "share": 0.08173570019723866,
+          "pin": [
+            0.36947115384615387,
+            0.8198016826923077
+          ],
+          "legacyDerived": true
+        },
+        {
+          "role": "background",
+          "hex": "#bebec1",
+          "share": 0.21541091387245234,
+          "pin": [
+            0.527639527489728,
+            0.16510498190178047
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "surface",
+          "hex": "#454a51",
+          "share": 0.05020381328073636,
+          "pin": [
+            0.10987903225806452,
+            0.8433159722222222
+          ],
+          "legacyDerived": true
+        },
+        {
+          "role": "text",
+          "hex": "#822128",
+          "share": 0.13669953977646285,
+          "pin": [
+            0.4224571931045145,
+            0.38643429673005564
+          ],
+          "legacyDerived": false
+        }
+      ]
+    }
+  ],
+  "after": [
+    {
+      "photo": "IMG_6208",
+      "roles": [
+        {
+          "role": "primary",
+          "hex": "#a0adba",
+          "share": 0.34447168107340986,
+          "pin": [
+            0.5694444444444444,
+            0.13020833333333334
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "secondary",
+          "hex": "#89aec6",
+          "share": 0.030506327629279507,
+          "pin": [
+            0.13194444444444445,
+            0.6640625
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "accent",
+          "hex": null,
+          "share": null,
+          "pin": null,
+          "legacyDerived": false
+        },
+        {
+          "role": "background",
+          "hex": "#7caed5",
+          "share": 0.12749088094204852,
+          "pin": [
+            0.13194444444444445,
+            0.1640625
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "surface",
+          "hex": "#c5cfd4",
+          "share": 0.17880390800014073,
+          "pin": [
+            0.3125,
+            0.6067708333333334
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "text",
+          "hex": "#334559",
+          "share": 0.06297134680569076,
+          "pin": [
+            0.1111111111111111,
+            0.7578125
+          ],
+          "legacyDerived": false
+        }
+      ]
+    },
+    {
+      "photo": "IMG_6505",
+      "roles": [
+        {
+          "role": "primary",
+          "hex": "#6a6655",
+          "share": 0.18346019868404076,
+          "pin": [
+            0.5902777777777778,
+            0.6796875
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "secondary",
+          "hex": "#d9ce98",
+          "share": 0.15494774867758998,
+          "pin": [
+            0.3159722222222222,
+            0.8932291666666666
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "accent",
+          "hex": "#4b689a",
+          "share": 0.017123890172529056,
+          "pin": [
+            0.09375,
+            0.15885416666666666
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "background",
+          "hex": "#d4d1a9",
+          "share": 0.15494774867758998,
+          "pin": [
+            0.19444444444444445,
+            0.18489583333333334
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "surface",
+          "hex": "#e8dbb9",
+          "share": 0.15494774867758998,
+          "pin": [
+            0.8888888888888888,
+            0.546875
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "text",
+          "hex": "#050404",
+          "share": 0.11244296923564115,
+          "pin": [
+            0.9305555555555556,
+            0.7760416666666666
+          ],
+          "legacyDerived": false
+        }
+      ]
+    },
+    {
+      "photo": "IMG_5859",
+      "roles": [
+        {
+          "role": "primary",
+          "hex": "#c5d9e8",
+          "share": 0.20124089560291342,
+          "pin": [
+            0.6111111111111112,
+            0.2838541666666667
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "secondary",
+          "hex": "#c9711e",
+          "share": 0.034611369793926886,
+          "pin": [
+            0.6840277777777778,
+            0.5546875
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "accent",
+          "hex": "#751c20",
+          "share": 0.11531649875089431,
+          "pin": [
+            0.4965277777777778,
+            0.6927083333333334
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "background",
+          "hex": "#bebfc1",
+          "share": 0.21895122037039208,
+          "pin": [
+            0.65625,
+            0.15104166666666666
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "surface",
+          "hex": "#eef4f9",
+          "share": 0.20124089560291342,
+          "pin": [
+            0.09375,
+            0.11458333333333333
+          ],
+          "legacyDerived": false
+        },
+        {
+          "role": "text",
+          "hex": "#06112b",
+          "share": 0.04889691652689975,
+          "pin": [
+            0.16319444444444445,
+            0.6614583333333334
+          ],
+          "legacyDerived": false
+        }
+      ]
+    }
+  ]
+}

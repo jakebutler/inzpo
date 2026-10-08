@@ -6,12 +6,13 @@ if (!process.env.DATABASE_URL) {
   }
 }
 
+const { TEST_OWNER_ID: OWNER } = await import("../lib/auth/owner-ids");
 const { createLinkedItem } = await import("../lib/capture-url");
 const { getItemDetail, deleteItem } = await import("../lib/items");
 
 async function captureAndReport(url: string, expectKind?: string) {
-  const result = await createLinkedItem({ rawUrl: url });
-  const detail = await getItemDetail(result.itemId);
+  const result = await createLinkedItem({ ownerId: OWNER, rawUrl: url });
+  const detail = await getItemDetail(OWNER, result.itemId);
   console.log(
     `captured ${url}\n  kind=${result.kind}${expectKind ? ` (expected ${expectKind}${result.kind === expectKind ? " ✓" : " ✗"})` : ""}` +
       ` preview=${result.previewCaptured ? "captured ✓" : "metadata-only"} title=${JSON.stringify(detail?.title)} source=${detail?.source ? "present ✓" : "MISSING"}`,
@@ -28,6 +29,6 @@ try {
   ids.push(await captureAndReport("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "video"));
   ids.push(await captureAndReport("https://www.joshwcomeau.com/animation/css-transitions/"));
 } finally {
-  for (const id of ids) await deleteItem(id);
+  for (const id of ids) await deleteItem(OWNER, id);
 }
 console.log("URL capture e2e passes (cleanup done)");

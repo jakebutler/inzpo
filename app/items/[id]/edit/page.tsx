@@ -1,30 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getItemDetail } from "@/lib/items";
-import { getItemTags } from "@/lib/ontology";
-import { getFacetsWithValues } from "@/lib/ontology";
 import { updateItem } from "./actions";
 import { PaletteColorEditor } from "./PaletteColorEditor";
-import { TagTray } from "@/app/capture/TagTray";
-import { loadTrayFacets } from "@/app/capture/tray";
 import { SubmitButton } from "@/app/components/SubmitButton";
+import { requireOwnerId } from "@/lib/auth/owner";
 
 export const dynamic = "force-dynamic";
 
 export default async function EditItemPage({ params }: { params: Promise<{ id: string }> }) {
+  const ownerId = await requireOwnerId();
   const { id } = await params;
-  const item = await getItemDetail(id);
+  const item = await getItemDetail(ownerId, id);
   if (!item) notFound();
-  const [tags, facets, trayFacets] = await Promise.all([getItemTags(id), getFacetsWithValues(), loadTrayFacets()]);
-
-  const initialFacetValues: Record<string, string[]> = {};
-  for (const t of tags.facetTags) {
-    const facet = facets.find((f) => f.name === t.facet);
-    if (facet) {
-      initialFacetValues[facet.id] = [...(initialFacetValues[facet.id] ?? []), t.value];
-    }
-  }
-
   const substanceLocked = item.kind === "article" || item.kind === "palette";
 
   return (
@@ -33,9 +21,6 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
         <div className="flex items-center justify-between">
           <Link href={`/items/${id}`} className="text-sm text-neutral-400 hover:text-neutral-200">
             ← Cancel
-          </Link>
-          <Link href="/vocab" className="text-sm text-neutral-400 hover:text-neutral-200">
-            Manage vocabulary ›
           </Link>
         </div>
 
@@ -99,14 +84,6 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
               />
             </fieldset>
           ) : null}
-
-          <div className="mt-4">
-            <TagTray
-              facets={trayFacets}
-              relevantNames={trayFacets.map((f) => f.name)}
-              initial={{ facetValues: initialFacetValues, freeTags: tags.freeTags }}
-            />
-          </div>
 
           {item.kind === "palette" ? (
             <div className="mt-4">

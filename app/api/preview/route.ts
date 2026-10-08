@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
+import { optionalOwnerId } from "@/lib/auth/owner";
 import { fetchPage } from "@/lib/fetch-url";
 import { extractOgType, bodyTextLength, guessLinkedKind } from "@/lib/kind-guess";
 import { isHttpUrl } from "@/lib/url";
@@ -25,8 +25,8 @@ function safeHost(url: string): string {
 }
 
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  if (!token || !(await verifySessionToken(token))) {
+  const ownerId = await optionalOwnerId();
+  if (!ownerId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -44,8 +44,6 @@ export async function POST(request: NextRequest) {
 
   try {
     const page = await fetchPage(rawUrl);
-    // Quick OG-tag parse for the capture preview; the authoritative metascraper
-    // extraction runs in createLinkedItem at Save.
     title = ogContent(page.html, "og:title");
     description = ogContent(page.html, "og:description");
     image = ogContent(page.html, "og:image");

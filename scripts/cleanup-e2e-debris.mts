@@ -8,7 +8,20 @@ if (!process.env.DATABASE_URL) {
   }
 }
 
+const { TEST_OWNER_ID: OWNER, LEGACY_OWNER_ID } = await import("../lib/auth/owner-ids");
 const { deleteItem } = await import("../lib/items");
+const OWNERS = [OWNER, LEGACY_OWNER_ID];
+
+async function deleteOwned(id: string): Promise<void> {
+  for (const owner of OWNERS) {
+    try {
+      await deleteItem(owner, id);
+      return;
+    } catch {
+      // try the next owner
+    }
+  }
+}
 const { db } = await import("../lib/db");
 const { sql } = await import("drizzle-orm");
 const { renameFacetValue, removeFacetValue, removeFreeTag } = await import("../lib/vocab");
@@ -28,19 +41,19 @@ const patterns: Array<[string, SQL]> = [
 for (const [label, cond] of patterns) {
   const rows = await db.execute(sql`select id, title from items i where ${cond}`);
   for (const row of rows.rows as Array<{ id: string; title: string }>) {
-    await deleteItem(row.id);
+    await deleteOwned(row.id);
     console.log(`deleted [${label}]:`, (row.title ?? "Untitled").slice(0, 50));
   }
 }
 
 // 2. restore seed vocabulary polluted by the vocab e2e
-let facets = await getFacetsWithValues();
+let facets = await getFacetsWithValues(OWNER);
 const style = facets.find((f) => f.name === "Style")!;
 if (style.values.some((v) => v.value === "minimal-renamed")) {
-  await renameFacetValue(style.id, "minimal-renamed", "minimal");
+  await renameFacetValue(OWNER, style.id, "minimal-renamed", "minimal");
   console.log("restored seed value: minimal");
 }
-facets = await getFacetsWithValues();
+facets = await getFacetsWithValues(OWNER);
 const style2 = facets.find((f) => f.name === "Style")!;
 for (const candidate of ["sharedtag-renamed", "a brand new value", "bulk-probe", "bulk-target"]) {
   const v = style2.values.find((x) => x.value === candidate);
@@ -48,7 +61,7 @@ for (const candidate of ["sharedtag-renamed", "a brand new value", "bulk-probe",
     if (v.usage > 0) {
       console.log(`skip ${candidate}: still used by ${v.usage}`);
     } else {
-      await removeFacetValue(v.id);
+      await removeFacetValue(OWNER, v.id);
       console.log("removed unused e2e value:", candidate);
     }
   }
@@ -56,21 +69,21 @@ for (const candidate of ["sharedtag-renamed", "a brand new value", "bulk-probe",
 
 const tagRows = await db.execute(sql`select id, name from free_tags where name in ('bulktag', 'sharedtag', 'sharedtag-renamed')`);
 for (const t of tagRows.rows as Array<{ id: string; name: string }>) {
-  await removeFreeTag(t.id);
+  await removeFreeTag(OWNER, t.id);
   console.log("removed e2e free tag:", t.name);
 }
 
 // 3. leftover collections
 const cols = await db.execute(sql`select id, name from collections where name in ('E2E Collection', 'bulk e2e')`);
 for (const c of cols.rows as Array<{ id: string; name: string }>) {
-  await deleteCollection(c.id);
+  await deleteCollection(OWNER, c.id);
   console.log("removed e2e collection:", c.name);
 }
 
 // 4. state report
 const remaining = await db.execute(sql`select count(*)::int as n from items`);
 const saved = await db.execute(sql`select name from smart_collections`);
-const styleFinal = (await getFacetsWithValues()).find((f) => f.name === "Style")!;
+const styleFinal = (await getFacetsWithValues(OWNER)).find((f) => f.name === "Style")!;
 console.log("items remaining:", (remaining.rows[0] as { n: number }).n);
 console.log("saved searches:", JSON.stringify((saved.rows as Array<{ name: string }>).map((r) => r.name)));
 console.log("Style values:", styleFinal.values.map((v) => v.value).join(", "));

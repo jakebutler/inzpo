@@ -1,14 +1,16 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { itemFacetValues, itemFreeTags, itemSources, items } from "@/lib/db/schema";
 import { attachTags, parseTagSelection } from "@/lib/ontology";
 import { isHttpUrl, normalizeUrl } from "@/lib/url";
+import { ownerClause, requireOwnerId } from "@/lib/auth/owner";
 
 export async function updateItem(formData: FormData): Promise<void> {
+  const ownerId = await requireOwnerId();
   const id = formData.get("itemId");
   if (typeof id !== "string") return;
 
@@ -21,7 +23,7 @@ export async function updateItem(formData: FormData): Promise<void> {
   await db
     .update(items)
     .set({ title: title.length > 0 ? title : null, note: note.length > 0 ? note : null, updatedAt: new Date() })
-    .where(eq(items.id, id));
+    .where(and(eq(items.id, id), ownerClause(items.ownerId, ownerId)));
 
   if (sourceUrl.length > 0 && isHttpUrl(sourceUrl)) {
     await db
@@ -39,7 +41,7 @@ export async function updateItem(formData: FormData): Promise<void> {
   const selection = parseTagSelection(formData.get("tags"));
   await db.delete(itemFacetValues).where(eq(itemFacetValues.itemId, id));
   await db.delete(itemFreeTags).where(eq(itemFreeTags.itemId, id));
-  await attachTags(id, selection);
+  await attachTags(ownerId, id, selection);
 
   revalidatePath(`/items/${id}`);
   revalidatePath("/");

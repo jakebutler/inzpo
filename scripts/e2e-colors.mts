@@ -7,23 +7,25 @@ if (!process.env.DATABASE_URL) {
 }
 
 const sharp = (await import("sharp")).default;
+const { TEST_OWNER_ID: OWNER } = await import("../lib/auth/owner-ids");
+const { EMPTY_FILTER } = await import("../lib/filter");
 const { createImageItem, getWallItems, getItemDetail, deleteItem } = await import("../lib/items");
 
 const input = await sharp({ create: { width: 900, height: 600, channels: 3, background: { r: 30, g: 100, b: 200 } } })
   .png()
   .toBuffer();
-const itemId = await createImageItem({ buffer: input, filename: "blue smoke.png" });
+const itemId = await createImageItem({ ownerId: OWNER, buffer: input, filename: "blue smoke.png" });
 
-const detail = await getItemDetail(itemId);
+const detail = await getItemDetail(OWNER, itemId);
 console.log("colors:", detail?.colors.map((c) => `${c.hex}→${c.family} (${c.origin})`).join(", "));
 if (!detail || detail.colors.length < 1) throw new Error("no colors extracted");
 const families = new Set(detail.colors.map((c) => c.family));
 console.log("families:", [...families].join(", "));
 
-const wall = await getWallItems();
+const wall = await getWallItems(OWNER, EMPTY_FILTER);
 const card = wall.find((w) => w.id === itemId)!;
 if (card.hexColors.length === 0) throw new Error("wall has no hex colors");
 console.log("wall swatches:", card.hexColors.join(", "));
 
-await deleteItem(itemId);
+await deleteItem(OWNER, itemId);
 console.log("color extraction e2e passes");

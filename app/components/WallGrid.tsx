@@ -1,37 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Check, Square, X } from "lucide-react";
+import { Check, Square, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { activeFilterCount, serializeFilter, type FilterState } from "@/lib/filter";
-import { bulkAssignTagsAction, bulkCollectionAction, bulkDeleteAction, bulkRemoveTagsAction } from "@/app/actions/bulk";
+import { serializeFilter, type FilterState } from "@/lib/filter";
+import { bulkCollectionAction, bulkDeleteAction } from "@/app/actions/bulk";
 import { bulkBoardAction } from "@/app/actions/boards";
 import { ActionForm } from "@/app/components/ActionForm";
+import { MascotStage } from "@/app/components/MascotStage";
+import { KitCard } from "@/app/components/KitCard";
+import { kitDisplayName } from "@/lib/kit-name";
+import type { RoleColors } from "@/lib/tokens";
 
 export interface WallCard {
   id: string;
   kind: string;
   title: string | null;
+  note?: string | null;
   displayKey: string | null;
   aspect: number | null;
-  hexColors: string[];
+  hexColors: Array<string | null>;
+  roles?: RoleColors;
+  createdAt?: Date | string;
   facetTags: Array<{ facet: string; value: string }>;
   freeTags: string[];
   sourceUrl: string | null;
 }
-
-const KIND_LABELS: Record<string, string> = {
-  url: "URL",
-  screenshot: "Screenshot",
-  photo: "Photo",
-  palette: "Palette",
-  article: "Article",
-  video: "Video",
-};
 
 export function WallGrid({
   items,
@@ -39,7 +36,6 @@ export function WallGrid({
   totalCount,
   collections,
   boards,
-  facetOptions,
   collectionId,
 }: {
   items: WallCard[];
@@ -47,7 +43,6 @@ export function WallGrid({
   totalCount: number;
   collections: Array<{ id: string; name: string }>;
   boards: Array<{ id: string; name: string }>;
-  facetOptions: Array<{ id: string; name: string }>;
   collectionId: string | null;
 }) {
   const [selectMode, setSelectMode] = useState(false);
@@ -55,7 +50,6 @@ export function WallGrid({
   const [allSelected, setAllSelected] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [colCount, setColCount] = useState(2);
-  const [bulkFacetId, setBulkFacetId] = useState("");
   const [bulkCollectionId, setBulkCollectionId] = useState("");
   const [bulkBoardId, setBulkBoardId] = useState("");
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -165,73 +159,6 @@ export function WallGrid({
           {selectedCount > 0 ? (
             <fieldset disabled={pending} aria-busy={pending || undefined} className="mx-auto mt-2 max-w-6xl space-y-2 disabled:opacity-60">
               <div className="flex flex-wrap items-center gap-2">
-                <form
-                  action={bulkAssignTagsAction}
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const fd = new FormData(e.currentTarget);
-                    if (!String(fd.get("facetValue") ?? "").trim() && !String(fd.get("freeTagName") ?? "").trim()) {
-                      toast.error("Type a facet value or a free tag first.");
-                      return;
-                    }
-                    hiddenTarget(fd);
-                    if (bulkFacetId) fd.set("facetId", bulkFacetId);
-                    run("assign", bulkAssignTagsAction, fd, `Tags assigned to ${selectedCount} Item${selectedCount === 1 ? "" : "s"}.`);
-                  }}
-                  className="flex flex-wrap items-center gap-1.5"
-                >
-                  <Select value={bulkFacetId} onValueChange={setBulkFacetId}>
-                    <SelectTrigger className="h-8 w-[120px] text-xs" aria-label="Facet">
-                      <SelectValue placeholder="Facet" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {facetOptions.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>
-                          {f.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input type="text" name="facetValue" placeholder="facet value" aria-label="Facet value" className="h-8 w-28 rounded text-xs" />
-                  <Input type="text" name="freeTagName" placeholder="free tag" aria-label="Free tag" className="h-8 w-24 rounded text-xs" />
-                  <Button type="submit" variant="outline" size="sm" className="h-8">
-                    {pendingKey === "assign" ? "Assigning…" : "Assign tags"}
-                  </Button>
-                </form>
-                <form
-                  action={bulkRemoveTagsAction}
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const fd = new FormData(e.currentTarget);
-                    if (!String(fd.get("facetValue") ?? "").trim() && !String(fd.get("freeTagName") ?? "").trim()) {
-                      toast.error("Type a facet value or a free tag first.");
-                      return;
-                    }
-                    hiddenTarget(fd);
-                    if (bulkFacetId) fd.set("facetId", bulkFacetId);
-                    run("remove", bulkRemoveTagsAction, fd, `Tags removed from ${selectedCount} Item${selectedCount === 1 ? "" : "s"}.`);
-                  }}
-                  className="flex flex-wrap items-center gap-1.5"
-                >
-                  <Select value={bulkFacetId} onValueChange={setBulkFacetId}>
-                    <SelectTrigger className="h-8 w-[120px] text-xs" aria-label="Facet to remove">
-                      <SelectValue placeholder="Facet" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {facetOptions.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>
-                          {f.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input type="text" name="facetValue" placeholder="facet value" aria-label="Facet value to remove" className="h-8 w-28 rounded text-xs" />
-                  <Input type="text" name="freeTagName" placeholder="free tag" aria-label="Free tag to remove" className="h-8 w-24 rounded text-xs" />
-                  <Button type="submit" variant="outline" size="sm" className="h-8">
-                    {pendingKey === "remove" ? "Removing…" : "Remove tags"}
-                  </Button>
-                </form>
-
                 <form
                   action={bulkCollectionAction}
                   onSubmit={(e) => {
@@ -385,7 +312,7 @@ export function WallGrid({
                 role="checkbox"
                 tabIndex={0}
                 aria-checked={on}
-                aria-label={item.title ?? "Untitled"}
+                aria-label={kitDisplayName({ title: item.title, primaryHex: item.roles?.primary ?? item.hexColors.find(Boolean), createdAt: item.createdAt })}
                 onPointerDown={() => startLongPress(item.id)}
                 onPointerUp={cancelLongPress}
                 onPointerLeave={cancelLongPress}
@@ -398,13 +325,15 @@ export function WallGrid({
                     toggle(item.id);
                   }
                 }}
-                className={`relative cursor-pointer break-inside-avoid overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${on ? "ring-2 ring-neutral-100" : ""}`}
+                className={`relative cursor-pointer break-inside-avoid ${on ? "outline outline-2 outline-offset-2 outline-primary" : ""}`}
               >
-                {item.displayKey ? (
-                  <img src={`/media/${item.displayKey}`} alt="" className="w-full object-cover" loading="lazy" />
-                ) : (
-                  <span className="flex h-24 items-center justify-center bg-neutral-900 px-3 text-center text-neutral-500">{item.title ?? "Untitled"}</span>
-                )}
+                <KitCard
+                  title={item.title}
+                  createdAt={item.createdAt}
+                  imageSrc={item.displayKey ? `/media/${item.displayKey}` : null}
+                  hexes={item.hexColors}
+                  roles={item.roles}
+                />
                 <span
                   aria-hidden
                   className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full ${
@@ -435,31 +364,16 @@ export function WallGrid({
       <div className="mx-auto max-w-6xl px-4 py-4">
       {items.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 py-32 text-center" role="status">
-          {activeFilterCount(state) > 0 ? (
-            <>
-              <p className="text-foreground">Nothing matches the Filter bar.</p>
-              <p className="text-sm text-muted-foreground">Loosen a filter, or clear them all.</p>
-            </>
-          ) : (
-            <>
-              <p className="text-foreground">The Wall is empty.</p>
-              <p className="text-sm text-muted-foreground">
-                <Link href="/capture" className="underline underline-offset-2 hover:text-foreground">
-                  Capture something
-                </Link>{" "}
-                to begin.
-              </p>
-            </>
-          )}
+          <MascotStage moment="empty" className="justify-center text-left" />
         </div>
       ) : null}
-      <div className="grid grid-cols-2 gap-4 items-start md:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-6 items-start sm:grid-cols-2 md:grid-cols-3">
       {Array.from({ length: colCount }, (_, c) => (
-        <div key={c} className="flex flex-col gap-4">
+        <div key={c} className="flex flex-col gap-6">
       {items.filter((_, i) => i % colCount === c).map((item) => (
-        <figure key={item.id} className="group relative break-inside-avoid overflow-hidden rounded-xl bg-neutral-900">
+        <div key={item.id} className="group relative">
           <Link
-            href={`/items/${item.id}`}
+            href={collectionId ? `/items/${item.id}?c=${collectionId}` : `/items/${item.id}`}
             onPointerDown={() => startLongPress(item.id)}
             onPointerUp={cancelLongPress}
             onPointerLeave={cancelLongPress}
@@ -472,71 +386,28 @@ export function WallGrid({
             }}
             className="block"
           >
-            {item.displayKey ? (
-              <img
-                src={`/media/${item.displayKey}`}
-                alt={item.title ?? "Item"}
-                loading="lazy"
-                decoding="async"
-                style={item.aspect ? { aspectRatio: String(item.aspect) } : undefined}
-                className="w-full object-cover"
-              />
-            ) : (
-              <span className="flex h-32 items-center justify-center px-3 text-center text-neutral-500">{item.title ?? "Untitled"}</span>
-            )}
+            <KitCard
+              title={item.title}
+              createdAt={item.createdAt}
+              imageSrc={item.displayKey ? `/media/${item.displayKey}` : null}
+              hexes={item.hexColors}
+              roles={item.roles}
+            />
           </Link>
-          <div className="pointer-events-none absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+          <div className="pointer-events-none absolute right-0 top-0 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
             <button
               type="button"
-              aria-label={`Select ${item.title ?? "Untitled"}`}
+              aria-label={`Select ${kitDisplayName({ title: item.title, primaryHex: item.roles?.primary ?? item.hexColors.find(Boolean), createdAt: item.createdAt })}`}
               onClick={() => {
                 setSelectMode(true);
                 setSelected((prev) => new Set(prev).add(item.id));
               }}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-500 bg-black/60 text-white focus-visible:pointer-events-auto focus-visible:opacity-100"
+              className="flex h-11 w-11 items-center justify-center text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100"
             >
               <Square className="h-4 w-4" />
             </button>
-            {item.sourceUrl ? (
-              <a
-                href={item.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`Open source of ${item.title ?? "Untitled"}`}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-500 bg-black/60 text-white"
-              >
-                <ArrowUpRight className="h-4 w-4" />
-              </a>
-            ) : null}
           </div>
-          <figcaption className="px-3 py-2">
-            <div className="text-xs">
-              <span className="uppercase tracking-wide text-neutral-500">{KIND_LABELS[item.kind] ?? item.kind}</span>
-              <span className="ml-2 text-neutral-300">{item.title ?? "Untitled"}</span>
-            </div>
-            {item.hexColors.length > 0 ? (
-              <div className="mt-1.5 flex gap-1">
-                {item.hexColors.slice(0, 6).map((hex, i) => (
-                  <span key={`${item.id}-${hex}-${i}`} className="inline-block h-3 w-3 rounded-full border border-neutral-700" style={{ backgroundColor: hex }} />
-                ))}
-              </div>
-            ) : null}
-            {item.facetTags.length > 0 || item.freeTags.length > 0 ? (
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {item.facetTags.map((t) => (
-                  <span key={`${t.facet}:${t.value}`} className="rounded-full border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-400">
-                    {t.value}
-                  </span>
-                ))}
-                {item.freeTags.map((t) => (
-                  <span key={t} className="rounded-full border border-sky-500/40 px-2 py-0.5 text-[10px] text-sky-300">
-                    {t}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </figcaption>
-        </figure>
+        </div>
         ))}
         </div>
       ))}

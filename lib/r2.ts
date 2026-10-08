@@ -30,6 +30,18 @@ export function articleKey(itemId: string) {
   return `items/${itemId}/article.html`;
 }
 
+export function tileKey(itemId: string) {
+  return `items/${itemId}/tile.png`;
+}
+
+export function textureMetaKey(itemId: string) {
+  return `items/${itemId}/texture.json`;
+}
+
+export function briefKey(itemId: string) {
+  return `items/${itemId}/brief.json`;
+}
+
 export async function deletePrefix(prefix: string): Promise<void> {
   const client = r2();
   let cursor: string | undefined;

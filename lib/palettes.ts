@@ -1,10 +1,12 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { itemColors, items, origins } from "@/lib/db/schema";
 import { hexToFamily } from "@/lib/colors";
 import { newId } from "@/lib/ids";
+import { assertItemOwned, ownerClause } from "@/lib/auth/owner";
 
-export async function createPaletteFromItem(sourceItemId: string): Promise<string> {
+export async function createPaletteFromItem(ownerId: string, sourceItemId: string): Promise<string> {
+  await assertItemOwned(ownerId, sourceItemId);
   const colors = await db
     .select({ hex: itemColors.hex, family: itemColors.family })
     .from(itemColors)
@@ -12,7 +14,7 @@ export async function createPaletteFromItem(sourceItemId: string): Promise<strin
   if (colors.length === 0) throw new Error("No extracted colors on source item");
 
   const paletteId = newId();
-  await db.insert(items).values({ id: paletteId, kind: "palette", captureState: "ready" });
+  await db.insert(items).values({ id: paletteId, ownerId, kind: "palette", captureState: "ready" });
   await db.insert(itemColors).values(
     colors.map((c, index) => ({
       id: newId(),
@@ -27,10 +29,11 @@ export async function createPaletteFromItem(sourceItemId: string): Promise<strin
   return paletteId;
 }
 
-export async function createEmptyPalette(name?: string): Promise<string> {
+export async function createEmptyPalette(ownerId: string, name?: string): Promise<string> {
   const paletteId = newId();
   await db.insert(items).values({
     id: paletteId,
+    ownerId,
     kind: "palette",
     title: name ?? "New palette",
     captureState: "ready",
@@ -38,12 +41,14 @@ export async function createEmptyPalette(name?: string): Promise<string> {
   return paletteId;
 }
 
-export async function getOrigin(itemId: string): Promise<string | null> {
+export async function getOrigin(ownerId: string, itemId: string): Promise<string | null> {
+  await assertItemOwned(ownerId, itemId);
   const rows = await db.select({ originItemId: origins.originItemId }).from(origins).where(eq(origins.derivedItemId, itemId)).limit(1);
   return rows[0]?.originItemId ?? null;
 }
 
-export async function getDerivedItems(itemId: string): Promise<Array<{ id: string; kind: string }>> {
+export async function getDerivedItems(ownerId: string, itemId: string): Promise<Array<{ id: string; kind: string }>> {
+  await assertItemOwned(ownerId, itemId);
   const rows = await db.execute(sql`
     select i.id, i.kind from origins o join items i on i.id = o.derived_item_id
     where o.origin_item_id = ${itemId}
@@ -51,7 +56,8 @@ export async function getDerivedItems(itemId: string): Promise<Array<{ id: strin
   return rows.rows as Array<{ id: string; kind: string }>;
 }
 
-export async function updatePaletteColors(itemId: string, colors: Array<{ hex: string }>): Promise<void> {
+export async function updatePaletteColors(ownerId: string, itemId: string, colors: Array<{ hex: string }>): Promise<void> {
+  await assertItemOwned(ownerId, itemId);
   if (colors.length === 0) throw new Error("A palette needs at least one color");
   await db.delete(itemColors).where(eq(itemColors.itemId, itemId));
   await db.insert(itemColors).values(
@@ -70,7 +76,11 @@ function familyOf(hex: string): string {
   return hexToFamily(hex);
 }
 
-export async function getPaletteTitle(itemId: string): Promise<string | null> {
-  const rows = await db.select({ title: items.title }).from(items).where(eq(items.id, itemId)).limit(1);
+export async function getPaletteTitle(ownerId: string, itemId: string): Promise<string | null> {
+  const rows = await db
+    .select({ title: items.title })
+    .from(items)
+    .where(and(eq(items.id, itemId), ownerClause(items.ownerId, ownerId)))
+    .limit(1);
   return rows[0]?.title ?? null;
 }

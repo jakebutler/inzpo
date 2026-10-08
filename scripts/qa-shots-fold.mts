@@ -1,0 +1,496 @@
+/**
+ * r5_ visual-direction stills: real photos, both viewports, reduced off/on.
+ * Extra: first-frame / 200ms / 400ms reveal, brief arrived/failed, edit-drag, flow.
+ */
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { webkit, type Page } from "playwright";
+import { MOTION, MOTION_CSS } from "../lib/motion.ts";
+import {
+  BAND_H_EDITOR,
+  BAND_H_RESULT,
+  BAND_STAGGER_S,
+  INK,
+  PAPER,
+  PHOTO_FOLD_CSS,
+  PHOTO_FOLD_PX,
+  PIN_HAIRLINE_S,
+  PIN_LEADER_X,
+  PIN_SIZE,
+  VERMILION,
+} from "../lib/brand.ts";
+import { FOLD_BRIEFS } from "../lib/fold-briefs.ts";
+import { BRIEF_REQUEST } from "../lib/brief-request.ts";
+import { BAKU_CROSSFADE_MS } from "../lib/baku-v6.ts";
+import { captureGuardIssues, cssRgbToHex } from "../lib/qa-capture-guard.ts";
+
+const ARTIFACTS = "/opt/cursor/artifacts";
+const BASE = process.env.QA_BASE ?? "http://127.0.0.1:3010";
+const PHOTOS = ["IMG_6505", "IMG_6208", "IMG_5859"] as const;
+const VIEWPORTS = [
+  { name: "390x844", width: 390, height: 844 },
+  { name: "375x667", width: 375, height: 667 },
+] as const;
+
+type Shot = { state: string; photo?: string };
+
+const PER_PHOTO: Shot[] = [
+  { state: "first" },
+  { state: "result" },
+  { state: "mid" },
+  { state: "pending" },
+  { state: "chips" },
+  { state: "edit" },
+  { state: "save" },
+  { state: "saved" },
+  { state: "failed" },
+];
+
+const EXTRA: Shot[] = [
+  { state: "collection", photo: "IMG_6505" },
+  { state: "empty-collection", photo: "IMG_6505" },
+  { state: "empty-roles", photo: "IMG_6208" },
+  { state: "dark", photo: "IMG_6208" },
+];
+
+function urlFor(shot: Shot, photo: string): string {
+  const p = shot.photo ?? photo;
+  return `${BASE}/dev/fold?state=${shot.state}&photo=${p}`;
+}
+
+/** Pending/failed keep the back button in frame; do not scroll those. */
+const ABOVE_BAR = new Set(["chips", "saved", "empty-roles", "dark"]);
+
+const GUARD = { pass: 0, fail: 0 };
+const PAGE_STATIC_FAILS = new WeakMap<Page, string[]>();
+const PAGE_DOC_STATUS = new WeakMap<Page, number>();
+
+function watchStatic(page: Page): string[] {
+  const existing = PAGE_STATIC_FAILS.get(page);
+  if (existing) return existing;
+  const fails: string[] = [];
+  PAGE_STATIC_FAILS.set(page, fails);
+  page.on("response", (res) => {
+    const url = res.url();
+    const type = res.request().resourceType();
+    if (type === "document") PAGE_DOC_STATUS.set(page, res.status());
+    if (url.includes("/_next/static") || type === "stylesheet") {
+      if (res.status() !== 200) fails.push(`${res.status()} ${url}`);
+    }
+  });
+  return fails;
+}
+
+async function hideChrome(page: Page): Promise<void> {
+  await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
+}
+
+async function assertCaptureReady(page: Page): Promise<void> {
+  await page.evaluate(() => document.fonts.ready);
+  const raw = await page.evaluate(() => {
+    const sheets = [...document.styleSheets];
+    let ruleCount = 0;
+    for (const sheet of sheets) {
+      try {
+        ruleCount += sheet.cssRules.length;
+      } catch {
+        // cross-origin sheets throw; same-origin hashed CSS must still contribute
+      }
+    }
+    const wear = document.querySelector("[data-kit-wear]");
+    const node = wear ?? document.body;
+    const families = [...document.fonts].map((f) => f.family);
+    const style = getComputedStyle(document.documentElement);
+    const faces = [...document.fonts];
+    const fontOK = (variable: string, family: string) => {
+      // next/font renames families; require the actual primary face to be loaded.
+      const primary = style.getPropertyValue(variable).trim().split(",")[0]?.trim() || family;
+      const unquoted = primary.replace(/["']/g, "");
+      return document.fonts.check(`18px ${primary}`) && faces.some(face =>
+        face.family.replace(/["']/g, "") === unquoted && face.status === "loaded");
+    };
+    return {
+      sheetCount: sheets.length,
+      ruleCount,
+      backgroundColor: getComputedStyle(node).backgroundColor,
+      kitWear: Boolean(wear),
+      errorDocument: document.documentElement.id === "__next_error__",
+      headlineFont: fontOK("--font-headline", "Akaya Kanadaka"),
+      geist: document.fonts.check("16px Geist") || families.some((f) => /geist/i.test(f) && !/mono/i.test(f)),
+    };
+  });
+  const issues = captureGuardIssues({
+    staticFails: PAGE_STATIC_FAILS.get(page) ?? [],
+    sheetCount: raw.sheetCount,
+    ruleCount: raw.ruleCount,
+    backgroundHex: cssRgbToHex(raw.backgroundColor),
+    kitWear: raw.kitWear,
+    headlineFont: raw.headlineFont,
+    geist: raw.geist,
+    documentStatus: PAGE_DOC_STATUS.get(page),
+    errorDocument: raw.errorDocument,
+  });
+  if (issues.length > 0) {
+    GUARD.fail += 1;
+    throw new Error(`capture guard failed:\n${issues.join("\n")}`);
+  }
+  GUARD.pass += 1;
+}
+
+async function recoverPage(page: Page, reduced: boolean): Promise<Page> {
+  const browser = page.context().browser();
+  const vp = page.viewportSize();
+  const dpr = page.viewportSize() ? 2 : 2;
+  try {
+    await page.close();
+  } catch {
+    // already gone
+  }
+  const next = await (browser ?? page.context()).newPage({
+    viewport: vp ?? { width: 390, height: 844 },
+    deviceScaleFactor: dpr,
+    reducedMotion: reduced ? "reduce" : "no-preference",
+  });
+  watchStatic(next);
+  return next;
+}
+
+async function openShot(page: Page, url: string, reduced: boolean): Promise<Page> {
+  watchStatic(page);
+  try {
+    await page.goto(url, { waitUntil: "load", timeout: 60_000 });
+    return page;
+  } catch {
+    const next = await recoverPage(page, reduced);
+    await next.goto(url, { waitUntil: "load", timeout: 60_000 });
+    return next;
+  }
+}
+
+async function captureShot(
+  page: Page,
+  url: string,
+  dest: string,
+  reduced: boolean,
+  waitMs: number,
+  aboveBar: boolean,
+): Promise<Page> {
+  let current = await openShot(page, url, reduced);
+  await hideChrome(current);
+  await assertCaptureReady(current);
+  if (aboveBar) await revealAboveSaveBar(current);
+  try {
+    await current.waitForTimeout(waitMs);
+    await current.screenshot({ path: dest, animations: reduced ? "disabled" : "allow" });
+    return current;
+  } catch {
+    current = await openShot(await recoverPage(current, reduced), url, reduced);
+    await hideChrome(current);
+    await assertCaptureReady(current);
+    if (aboveBar) await revealAboveSaveBar(current);
+    await current.waitForTimeout(Math.min(waitMs, 400));
+    await current.screenshot({ path: dest, animations: reduced ? "disabled" : "allow" });
+    return current;
+  }
+}
+
+/** Scroll so Baku, chips, and the contrast line sit above the fixed save bar. */
+async function revealAboveSaveBar(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const bar = document.querySelector("[data-save-bar]");
+    const candidates = [
+      document.querySelector("[data-named-chip]"),
+      document.querySelector('[aria-label="Brief"]'),
+      document.querySelector("[data-contrast-line]"),
+    ].filter((el): el is Element => el !== null);
+    if (!bar || candidates.length === 0) return;
+    const fade = 48;
+    const gap = 12;
+    const limit = window.innerHeight - bar.getBoundingClientRect().height - fade - gap;
+    const bottom = Math.max(...candidates.map((el) => el.getBoundingClientRect().bottom));
+    const need = bottom - limit;
+    if (need > 0) window.scrollBy(0, need);
+  });
+}
+
+async function captureReveal(
+  page: Page,
+  dest: string,
+  atMs: number,
+): Promise<Page> {
+  const url =
+    atMs <= 0
+      ? `${BASE}/dev/fold?state=result&photo=IMG_5859&hold=1`
+      : `${BASE}/dev/fold?state=result&photo=IMG_5859&play=1`;
+  let current = await openShot(page, url, false);
+  await hideChrome(current);
+  await assertCaptureReady(current);
+  try {
+    if (atMs <= 0) {
+      await current.locator('[data-band-stack][data-revealed="false"]').waitFor({ timeout: 15_000 });
+      await current.waitForTimeout(40);
+    } else {
+      await current.locator('[data-band-stack][data-revealed="true"]').waitFor({ timeout: 15_000 });
+      await current.waitForTimeout(atMs);
+    }
+    await current.screenshot({ path: dest, animations: "allow" });
+    return current;
+  } catch {
+    current = await openShot(await recoverPage(current, false), url, false);
+    await hideChrome(current);
+    await assertCaptureReady(current);
+    await current.waitForTimeout(atMs <= 0 ? 40 : atMs);
+    await current.screenshot({ path: dest, animations: "allow" });
+    return current;
+  }
+}
+
+async function captureEditDrag(page: Page, dest: string): Promise<Page> {
+  const url = `${BASE}/dev/fold?state=edit&photo=IMG_5859`;
+  let current = await openShot(page, url, false);
+  await hideChrome(current);
+  await assertCaptureReady(current);
+  try {
+    const photo = current.locator("[data-photo-fold] img");
+    await photo.waitFor({ timeout: 20_000 });
+    await current.waitForTimeout(500);
+    const box = await photo.boundingBox();
+    if (box) {
+      await current.mouse.move(box.x + box.width * 0.42, box.y + box.height * 0.46);
+      await current.mouse.down();
+      await current.mouse.move(box.x + box.width * 0.58, box.y + box.height * 0.54, { steps: 12 });
+      await current.waitForTimeout(80);
+    }
+    await current.screenshot({ path: dest, animations: "allow" });
+    await current.mouse.up();
+    return current;
+  } catch {
+    current = await openShot(await recoverPage(current, false), url, false);
+    await hideChrome(current);
+    await assertCaptureReady(current);
+    await current.waitForTimeout(400);
+    await current.screenshot({ path: dest, animations: "allow" });
+    return current;
+  }
+}
+
+function motionTxt(): string {
+  return (
+    [
+      `tap ${MOTION.tap.duration}s ${MOTION.tap.ease} (${MOTION_CSS.tapMs}ms)`,
+      `small ${MOTION.small.duration}s ${MOTION.small.ease} (${MOTION_CSS.smallMs}ms)`,
+      `enter ${MOTION.enter.duration}s ${MOTION.enter.ease} (${MOTION_CSS.enterMs}ms)`,
+      `leave ${MOTION.leave.duration}s ${MOTION.leave.ease} (${MOTION_CSS.leaveMs}ms)`,
+      `reduced ${MOTION.reduced.duration}s ${MOTION.reduced.ease} (${MOTION_CSS.reducedMs}ms)`,
+      `band stagger ${BAND_STAGGER_S}s × 6 + enter ${MOTION.enter.duration}s = ${BAND_STAGGER_S * 5 + MOTION.enter.duration}s`,
+      `pin hairline ${PIN_HAIRLINE_S}s then fade ${MOTION.leave.duration}s`,
+      `band height result ${BAND_H_RESULT}px editor ${BAND_H_EDITOR}px`,
+      `photo fold ${PHOTO_FOLD_CSS} (max ${PHOTO_FOLD_PX}px) leader x ${PIN_LEADER_X}px pin ${PIN_SIZE}px`,
+      `baku v6 crossfade ${BAKU_CROSSFADE_MS}ms`,
+      `paper ${PAPER} ink ${INK} vermilion ${VERMILION}`,
+      `fonts Akaya Kanadaka / Geist / Geist Mono via next/font`,
+      `brief model ${FOLD_BRIEFS.IMG_6505.model}`,
+      `brief timeout ${BRIEF_REQUEST.timeoutMs}ms max_tokens ${BRIEF_REQUEST.maxTokens} reasoning_effort ${BRIEF_REQUEST.reasoningEffort}`,
+      `IMG_6505 brief latency ${FOLD_BRIEFS.IMG_6505.latencyMs ?? "n/a"}ms outputTokens ${FOLD_BRIEFS.IMG_6505.outputTokens ?? "n/a"}`,
+      `IMG_6208 brief latency ${FOLD_BRIEFS.IMG_6208.latencyMs ?? "n/a"}ms outputTokens ${FOLD_BRIEFS.IMG_6208.outputTokens ?? "n/a"}`,
+      `IMG_5859 brief latency ${FOLD_BRIEFS.IMG_5859.latencyMs ?? "n/a"}ms outputTokens ${FOLD_BRIEFS.IMG_5859.outputTokens ?? "n/a"}`,
+      `IMG_6505 brief ${JSON.stringify(FOLD_BRIEFS.IMG_6505.text)}`,
+      `IMG_6208 brief ${JSON.stringify(FOLD_BRIEFS.IMG_6208.text)}`,
+      `IMG_5859 brief ${JSON.stringify(FOLD_BRIEFS.IMG_5859.text)}`,
+    ].join("\n") + "\n"
+  );
+}
+
+async function main(): Promise<void> {
+  await mkdir(ARTIFACTS, { recursive: true });
+  const txt = motionTxt();
+  await writeFile(path.join(ARTIFACTS, "r5_motion.txt"), txt);
+  await writeFile(path.join(ARTIFACTS, "motion.txt"), txt);
+
+  const browser = await webkit.launch();
+  for (const reduced of [false, true]) {
+    const label = reduced ? "reduced" : "motion";
+    for (const vp of VIEWPORTS) {
+      let page = await browser.newPage({
+        viewport: { width: vp.width, height: vp.height },
+        deviceScaleFactor: 2,
+        reducedMotion: reduced ? "reduce" : "no-preference",
+      });
+      for (const photo of PHOTOS) {
+        for (const shot of PER_PHOTO) {
+          const name = `r5_${photo}_${vp.name}_${shot.state}_${label}.png`;
+          page = await captureShot(
+            page,
+            urlFor(shot, photo),
+            path.join(ARTIFACTS, name),
+            reduced,
+            reduced ? 200 : 700,
+            ABOVE_BAR.has(shot.state),
+          );
+        }
+        page = await captureShot(
+          page,
+          urlFor({ state: "result" }, photo),
+          path.join(ARTIFACTS, `r5_${photo}_${vp.name}_arrived_${label}.png`),
+          reduced,
+          reduced ? 200 : 700,
+          false,
+        );
+      }
+      for (const shot of EXTRA) {
+        const name = `r5_${shot.photo}_${vp.name}_${shot.state}_${label}.png`;
+        page = await captureShot(
+          page,
+          urlFor(shot, shot.photo ?? "IMG_6505"),
+          path.join(ARTIFACTS, name),
+          reduced,
+          reduced ? 200 : 700,
+          ABOVE_BAR.has(shot.state),
+        );
+      }
+      await page.close();
+    }
+  }
+
+  {
+    let page = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 2,
+      reducedMotion: "no-preference",
+    });
+    page = await captureReveal(page, path.join(ARTIFACTS, "r5_IMG_5859_390x844_reveal0ms_motion.png"), 0);
+    page = await captureReveal(page, path.join(ARTIFACTS, "r5_IMG_5859_390x844_reveal200ms_motion.png"), 200);
+    page = await captureReveal(page, path.join(ARTIFACTS, "r5_IMG_5859_390x844_reveal400ms_motion.png"), 400);
+    await page.close();
+  }
+
+  for (const vp of VIEWPORTS) {
+    let page = await browser.newPage({
+      viewport: { width: vp.width, height: vp.height },
+      deviceScaleFactor: 2,
+      reducedMotion: "no-preference",
+    });
+    page = await captureEditDrag(page, path.join(ARTIFACTS, `r5_IMG_5859_${vp.name}_edit-drag_motion.png`));
+    await page.close();
+  }
+
+  {
+    const longest = (Object.keys(FOLD_BRIEFS) as Array<keyof typeof FOLD_BRIEFS>).reduce((best, id) =>
+      FOLD_BRIEFS[id].text.length > FOLD_BRIEFS[best].text.length ? id : best,
+    );
+    for (const vp of VIEWPORTS) {
+      let page = await browser.newPage({
+        viewport: { width: vp.width, height: vp.height },
+        deviceScaleFactor: 2,
+        reducedMotion: "no-preference",
+      });
+      page = await captureShot(
+        page,
+        urlFor({ state: "result" }, longest),
+        path.join(ARTIFACTS, `r5_${longest}_${vp.name}_brief-full_motion.png`),
+        false,
+        700,
+        true,
+      );
+      await page.close();
+    }
+  }
+
+  {
+    const closeups = [
+      { photo: "IMG_5859", name: "r5_IMG_5859_390x844_brief-closeup_motion.png" },
+      { photo: "IMG_6208", name: "r5_IMG_6208_390x844_brief-closeup-navy_motion.png" },
+      { photo: "IMG_6505", name: "r5_IMG_6505_390x844_brief-closeup-light_motion.png" },
+    ] as const;
+    const widths: string[] = [];
+    for (const shot of closeups) {
+      const page = await browser.newPage({
+        viewport: { width: 390, height: 844 },
+        deviceScaleFactor: 3,
+        reducedMotion: "no-preference",
+      });
+      watchStatic(page);
+      await page.goto(`${BASE}/dev/fold?state=result&photo=${shot.photo}`, { waitUntil: "load", timeout: 60_000 });
+      await hideChrome(page);
+      await assertCaptureReady(page);
+      await page.locator("[data-brief-slot]").waitFor({ timeout: 20_000 });
+      await page
+        .locator('[data-baku-tinted="1"]')
+        .waitFor({ timeout: 12_000 })
+        .catch(() => undefined);
+      await page
+        .locator('[data-baku-shadow-baked="1"]')
+        .waitFor({ timeout: 8_000 })
+        .catch(() => undefined);
+      await page.waitForTimeout(200);
+      const box = await page.locator("[data-baku-sprite]").boundingBox();
+      widths.push(`${shot.photo} baku ${box ? `${box.width}x${box.height}` : "missing"}`);
+      const slot = await page.locator("[data-brief-slot]").boundingBox();
+      if (slot) {
+        await page.screenshot({
+          path: path.join(ARTIFACTS, shot.name),
+          animations: "allow",
+          clip: { x: slot.x, y: slot.y, width: slot.width, height: slot.height },
+        });
+      } else {
+        await page.locator("[data-brief-slot]").screenshot({
+          path: path.join(ARTIFACTS, shot.name),
+          animations: "allow",
+        });
+      }
+      await page.close();
+    }
+    await writeFile(path.join(ARTIFACTS, "r5_baku_width.txt"), `${widths.join("\n")}\n`);
+  }
+
+  for (const reduced of [false, true]) {
+    const label = reduced ? "reduced" : "motion";
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 2,
+      reducedMotion: reduced ? "reduce" : "no-preference",
+      recordVideo: { dir: ARTIFACTS, size: { width: 390, height: 844 } },
+    });
+    const page = await context.newPage();
+    watchStatic(page);
+    await page.goto(`${BASE}/dev/fold?state=first&photo=IMG_6505`, { waitUntil: "load", timeout: 60_000 });
+    await hideChrome(page);
+    await assertCaptureReady(page);
+    await page.waitForTimeout(400);
+    await page.goto(`${BASE}/dev/fold?state=result&photo=IMG_6505&play=1`, { waitUntil: "load" });
+    await hideChrome(page);
+    await page.waitForTimeout(reduced ? 200 : 900);
+    await page.goto(`${BASE}/dev/fold?state=edit&photo=IMG_6505`, { waitUntil: "load" });
+    await hideChrome(page);
+    await page.waitForTimeout(400);
+    await page.goto(`${BASE}/dev/fold?state=save&photo=IMG_6505`, { waitUntil: "load" });
+    await hideChrome(page);
+    await page.waitForTimeout(400);
+    await page.goto(`${BASE}/dev/fold?state=saved&photo=IMG_6505`, { waitUntil: "load" });
+    await hideChrome(page);
+    await page.waitForTimeout(500);
+    await page.goto(`${BASE}/dev/fold?state=collection&photo=IMG_6505`, { waitUntil: "load" });
+    await hideChrome(page);
+    await page.waitForTimeout(400);
+    const video = page.video();
+    await page.close();
+    await context.close();
+    if (video) {
+      const raw = await video.path();
+      const dest = path.join(ARTIFACTS, `r5_flow_${label}.webm`);
+      await copyFile(raw, dest);
+      await writeFile(path.join(ARTIFACTS, `r5_flow_${label}_path.txt`), `${dest}\n`);
+    }
+  }
+
+  await browser.close();
+  const guardLine = `capture guard pass=${GUARD.pass} fail=${GUARD.fail}\n`;
+  await writeFile(path.join(ARTIFACTS, "r5_guard.txt"), guardLine);
+  console.log(guardLine.trim());
+  console.log("r5_ fold shots written");
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

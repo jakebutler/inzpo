@@ -7,6 +7,8 @@ if (!process.env.DATABASE_URL) {
 }
 
 const sharp = (await import("sharp")).default;
+const { TEST_OWNER_ID: OWNER } = await import("../lib/auth/owner-ids");
+const { EMPTY_FILTER } = await import("../lib/filter");
 const { createImageItem, getWallItems, deleteItem } = await import("../lib/items");
 const { db } = await import("../lib/db");
 const itemsMod = await import("../lib/db/schema");
@@ -20,10 +22,10 @@ const input = await sharp({
   .png()
   .toBuffer();
 
-const id = await createImageItem({ buffer: input, filename: "e2e smoke photo.png" });
+const id = await createImageItem({ ownerId: OWNER, buffer: input, filename: "e2e smoke photo.png" });
 console.log("created item", id);
 
-const wall = await getWallItems();
+const wall = await getWallItems(OWNER, EMPTY_FILTER);
 const item = wall.find((w) => w.id === id);
 if (!item || !item.displayKey) throw new Error("item missing from wall or has no display variant");
 console.log("wall item:", item.kind, "| title:", item.title, "| display:", item.displayKey, "| aspect:", item.aspect);
@@ -33,8 +35,8 @@ const meta = await sharp(Buffer.from(await obj.Body!.transformToByteArray())).me
 console.log("variant fetchable from R2:", meta.format, meta.width + "x" + meta.height);
 if (meta.format !== "webp" || meta.width !== 640) throw new Error("w640 variant wrong");
 
-await deleteItem(id);
-const after = await getWallItems();
+await deleteItem(OWNER, id);
+const after = await getWallItems(OWNER, EMPTY_FILTER);
 if (after.find((w) => w.id === id)) throw new Error("delete did not remove item");
 const leftovers = await db.select().from(items).where(eq(items.id, id));
 if (leftovers.length > 0) throw new Error("row still present");

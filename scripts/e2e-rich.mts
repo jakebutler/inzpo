@@ -7,6 +7,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 const sharp = (await import("sharp")).default;
+const { TEST_OWNER_ID: OWNER } = await import("../lib/auth/owner-ids");
 const { getItemDetail, getArticleHtml, deleteItem, createImageItem } = await import("../lib/items");
 const { createLinkedItem } = await import("../lib/capture-url");
 const { createPaletteFromItem, getOrigin, getDerivedItems } = await import("../lib/palettes");
@@ -15,8 +16,8 @@ const { itemSources } = await import("../lib/db/schema");
 const { eq } = await import("drizzle-orm");
 
 // --- Article: Archived copy
-const article = await createLinkedItem({ rawUrl: "https://www.joshwcomeau.com/animation/css-transitions/" });
-const articleHtml = await getArticleHtml(article.itemId);
+const article = await createLinkedItem({ ownerId: OWNER, rawUrl: "https://www.joshwcomeau.com/animation/css-transitions/" });
+const articleHtml = await getArticleHtml(OWNER, article.itemId);
 const hasStructure = articleHtml ? /<(p|h2|h3|ul|ol)/i.test(articleHtml) : false;
 console.log(`article: kind=${article.kind} archived=${articleHtml ? "yes (" + articleHtml.length + " bytes)" : "NO"} structured=${hasStructure ? "✓" : "✗"}`);
 if (articleHtml) {
@@ -28,8 +29,8 @@ console.log("  db byte size recorded:", src[0]?.bytes ?? "MISSING");
 if (article.kind !== "article") throw new Error("article kind wrong");
 
 // --- Video: oEmbed short-circuit
-const video = await createLinkedItem({ rawUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" });
-const vd = await getItemDetail(video.itemId);
+const video = await createLinkedItem({ ownerId: OWNER, rawUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" });
+const vd = await getItemDetail(OWNER, video.itemId);
 console.log(`video: kind=${video.kind} poster=${video.previewCaptured ? "captured ✓" : "NO"} embed=${vd?.oembedHtml ? "stored ✓" : "NO"}`);
 if (!vd?.oembedHtml?.includes("iframe")) throw new Error("oembed html missing");
 const embedSrc = vd.oembedHtml.match(/src=["']([^"']+)["']/i)?.[1];
@@ -38,20 +39,20 @@ console.log("  embed src:", embedSrc.slice(0, 60) + "…");
 
 // --- Palette from extracted colors + Origin
 const img = await sharp({ create: { width: 500, height: 400, channels: 3, background: { r: 180, g: 60, b: 30 } } }).png().toBuffer();
-const photoId = await createImageItem({ buffer: img, filename: "palette source.png" });
-const paletteId = await createPaletteFromItem(photoId);
-const paletteDetail = await getItemDetail(paletteId);
-const origin = await getOrigin(paletteId);
-const derived = await getDerivedItems(photoId);
+const photoId = await createImageItem({ ownerId: OWNER, buffer: img, filename: "palette source.png" });
+const paletteId = await createPaletteFromItem(OWNER, photoId);
+const paletteDetail = await getItemDetail(OWNER, paletteId);
+const origin = await getOrigin(OWNER, paletteId);
+const derived = await getDerivedItems(OWNER, photoId);
 console.log(`palette: kind=${paletteDetail?.kind} colors=${paletteDetail?.colors.length} origin=${origin === photoId ? "✓" : "WRONG"} derivedBack=${derived.some((d) => d.id === paletteId) ? "✓" : "✗"}`);
 if (paletteDetail?.kind !== "palette" || (paletteDetail.colors.length ?? 0) < 1) throw new Error("palette substance wrong");
 
 // delete the Origin item → link clears, palette survives
-await deleteItem(photoId);
-const originAfter = await getOrigin(paletteId);
-const paletteAfter = await getItemDetail(paletteId);
+await deleteItem(OWNER, photoId);
+const originAfter = await getOrigin(OWNER, paletteId);
+const paletteAfter = await getItemDetail(OWNER, paletteId);
 console.log(`after deleting origin: origin link=${originAfter === null ? "cleared ✓" : "STILL THERE"} palette survives=${paletteAfter ? "✓" : "GONE"}`);
 if (originAfter !== null || !paletteAfter) throw new Error("origin cascade wrong");
 
-for (const id of [article.itemId, video.itemId, paletteId]) await deleteItem(id);
+for (const id of [article.itemId, video.itemId, paletteId]) await deleteItem(OWNER, id);
 console.log("rich capture e2e passes");

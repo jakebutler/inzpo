@@ -1,0 +1,18 @@
+tap 0.12s power2.out (120ms)
+small 0.2s power2.inOut (200ms)
+enter 0.32s power3.out (320ms)
+leave 0.22s power2.in (220ms)
+reduced 0.12s power1.out (120ms)
+band stagger 0.06s × 6 + enter 0.32s = 0.62s
+pin hairline 0.4s then fade 0.22s
+band height result 40px editor 56px
+paper #F3EEE4 ink #1C1B19 vermilion #C9341F
+fonts Fraunces / Geist / Geist Mono via next/font
+brief model glm-5.3-flash
+brief timeout 25000ms max_tokens 300 reasoning_effort low
+IMG_6505 brief latency 14096ms outputTokens 93
+IMG_6208 brief latency 5177ms outputTokens 95
+IMG_5859 brief latency 4430ms outputTokens 85
+IMG_6505 brief "Pale butter-yellow clapboard siding with white trim reads warm, dignified Victorian charm."
+IMG_6208 brief "Sky-blue mural facade with dark navy door insets and pale gray shopfront, evoking a quiet, storybook charm."
+IMG_5859 brief "Rusty-orange zigzag peaks on a graffiti wall beside a pale blue-hazy sky, playful and mischievous in mood."

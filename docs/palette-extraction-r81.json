@@ -1,0 +1,704 @@
+{
+  "command": "node --conditions=react-server --import tsx scripts/palette-samples.mts",
+  "deltaEMetric": "CIE76 (Euclidean CIELAB, sRGB / D65) on rounded role hexes; deltaE2000 per pair is informational",
+  "minimumRoleDeltaE": 12,
+  "minimumBackgroundTextContrast": 4.5,
+  "notes": [
+    "Every filled hex is the measured RGB mean of one connected photo region. No tinting, padding or DB migration.",
+    "Region size is the fraction of the full thumbnail. Share is colour-cluster coverage, not component size.",
+    "Pins are normalized region centroids with origin region; a concave region's centroid can lie in a hole.",
+    "Palette input follows the server storage pipeline: sRGB JPEG at <=2000px, q88 4:4:4, then w640 WebP q82. Extraction timings exclude this preparation.",
+    "Among connected light (L* >= 60) or neutral (C* < 12) real regions passing 4.5:1 against the darkest suitable real text region, background first prefers the largest qualifying L* >= 75 region, then the largest qualifying light/neutral region. Shadows are excluded and CIE76 >= 12 from filled roles is required. In either tier, a near-duplicate real component of the same subject class may replace primary to release trim; otherwise conflicting backgrounds are skipped. If neither tier qualifies, the existing ranking is used.",
+    "Shadow test: C* < 25, at least 10 L* below a side-adjacent real region of size >= 0.1%, and absolute chroma difference <= 5 C*. Lab hue gap is <= 30 degrees (including wrap) with both C* >= 3, or both regions have C* < 3. The largest light/neutral region (chosen before the contrast gate) is never classified as a shadow if it passes 4.5:1 against suitable text. Shadows are excluded from qualifying backgrounds and may fill any slot only as a last resort after its distinct non-shadow choices are exhausted.",
+    "On the server pipeline, 6505's qualifying cream trim is #d0c7b2. The initial facade #d2d0a8 is too close, so primary uses the real facade component #d5cea0 (CIE76 12.34 from the cream). The larger mid-grey #aeada5 is below L* 75 and becomes surface. All remain measured connected-region means, without whitening or recolouring.",
+    "Empty roles remain null and display the existing dashed add-a-colour slot."
+  ],
+  "photos": [
+    {
+      "photo": "IMG_6208",
+      "source": "public/sample/IMG_6208.jpg",
+      "paletteSource": "rasterForStore (sRGB, <=2000px JPEG q88 4:4:4) -> w640 WebP q82",
+      "thumbnail": {
+        "width": 288,
+        "height": 384
+      },
+      "roles": [
+        {
+          "role": "primary",
+          "hex": "#709fbf",
+          "lightness": 63.345038253997785,
+          "chroma": 22.709095403448046,
+          "empty": false,
+          "regionSize": 0.005949797453703704,
+          "regionPixels": 658,
+          "share": 0.1501736111111111,
+          "pin": [
+            0.8110382894292469,
+            0.5490240311550152
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        },
+        {
+          "role": "secondary",
+          "hex": "#96a3ac",
+          "lightness": 66.25699042658758,
+          "chroma": 6.783670247122765,
+          "empty": false,
+          "regionSize": 0.0025499131944444445,
+          "regionPixels": 282,
+          "share": 0.2605523003472222,
+          "pin": [
+            0.3630442277383767,
+            0.6993110963356974
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        },
+        {
+          "role": "accent",
+          "hex": null,
+          "lightness": null,
+          "chroma": null,
+          "empty": true,
+          "regionSize": null,
+          "regionPixels": null,
+          "share": null,
+          "pin": null,
+          "origin": null,
+          "legacyDerived": false
+        },
+        {
+          "role": "background",
+          "hex": "#bac3c9",
+          "lightness": 78.27849697140172,
+          "chroma": 4.5038982635598,
+          "empty": false,
+          "regionSize": 0.2139214409722222,
+          "regionPixels": 23658,
+          "share": 0.23668077256944445,
+          "pin": [
+            0.5320620638074036,
+            0.8880143388776172
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        },
+        {
+          "role": "surface",
+          "hex": "#9cc4e2",
+          "lightness": 77.30400975237927,
+          "chroma": 20.226020250697967,
+          "empty": false,
+          "regionSize": 0.002387152777777778,
+          "regionPixels": 264,
+          "share": 0.01025390625,
+          "pin": [
+            0.3253761574074074,
+            0.2533834438131313
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        },
+        {
+          "role": "text",
+          "hex": "#384a5d",
+          "lightness": 30.7087848108091,
+          "chroma": 13.540680923412824,
+          "empty": false,
+          "regionSize": 0.05905490451388889,
+          "regionPixels": 6531,
+          "share": 0.22864221643518517,
+          "pin": [
+            0.26020985385937156,
+            0.6977990385596896
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        }
+      ],
+      "backgroundTextContrast": 5.090490999296006,
+      "pairwiseDeltaE": [
+        {
+          "roleA": "primary",
+          "roleB": "secondary",
+          "hexA": "#709fbf",
+          "hexB": "#96a3ac",
+          "deltaE": 16.21861548677091,
+          "deltaE2000": 10.055974121078634
+        },
+        {
+          "roleA": "primary",
+          "roleB": "background",
+          "hexA": "#709fbf",
+          "hexB": "#bac3c9",
+          "deltaE": 23.57231426003363,
+          "deltaE2000": 16.273751747330166
+        },
+        {
+          "roleA": "primary",
+          "roleB": "surface",
+          "hexA": "#709fbf",
+          "hexB": "#9cc4e2",
+          "deltaE": 14.182260148964245,
+          "deltaE2000": 10.844912723851305
+        },
+        {
+          "roleA": "primary",
+          "roleB": "text",
+          "hexA": "#709fbf",
+          "hexB": "#384a5d",
+          "deltaE": 34.10065658697145,
+          "deltaE2000": 32.60725337360216
+        },
+        {
+          "roleA": "secondary",
+          "roleB": "background",
+          "hexA": "#96a3ac",
+          "hexB": "#bac3c9",
+          "deltaE": 12.2369492711318,
+          "deltaE2000": 9.256164374196707
+        },
+        {
+          "roleA": "secondary",
+          "roleB": "surface",
+          "hexA": "#96a3ac",
+          "hexB": "#9cc4e2",
+          "deltaE": 17.434282390972534,
+          "deltaE2000": 11.937581649089502
+        },
+        {
+          "roleA": "secondary",
+          "roleB": "text",
+          "hexA": "#96a3ac",
+          "hexB": "#384a5d",
+          "deltaE": 36.290229774382894,
+          "deltaE2000": 35.6844376440388
+        },
+        {
+          "roleA": "background",
+          "roleB": "surface",
+          "hexA": "#bac3c9",
+          "hexB": "#9cc4e2",
+          "deltaE": 15.797453155021273,
+          "deltaE2000": 10.361126508879009
+        },
+        {
+          "roleA": "background",
+          "roleB": "text",
+          "hexA": "#bac3c9",
+          "hexB": "#384a5d",
+          "deltaE": 48.48449687256727,
+          "deltaE2000": 45.90245212897647
+        },
+        {
+          "roleA": "surface",
+          "roleB": "text",
+          "hexA": "#9cc4e2",
+          "hexB": "#384a5d",
+          "deltaE": 47.1827548209223,
+          "deltaE2000": 45.150313530212
+        }
+      ],
+      "minPairwiseDeltaE": 12.2369492711318,
+      "timing": {
+        "warmups": 1,
+        "runs": 5,
+        "samplesMs": [
+          466.4977140000001,
+          584.9726790000002,
+          401.001933,
+          456.4891090000001,
+          323.64933999999994
+        ],
+        "medianMs": 456.4891090000001
+      }
+    },
+    {
+      "photo": "IMG_6505",
+      "source": "public/sample/IMG_6505.jpg",
+      "paletteSource": "rasterForStore (sRGB, <=2000px JPEG q88 4:4:4) -> w640 WebP q82",
+      "thumbnail": {
+        "width": 288,
+        "height": 384
+      },
+      "roles": [
+        {
+          "role": "primary",
+          "hex": "#d5cea0",
+          "lightness": 82.28555081664912,
+          "chroma": 24.301006929278824,
+          "empty": false,
+          "regionSize": 0.008915653935185185,
+          "regionPixels": 986,
+          "share": 0.12400535300925926,
+          "pin": [
+            0.4176808654496281,
+            0.7042289976335362
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        },
+        {
+          "role": "secondary",
+          "hex": "#788984",
+          "lightness": 55.63473772661921,
+          "chroma": 7.218288812690025,
+          "empty": false,
+          "regionSize": 0.003173828125,
+          "regionPixels": 351,
+          "share": 0.02881763599537037,
+          "pin": [
+            0.232846628679962,
+            0.3645091405508072
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        },
+        {
+          "role": "accent",
+          "hex": "#426092",
+          "lightness": 40.57207545652036,
+          "chroma": 31.166234977496163,
+          "empty": false,
+          "regionSize": 0.022316261574074073,
+          "regionPixels": 2468,
+          "share": 0.033031322337962965,
+          "pin": [
+            0.07528869529983792,
+            0.06964985143165857
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        },
+        {
+          "role": "background",
+          "hex": "#d0c7b2",
+          "lightness": 80.44383808290758,
+          "chroma": 11.646349760096884,
+          "empty": false,
+          "regionSize": 0.010154441550925927,
+          "regionPixels": 1123,
+          "share": 0.06181278935185185,
+          "pin": [
+            0.39321138814682893,
+            0.8472608711783912
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        },
+        {
+          "role": "surface",
+          "hex": "#aeada5",
+          "lightness": 70.59594035704772,
+          "chroma": 4.374463843795967,
+          "empty": false,
+          "regionSize": 0.03966833043981482,
+          "regionPixels": 4387,
+          "share": 0.06767216435185185,
+          "pin": [
+            0.6029929020084593,
+            0.9586906864979864
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        },
+        {
+          "role": "text",
+          "hex": "#060504",
+          "lightness": 1.4093614389607225,
+          "chroma": 0.4862431272992685,
+          "empty": false,
+          "regionSize": 0.002387152777777778,
+          "regionPixels": 264,
+          "share": 0.11588541666666667,
+          "pin": [
+            0.24135890151515152,
+            0.5230429292929293
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        }
+      ],
+      "backgroundTextContrast": 12.116135398439473,
+      "pairwiseDeltaE": [
+        {
+          "roleA": "primary",
+          "roleB": "secondary",
+          "hexA": "#d5cea0",
+          "hexB": "#788984",
+          "deltaE": 35.423838860045336,
+          "deltaE2000": 26.15250394638306
+        },
+        {
+          "roleA": "primary",
+          "roleB": "accent",
+          "hexA": "#d5cea0",
+          "hexB": "#426092",
+          "deltaE": 69.38078721309365,
+          "deltaE2000": 53.56829055476466
+        },
+        {
+          "roleA": "primary",
+          "roleB": "background",
+          "hexA": "#d5cea0",
+          "hexB": "#d0c7b2",
+          "deltaE": 13.09149614775321,
+          "deltaE2000": 7.937630264260633
+        },
+        {
+          "roleA": "primary",
+          "roleB": "surface",
+          "hexA": "#d5cea0",
+          "hexB": "#aeada5",
+          "deltaE": 23.109618612718364,
+          "deltaE2000": 14.845296280374862
+        },
+        {
+          "roleA": "primary",
+          "roleB": "text",
+          "hexA": "#d5cea0",
+          "hexB": "#060504",
+          "deltaE": 84.32381009802016,
+          "deltaE2000": 74.6980171935825
+        },
+        {
+          "roleA": "secondary",
+          "roleB": "accent",
+          "hexA": "#788984",
+          "hexB": "#426092",
+          "deltaE": 36.72818787508773,
+          "deltaE2000": 26.204230697716962
+        },
+        {
+          "roleA": "secondary",
+          "roleB": "background",
+          "hexA": "#788984",
+          "hexB": "#d0c7b2",
+          "deltaE": 27.994457856323763,
+          "deltaE2000": 23.13653513536846
+        },
+        {
+          "roleA": "secondary",
+          "roleB": "surface",
+          "hexA": "#788984",
+          "hexB": "#aeada5",
+          "deltaE": 16.55366710545393,
+          "deltaE2000": 14.93664278859073
+        },
+        {
+          "roleA": "secondary",
+          "roleB": "text",
+          "hexA": "#788984",
+          "hexB": "#060504",
+          "deltaE": 54.71682339539762,
+          "deltaE2000": 42.17381811322947
+        },
+        {
+          "roleA": "accent",
+          "roleB": "background",
+          "hexA": "#426092",
+          "hexB": "#d0c7b2",
+          "deltaE": 58.469759849383486,
+          "deltaE2000": 45.42826425423572
+        },
+        {
+          "roleA": "accent",
+          "roleB": "surface",
+          "hexA": "#426092",
+          "hexB": "#aeada5",
+          "deltaE": 46.504300916997884,
+          "deltaE2000": 36.98968486775347
+        },
+        {
+          "roleA": "accent",
+          "roleB": "text",
+          "hexA": "#426092",
+          "hexB": "#060504",
+          "deltaE": 50.33180325754649,
+          "deltaE2000": 33.27382040397283
+        },
+        {
+          "roleA": "background",
+          "roleB": "surface",
+          "hexA": "#d0c7b2",
+          "hexB": "#aeada5",
+          "deltaE": 12.344758497748487,
+          "deltaE2000": 9.10530973951144
+        },
+        {
+          "roleA": "background",
+          "roleB": "text",
+          "hexA": "#d0c7b2",
+          "hexB": "#060504",
+          "deltaE": 79.82144768416474,
+          "deltaE2000": 70.98432467559462
+        },
+        {
+          "roleA": "surface",
+          "roleB": "text",
+          "hexA": "#aeada5",
+          "hexB": "#060504",
+          "deltaE": 69.29967934510321,
+          "deltaE2000": 57.77974575688225
+        }
+      ],
+      "minPairwiseDeltaE": 12.344758497748487,
+      "timing": {
+        "warmups": 1,
+        "runs": 5,
+        "samplesMs": [
+          487.88226399999985,
+          356.1519069999995,
+          342.51798899999994,
+          342.85294500000055,
+          377.1729639999994
+        ],
+        "medianMs": 356.1519069999995
+      }
+    },
+    {
+      "photo": "IMG_5859",
+      "source": "public/sample/IMG_5859.jpg",
+      "paletteSource": "rasterForStore (sRGB, <=2000px JPEG q88 4:4:4) -> w640 WebP q82",
+      "thumbnail": {
+        "width": 288,
+        "height": 384
+      },
+      "roles": [
+        {
+          "role": "primary",
+          "hex": "#86232c",
+          "lightness": 30.525916881048943,
+          "chroma": 46.540225117087516,
+          "empty": false,
+          "regionSize": 0.04902705439814815,
+          "regionPixels": 5422,
+          "share": 0.0967701099537037,
+          "pin": [
+            0.4597767838845854,
+            0.39980826570761097
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        },
+        {
+          "role": "secondary",
+          "hex": "#05112d",
+          "lightness": 5.624114131553412,
+          "chroma": 20.89992720739525,
+          "empty": false,
+          "regionSize": 0.017053674768518517,
+          "regionPixels": 1886,
+          "share": 0.06676793981481481,
+          "pin": [
+            0.06011215682809003,
+            0.6431269883351007
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        },
+        {
+          "role": "accent",
+          "hex": "#c9721f",
+          "lightness": 56.63536004740665,
+          "chroma": 63.28835666623905,
+          "empty": false,
+          "regionSize": 0.0035988136574074073,
+          "regionPixels": 398,
+          "share": 0.020968967013888888,
+          "pin": [
+            0.6601497068676717,
+            0.551291614321608
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        },
+        {
+          "role": "background",
+          "hex": "#bebfc1",
+          "lightness": 77.31610869358914,
+          "chroma": 1.1273001680602834,
+          "empty": false,
+          "regionSize": 0.13852719907407407,
+          "regionPixels": 15320,
+          "share": 0.2243019386574074,
+          "pin": [
+            0.5177072001015376,
+            0.1449881690600522
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        },
+        {
+          "role": "surface",
+          "hex": "#e7eef2",
+          "lightness": 93.68834219053734,
+          "chroma": 3.165222775918418,
+          "empty": false,
+          "regionSize": 0.0048828125,
+          "regionPixels": 540,
+          "share": 0.13013599537037038,
+          "pin": [
+            0.07766203703703704,
+            0.16921296296296295
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        },
+        {
+          "role": "text",
+          "hex": "#080c10",
+          "lightness": 3.179391137045144,
+          "chroma": 2.288183187520528,
+          "empty": false,
+          "regionSize": 0.0017541956018518518,
+          "regionPixels": 194,
+          "share": 0.06676793981481481,
+          "pin": [
+            0.9627720504009163,
+            0.5222696520618556
+          ],
+          "origin": "region",
+          "legacyDerived": false
+        }
+      ],
+      "backgroundTextContrast": 10.66129311681998,
+      "pairwiseDeltaE": [
+        {
+          "roleA": "primary",
+          "roleB": "secondary",
+          "hexA": "#86232c",
+          "hexB": "#05112d",
+          "deltaE": 59.165763227021934,
+          "deltaE2000": 34.14450603102888
+        },
+        {
+          "roleA": "primary",
+          "roleB": "accent",
+          "hexA": "#86232c",
+          "hexB": "#c9721f",
+          "deltaE": 47.262504480609074,
+          "deltaE2000": 33.59942970045992
+        },
+        {
+          "roleA": "primary",
+          "roleB": "background",
+          "hexA": "#86232c",
+          "hexB": "#bebfc1",
+          "deltaE": 66.31920508426776,
+          "deltaE2000": 51.464581018721425
+        },
+        {
+          "roleA": "primary",
+          "roleB": "surface",
+          "hexA": "#86232c",
+          "hexB": "#e7eef2",
+          "deltaE": 80.0393940422618,
+          "deltaE2000": 60.475222546150945
+        },
+        {
+          "roleA": "primary",
+          "roleB": "text",
+          "hexA": "#86232c",
+          "hexB": "#080c10",
+          "deltaE": 55.13093143201164,
+          "deltaE2000": 31.797333818991778
+        },
+        {
+          "roleA": "secondary",
+          "roleB": "accent",
+          "hexA": "#05112d",
+          "hexB": "#c9721f",
+          "deltaE": 94.68552952583626,
+          "deltaE2000": 55.74184608821622
+        },
+        {
+          "roleA": "secondary",
+          "roleB": "background",
+          "hexA": "#05112d",
+          "hexB": "#bebfc1",
+          "deltaE": 74.37972308440776,
+          "deltaE2000": 65.83239017413501
+        },
+        {
+          "roleA": "secondary",
+          "roleB": "surface",
+          "hexA": "#05112d",
+          "hexB": "#e7eef2",
+          "deltaE": 90.0624651216938,
+          "deltaE2000": 89.06937198969587
+        },
+        {
+          "roleA": "secondary",
+          "roleB": "text",
+          "hexA": "#05112d",
+          "hexB": "#080c10",
+          "deltaE": 19.031622338474264,
+          "deltaE2000": 13.118854586656267
+        },
+        {
+          "roleA": "accent",
+          "roleB": "background",
+          "hexA": "#c9721f",
+          "hexB": "#bebfc1",
+          "deltaE": 67.52828178850267,
+          "deltaE2000": 31.883883380516377
+        },
+        {
+          "roleA": "accent",
+          "roleB": "surface",
+          "hexA": "#c9721f",
+          "hexB": "#e7eef2",
+          "deltaE": 76.08144574216696,
+          "deltaE2000": 39.988736252953686
+        },
+        {
+          "roleA": "accent",
+          "roleB": "text",
+          "hexA": "#c9721f",
+          "hexB": "#080c10",
+          "deltaE": 84.52704531187379,
+          "deltaE2000": 50.11821155065653
+        },
+        {
+          "roleA": "background",
+          "roleB": "surface",
+          "hexA": "#bebfc1",
+          "hexB": "#e7eef2",
+          "deltaE": 16.53028307213534,
+          "deltaE2000": 11.039048674381574
+        },
+        {
+          "roleA": "background",
+          "roleB": "text",
+          "hexA": "#bebfc1",
+          "hexB": "#080c10",
+          "deltaE": 74.14644767364405,
+          "deltaE2000": 65.44680665127916
+        },
+        {
+          "roleA": "surface",
+          "roleB": "text",
+          "hexA": "#e7eef2",
+          "hexB": "#080c10",
+          "deltaE": 90.51822284468476,
+          "deltaE2000": 89.82768518918853
+        }
+      ],
+      "minPairwiseDeltaE": 16.53028307213534,
+      "timing": {
+        "warmups": 1,
+        "runs": 5,
+        "samplesMs": [
+          383.7882410000002,
+          362.60777599999983,
+          333.55952499999967,
+          353.25568399999975,
+          350.4418420000002
+        ],
+        "medianMs": 353.25568399999975
+      }
+    }
+  ]
+}
