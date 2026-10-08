@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "Inzpo",
+    "slug": "inzpo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "io.inzpo.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F3EEE4",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "io.inzpo.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      [
+        "@clerk/expo",
+        {
+          "appleSignIn": false
+        }
+      ],
+      "expo-web-browser",
+      "expo-image",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F3EEE4",
+          "image": "./assets/baku/baku-idle-color.png",
+          "imageWidth": 96,
+          "resizeMode": "contain"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Inzpo uses the camera to snap a house and keep its colors.",
+          "photosPermission": "Inzpo reads the photo you pick to pull its colors.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-asset"
+    ],
+    "scheme": "inzpo",
+    "backgroundColor": "#F3EEE4",
+    "experiments": {
+      "typedRoutes": true,
+      "tsconfigPaths": true
+    }
+  }
+}
