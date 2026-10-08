@@ -47,6 +47,12 @@ type ColorRow = {
 
 const TILE_PX = 256;
 
+function pinsForCrop(colors: ColorRow[]) {
+  return colors
+    .filter((c) => c.role && c.derivedFrom == null && c.pinX != null && c.pinY != null)
+    .map((c) => ({ x: c.pinX as number, y: c.pinY as number }));
+}
+
 function readSafeTop(el: HTMLElement | null): number {
   if (!el) return 0;
   const probe = el.querySelector("[data-safe-top]");
@@ -141,6 +147,9 @@ export function KitResult({
   const [linePulse, setLinePulse] = useState(false);
   const [focusedRole, setFocusedRole] = useState<ColorRole | null>(null);
   const [editOpen, setEditOpen] = useState(preview?.openRole != null);
+  const [editingPins, setEditingPins] = useState<Array<{ x: number; y: number }> | null>(
+    () => preview?.openRole ? pinsForCrop(derivedColors) : null,
+  );
   const [loupe, setLoupe] = useState<LoupeView | null>(null);
   const [revealTick, setRevealTick] = useState(0);
   const [bandsRevealed, setBandsRevealed] = useState(
@@ -170,11 +179,11 @@ export function KitResult({
     pending: brief.status === "pending" || brief.stub,
   });
   const crop = useMemo(() => {
-    const pins = displayColors
-      .filter((c) => c.role && c.derivedFrom == null && c.pinX != null && c.pinY != null)
-      .map((c) => ({ x: c.pinX as number, y: c.pinY as number }));
+    // Keep the photo under the user's pointer fixed throughout the edit session.
+    // Recompute for a resized box, but do not pan in response to a sampled pin.
+    const pins = editingPins ?? pinsForCrop(displayColors);
     return coverWindowForPins(width, height, box.w, box.h, pins);
-  }, [displayColors, width, height, box.w, box.h]);
+  }, [displayColors, editingPins, width, height, box.w, box.h]);
 
   useEffect(() => {
     const el = photoRef.current;
@@ -463,6 +472,7 @@ export function KitResult({
               crossOrigin="anonymous"
               fetchPriority="high"
               decoding="async"
+              draggable={false}
             />
           </div>
           {showBack && !saved ? <PhotoBackButton href={backHref} /> : null}
@@ -476,6 +486,9 @@ export function KitResult({
                 <span
                   key={`${c.role}-${c.position}`}
                   data-pin={c.role}
+                  data-pin-x={c.pinX}
+                  data-pin-y={c.pinY}
+                  data-origin={c.origin ?? "extracted"}
                   className="absolute rounded-full"
                   style={{
                     ...pinDiscStyle(c.hex),
@@ -551,7 +564,10 @@ export function KitResult({
         pageInk={pageInk}
         initialOpen={preview?.openRole ?? null}
         onFocusRole={setFocusedRole}
-        onOpenChange={(role) => setEditOpen(role !== null)}
+        onOpenChange={(role) => {
+          setEditingPins((prev) => role ? prev ?? pinsForCrop(displayColors) : null);
+          setEditOpen(role !== null);
+        }}
         photoRef={imgRef}
         photoBox={box}
         crop={crop}

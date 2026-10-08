@@ -14,7 +14,7 @@ import { hexWithoutHash, isHexColor, normalizeHex } from "@/lib/colors";
 import { MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { filledRoles, moveRole, rolesFromColors, setRoleColor } from "@/lib/tokens";
 import { sampleImageAverage, sampleImagePixel } from "@/lib/client-eyedropper";
-import { isNoopPinSample } from "@/lib/pin-drag";
+import { isNoopPinDrag, isNoopPinSample, resolvePinDropPoint, type PinDragPoint, type PointerPoint } from "@/lib/pin-drag";
 import { SAMPLED_ORIGIN } from "@/lib/derived-roles";
 import { pointerOnCoverBox, type CoverWindow } from "@/lib/cover-pin";
 import { saveItemTokensAction } from "@/app/actions/tokens";
@@ -99,7 +99,6 @@ export function TokenEditor({
     onLoupe?.(next);
   }
   const [pending, startTransition] = useTransition();
-  const sampling = useRef(false);
   const filledHex = new Set(
     Object.values(roles)
       .filter((hex): hex is string => typeof hex === "string")
@@ -134,13 +133,17 @@ export function TokenEditor({
     fd.set("roles", JSON.stringify(nextRoles));
     fd.set("pins", JSON.stringify(nextPins));
     fd.set("origins", JSON.stringify(origins));
-    startTransition(() => {
-      void saveItemTokensAction(fd);
+    startTransition(async () => {
+      await saveItemTokensAction(fd);
     });
   }
 
   function applyHex(role: ColorRole, value: string, nextPins = pins, markUserSet = true) {
     if (!isHexColor(value)) return;
+    if (normalizeHex(value) === roles[role] && nextPins === pins) {
+      setHexDraft(normalizeHex(value));
+      return;
+    }
     const nextUserSet = new Set(userSetRoles);
     if (markUserSet) nextUserSet.add(role);
     commit(setRoleColor(roles, role, normalizeHex(value)), nextPins, nextUserSet);
@@ -161,19 +164,28 @@ export function TokenEditor({
     setHexDraft(color.hex);
   }
 
-  function samplePointer(clientX: number, clientY: number, commitSample: boolean) {
+  function resetSamplePreview() {
+    setLoupe(null);
+    if (open) setHexDraft(roles[open] ?? "");
+  }
+
+  function samplePointer(clientX: number, clientY: number, commitSample: boolean, start?: PinDragPoint | null) {
     const img = photoRef?.current;
-    if (!open || !img || !crop || !photoBox || !imageSize) return;
-    const mapped = pointerOnCoverBox(
-      clientX,
-      clientY,
-      { left: img.getBoundingClientRect().left, top: img.getBoundingClientRect().top, width: photoBox.w, height: photoBox.h },
-      crop,
-    );
-    if (!mapped) return;
+    if (!open || !img || !crop) return null;
+    const rect = img.getBoundingClientRect();
+    const mapped = pointerOnCoverBox(clientX, clientY, rect, crop);
+    if (!mapped) {
+      if (commitSample) resetSamplePreview();
+      return null;
+    }
+    const geometry = {
+      width: img.naturalWidth, height: img.naturalHeight,
+      boxWidth: rect.width, boxHeight: rect.height, crop,
+    };
     try {
-      if (commitSample && isNoopPinSample(pins[open], mapped.nx, mapped.ny)) {
-        return;
+      if (commitSample && (isNoopPinDrag(start, mapped, geometry) || isNoopPinSample(pins[open], mapped, geometry))) {
+        resetSamplePreview();
+        return mapped;
       }
       const sample = commitSample
         ? sampleImagePixel(img, mapped.nx, mapped.ny)
@@ -193,41 +205,76 @@ export function TokenEditor({
       }
     } catch {
       // keep the previous color if the image cannot be sampled
+      if (commitSample) resetSamplePreview();
     }
+    return mapped;
   }
+
+  // Loupe updates render the parent on every move. Keep the native listeners and
+  // their active pointer intact, while sampling with the latest role/crop/state.
+  const pointerHandlers = useRef({ samplePointer, resetSamplePreview });
+  useEffect(() => {
+    pointerHandlers.current = { samplePointer, resetSamplePreview };
+  });
 
   useEffect(() => {
     const img = photoRef?.current;
     if (!open || !img) return;
+    const previousPointerEvents = img.style.pointerEvents;
+    const previousTouchAction = img.style.touchAction;
     img.style.pointerEvents = "auto";
+    img.style.touchAction = "none";
+    let active: { pointerId: number; start: PinDragPoint; lastGood: PointerPoint } | null = null;
+    const preventNativeDrag = (e: DragEvent) => e.preventDefault();
     const onDown = (e: PointerEvent) => {
-      sampling.current = true;
+      if (active || !e.isPrimary || e.button !== 0) return;
+      const start = pointerHandlers.current.samplePointer(e.clientX, e.clientY, false);
+      if (!start) return;
+      // Images are natively draggable in Chromium: without this, dragstart
+      // cancels our pointer stream and reports (0, 0) instead of a drop.
+      e.preventDefault();
+      active = { pointerId: e.pointerId, start, lastGood: { clientX: e.clientX, clientY: e.clientY } };
       img.setPointerCapture(e.pointerId);
-      samplePointer(e.clientX, e.clientY, false);
     };
     const onMove = (e: PointerEvent) => {
-      if (!sampling.current && e.buttons === 0) return;
-      samplePointer(e.clientX, e.clientY, false);
+      if (!active || active.pointerId !== e.pointerId) return;
+      if (!Number.isFinite(e.clientX) || !Number.isFinite(e.clientY)) return;
+      active.lastGood = { clientX: e.clientX, clientY: e.clientY };
+      pointerHandlers.current.samplePointer(e.clientX, e.clientY, false);
     };
     const onUp = (e: PointerEvent) => {
-      if (!sampling.current) return;
-      sampling.current = false;
-      samplePointer(e.clientX, e.clientY, true);
+      if (!active || active.pointerId !== e.pointerId) return;
+      const drag = active;
+      active = null;
+      const point = resolvePinDropPoint(e, drag.lastGood);
+      if (point) pointerHandlers.current.samplePointer(point.clientX, point.clientY, true, drag.start);
+      else pointerHandlers.current.resetSamplePreview();
+      if (img.hasPointerCapture(e.pointerId)) img.releasePointerCapture(e.pointerId);
     };
+    const onLostCapture = (e: PointerEvent) => {
+      if (!active || active.pointerId !== e.pointerId) return;
+      active = null;
+      pointerHandlers.current.resetSamplePreview();
+    };
+    img.addEventListener("dragstart", preventNativeDrag);
     img.addEventListener("pointerdown", onDown);
     img.addEventListener("pointermove", onMove);
     img.addEventListener("pointerup", onUp);
     img.addEventListener("pointercancel", onUp);
+    img.addEventListener("lostpointercapture", onLostCapture);
     return () => {
-      img.style.pointerEvents = "";
+      if (active && img.hasPointerCapture(active.pointerId)) img.releasePointerCapture(active.pointerId);
+      active = null;
+      img.style.pointerEvents = previousPointerEvents;
+      img.style.touchAction = previousTouchAction;
+      img.removeEventListener("dragstart", preventNativeDrag);
       img.removeEventListener("pointerdown", onDown);
       img.removeEventListener("pointermove", onMove);
       img.removeEventListener("pointerup", onUp);
       img.removeEventListener("pointercancel", onUp);
+      img.removeEventListener("lostpointercapture", onLostCapture);
     };
-    // samplePointer closes over open/crop; rebind when the role changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, photoRef, crop, photoBox, imageSize, pins, roles]);
+  }, [open, photoRef]);
 
   useEffect(() => {
     if (!simulateLoupe || !open || !crop || !photoBox || !imageSize) return;
@@ -307,7 +354,7 @@ export function TokenEditor({
           })}
         </div>
       ) : null}
-      {pending ? <p className="mt-1 px-5 text-base">Saving…</p> : null}
+      {pending ? <p data-token-saving className="mt-1 px-5 text-base">Saving…</p> : null}
 
       <Sheet
         open={open !== null}
@@ -323,6 +370,10 @@ export function TokenEditor({
           overlayClassName="inzpo-photo-clear"
           className="max-h-[calc(100dvh-var(--photo-fold-h,337px))] bg-background pb-[max(1rem,env(safe-area-inset-bottom))] text-foreground shadow-none"
           onOpenAutoFocus={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => {
+            // The sticky photo is an editing surface outside the sheet portal.
+            if (event.detail.originalEvent.target === photoRef?.current) event.preventDefault();
+          }}
         >
           <SheetHeader>
             <SheetTitle className="font-heading text-2xl">{open ? `Edit ${open}` : "Edit color"}</SheetTitle>

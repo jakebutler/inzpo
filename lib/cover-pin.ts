@@ -148,8 +148,9 @@ export function pointerOnCoverBox(
   box: { left: number; top: number; width: number; height: number },
   win: CoverWindow,
 ): { nx: number; ny: number; x: number; y: number } | null {
-  if (box.width <= 0 || box.height <= 0) return null;
-  if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+  if (![clientX, clientY, box.left, box.top, box.width, box.height, win.vx, win.vy, win.vw, win.vh]
+    .every(Number.isFinite)) return null;
+  if (box.width <= 0 || box.height <= 0 || win.vw <= 0 || win.vh <= 0) return null;
   const x = clientX - box.left;
   const y = clientY - box.top;
   if (x < 0 || y < 0 || x > box.width || y > box.height) return null;

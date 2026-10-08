@@ -10,15 +10,19 @@ function src(rel: string): string {
 }
 
 describe("isNoopPinDrag", () => {
-  it("treats a drop on the same spot as a no-op", () => {
-    expect(isNoopPinDrag({ x: 120, y: 80, nx: 0.4, ny: 0.3 }, { x: 120, y: 80, nx: 0.4, ny: 0.3 })).toBe(true);
-    expect(isNoopPinDrag({ x: 120, y: 80 }, { x: 120 + PIN_NOOP_TOLERANCE_PX, y: 80 })).toBe(true);
-    expect(isNoopPinDrag({ x: 120, y: 80 }, { x: 120 + PIN_NOOP_TOLERANCE_PX + 1, y: 80 })).toBe(false);
-    expect(isNoopPinDrag(null, { x: 1, y: 1 })).toBe(false);
-    expect(isNoopPinSample({ pinX: 0.4, pinY: 0.3 }, 0.4, 0.3)).toBe(true);
-    expect(isNoopPinSample({ pinX: 0.4, pinY: 0.3 }, 0.4 + 0.0005, 0.3)).toBe(true);
-    expect(isNoopPinSample({ pinX: 0.4, pinY: 0.3 }, 0.55, 0.3)).toBe(false);
-    expect(isNoopPinSample(null, 0.4, 0.3)).toBe(false);
+  it("treats a drop on the same spot as a no-op in screen and source pixels", () => {
+    const image = { width: 1000, height: 1000 };
+    const start = { x: 120, y: 80, nx: 0.4, ny: 0.3 };
+    expect(isNoopPinDrag(start, start, image)).toBe(true);
+    expect(isNoopPinDrag(start, { ...start, x: 120 + PIN_NOOP_TOLERANCE_PX }, image)).toBe(true);
+    expect(isNoopPinDrag(start, { ...start, x: 120 + PIN_NOOP_TOLERANCE_PX + 1 }, image)).toBe(false);
+    expect(isNoopPinDrag(null, start, image)).toBe(false);
+    const geometry = { ...image, boxWidth: 1000, boxHeight: 1000, crop: { vx: 0, vy: 0, vw: 1, vh: 1 } };
+    const end = { x: 400, y: 300, nx: 0.4, ny: 0.3 };
+    expect(isNoopPinSample({ pinX: 0.4, pinY: 0.3 }, end, geometry)).toBe(true);
+    expect(isNoopPinSample({ pinX: 0.4, pinY: 0.3 }, { ...end, x: 400.5, nx: 0.4005 }, geometry)).toBe(true);
+    expect(isNoopPinSample({ pinX: 0.4, pinY: 0.3 }, { ...end, x: 550, nx: 0.55 }, geometry)).toBe(false);
+    expect(isNoopPinSample(null, end, geometry)).toBe(false);
   });
 
   it("keeps a sampled role user-set instead of retagging it auto", () => {

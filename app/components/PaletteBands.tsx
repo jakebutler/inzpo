@@ -49,6 +49,7 @@ export function PaletteBands({
               aria-label={EMPTY_ROLE_COPY(role)}
               className="inzpo-band inzpo-band-empty"
               data-role={role}
+              data-hex=""
               style={{
                 height,
                 color: emptyInk,
@@ -77,6 +78,7 @@ export function PaletteBands({
             aria-label={isAuto ? `${role} ${AUTO_TAG} ${hex}` : `${role} ${hex}`}
             className="inzpo-band"
             data-role={role}
+            data-hex={hex}
             data-auto={isAuto ? "true" : undefined}
             style={{
               height,
