@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import { rgbToHex } from "@/lib/colors";
-import { MIN_ROLE_DELTA_E, pairwiseRoleDeltaE } from "@/lib/color-distance";
+import { hexToLab, MIN_ROLE_DELTA_E, pairwiseRoleDeltaE, roleDeltaE } from "@/lib/color-distance";
 import { extractPalette, PALETTE_THUMB, type ExtractedPalette } from "@/lib/palette-extract";
 import { markDerivedRoles, REGION_ORIGIN, sampledColors } from "@/lib/derived-roles";
 import { emptyRoles, filledRoles, rolesFromColors } from "@/lib/tokens";
@@ -95,21 +95,21 @@ describe("photo region provenance", () => {
     expect(house.swatches.some((s) => s.lab[0] > 70 && s.lab[2] > 15)).toBe(true);
     expect(house.swatches.some((s) => s.lab[0] < 15)).toBe(true);
     const facade = house.swatches.find((s) => s.role === "primary")!;
-    expect(facade.hex).toBe("#d5d2aa");
+    expect(facade.hex).toBe("#d6d2a6");
     expect(facade.lab[0]).toBeGreaterThan(70);
     expect(facade.lab[2]).toBeGreaterThan(15);
     expect(facade.family).not.toBe("blue");
-    expect(facade.patch).toBeGreaterThan(0.03);
-    // CIE76 retains this real shaded white trim on the lower left of the
-    // house; the region-mean audit above guards against whitening the token.
-    const trim = house.swatches.find((s) => s.role === "surface")!;
-    expect(trim.hex).toBe("#d1cdbe");
+    expect(facade.patch).toBeGreaterThan(0.005);
+    // The largest qualifying cream component is now background. The facade
+    // uses another real subject component to clear CIE76 >= 12 without tinting.
+    const trim = house.swatches.find((s) => s.role === "background")!;
+    expect(trim.hex).toBe("#d0c7b2");
     expect(trim.lab[0]).toBeGreaterThan(70);
     expect(Math.hypot(trim.lab[1], trim.lab[2])).toBeLessThan(12);
-    expect(trim.pinX).toBeGreaterThan(0.12);
-    expect(trim.pinX).toBeLessThan(0.22);
-    expect(trim.pinY).toBeGreaterThan(0.55);
-    expect(trim.pinY).toBeLessThan(0.67);
+    expect(trim.pinX).toBeGreaterThan(0.35);
+    expect(trim.pinX).toBeLessThan(0.45);
+    expect(trim.pinY).toBeGreaterThan(0.8);
+    expect(trim.pinY).toBeLessThan(0.9);
     const shutters = house.swatches.find((s) => s.role === "secondary")!;
     expect(shutters.hex).toBe("#3c4952");
     expect(shutters.lab[0]).toBeLessThan(40);
@@ -118,6 +118,7 @@ describe("photo region provenance", () => {
     expect(shutters.pinX).toBeLessThan(0.75);
     expect(shutters.pinY).toBeGreaterThan(0.24);
     expect(shutters.pinY).toBeLessThan(0.4);
+    expect(house.swatches.some((s) => s.hex === "#6d6857")).toBe(false);
     const mural = palettes.get("IMG_5859")!;
     expect(mural.swatches.some((s) => s.family === "red")).toBe(true);
     expect(mural.swatches.some((s) => s.lab[2] < -8)).toBe(true);
@@ -126,6 +127,27 @@ describe("photo region provenance", () => {
     expect(mural.roles.primary).toBe("#85232b");
     expect(mural.roles.secondary).toBe("#05112d");
     expect(mural.roles.accent).toBe("#ca721e");
+    expect(mural.roles.background).toBe("#bfc0c2");
+    expect(mural.swatches.find((s) => s.role === "background")!.patch).toBeGreaterThan(0.12);
+    expect(mural.roles.surface).toBe("#e6eff4");
+    expect(mural.roles.text).toBe("#090d11");
+    expect(mural.contrast).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("gives IMG_6505 a cream background with passing real text and no close role pair", () => {
+    const house = palettes.get("IMG_6505")!;
+    const background = house.swatches.find((s) => s.role === "background")!;
+    const text = house.swatches.find((s) => s.role === "text")!;
+    expect(background.family).toBe("cream/beige");
+    expect(background.lab[0]).toBeGreaterThan(75);
+    expect(roleDeltaE(background.lab, hexToLab("#d5cfbe"))).toBeLessThan(5);
+    expect(house.contrast).toBeGreaterThanOrEqual(4.5);
+    expect(text.hex).toBe("#020505");
+    expect(text.lab[0]).toBeLessThan(5);
+    expect(Math.min(...pairwiseRoleDeltaE(house.roles).map((pair) => pair.deltaE)))
+      .toBeGreaterThanOrEqual(MIN_ROLE_DELTA_E);
+    expect(kitWearStyle(house.roles).backgroundColor).toBe(background.hex);
+    expect(pageChromeColors(house.roles).ink).toBe(text.hex);
   });
 
   it.each(photos)("%s gives Baku dyed stripes only for filled roles and oatmeal for the rest", (photo) => {

@@ -2,11 +2,14 @@
   "command": "node --conditions=react-server --import tsx scripts/palette-samples.mts",
   "deltaEMetric": "CIE76 (Euclidean CIELAB, sRGB / D65) on rounded role hexes; deltaE2000 per pair is informational",
   "minimumRoleDeltaE": 12,
+  "minimumBackgroundTextContrast": 4.5,
   "notes": [
     "Every filled hex is the measured RGB mean of one connected photo region. No tinting, padding or DB migration.",
     "Region size is the fraction of the full thumbnail. Share is colour-cluster coverage, not component size.",
     "Pins are normalized region centroids with origin region; a concave region's centroid can lie in a hole.",
-    "6505's white window trim and green shutters are sampled as photographed in shade, without whitening or recolouring.",
+    "Background prefers the largest connected light (L* >= 60) or neutral (C* < 12) real region passing 4.5:1 against the darkest suitable real text region, subject to CIE76 >= 12 from filled roles. A near-duplicate real component of the same subject class may replace primary to release larger trim; otherwise conflicting backgrounds are skipped. If none qualifies, the existing ranking is used.",
+    "Shadow test: C* < 25, at least 10 L* below a side-adjacent real region of size >= 0.1%, and absolute chroma difference <= 5 C*. Lab hue gap is <= 30 degrees (including wrap) with both C* >= 3, or both regions have C* < 3. The largest light/neutral region (chosen before the contrast gate) is never classified as a shadow if it passes 4.5:1 against suitable text. Shadows are excluded from qualifying backgrounds and may fill any slot only as a last resort after its distinct non-shadow choices are exhausted.",
+    "6505's largest qualifying cream trim is #d0c7b2. The initial facade #d5d2aa is only CIE76 10.47 away, so primary uses the real facade component #d6d2a6 (CIE76 12.35 from the cream). Both remain measured connected-region means, without whitening or recolouring.",
     "Empty roles remain null and display the existing dashed add-a-colour slot."
   ],
   "photos": [
@@ -100,6 +103,7 @@
           "legacyDerived": false
         }
       ],
+      "backgroundTextContrast": 5.2549677704044555,
       "pairwiseDeltaE": [
         {
           "roleA": "primary",
@@ -187,13 +191,13 @@
         "warmups": 1,
         "runs": 5,
         "samplesMs": [
-          552.1128879999999,
-          352.8407299999999,
-          604.5681829999999,
-          360.3570209999998,
-          355.65814
+          476.7976490000001,
+          329.5262680000001,
+          722.7148089999998,
+          600.925225,
+          522.785425
         ],
-        "medianMs": 360.3570209999998
+        "medianMs": 522.785425
       }
     },
     {
@@ -206,14 +210,14 @@
       "roles": [
         {
           "role": "primary",
-          "hex": "#d5d2aa",
+          "hex": "#d6d2a6",
           "empty": false,
-          "regionSize": 0.03633174189814815,
-          "regionPixels": 4018,
+          "regionSize": 0.007505063657407407,
+          "regionPixels": 830,
           "share": 0.1156322337962963,
           "pin": [
-            0.35065642110502737,
-            0.2738944281981085
+            0.48102827978580986,
+            0.45668925702811247
           ],
           "origin": "region",
           "legacyDerived": false
@@ -248,28 +252,28 @@
         },
         {
           "role": "background",
-          "hex": "#6d6857",
+          "hex": "#d0c7b2",
           "empty": false,
-          "regionSize": 0.06823278356481481,
-          "regionPixels": 7546,
-          "share": 0.13217954282407407,
+          "regionSize": 0.010615596064814815,
+          "regionPixels": 1174,
+          "share": 0.055998625578703706,
           "pin": [
-            0.6392211105221309,
-            0.6636459575713402
+            0.3954192693545334,
+            0.8449877555366269
           ],
           "origin": "region",
           "legacyDerived": false
         },
         {
           "role": "surface",
-          "hex": "#d1cdbe",
+          "hex": "#afaea6",
           "empty": false,
-          "regionSize": 0.0016728153935185186,
-          "regionPixels": 185,
-          "share": 0.055998625578703706,
+          "regionSize": 0.041169343171296294,
+          "regionPixels": 4553,
+          "share": 0.06964337384259259,
           "pin": [
-            0.17233483483483483,
-            0.6092201576576577
+            0.6156082985577275,
+            0.9597855580569589
           ],
           "origin": "region",
           "legacyDerived": false
@@ -289,46 +293,47 @@
           "legacyDerived": false
         }
       ],
+      "backgroundTextContrast": 12.17189655458426,
       "pairwiseDeltaE": [
         {
           "roleA": "primary",
           "roleB": "secondary",
-          "hexA": "#d5d2aa",
+          "hexA": "#d6d2a6",
           "hexB": "#3c4952",
-          "deltaE": 59.9307020589074,
-          "deltaE2000": 53.39857776395617
+          "deltaE": 60.93334675534847,
+          "deltaE2000": 53.82831072907526
         },
         {
           "roleA": "primary",
           "roleB": "accent",
-          "hexA": "#d5d2aa",
+          "hexA": "#d6d2a6",
           "hexB": "#426093",
-          "deltaE": 67.88998907424056,
-          "deltaE2000": 52.68886072634254
+          "deltaE": 69.54202718571283,
+          "deltaE2000": 53.63663135473713
         },
         {
           "roleA": "primary",
           "roleB": "background",
-          "hexA": "#d5d2aa",
-          "hexB": "#6d6857",
-          "deltaE": 40.97677126948276,
-          "deltaE2000": 33.76855209177809
+          "hexA": "#d6d2a6",
+          "hexB": "#d0c7b2",
+          "deltaE": 12.35077969264019,
+          "deltaE2000": 8.073461452731538
         },
         {
           "roleA": "primary",
           "roleB": "surface",
-          "hexA": "#d5d2aa",
-          "hexB": "#d1cdbe",
-          "deltaE": 13.067776185941549,
-          "deltaE2000": 8.332239664187247
+          "hexA": "#d6d2a6",
+          "hexB": "#afaea6",
+          "deltaE": 22.528146352091134,
+          "deltaE2000": 14.794824338498257
         },
         {
           "roleA": "primary",
           "roleB": "text",
-          "hexA": "#d5d2aa",
+          "hexA": "#d6d2a6",
           "hexB": "#020505",
-          "deltaE": 84.97183815491302,
-          "deltaE2000": 76.3213821266771
+          "deltaE": 85.51912189960646,
+          "deltaE2000": 76.50669718245398
         },
         {
           "roleA": "secondary",
@@ -342,17 +347,17 @@
           "roleA": "secondary",
           "roleB": "background",
           "hexA": "#3c4952",
-          "hexB": "#6d6857",
-          "deltaE": 22.219056041678726,
-          "deltaE2000": 19.085025106545107
+          "hexB": "#d0c7b2",
+          "deltaE": 53.629661264788176,
+          "deltaE2000": 49.97078738977676
         },
         {
           "roleA": "secondary",
           "roleB": "surface",
           "hexA": "#3c4952",
-          "hexB": "#d1cdbe",
-          "deltaE": 54.24849998830718,
-          "deltaE2000": 50.204045972774026
+          "hexB": "#afaea6",
+          "deltaE": 42.29670181205153,
+          "deltaE2000": 41.98225650302375
         },
         {
           "roleA": "secondary",
@@ -366,17 +371,17 @@
           "roleA": "accent",
           "roleB": "background",
           "hexA": "#426093",
-          "hexB": "#6d6857",
-          "deltaE": 42.22414155101171,
-          "deltaE2000": 29.02549428811564
+          "hexB": "#d0c7b2",
+          "deltaE": 58.842817967757846,
+          "deltaE2000": 45.5374604016359
         },
         {
           "roleA": "accent",
           "roleB": "surface",
           "hexA": "#426093",
-          "hexB": "#d1cdbe",
-          "deltaE": 57.644667497279656,
-          "deltaE2000": 45.589783717953814
+          "hexB": "#afaea6",
+          "deltaE": 47.14038558145877,
+          "deltaE2000": 37.28675280565967
         },
         {
           "roleA": "accent",
@@ -389,40 +394,40 @@
         {
           "roleA": "background",
           "roleB": "surface",
-          "hexA": "#6d6857",
-          "hexB": "#d1cdbe",
-          "deltaE": 38.41314017912498,
-          "deltaE2000": 32.3418653857905
+          "hexA": "#d0c7b2",
+          "hexB": "#afaea6",
+          "deltaE": 12.053719075579354,
+          "deltaE2000": 8.886602481502619
         },
         {
           "roleA": "background",
           "roleB": "text",
-          "hexA": "#6d6857",
+          "hexA": "#d0c7b2",
           "hexB": "#020505",
-          "deltaE": 44.09480920237682,
-          "deltaE2000": 31.659004530988963
+          "deltaE": 80.13967233820786,
+          "deltaE2000": 71.16377286241656
         },
         {
           "roleA": "surface",
           "roleB": "text",
-          "hexA": "#d1cdbe",
+          "hexA": "#afaea6",
           "hexB": "#020505",
-          "deltaE": 81.56570547540245,
-          "deltaE2000": 73.54439661783468
+          "deltaE": 69.91670424401681,
+          "deltaE2000": 58.348713917548764
         }
       ],
-      "minPairwiseDeltaE": 13.067776185941549,
+      "minPairwiseDeltaE": 12.053719075579354,
       "timing": {
         "warmups": 1,
         "runs": 5,
         "samplesMs": [
-          458.7477350000004,
-          366.67093300000033,
-          495.35661900000014,
-          518.0298679999996,
-          530.3133180000004
+          374.55337099999997,
+          537.2424879999999,
+          542.0666970000002,
+          322.4055070000004,
+          367.12444499999947
         ],
-        "medianMs": 495.35661900000014
+        "medianMs": 374.55337099999997
       }
     },
     {
@@ -518,6 +523,7 @@
           "legacyDerived": false
         }
       ],
+      "backgroundTextContrast": 10.706729786323217,
       "pairwiseDeltaE": [
         {
           "roleA": "primary",
@@ -645,13 +651,13 @@
         "warmups": 1,
         "runs": 5,
         "samplesMs": [
-          572.0113799999999,
-          557.1243869999998,
-          506.2658140000003,
-          348.00612,
-          333.9881340000011
+          569.2461229999999,
+          356.8207259999999,
+          351.07258399999955,
+          333.1522640000003,
+          333.97508800000105
         ],
-        "medianMs": 506.2658140000003
+        "medianMs": 351.07258399999955
       }
     }
   ]

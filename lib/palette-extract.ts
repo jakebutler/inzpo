@@ -2,7 +2,7 @@ import "server-only";
 import sharp from "sharp";
 import { hexToFamily, rgbToHex, type ColorFamily } from "@/lib/colors";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
-import { textOnBackgroundContrast } from "@/lib/contrast";
+import { contrastRatio, textOnBackgroundContrast } from "@/lib/contrast";
 import { emptyRoles, type RoleColors } from "@/lib/tokens";
 import { REGION_ORIGIN } from "@/lib/derived-roles";
 import { hexToLab, MIN_ROLE_DELTA_E, rgbToLab, roleDeltaE } from "@/lib/color-distance";
@@ -149,20 +149,59 @@ export function isSkyLike(swatch: PaletteSwatch): boolean {
     (swatch.lab[2] < -12 || (swatch.lab[0] > 85 && Math.hypot(swatch.lab[1], swatch.lab[2]) < 12)));
 }
 
+/**
+ * A shadow has low chroma (C* < 25), is at least 10 L* below a meaningful
+ * side-adjacent region, with an absolute chroma difference of at most 5 C*.
+ * Their Lab hue angles must be within 30° (including wrap), or both C* < 3
+ * (the neutral family). L* is the perceptual transform of relative luminance.
+ * Adjacency comes from shared pixel edges, never centroid proximity.
+ */
+export function isShadowRegion(swatch: PaletteSwatch, neighbours: Iterable<PaletteSwatch>): boolean {
+  const chroma = Math.hypot(swatch.lab[1], swatch.lab[2]);
+  if (chroma >= 25) return false;
+  for (const neighbour of neighbours) {
+    const litChroma = Math.hypot(neighbour.lab[1], neighbour.lab[2]);
+    if (neighbour.patch < MIN_ROLE_PATCH || neighbour.lab[0] - swatch.lab[0] < 10 || Math.abs(chroma - litChroma) > 5) continue;
+    const sameHue = (chroma < 3 && litChroma < 3) ||
+      (chroma >= 3 && litChroma >= 3 &&
+        (swatch.lab[1] * neighbour.lab[1] + swatch.lab[2] * neighbour.lab[2]) >=
+          chroma * litChroma * Math.cos(Math.PI / 6));
+    if (sameHue) return true;
+  }
+  return false;
+}
+
 /** Merge near-duplicate choices by role rank; refill only from real components. */
-export function assignRoles(regions: PaletteSwatch[]): PaletteSwatch[] {
+export function assignRoles(
+  regions: PaletteSwatch[],
+  neighbours: ReadonlyMap<PaletteSwatch, ReadonlySet<PaletteSwatch>> = new Map(),
+): PaletteSwatch[] {
   for (const region of regions) region.role = null;
   const candidates = regions.filter((s) => s.patch >= MIN_ROLE_PATCH);
+  const suitableText = candidates.filter((s) => s.lab[0] < 60 && Math.hypot(s.lab[1], s.lab[2]) < 25)
+    .sort((a, b) => a.lab[0] - b.lab[0] || b.patch - a.patch);
+  const lightOrNeutral = (s: PaletteSwatch) => s.lab[0] >= 60 || Math.hypot(s.lab[1], s.lab[2]) < 12;
+  // Find the largest light/neutral before the contrast gate: a dominant dark
+  // shadow must not transfer this exemption to a smaller shaded component.
+  const largestField = candidates.filter(lightOrNeutral).sort((a, b) => b.patch - a.patch)[0];
+  const shadows = new Set(candidates.filter((s) =>
+    !(s === largestField && suitableText[0] && contrastRatio(s.hex, suitableText[0].hex) >= TARGET_CONTRAST) &&
+    isShadowRegion(s, neighbours.get(s) ?? [])));
   const selected: PaletteSwatch[] = [];
   const take = (role: ColorRole, ranked: PaletteSwatch[]) => {
     const distinct = (s: PaletteSwatch) => !selected.some((t) => roleDeltaE(s.lab, t.lab) < MIN_ROLE_DELTA_E);
-    let swatch = ranked.find(distinct);
+    const available = ranked.filter(distinct);
+    const nonShadows = available.filter((s) => !shadows.has(s));
+    // Shadows may fill any role only after its distinct non-shadow choices
+    // are exhausted. Apply the same preference to near-duplicate merging.
+    const choices = nonShadows.length ? nonShadows : available;
+    let swatch = choices[0];
     if (!swatch) return;
     if (role === "primary" || role === "background") {
       // Keep the larger connected component of a near-duplicate family, while
       // retaining the chosen subject/backdrop class. Do not average regions.
       const preferred = swatch;
-      swatch = ranked.filter((s) => distinct(s) && isSkyLike(s) === isSkyLike(preferred) &&
+      swatch = choices.filter((s) => isSkyLike(s) === isSkyLike(preferred) &&
         ((s.spatial?.borderEdges ?? 0) >= 2) === ((preferred.spatial?.borderEdges ?? 0) >= 2) &&
         roleDeltaE(s.lab, preferred.lab) < MIN_ROLE_DELTA_E)
         .sort((a, b) => b.patch - a.patch || b.score - a.score)[0]!;
@@ -174,22 +213,57 @@ export function assignRoles(regions: PaletteSwatch[]): PaletteSwatch[] {
   const chromatic = candidates.filter((s) => Math.hypot(s.lab[1], s.lab[2]) >= 12);
   const primaryScore = (s: PaletteSwatch) => s.score * (0.5 + (s.spatial?.centralShare ?? 0.5)) *
     (isSkyLike(s) ? 0.08 : 1) * ((s.spatial?.borderEdges ?? 0) >= 2 ? 0.35 : 1);
+  let primaryCandidates: PaletteSwatch[] = [];
   // Reserve the dominant subject before field/trim assignment can take it.
   // A neutral-only image still follows the existing background/text semantics.
   if (chromatic.length) {
-    take("text", candidates.filter((s) => s.lab[0] < 60 && Math.hypot(s.lab[1], s.lab[2]) < 25)
-      .sort((a, b) => a.lab[0] - b.lab[0] || b.patch - a.patch));
+    take("text", suitableText);
     const nonSky = candidates.filter((s) => !isSkyLike(s));
     const foreground = nonSky.filter((s) =>
       ((s.spatial?.borderEdges ?? 0) < 2 || (s.spatial?.centralShare ?? 0.5) >= 0.5));
     const subjects = foreground.filter((s) => Math.hypot(s.lab[1], s.lab[2]) >= 12 &&
       selected.every((t) => roleDeltaE(s.lab, t.lab) >= MIN_ROLE_DELTA_E));
-    take("primary", (subjects.length ? subjects : foreground.length ? foreground : nonSky).slice()
-      .sort((a, b) => primaryScore(b) - primaryScore(a) || b.patch - a.patch));
+    primaryCandidates = (subjects.length ? subjects : foreground.length ? foreground : nonSky).slice()
+      .sort((a, b) => primaryScore(b) - primaryScore(a) || b.patch - a.patch);
+    take("primary", primaryCandidates);
   }
   const calm = candidates.filter((s) => Math.hypot(s.lab[1], s.lab[2]) < 12);
   const fields = chromatic.length ? calm : calm.filter((s) => s.lab[0] >= 60);
-  take("background", byScore(fields.length ? fields : calm.length ? calm : candidates));
+  const text = selected.find((s) => s.role === "text") ?? suitableText[0];
+  const primary = selected.find((s) => s.role === "primary");
+  // Reserve the subject, then use the largest eligible connected region,
+  // rather than compactness/chroma score. Skip conflicts using rounded hex Lab.
+  const backgrounds = text ? candidates.filter((s) =>
+    lightOrNeutral(s) &&
+    contrastRatio(s.hex, text.hex) >= TARGET_CONTRAST &&
+    !shadows.has(s) &&
+    selected.every((t) => t === primary || roleDeltaE(s.lab, t.lab) >= MIN_ROLE_DELTA_E))
+    .sort((a, b) => b.patch - a.patch || b.score - a.score) : [];
+  let background: PaletteSwatch | undefined;
+  for (const candidate of backgrounds) {
+    if (!primary || roleDeltaE(candidate.lab, primary.lab) >= MIN_ROLE_DELTA_E) {
+      background = candidate;
+      break;
+    }
+    // A real variant of the same reserved subject can release larger lit trim.
+    // Keep its subject/backdrop class; never tint either hex to clear the gate.
+    const replacement = primaryCandidates.filter((s) =>
+      !shadows.has(s) &&
+      isSkyLike(s) === isSkyLike(primary) &&
+      ((s.spatial?.borderEdges ?? 0) >= 2) === ((primary.spatial?.borderEdges ?? 0) >= 2) &&
+      roleDeltaE(s.lab, primary.lab) < MIN_ROLE_DELTA_E &&
+      roleDeltaE(s.lab, candidate.lab) >= MIN_ROLE_DELTA_E &&
+      selected.every((t) => t === primary || roleDeltaE(s.lab, t.lab) >= MIN_ROLE_DELTA_E))
+      .sort((a, b) => b.patch - a.patch || primaryScore(b) - primaryScore(a))[0];
+    if (replacement) {
+      primary.role = null;
+      replacement.role = "primary";
+      selected[selected.indexOf(primary)] = replacement;
+      background = candidate;
+      break;
+    }
+  }
+  take("background", background ? [background] : byScore(fields.length ? fields : calm.length ? calm : candidates));
   if (!selected.some((s) => s.role === "text")) take("text", candidates.filter((s) => s.lab[0] < 60)
     .sort((a, b) => a.lab[0] - b.lab[0] || b.patch - a.patch));
   take("surface", candidates.filter((s) => s.lab[0] >= 70)
@@ -332,7 +406,24 @@ export async function extractPalette(
       regions.set(swatch, region);
     }
   }
-  const swatches = assignRoles(candidates).slice(0, MAX_SWATCHES);
+  // Track side-adjacent real components so a passing but shaded region cannot
+  // become background merely because it is large or neutral.
+  const owners = new Int32Array(pixels).fill(-1);
+  candidates.forEach((swatch, i) => {
+    for (const pixel of regions.get(swatch)!) owners[pixel] = i;
+  });
+  const neighbours = new Map(candidates.map((s) => [s, new Set<PaletteSwatch>()]));
+  for (let i = 0; i < pixels; i++) {
+    if (owners[i]! < 0) continue;
+    for (const next of [i % w + 1 < w ? i + 1 : -1, i + w < pixels ? i + w : -1]) {
+      if (next < 0 || owners[next]! < 0 || owners[i] === owners[next]) continue;
+      const a = candidates[owners[i]!]!;
+      const b = candidates[owners[next]!]!;
+      neighbours.get(a)!.add(b);
+      neighbours.get(b)!.add(a);
+    }
+  }
+  const swatches = assignRoles(candidates, neighbours).slice(0, MAX_SWATCHES);
   const roles = emptyRoles();
   for (const swatch of swatches) {
     const region = regions.get(swatch)!;
