@@ -65,7 +65,7 @@ export function KitResult({
   const photoRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: width, h: height });
   const [stripeCount, setStripeCount] = useState(preview?.reveal === "play" ? 0 : 6);
-  const [hairlines, setHairlines] = useState(preview?.reveal === "landed");
+  const [hairlines, setHairlines] = useState(false);
   const [brief, setBrief] = useState<{
     status: BriefSlotStatus;
     text: string | null;
@@ -167,7 +167,7 @@ export function KitResult({
       if (reduced || mode === "landed") {
         gsap.set(bands, { y: 0 });
         setStripeCount(6);
-        setHairlines(true);
+        setHairlines(false);
         return;
       }
       const stack = BAND_H_RESULT * COLOR_ROLES.length;

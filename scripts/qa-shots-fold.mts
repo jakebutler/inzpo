@@ -45,6 +45,32 @@ async function hideChrome(page: import("playwright").Page): Promise<void> {
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
 }
 
+async function openShot(
+  page: import("playwright").Page,
+  url: string,
+): Promise<import("playwright").Page> {
+  try {
+    await page.goto(url, { waitUntil: "load", timeout: 60_000 });
+    return page;
+  } catch {
+    const browser = page.context().browser();
+    const vp = page.viewportSize();
+    const reduced = await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
+    try {
+      await page.close();
+    } catch {
+      // already gone
+    }
+    const next = await (browser ?? page.context()).newPage({
+      viewport: vp ?? { width: 390, height: 844 },
+      deviceScaleFactor: 2,
+      reducedMotion: reduced ? "reduce" : "no-preference",
+    });
+    await next.goto(url, { waitUntil: "load", timeout: 60_000 });
+    return next;
+  }
+}
+
 /** Scroll so Baku, chips, and the contrast line sit above the fixed save bar. */
 async function revealAboveSaveBar(page: import("playwright").Page): Promise<void> {
   await page.evaluate(() => {
@@ -86,14 +112,14 @@ async function main(): Promise<void> {
   for (const reduced of [false, true]) {
     const label = reduced ? "reduced" : "motion";
     for (const vp of VIEWPORTS) {
-      const page = await browser.newPage({
+      let page = await browser.newPage({
         viewport: { width: vp.width, height: vp.height },
         deviceScaleFactor: 2,
         reducedMotion: reduced ? "reduce" : "no-preference",
       });
       for (const photo of PHOTOS) {
         for (const shot of PER_PHOTO) {
-          await page.goto(urlFor(shot, photo), { waitUntil: "networkidle", timeout: 60_000 });
+          page = await openShot(page, urlFor(shot, photo));
           await hideChrome(page);
           if (ABOVE_BAR.has(shot.state)) await revealAboveSaveBar(page);
           await page.waitForTimeout(reduced ? 200 : 700);
@@ -102,7 +128,7 @@ async function main(): Promise<void> {
         }
       }
       for (const shot of EXTRA) {
-        await page.goto(urlFor(shot, shot.photo ?? "IMG_6505"), { waitUntil: "networkidle", timeout: 60_000 });
+        page = await openShot(page, urlFor(shot, shot.photo ?? "IMG_6505"));
         await hideChrome(page);
         if (ABOVE_BAR.has(shot.state)) await revealAboveSaveBar(page);
         await page.waitForTimeout(reduced ? 200 : 700);
@@ -122,22 +148,22 @@ async function main(): Promise<void> {
       recordVideo: { dir: ARTIFACTS, size: { width: 390, height: 844 } },
     });
     const page = await context.newPage();
-    await page.goto(`${BASE}/dev/fold?state=first&photo=IMG_6505`, { waitUntil: "networkidle", timeout: 60_000 });
+    await page.goto(`${BASE}/dev/fold?state=first&photo=IMG_6505`, { waitUntil: "load", timeout: 60_000 });
     await hideChrome(page);
     await page.waitForTimeout(400);
-    await page.goto(`${BASE}/dev/fold?state=mid&photo=IMG_6505`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/dev/fold?state=mid&photo=IMG_6505`, { waitUntil: "load" });
     await hideChrome(page);
     await page.waitForTimeout(reduced ? 200 : 600);
-    await page.goto(`${BASE}/dev/fold?state=result&photo=IMG_6505`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/dev/fold?state=result&photo=IMG_6505`, { waitUntil: "load" });
     await hideChrome(page);
     await page.waitForTimeout(reduced ? 200 : 900);
-    await page.goto(`${BASE}/dev/fold?state=edit&photo=IMG_6505`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/dev/fold?state=edit&photo=IMG_6505`, { waitUntil: "load" });
     await hideChrome(page);
     await page.waitForTimeout(400);
-    await page.goto(`${BASE}/dev/fold?state=save&photo=IMG_6505`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/dev/fold?state=save&photo=IMG_6505`, { waitUntil: "load" });
     await hideChrome(page);
     await page.waitForTimeout(400);
-    await page.goto(`${BASE}/dev/fold?state=saved&photo=IMG_6505`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/dev/fold?state=saved&photo=IMG_6505`, { waitUntil: "load" });
     await hideChrome(page);
     await page.waitForTimeout(500);
     const video = page.video();
