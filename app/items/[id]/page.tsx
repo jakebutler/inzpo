@@ -14,6 +14,8 @@ import { addItemToBoardAction, createBoardWithItemAction, removeItemFromBoardAct
 import { saveExtractedAsPaletteAction } from "@/app/actions/palettes";
 import { getOrigin, getDerivedItems } from "@/lib/palettes";
 import { requireOwnerId } from "@/lib/auth/owner";
+import { kitFromColors } from "@/lib/mascot";
+import { BriefSlot } from "@/app/components/BriefSlot";
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +86,9 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
           </p>
         </div>
 
-        {item.note ? <p className="mt-3 whitespace-pre-wrap text-neutral-300">{item.note}</p> : null}
+        {item.note && item.colors.length === 0 ? (
+          <p className="mt-3 whitespace-pre-wrap text-neutral-300">{item.note}</p>
+        ) : null}
 
         {item.source ? (
           <section className="mt-6 rounded-xl border border-neutral-800 bg-neutral-900 p-4">
@@ -128,23 +132,30 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
         ) : null}
 
         {item.colors.length > 0 ? (
-          <section className="mt-6">
-            <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Colors</h2>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {item.colors.map((c) => (
-                <span
-                  key={`${c.hex}-${c.position}`}
-                  title={`${c.hex} · ${c.family}`}
-                  className="flex items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-900 py-1 pl-1 pr-3"
-                >
-                  <span className="inline-block h-6 w-6 rounded-full border border-neutral-700" style={{ backgroundColor: c.hex }} />
-                  <span className="text-xs text-neutral-400">
-                    {c.hex} · {c.family}
+          <>
+            <section className="mt-6">
+              <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Colors</h2>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {item.colors.map((c) => (
+                  <span
+                    key={`${c.hex}-${c.position}`}
+                    title={`${c.hex} · ${c.family}`}
+                    className="flex items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-900 py-1 pl-1 pr-3"
+                  >
+                    <span className="inline-block h-6 w-6 rounded-full border border-neutral-700" style={{ backgroundColor: c.hex }} />
+                    <span className="text-xs text-neutral-400">
+                      {c.hex} · {c.family}
+                    </span>
                   </span>
-                </span>
-              ))}
-            </div>
-          </section>
+                ))}
+              </div>
+            </section>
+            <BriefSlot
+              status={item.note ? "ready" : "pending"}
+              kit={kitFromColors(item.colors)}
+              note={item.note}
+            />
+          </>
         ) : null}
 
         {facetGroups.size > 0 || tags.freeTags.length > 0 ? (

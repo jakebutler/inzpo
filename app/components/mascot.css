@@ -1,0 +1,261 @@
+/* Baku placeholder: CSS animation only (transform/opacity). Rive replaces this later. */
+
+.baku {
+  --baku-cream: #f3ead8;
+  --baku-seam: #b7a88a;
+  --baku-primary: var(--baku-cream);
+  --baku-secondary: var(--baku-cream);
+  --baku-accent: var(--baku-cream);
+  --baku-background: var(--baku-cream);
+  --baku-surface: var(--baku-cream);
+  --baku-text: var(--baku-cream);
+  display: block;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.baku svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.baku-coat {
+  fill: var(--baku-cream);
+}
+
+.baku-stripe {
+  transition: none;
+}
+
+.baku-stripe-primary {
+  fill: var(--baku-primary);
+}
+.baku-stripe-secondary {
+  fill: var(--baku-secondary);
+}
+.baku-stripe-accent {
+  fill: var(--baku-accent);
+}
+.baku-stripe-background {
+  fill: var(--baku-background);
+}
+.baku-stripe-surface {
+  fill: var(--baku-surface);
+}
+.baku-stripe-text {
+  fill: var(--baku-text);
+}
+
+.baku-seam {
+  fill: none;
+  stroke: var(--baku-seam);
+  stroke-width: 1;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.baku[data-seams="off"] .baku-seam {
+  opacity: 0;
+}
+
+.baku-eyes,
+.baku-trunk,
+.baku-body,
+.baku-hop {
+  transform-box: fill-box;
+}
+
+.baku-eyes {
+  transform-origin: center;
+  animation: baku-blink 4.2s ease-in-out infinite;
+}
+
+.baku-body {
+  transform-origin: 50% 100%;
+}
+
+.baku-trunk {
+  transform-origin: 50% 0%;
+}
+
+.baku-hop {
+  transform-origin: 50% 100%;
+}
+
+.baku[data-pose="chewing"] .baku-body {
+  animation: baku-chew-body 18s ease-in-out infinite;
+}
+
+.baku[data-pose="chewing"] .baku-trunk {
+  animation: baku-chew-trunk 18s ease-in-out infinite;
+}
+
+.baku[data-pose="success"] .baku-hop {
+  animation: baku-hop 280ms cubic-bezier(0.16, 1, 0.3, 1) 1;
+}
+
+.baku[data-pose="success"] .baku-body {
+  transform: scale(1.03, 0.97);
+}
+
+.baku[data-pose="empty"] .baku-eyes {
+  animation: baku-blink-empty 4.2s ease-in-out infinite;
+}
+
+.baku[data-pose="empty"] .baku-trunk {
+  transform: translateY(2px) rotate(8deg);
+}
+
+.baku[data-pose="error-brief"] {
+  transform: rotate(-8deg);
+}
+
+.baku[data-pose="error-unreadable"] .baku-trunk {
+  transform: rotate(16deg) translate(2px, 3px);
+}
+
+.baku[data-pose="error-unreadable"] .baku-eyes {
+  animation: baku-blink-unread 4.2s ease-in-out infinite;
+}
+
+@keyframes baku-blink {
+  0%,
+  88%,
+  100% {
+    transform: scaleY(1);
+  }
+  92%,
+  96% {
+    transform: scaleY(0.08);
+  }
+}
+
+@keyframes baku-blink-empty {
+  0%,
+  88%,
+  100% {
+    transform: translateY(2px) scaleY(1);
+  }
+  92%,
+  96% {
+    transform: translateY(2px) scaleY(0.08);
+  }
+}
+
+@keyframes baku-blink-unread {
+  0%,
+  88%,
+  100% {
+    transform: scale(0.92, 0.85);
+  }
+  92%,
+  96% {
+    transform: scale(0.92, 0.08);
+  }
+}
+
+/* Chew for ~3s, then a deadpan pause around 15s, then the loop restarts. */
+@keyframes baku-chew-body {
+  0%,
+  16%,
+  83%,
+  100% {
+    transform: scale(1, 1);
+  }
+  4% {
+    transform: scale(1.05, 0.92);
+  }
+  8% {
+    transform: scale(0.98, 1.03);
+  }
+  12% {
+    transform: scale(1.04, 0.94);
+  }
+}
+
+@keyframes baku-chew-trunk {
+  0%,
+  16%,
+  83%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  4% {
+    transform: translateY(3px) rotate(7deg);
+  }
+  8% {
+    transform: translateY(-1px) rotate(-5deg);
+  }
+  12% {
+    transform: translateY(3px) rotate(6deg);
+  }
+}
+
+@keyframes baku-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  42% {
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .baku,
+  .baku *,
+  .baku *::before,
+  .baku *::after {
+    animation: none !important;
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition: none !important;
+    transition-duration: 0s !important;
+  }
+
+  .baku[data-pose="idle"] .baku-body,
+  .baku[data-pose="idle"] .baku-trunk,
+  .baku[data-pose="idle"] .baku-eyes {
+    transform: none;
+  }
+
+  .baku[data-pose="chewing"] .baku-body {
+    transform: scale(1.03, 0.96);
+  }
+
+  .baku[data-pose="chewing"] .baku-trunk {
+    transform: translateY(2px);
+  }
+
+  .baku[data-pose="success"] .baku-hop {
+    transform: none;
+  }
+
+  .baku[data-pose="success"] .baku-body {
+    transform: scale(1.03, 0.97);
+  }
+
+  .baku[data-pose="empty"] .baku-eyes {
+    transform: translateY(2px);
+  }
+
+  .baku[data-pose="empty"] .baku-trunk {
+    transform: translateY(2px) rotate(8deg);
+  }
+
+  .baku[data-pose="error-brief"] {
+    transform: rotate(-8deg);
+  }
+
+  .baku[data-pose="error-unreadable"] .baku-trunk {
+    transform: rotate(16deg) translate(2px, 3px);
+  }
+
+  .baku[data-pose="error-unreadable"] .baku-eyes {
+    transform: scale(0.92, 0.85);
+  }
+}

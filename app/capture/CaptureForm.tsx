@@ -8,6 +8,7 @@ import { ArrowUp, Globe, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/app/components/SubmitButton";
+import { CaptureMascotLayer } from "@/app/components/CaptureMascotLayer";
 import { capture } from "./actions";
 import { TagTray, type TrayFacet } from "./TagTray";
 import { autoTagsFor, relevantFacetsFor } from "@/lib/relevance";
@@ -46,10 +47,12 @@ export function CaptureForm({
   facets,
   prefilledUrl,
   shareToken,
+  firstOpen = false,
 }: {
   facets: TrayFacet[];
   prefilledUrl: string;
   shareToken: string | null;
+  firstOpen?: boolean;
 }) {
   const [urlDraft, setUrlDraft] = useState(prefilledUrl);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -122,6 +125,7 @@ export function CaptureForm({
 
   return (
     <form action={capture} className="pb-4">
+      <CaptureMascotLayer firstOpen={firstOpen} hasSubstance={hasSubstance} />
       <input
         ref={inputRef}
         type="file"

@@ -11,6 +11,7 @@ import { activeFilterCount, serializeFilter, type FilterState } from "@/lib/filt
 import { bulkAssignTagsAction, bulkCollectionAction, bulkDeleteAction, bulkRemoveTagsAction } from "@/app/actions/bulk";
 import { bulkBoardAction } from "@/app/actions/boards";
 import { ActionForm } from "@/app/components/ActionForm";
+import { MascotStage } from "@/app/components/MascotStage";
 
 export interface WallCard {
   id: string;
@@ -442,7 +443,7 @@ export function WallGrid({
             </>
           ) : (
             <>
-              <p className="text-foreground">The Wall is empty.</p>
+              <MascotStage moment="empty" className="justify-center text-left" />
               <p className="text-sm text-muted-foreground">
                 <Link href="/capture" className="underline underline-offset-2 hover:text-foreground">
                   Capture something

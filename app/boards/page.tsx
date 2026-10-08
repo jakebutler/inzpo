@@ -5,6 +5,7 @@ import { BottomNav } from "@/app/components/BottomNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { requireOwnerId } from "@/lib/auth/owner";
+import { MascotStage } from "@/app/components/MascotStage";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Boards — Inzpo" };
@@ -28,9 +29,12 @@ export default async function BoardsPage() {
 
       <div className="mx-auto max-w-6xl px-4 py-6 pb-24">
         {boards.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            No boards yet. Create one, then add Items from the library.
-          </p>
+          <div className="flex flex-col items-center py-8">
+            <MascotStage moment="empty" />
+            <p className="mt-2 text-center text-sm text-muted-foreground">
+              Create one, then add Items from the library.
+            </p>
+          </div>
         ) : (
           <ul className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
             {boards.map((b) => (

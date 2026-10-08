@@ -2,10 +2,10 @@ import Link from "next/link";
 import { CaptureForm } from "./CaptureForm";
 import { SavedToast } from "./SavedToast";
 import { loadTrayFacets } from "./tray";
-import { db } from "@/lib/db";
-import { items } from "@/lib/db/schema";
-import { and, eq } from "drizzle-orm";
-import { ownerClause, requireOwnerId } from "@/lib/auth/owner";
+import { getItemDetail } from "@/lib/items";
+import { kitFromColors } from "@/lib/mascot";
+import { MascotStage } from "@/app/components/MascotStage";
+import { requireOwnerId } from "@/lib/auth/owner";
 
 export const dynamic = "force-dynamic";
 
@@ -27,14 +27,13 @@ export default async function CapturePage({
   const facets = await loadTrayFacets(ownerId);
 
   let savedTitle: string | null = null;
+  let savedKit = kitFromColors([]);
   if (params.saved) {
-    const rows = await db
-      .select({ title: items.title })
-      .from(items)
-      .where(and(eq(items.id, params.saved), ownerClause(items.ownerId, ownerId)))
-      .limit(1);
-    savedTitle = rows[0]?.title ?? null;
+    const saved = await getItemDetail(ownerId, params.saved);
+    savedTitle = saved?.title ?? null;
+    if (saved) savedKit = kitFromColors(saved.colors);
   }
+  const unreadable = params.error === "bad-image";
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -53,14 +52,29 @@ export default async function CapturePage({
           Paste a link or drop an image. Inzpo detects what it is — tag if you feel like it.
         </p>
 
-        {params.error ? (
+        {params.saved ? (
+          <div className="mt-4">
+            <MascotStage moment="success" kit={savedKit} snapReady />
+          </div>
+        ) : null}
+
+        {unreadable ? (
+          <div className="mt-4">
+            <MascotStage moment="error-unreadable" snapReady />
+          </div>
+        ) : params.error ? (
           <p role="alert" className="mt-3 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {ERRORS[params.error] ?? "Something went wrong."}
           </p>
         ) : null}
 
         <div className="mt-5">
-          <CaptureForm facets={facets} prefilledUrl={params.url ?? ""} shareToken={params.shareToken ?? null} />
+          <CaptureForm
+            facets={facets}
+            prefilledUrl={params.url ?? ""}
+            shareToken={params.shareToken ?? null}
+            firstOpen={!params.saved && !params.error}
+          />
         </div>
       </div>
     </main>
