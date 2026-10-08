@@ -6,7 +6,7 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { TokenEditor, type LoupeView } from "./TokenEditor";
 import { BriefSlot, type BriefSlotStatus } from "./BriefSlot";
-import { ContrastAa } from "./ContrastAa";
+import { useKitChrome } from "./KitChrome";
 import { PhotoLoupe } from "./PhotoLoupe";
 import { PhotoBackButton } from "./PhotoBackButton";
 import { kitFromColors } from "@/lib/mascot";
@@ -126,16 +126,12 @@ export function KitResult({
   };
 }) {
   const router = useRouter();
-  const [promoted, setPromoted] = useState<Partial<Record<ColorRole, { pinX: number; pinY: number; hex: string }>>>({});
-  useEffect(() => { setPromoted({}); }, [colors]);
+  const chrome = useKitChrome();
+  const [editedColors, setEditedColors] = useState<ColorRow[] | null>(null);
+  useEffect(() => { setEditedColors(null); }, [colors]);
   const displayColors = useMemo(
-    () =>
-      sampledColors(COLOR_ROLES.flatMap((role, position) => {
-        const next = promoted[role];
-        if (next) return [{ ...next, role, position, origin: "sampled" }];
-        return colors.filter((row) => row.role === role);
-      })),
-    [colors, promoted],
+    () => sampledColors(editedColors ?? colors),
+    [colors, editedColors],
   );
   const kit = kitFromColors(displayColors);
   const roles = rolesFromColors(displayColors);
@@ -434,8 +430,8 @@ export function KitResult({
 
   return (
     <>
-      {saved ? <SavedKitHeader title={brief.title ?? title} primaryHex={primaryHex} brief={brief} backHref={backHref} itemId={itemId} /> : null}
     <div ref={stageRef} className="relative w-full" style={wearStyle} data-kit-wear>
+      {saved ? <SavedKitHeader title={brief.title ?? title} primaryHex={primaryHex} brief={brief} backHref={backHref} itemId={itemId} /> : null}
       {imageSrc ? (
         <div
           ref={photoRef}
@@ -578,6 +574,7 @@ export function KitResult({
         colors={displayColors}
         namedColors={brief.namedColors}
         size="result"
+        showContrast
         pageBackground={pageBg}
         pageInk={pageInk}
         initialOpen={preview?.openRole ?? null}
@@ -592,8 +589,10 @@ export function KitResult({
         imageSize={{ width, height }}
         simulateLoupe={preview?.loupe === true}
         onLoupe={setLoupe}
-        onPromoteRole={(role, pin) => {
-          setPromoted((prev) => ({ ...prev, [role]: pin }));
+        onColorsChange={(next) => {
+          const rows = next.map((row, position) => ({ ...row, position }));
+          setEditedColors(rows);
+          chrome?.setRoles(rolesFromColors(rows));
         }}
         bandRefs={bandRefs}
         bandsRevealed={bandsRevealed}
@@ -638,7 +637,6 @@ export function KitResult({
             }).catch(() => setBrief((prev) => ({ ...prev, status: "failed" })));
           }}
         />
-        <ContrastAa roles={roles} />
       </TokenEditor>
       {tileSrc && brief.status !== "pending" ? (
         <section className="mt-5 px-5">

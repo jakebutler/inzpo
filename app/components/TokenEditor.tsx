@@ -15,12 +15,15 @@ import { MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { filledRoles, moveRole, rolesFromColors, setRoleColor } from "@/lib/tokens";
 import { sampleImageAverage, sampleImagePixel } from "@/lib/client-eyedropper";
 import { isNoopPinDrag, isNoopPinSample, resolvePinDropPoint, type PinDragPoint, type PointerPoint } from "@/lib/pin-drag";
-import { REGION_ORIGIN, sampledColors, SAMPLED_ORIGIN } from "@/lib/derived-roles";
+import { FIX_ORIGIN, REGION_ORIGIN, sampledColors, SAMPLED_ORIGIN } from "@/lib/derived-roles";
+import { pageChromeColors, textContrastFix, textOnBackgroundContrast } from "@/lib/contrast";
+import { kitWearStyle } from "@/lib/kit-wear";
 import { pointerOnCoverBox, type CoverWindow } from "@/lib/cover-pin";
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { chipCopy, chipNoun, EMPTY_ROLE_COPY, type NamedColor } from "@/lib/brief-copy";
 import { PaletteBands } from "@/app/components/PaletteBands";
+import { ContrastAa } from "./ContrastAa";
 import { CHIP_SWATCH_PX, INK, PAPER } from "@/lib/brand";
 
 export type LoupeView = { x: number; y: number; hex: string };
@@ -54,6 +57,8 @@ export function TokenEditor({
   simulateLoupe = false,
   onLoupe,
   onPromoteRole,
+  onColorsChange,
+  showContrast = false,
   bandsRevealed = true,
   children,
 }: {
@@ -75,6 +80,8 @@ export function TokenEditor({
   simulateLoupe?: boolean;
   onLoupe?: (loupe: LoupeView | null) => void;
   onPromoteRole?: (role: ColorRole, pin: { pinX: number; pinY: number; hex: string }) => void;
+  onColorsChange?: (colors: ColorRow[]) => void;
+  showContrast?: boolean;
   bandsRevealed?: boolean;
   children?: ReactNode;
 }) {
@@ -86,9 +93,13 @@ export function TokenEditor({
     }
     return next;
   });
-  const [userSetRoles, setUserSetRoles] = useState<Set<ColorRole>>(
-    () => new Set(colors.filter((c) => c.role && c.origin === SAMPLED_ORIGIN).map((c) => c.role!)),
-  );
+  const [origins, setOrigins] = useState<Partial<Record<ColorRole, string>>>(() => Object.fromEntries(
+    sampledColors(colors).filter((c) => c.role).map((c) => [c.role!,
+      c.origin === FIX_ORIGIN || c.origin === SAMPLED_ORIGIN ? c.origin :
+        c.pinX != null && c.pinY != null ? REGION_ORIGIN : SAMPLED_ORIGIN,
+    ]),
+  ));
+  const [history, setHistory] = useState<Array<{ roles: typeof roles; pins: typeof pins; origins: typeof origins }>>([]);
   const [open, setOpen] = useState<ColorRole | null>(initialOpen);
   const [hexDraft, setHexDraft] = useState(() => (initialOpen ? rolesFromColors(colors)[initialOpen] ?? "" : ""));
   const [pendingHex, setPendingHex] = useState<string | null>(null);
@@ -114,20 +125,19 @@ export function TokenEditor({
     setHexDraft(pendingHex ?? roles[role] ?? "");
   }
 
-  function commit(nextRoles: typeof roles, nextPins = pins, nextUserSet = userSetRoles) {
+  function commit(nextRoles: typeof roles, nextPins = pins, nextOrigins = origins, remember = true) {
+    if (remember) setHistory((prev) => [...prev, { roles, pins, origins }]);
     setRoles(nextRoles);
     setPins(nextPins);
-    setUserSetRoles(nextUserSet);
-    const origins: Partial<Record<ColorRole, string>> = {};
-    for (const role of COLOR_ROLES) {
-      if (nextUserSet.has(role)) origins[role] = SAMPLED_ORIGIN;
-      else if (nextPins[role]) origins[role] = REGION_ORIGIN;
-    }
+    setOrigins(nextOrigins);
+    onColorsChange?.(COLOR_ROLES.flatMap((role, position) => nextRoles[role] ? [{
+      role, position, hex: nextRoles[role]!, origin: nextOrigins[role], ...nextPins[role],
+    }] : []));
     const fd = new FormData();
     fd.set("itemId", itemId);
     fd.set("roles", JSON.stringify(nextRoles));
     fd.set("pins", JSON.stringify(nextPins));
-    fd.set("origins", JSON.stringify(origins));
+    fd.set("origins", JSON.stringify(nextOrigins));
     startTransition(async () => {
       await saveItemTokensAction(fd);
     });
@@ -139,11 +149,24 @@ export function TokenEditor({
       setHexDraft(normalizeHex(value));
       return;
     }
-    const nextUserSet = new Set(userSetRoles);
-    if (markUserSet) nextUserSet.add(role);
-    commit(setRoleColor(roles, role, normalizeHex(value)), nextPins, nextUserSet);
+    const nextOrigins = markUserSet ? { ...origins, [role]: SAMPLED_ORIGIN } : origins;
+    commit(setRoleColor(roles, role, normalizeHex(value)), nextPins, nextOrigins);
     setHexDraft(normalizeHex(value));
     setPendingHex(null);
+  }
+
+  function fixTextContrast() {
+    const ratio = textOnBackgroundContrast(roles);
+    if (pending || ratio == null || ratio >= 4.5) return;
+    const rows = COLOR_ROLES.flatMap((role) => roles[role] ? [{
+      role, hex: roles[role]!, origin: origins[role], ...pins[role],
+    }] : []);
+    const best = textContrastFix(roles.background!, rows);
+    const nextPins = { ...pins };
+    delete nextPins.text;
+    if (best.pinX != null && best.pinY != null) nextPins.text = { pinX: best.pinX, pinY: best.pinY };
+    commit(setRoleColor(roles, "text", normalizeHex(best.hex)), nextPins, { ...origins, text: FIX_ORIGIN });
+    if (open === "text") setHexDraft(normalizeHex(best.hex));
   }
 
   function onChip(color: NamedColor) {
@@ -291,6 +314,9 @@ export function TokenEditor({
   }, [simulateLoupe, open, crop, photoBox, imageSize, pins, roles]);
 
   const reduced = prefersReducedMotion();
+  const { background: editorBackground, ink: editorInk } = showContrast
+    ? pageChromeColors(roles)
+    : { background: pageBackground, ink: pageInk };
   const chipAnim = reduced
     ? `${MOTION_CSS.reducedMs}ms ${MOTION_CSS.easeEnter}`
     : `${MOTION_CSS.enterMs}ms ${MOTION_CSS.easeEnter}`;
@@ -301,14 +327,15 @@ export function TokenEditor({
         <PaletteBands
           roles={roles}
           size={size}
-          pageBackground={pageBackground}
-          pageInk={pageInk}
+          pageBackground={editorBackground}
+          pageInk={editorInk}
           onPick={openRole}
           onFocusRole={onFocusRole}
           bandRefs={bandRefs}
         />
       </div>
       {children}
+      {showContrast ? <ContrastAa roles={roles} onFix={fixTextContrast} pending={pending} /> : null}
       {chips.length > 0 ? (
         <div className="mt-3 flex flex-col gap-2 px-5">
           {chips.map((color) => {
@@ -366,6 +393,7 @@ export function TokenEditor({
           side="bottom"
           overlayClassName="inzpo-photo-clear"
           className="max-h-[calc(100dvh-var(--photo-fold-h,337px))] bg-background pb-[max(1rem,env(safe-area-inset-bottom))] text-foreground shadow-none"
+          style={showContrast ? kitWearStyle(roles) : undefined}
           onOpenAutoFocus={(event) => event.preventDefault()}
           onPointerDownOutside={(event) => {
             // The sticky photo is an editing surface outside the sheet portal.
@@ -392,7 +420,7 @@ export function TokenEditor({
               spellCheck={false}
               autoCapitalize="off"
               className="min-h-11 w-full border border-current bg-background px-3 font-mono text-base tabular-nums outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-              style={{ outlineColor: pageInk }}
+              style={{ outlineColor: editorInk }}
             />
             <p className="text-base">Role</p>
             <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Role">
@@ -407,10 +435,10 @@ export function TokenEditor({
                     className="min-h-11 border px-2 text-base outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                     style={{
                       transitionDuration: `${MOTION_CSS.tapMs}ms`,
-                      borderColor: pageInk,
-                      backgroundColor: selected ? pageInk : "transparent",
-                      color: selected ? pageBackground : pageInk,
-                      outlineColor: pageInk,
+                      borderColor: editorInk,
+                      backgroundColor: selected ? editorInk : "transparent",
+                      color: selected ? editorBackground : editorInk,
+                      outlineColor: editorInk,
                     }}
                     onClick={() => {
                       if (!open || role === open) {
@@ -422,12 +450,9 @@ export function TokenEditor({
                         setOpenRole(role);
                         return;
                       }
-                      const nextUserSet = new Set(userSetRoles);
-                      nextUserSet.delete(open);
-                      nextUserSet.delete(role);
-                      if (userSetRoles.has(open)) nextUserSet.add(role);
-                      if (userSetRoles.has(role)) nextUserSet.add(open);
-                      commit(moveRole(roles, open, role), { ...pins, [open]: pins[role], [role]: pins[open] }, nextUserSet);
+                      commit(moveRole(roles, open, role), { ...pins, [open]: pins[role], [role]: pins[open] }, {
+                        ...origins, [open]: origins[role], [role]: origins[open],
+                      });
                       setOpenRole(role);
                     }}
                   >
@@ -448,6 +473,22 @@ export function TokenEditor({
                 }}
               >
                 Clear this role
+              </button>
+            ) : null}
+            {history.length > 0 ? (
+              <button
+                type="button"
+                className="min-h-11 text-base"
+                disabled={pending}
+                onClick={() => {
+                  const previous = history[history.length - 1]!;
+                  setHistory((prev) => prev.slice(0, -1));
+                  commit(previous.roles, previous.pins, previous.origins, false);
+                  if (open) setHexDraft(previous.roles[open] ?? "");
+                  setPendingHex(null);
+                }}
+              >
+                Undo
               </button>
             ) : null}
           </div>

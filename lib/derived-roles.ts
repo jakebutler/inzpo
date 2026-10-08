@@ -6,6 +6,8 @@ export const HUE_RELATED_DEG = 30;
 export const LIGHT_TINT_MIN = 0.07;
 
 export const SAMPLED_ORIGIN = "sampled";
+/** A user-requested text contrast correction, with a pin only for a real sample. */
+export const FIX_ORIGIN = "fix";
 /** Connected-region means from the real-only extractor, with measured pins. */
 export const REGION_ORIGIN = "region";
 
@@ -63,7 +65,7 @@ export function markDerivedRoles<T extends ColorWithRole>(colors: T[]): Array<T 
   const derived = new Map<ColorRole, ColorRole>();
 
   for (const row of pending) {
-    if (row.origin === SAMPLED_ORIGIN || (row.origin === REGION_ORIGIN && row.pinX != null && row.pinY != null)) {
+    if (row.origin === SAMPLED_ORIGIN || row.origin === FIX_ORIGIN || (row.origin === REGION_ORIGIN && row.pinX != null && row.pinY != null)) {
       sampled.push(row);
       continue;
     }

@@ -53,7 +53,7 @@ export function ExportKitButton({
         {label}
       </button>
       {note ? (
-        <p className="text-[11px] text-muted-foreground" data-export-path={note}>
+        <p className="text-[11px] text-current" data-export-path={note}>
           {note === "share" ? "Shared" : note === "download" ? "Downloaded" : note}
         </p>
       ) : null}

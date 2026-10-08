@@ -10,6 +10,8 @@ import { addToCollectionAndReturnId } from "@/app/actions/collections";
 import { MOTION, MOTION_CSS } from "@/lib/motion";
 import { canSaveKit } from "@/lib/save-kit";
 import { observeSaveBarHeight, SAVE_BAR_FADE_HEIGHT } from "@/lib/layout";
+import { kitWearStyle } from "@/lib/kit-wear";
+import { useKitChrome } from "./KitChrome";
 
 const LAST_COLLECTION_KEY = "inzpo-last-collection";
 
@@ -29,6 +31,7 @@ export function SaveBar({
   collectionName?: string | null;
 }) {
   const router = useRouter();
+  const chrome = useKitChrome();
   const [open, setOpen] = useState(defaultOpen);
   const [selected, setSelected] = useState<string>(
     () =>
@@ -96,7 +99,7 @@ export function SaveBar({
         style={{ height: SAVE_BAR_FADE_HEIGHT, background: "linear-gradient(to bottom, transparent, var(--background))" }}
         aria-hidden
       />
-      <div className="pointer-events-auto relative bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
+      <div className="pointer-events-auto relative bg-background text-foreground px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
         <div className="mx-auto flex max-w-xl items-center gap-3">
           {saved ? (
             <Link
@@ -139,7 +142,8 @@ export function SaveBar({
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="bottom"
-          className="max-h-[70vh] bg-background pb-[max(1rem,env(safe-area-inset-bottom))] shadow-none"
+          className="max-h-[70vh] bg-background text-foreground pb-[max(1rem,env(safe-area-inset-bottom))] shadow-none"
+          style={chrome ? kitWearStyle(chrome.roles) : undefined}
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <SheetHeader>
@@ -150,7 +154,8 @@ export function SaveBar({
               <button
                 key={c.id}
                 type="button"
-                className={`flex min-h-11 items-center justify-between px-3 text-left text-base outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${c.id === selected ? "bg-secondary" : ""}`}
+                className="flex min-h-11 items-center justify-between px-3 text-left text-base outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={c.id === selected ? { backgroundColor: "var(--foreground)", color: "var(--background)" } : undefined}
                 onClick={() => {
                   setSelected(c.id);
                   setNewName("");

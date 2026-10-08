@@ -59,9 +59,9 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-async function render(colors: Row[], initialOpen: ColorRole | null = "primary") {
+async function render(colors: Row[], initialOpen: ColorRole | null = "primary", showContrast = false) {
   await act(async () => root.render(createElement(TokenEditor, {
-    itemId: "kit", imageSrc: "photo.jpg", colors, initialOpen,
+    itemId: "kit", imageSrc: "photo.jpg", colors, initialOpen, showContrast,
     photoRef: { current: photo }, crop: { vx: 0, vy: 0, vw: 1, vh: 1 },
   })));
 }
@@ -84,6 +84,47 @@ async function pointer(type: string, clientX: number, clientY: number, target: E
 }
 
 describe("token editor with real and empty roles", () => {
+  it("fixes with the best real colour, saves its pin, and undoes through the editor", async () => {
+    const colors: Row[] = [
+      { role: "background", hex: "#79acd3", origin: "region", pinX: 0.2, pinY: 0.3 },
+      { role: "text", hex: "#384a5d", origin: "region", pinX: 0.7, pinY: 0.8 },
+      { role: "primary", hex: "#252525", origin: "region", pinX: 0.4, pinY: 0.6 },
+    ];
+    await render(colors, "text", true);
+    const sample = () => document.querySelector<HTMLElement>("[data-contrast-sample]")!;
+    expect(sample().style.color).toBe("#384a5d");
+    expect(document.querySelector("[data-contrast-line]")!.textContent).toContain("3.8:1failFix");
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Fix text contrast"]')!.click());
+    expect(saved()).toMatchObject({ roles: { text: "#252525" }, origins: { text: "fix" }, pins: { text: { pinX: 0.4, pinY: 0.6 } } });
+    expect(sample().style.color).toBe("#252525");
+    expect(document.querySelector("[data-contrast-line]")!.textContent).toContain("AA pass");
+    expect(document.querySelector('[aria-label="Fix text contrast"]')).toBeNull();
+    expect(control((p) => p.id === "token-hex").props.value).toBe("#252525");
+    await act(async () => control((p) => p.children === "Undo").props.onClick());
+    expect(saved()).toMatchObject({ roles: { text: "#384a5d" }, origins: { text: "region" }, pins: { text: { pinX: 0.7, pinY: 0.8 } } });
+    expect(sample().style.color).toBe("#384a5d");
+    expect(document.querySelector('[aria-label="Fix text contrast"]')).not.toBeNull();
+    expect(mocks.save).toHaveBeenCalledTimes(2);
+  });
+
+  it("removes the old text pin for an ink fallback, and retains the fix on reload", async () => {
+    await render([
+      { role: "background", hex: "#79acd3", origin: "region", pinX: 0.2, pinY: 0.3 },
+      { role: "text", hex: "#384a5d", origin: "region", pinX: 0.7, pinY: 0.8 },
+    ], "text", true);
+    const button = document.querySelector<HTMLButtonElement>('[aria-label="Fix text contrast"]')!;
+    expect(button.className).toContain("min-h-11 min-w-11");
+    await act(async () => button.click());
+    expect(saved()).toMatchObject({ roles: { text: "#1c1b19" }, origins: { text: "fix" } });
+    expect(saved().pins).toEqual({ background: { pinX: 0.2, pinY: 0.3 } });
+    expect(sampledColors([{ role: "text", hex: "#1c1b19", origin: "fix", pinX: null, pinY: null }])).toHaveLength(1);
+    // Further manual edits still use the normal save path; undo restores fix provenance.
+    await typeHex("#202020");
+    expect(saved().origins.text).toBe("sampled");
+    await act(async () => control((p) => p.children === "Undo").props.onClick());
+    expect(saved()).toMatchObject({ roles: { text: "#1c1b19" }, origins: { text: "fix" } });
+  });
+
   it("leaves a legacy padded role empty and drops its old pin when the user fills it", async () => {
     await render([
       { role: "background", hex: "#123456", pinX: 0.2, pinY: 0.3, origin: "region" },

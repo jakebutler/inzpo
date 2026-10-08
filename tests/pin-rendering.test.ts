@@ -89,7 +89,9 @@ it("freezes the editing crop, hides a pin moved outside it, and reveals its true
     const frozenPosition = image.style.objectPosition;
     const frozenCrop = editor.props!.crop;
     expect(document.querySelector('[data-pin="primary"]')).not.toBeNull();
-    await act(async () => editor.props!.onPromoteRole!("primary", { pinX: 0.5, pinY: 0.005, hex: "#abcdef" }));
+    await act(async () => editor.props!.onColorsChange!([
+      { role: "primary", position: 0, hex: "#abcdef", origin: "sampled", pinX: 0.5, pinY: 0.005 },
+    ]));
     expect(editor.props!.crop).toEqual(frozenCrop);
     expect(image.style.objectPosition).toBe(frozenPosition);
     expect(document.querySelector('[data-pin="primary"]')).toBeNull();

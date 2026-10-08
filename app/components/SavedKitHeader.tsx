@@ -23,7 +23,7 @@ export function SavedKitHeader({
   return (
     <header
       data-saved-header
-      className="sticky top-0 z-10 flex items-center gap-1 bg-background px-2 py-2"
+      className="sticky top-0 z-10 flex items-center gap-1 bg-background text-foreground px-2 py-2"
     >
       <Link
         href={backHref}

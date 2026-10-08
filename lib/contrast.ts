@@ -1,6 +1,8 @@
 import { COLOR_ROLES } from "@/lib/db/schema";
 import { INK, PAGE_BAND_HAIRLINE_RATIO, PAPER } from "@/lib/brand";
 import type { RoleColors } from "@/lib/tokens";
+import { FIX_ORIGIN, sampledColors, type ColorWithRole } from "@/lib/derived-roles";
+import { isHexColor } from "@/lib/colors";
 
 function srgbToLin(c: number): number {
   const x = c / 255;
@@ -104,6 +106,22 @@ export function gatedTextColor(
   const bg = background || PAPER;
   if (preferred && contrastRatio(preferred, bg) >= minRatio) return preferred;
   return contrastRatio(INK, bg) >= contrastRatio(PAPER, bg) ? INK : PAPER;
+}
+
+/** Prefer the strongest passing real kit colour before using the chrome fallback. */
+export function textContrastFix(background: string, colors: readonly ColorWithRole[]): ColorWithRole {
+  let best: ColorWithRole | undefined;
+  let bestRatio = 0;
+  for (const color of sampledColors(colors)) {
+    if (!isHexColor(color.hex)) continue;
+    if (color.origin === FIX_ORIGIN && (color.pinX == null || color.pinY == null)) continue;
+    const ratio = contrastRatio(color.hex, background);
+    if (ratio >= 4.5 && ratio > bestRatio) {
+      best = color;
+      bestRatio = ratio;
+    }
+  }
+  return best ?? { hex: gatedTextColor(null, background) };
 }
 
 /** Accessible page chrome only; the kit's measured colours stay untouched. */

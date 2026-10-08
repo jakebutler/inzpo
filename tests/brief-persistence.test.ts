@@ -94,6 +94,21 @@ function request(retry = false) {
 const params = () => ({ params: Promise.resolve({ id: "kit" }) });
 
 describe("brief persistence", () => {
+  it("stores contrast fix provenance and no fabricated text pin without changing the brief", async () => {
+    const form = new FormData();
+    form.set("itemId", "kit");
+    form.set("roles", JSON.stringify({ background: "#79acd3", text: "#1c1b19" }));
+    form.set("pins", JSON.stringify({ background: { pinX: 0.2, pinY: 0.3 } }));
+    form.set("origins", JSON.stringify({ background: "region", text: "fix" }));
+    await saveItemTokensAction(form);
+    expect(mocks.values).toHaveBeenCalledWith([
+      expect.objectContaining({ role: "background", origin: "region", pinX: 0.2, pinY: 0.3 }),
+      expect.objectContaining({ role: "text", origin: "fix", hex: "#1c1b19", pinX: null, pinY: null }),
+    ]);
+    expect(await readBriefJob("kit")).toEqual(ready);
+    expect(writes).toBe(0);
+  });
+
   it("writes brief jobs only to R2 without any database access", async () => {
     await writeBriefJob("kit", ready);
     expect(await readBriefJob("kit")).toEqual(ready);
