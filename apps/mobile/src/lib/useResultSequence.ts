@@ -8,6 +8,7 @@ import {
 import { ENTER_SPRING, FADE_TIMING, RESULT_TIMELINE, TAP_TIMING, resultSequenceBeats } from '@/theme/motion';
 import { haptics } from './haptics';
 import type { StripeProgress, WipeMode } from './baku-tint';
+import type { BakuJiggle } from './baku-pupils';
 
 // Completed heroes are remembered for revisits during this app session.
 export const completedResultKits = new Set<string>();
@@ -20,7 +21,7 @@ function useBandMotion(): BandMotion {
   return useMemo(() => ({ opacity, translateY }), [opacity, translateY]);
 }
 
-export function useResultSequence({ kitId, ready, roles }: { kitId: string; ready: boolean; roles?: RoleColors | null }) {
+export function useResultSequence({ kitId, ready, roles, jiggle }: { kitId: string; ready: boolean; roles?: RoleColors | null; jiggle?: BakuJiggle }) {
   const reducedMotion = useReducedMotion();
   // Fixed hook order, matching COLOR_ROLES. No hooks in a map or variable loop.
   const primary = useBandMotion();
@@ -155,6 +156,7 @@ export function useResultSequence({ kitId, ready, roles }: { kitId: string; read
       bakuOpacity.set(withTiming(1, FADE_TIMING));
       primary.opacity.set(withTiming(1, FADE_TIMING));
     } else {
+      jiggle?.({ x: 0, y: 1 });
       const swallowTiming = { ...TAP_TIMING, duration: RESULT_TIMELINE.swallowMs };
       bakuScaleX.set(withSequence(withTiming(RESULT_TIMELINE.swallowScaleX, swallowTiming), withSpring(1, ENTER_SPRING)));
       bakuScaleY.set(withSequence(withTiming(RESULT_TIMELINE.swallowScaleY, swallowTiming), withSpring(1, ENTER_SPRING)));
@@ -188,7 +190,7 @@ export function useResultSequence({ kitId, ready, roles }: { kitId: string; read
       if (!scope.current.landed && !scope.current.skipped) scope.current.started = false;
     };
   }, [kitId, ready, reducedMotion, bands, primary.opacity, stripeProgress, filledStripes, bakuY, bakuScaleX, bakuScaleY, bakuOpacity,
-    markerScale, markerOpacity, briefY, briefOpacity, cancel, setEndValues]);
+    markerScale, markerOpacity, briefY, briefOpacity, cancel, setEndValues, jiggle]);
 
   const bakuStyle = useAnimatedStyle(() => ({
     opacity: bakuOpacity.value,

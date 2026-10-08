@@ -1,6 +1,6 @@
 import { useAuth, useClerk, useSignIn } from '@clerk/expo';
 import { InzpoApiError } from '@inzpo/shared';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ExpoHaptics from 'expo-haptics';
 import * as Reanimated from 'react-native-reanimated';
@@ -14,8 +14,9 @@ import { completedResultKits } from '@/lib/useResultSequence';
 import { useInzpoClient } from '@/lib/api';
 import { createHaptics, haptics } from '@/lib/haptics';
 import { uploadPhoto } from '@/lib/upload';
-import { resultSequenceBeats, SHUTTER_PRESS_SCALE, TAP_TIMING, BUTTON_PRESS_SCALE } from '@/theme/motion';
+import { resultSequenceBeats, SHUTTER_PRESS_SCALE, TAP_TIMING, BUTTON_PRESS_SCALE, HOP_TIMELINE } from '@/theme/motion';
 import { kitFixture, mockClient } from '../../tests/fixtures';
+import { mockReanimatedMotion } from '../../tests/reanimated-motion';
 
 jest.mock('@/lib/api', () => ({ useInzpoClient: jest.fn() }));
 jest.mock('@/lib/upload', () => ({ uploadPhoto: jest.fn() }));
@@ -287,4 +288,55 @@ test('reduced motion Snap fades on press and keeps Light feedback', async () => 
   expect(timing).toHaveBeenCalledWith(0.72, expect.objectContaining({ duration: 150 }));
   expect(spring).not.toHaveBeenCalled();
   expect(ExpoHaptics.impactAsync).toHaveBeenCalledWith(ExpoHaptics.ImpactFeedbackStyle.Light);
+});
+
+test.each([false, true])('Save success reaches the Result Baku, with exactly one Success haptic (reduced: %s)', async (reduced) => {
+  jest.useFakeTimers(); mockReanimatedMotion();
+  jest.mocked(Reanimated.useReducedMotion).mockReturnValue(reduced);
+  completedResultKits.add('kit-1');
+  const view = await render(<ResultScreen />);
+  await fireEvent.press(view.getByRole('button', { name: 'Save' }));
+  await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
+  await fireEvent.press(view.getAllByRole('button', { name: 'Save' }).at(-1)!);
+  expect(within(view.getByTestId('result-baku')).getByTestId('baku-success')).toBeTruthy();
+  expect(view.getByText('Saved')).toBeTruthy();
+  expect(view.getByTestId('save-check')).toBeTruthy();
+  expect(ExpoHaptics.notificationAsync).toHaveBeenCalledTimes(1);
+  expect(ExpoHaptics.notificationAsync).toHaveBeenCalledWith(ExpoHaptics.NotificationFeedbackType.Success);
+  await act(async () => { jest.advanceTimersByTime(HOP_TIMELINE.anticipationMs); });
+  if (reduced) {
+    expect(Reanimated.withTiming).not.toHaveBeenCalledWith(-14, expect.anything(), expect.anything());
+    expect(Reanimated.withTiming).not.toHaveBeenCalledWith(0.92, expect.anything(), expect.anything());
+    expect(Reanimated.withSpring).not.toHaveBeenCalled();
+    expect(Reanimated.withTiming).toHaveBeenCalledWith(1, expect.objectContaining({ duration: 150, reduceMotion: Reanimated.ReduceMotion.Never }));
+    expect(view.getByTestId('baku-contact-shadow')).toHaveStyle({ transform: [{ scaleX: 1 }, { scaleY: 1 }] });
+  } else {
+    expect(Reanimated.withTiming).toHaveBeenCalledWith(-14, expect.objectContaining({ duration: 120 }), expect.any(Function));
+  }
+  await act(async () => { jest.advanceTimersByTime(1919); });
+  expect(within(view.getByTestId('result-baku')).getByTestId('baku-success')).toBeTruthy();
+  await act(async () => { jest.advanceTimersByTime(1); });
+  expect(within(view.getByTestId('result-baku')).getByTestId('baku-idle')).toBeTruthy();
+  expect(ExpoHaptics.notificationAsync).toHaveBeenCalledTimes(1);
+  expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
+  await view.unmount();
+});
+
+test('Save failure emits one Error haptic and shows errorBrief in Result without hopping or shaking', async () => {
+  jest.useFakeTimers(); mockReanimatedMotion(); completedResultKits.add('kit-1');
+  client.saveKit.mockRejectedValue(new Error('offline'));
+  const view = await render(<ResultScreen />);
+  await fireEvent.press(view.getByRole('button', { name: 'Save' }));
+  await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
+  await fireEvent.press(view.getAllByRole('button', { name: 'Save' }).at(-1)!);
+  expect(within(view.getByTestId('result-baku')).getByTestId('baku-errorBrief')).toBeTruthy();
+  expect(view.getByText('Couldn’t save this kit. Please try again.')).toBeTruthy();
+  expect(ExpoHaptics.notificationAsync).toHaveBeenCalledTimes(1);
+  expect(ExpoHaptics.notificationAsync).toHaveBeenCalledWith(ExpoHaptics.NotificationFeedbackType.Error);
+  expect(Reanimated.withTiming).not.toHaveBeenCalledWith(-14, expect.anything(), expect.anything());
+  expect(Reanimated.withSpring).not.toHaveBeenCalled();
+  await act(async () => { jest.advanceTimersByTime(3000); });
+  expect(within(view.getByTestId('result-baku')).getByTestId('baku-errorBrief')).toBeTruthy();
+  expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
+  await view.unmount();
 });

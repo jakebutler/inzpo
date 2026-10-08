@@ -269,3 +269,16 @@ test('progress updates do not rerender React or replay on refreshed role objects
   await advance(110);
   expect(progress.value).toBeCloseTo(0.5);
 });
+
+test.each([false, true])('swallow jiggles pupils once at t=0, respecting reduced motion (%s)', async (reduced) => {
+  jest.mocked(Reanimated.useReducedMotion).mockReturnValue(reduced);
+  const jiggle = jest.fn();
+  const hook = await renderHook(({ ready }: { ready: boolean }) => useResultSequence({ kitId: 'pupils', ready, roles, jiggle }), { initialProps: { ready: false } });
+  expect(jiggle).not.toHaveBeenCalled();
+  await hook.rerender({ ready: true });
+  expect(jiggle).toHaveBeenCalledTimes(reduced ? 0 : 1);
+  if (!reduced) expect(jiggle).toHaveBeenCalledWith({ x: 0, y: 1 });
+  await advance(2000);
+  await hook.rerender({ ready: true });
+  expect(jiggle).toHaveBeenCalledTimes(reduced ? 0 : 1);
+});

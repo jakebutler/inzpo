@@ -5,7 +5,9 @@ import { ReduceMotion } from 'react-native-reanimated';
 import { SaveBackdrop, sheetStyles, useSheetSpring } from './MotionSheet';
 import { SaveSheetContent } from './SaveSheetContent';
 
-export function SaveSheet({ visible, kitId, onClose }: { visible: boolean; kitId: string; onClose: () => void }) {
+export function SaveSheet({ visible, kitId, onClose, onSaved, onSaveError }: {
+  visible: boolean; kitId: string; onClose: () => void; onSaved?: () => void; onSaveError?: () => void;
+}) {
   const modal = useRef<BottomSheetModal>(null);
   const { height } = useWindowDimensions();
   const animationConfigs = useSheetSpring();
@@ -32,7 +34,7 @@ export function SaveSheet({ visible, kitId, onClose }: { visible: boolean; kitId
       backdropComponent={SaveBackdrop}
       onDismiss={onClose}
     >
-      {visible && <SaveSheetContent key={kitId} kitId={kitId} onClose={() => modal.current?.dismiss()} />}
+      {visible && <SaveSheetContent key={kitId} kitId={kitId} onClose={() => modal.current?.dismiss()} onSaved={onSaved} onSaveError={onSaveError} />}
     </BottomSheetModal>
   );
 }

@@ -3,6 +3,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated from 'react-native-reanimated';
 import { ActionButton } from '@/components/ActionButton';
 import { Baku } from '@/components/Baku';
 import { BriefBlock } from '@/components/BriefBlock';
@@ -11,6 +12,9 @@ import { RoleBands } from '@/components/RoleBands';
 import { SaveSheet } from '@/components/SaveSheet';
 import { useKit } from '@/lib/use-kit';
 import { useResultSequence } from '@/lib/useResultSequence';
+import { useBakuPupils } from '@/lib/useBakuPupils';
+import { useBakuHop } from '@/lib/useBakuHop';
+import { INK } from '@/theme/tokens';
 import { ui } from '@/theme/styles';
 
 export default function ResultScreen() {
@@ -24,7 +28,9 @@ export default function ResultScreen() {
   const { height } = useWindowDimensions();
   const ready = !!kit && (briefFailed || kit.brief.status !== 'pending');
   const failedBrief = briefFailed || kit?.brief.status === 'failed' || (kit?.brief.status === 'ready' && !kit.brief.text);
-  const sequence = useResultSequence({ kitId: id, ready, roles: kit?.roles });
+  const pupils = useBakuPupils(96);
+  const sequence = useResultSequence({ kitId: id, ready, roles: kit?.roles, jiggle: pupils.jiggle });
+  const hop = useBakuHop({ kitId: id, base: sequence.values, jiggle: pupils.jiggle });
 
   return (
     <SafeAreaView style={ui.screen} edges={['bottom', 'left', 'right']} onTouchStart={sequence.skipToEnd}>
@@ -74,7 +80,12 @@ export default function ResultScreen() {
                 is ready for them; on pin drag call editSheet.current?.snapToPeek().
                 TODO(motion): Photo pins, hairlines and loupe/picker integration. */}
             <View style={styles.baku}>
-              <Baku pose={!ready ? 'chewing' : failedBrief ? 'errorBrief' : 'idle'} roles={kit.roles} stripeProgress={sequence.stripeProgress} wipeMode={sequence.wipeMode} motionStyle={sequence.bakuStyle} skipTransition={sequence.interactive} />
+              <View testID="result-baku" style={styles.bakuStage}>
+                <Baku pose={hop.pose ?? (!ready ? 'chewing' : failedBrief ? 'errorBrief' : 'idle')} roles={kit.roles} stripeProgress={sequence.stripeProgress} wipeMode={sequence.wipeMode} pupilOffset={pupils.offset} motionStyle={hop.bakuStyle} />
+                {/* Sprites include opaque paper; draw the ground ellipse over
+                    that paper so the contact shadow stays visible. */}
+                <Animated.View testID="baku-contact-shadow" pointerEvents="none" accessible={false} style={[styles.contactShadow, hop.shadowStyle]} />
+              </View>
               {!ready && <BriefBlock brief={kit.brief} showBaku={false} />}
             </View>
             {ready && (
@@ -92,7 +103,7 @@ export default function ResultScreen() {
       </ScrollView>
       {kit && (
         <>
-          <SaveSheet visible={sheet?.kitId === id && sheet.type === 'save'} kitId={kit.id} onClose={() => setSheet(null)} />
+          <SaveSheet visible={sheet?.kitId === id && sheet.type === 'save'} kitId={kit.id} onClose={() => setSheet(null)} onSaved={hop.onSaved} onSaveError={hop.onSaveError} />
           <EditSheet ref={editSheet} visible={sheet?.kitId === id && sheet.type === 'edit'} roles={kit.roles} onClose={() => setSheet(null)} />
         </>
       )}
@@ -104,4 +115,10 @@ const styles = StyleSheet.create({
   photo: { width: '100%', borderRadius: 18, overflow: 'hidden' },
   photoPlaceholder: { alignItems: 'center', justifyContent: 'center', gap: 16 },
   baku: { alignItems: 'center' },
+  bakuStage: { width: 96, height: 96 },
+  contactShadow: {
+    position: 'absolute', left: 26, bottom: 3, width: 50, height: 6,
+    borderRadius: 25, backgroundColor: INK, opacity: 0.055,
+    boxShadow: [{ offsetX: 0, offsetY: 0, blurRadius: 3, color: 'rgba(42, 37, 32, 0.10)' }],
+  },
 });

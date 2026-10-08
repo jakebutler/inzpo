@@ -6,12 +6,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInzpoClient } from '@/lib/api';
 import { haptics } from '@/lib/haptics';
 import { fonts, INK } from '@/theme/tokens';
+import { HOP_TIMELINE } from '@/theme/motion';
 import { ui } from '@/theme/styles';
 import { ActionButton } from './ActionButton';
 import { Baku } from './Baku';
 import { SaveButton } from './SaveButton';
 
-export function SaveSheetContent({ kitId, onClose }: { kitId: string; onClose: () => void }) {
+export function SaveSheetContent({ kitId, onClose, onSaved, onSaveError }: {
+  kitId: string; onClose: () => void; onSaved?: () => void; onSaveError?: () => void;
+}) {
   const client = useInzpoClient();
   const insets = useSafeAreaInsets();
   const [collections, setCollections] = useState<CollectionSummary[]>([]);
@@ -41,8 +44,7 @@ export function SaveSheetContent({ kitId, onClose }: { kitId: string; onClose: (
   }, [client, attempt]);
   useEffect(() => {
     if (!saved) return;
-    // TODO(motion): Baku anticipation/takeoff/landing hop and contact shadow.
-    const timer = setTimeout(() => setSuccessPose(false), 2000);
+    const timer = setTimeout(() => setSuccessPose(false), HOP_TIMELINE.successHoldMs);
     return () => clearTimeout(timer);
   }, [saved]);
 
@@ -57,10 +59,12 @@ export function SaveSheetContent({ kitId, onClose }: { kitId: string; onClose: (
       setSaved(true);
       setSuccessPose(true);
       void haptics.success();
+      onSaved?.();
     } catch {
       if (!active.current) return;
       setSaveError('Couldn’t save this kit. Please try again.');
       void haptics.error();
+      onSaveError?.();
     } finally {
       saveInFlight.current = false;
       if (active.current) setSaving(false);

@@ -5,6 +5,20 @@ export const TAP_TIMING = { duration: 120, easing: Easing.out(Easing.cubic) } as
 // replaced by fades at the call site, rather than silently becoming instant.
 export const FADE_TIMING = { duration: 150, easing: Easing.linear, reduceMotion: ReduceMotion.Never } as const;
 export const ENTER_SPRING = { damping: 18, stiffness: 220, mass: 1 } as const;
+export const PUPIL_SPRING = { damping: 6, stiffness: 180, mass: 1 } as const;
+export const HOP_TIMELINE = {
+  anticipationMs: 80,
+  anticipationScaleX: 1.06,
+  anticipationScaleY: 0.92,
+  takeoffMs: 120,
+  peakY: -14,
+  stretchScaleY: 1.04,
+  flightMs: 320,
+  landingMs: 60,
+  landingScaleY: 0.95,
+  peakShadowScale: 0.8,
+  successHoldMs: 2000,
+} as const;
 export const BAND_STAGGER_MS = 60;
 export const SHEET_SPRING = { damping: 30, stiffness: 300, reduceMotion: ReduceMotion.Never } as const;
 export const REDUCED_SHEET_SPRING = { damping: 40, stiffness: 400, reduceMotion: ReduceMotion.Never } as const;

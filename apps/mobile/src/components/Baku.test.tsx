@@ -35,11 +35,11 @@ test('loads the grouped base, shade and masks in stripe order', async () => {
   expect(load.mock.calls.slice(0, 8).map(([source]) => source)).toEqual(bakuTintAssets.chewing);
 });
 
-test('the actual SkSL compiles with six RGB uniforms, progress, bounds, height and wipe mode', () => {
+test('the actual SkSL compiles with tint, wipe and pupil uniforms', () => {
   const effect = Skia.Skia.RuntimeEffect.Make(BAKU_TINT_SKSL);
   expect(effect).not.toBeNull();
-  expect(effect!.getUniformCount()).toBe(10);
-  expect(effect!.getUniformFloatCount()).toBe(38);
+  expect(effect!.getUniformCount()).toBe(15);
+  expect(effect!.getUniformFloatCount()).toBe(56);
 });
 
 test.each(['null', 'throws'])('an unavailable RuntimeEffect (%s) uses the full-color fallback', async (failure) => {
