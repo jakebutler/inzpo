@@ -71,6 +71,7 @@ export async function readBriefJob(itemId: string): Promise<BriefJob | null> {
 
 export async function startBriefJob(ownerId: string, itemId: string): Promise<void> {
   await assertItemOwned(ownerId, itemId);
+  if (await readBriefJob(itemId)) return;
   await writeBriefJob(
     itemId,
     jobPayload({ status: "pending", text: null, namedColors: [], stub: false }),
@@ -125,7 +126,12 @@ function stubJob(): BriefJob {
 }
 
 /** Runs off the request. Without a key, Save stays unblocked and the brief stays empty. */
-export async function runBriefJob(itemId: string): Promise<BriefJob> {
+export async function runBriefJob(itemId: string, { retry = false } = {}): Promise<BriefJob> {
+  // Colour edits and repeat background calls must preserve a completed brief.
+  if (!retry) {
+    const existing = await readBriefJob(itemId);
+    if (existing && existing.status !== "pending") return existing;
+  }
   const key = process.env.DO_INFERENCE_API_KEY;
   const base = process.env.DO_INFERENCE_BASE_URL ?? "https://inference.do-ai.run/v1";
   const model = briefModelId();

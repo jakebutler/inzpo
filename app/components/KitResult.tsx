@@ -135,7 +135,6 @@ export function KitResult({
   );
   const kit = kitFromColors(displayColors);
   const roles = rolesFromColors(displayColors);
-  const kicked = useRef(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const photoRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -216,6 +215,7 @@ export function KitResult({
   useEffect(() => {
     if (preview) return;
     let alive = true;
+    let pendingTicks = 0;
     const tick = async () => {
       const res = await fetch(`/api/briefs/${itemId}`, { cache: "no-store" });
       if (!res.ok || !alive) return;
@@ -235,10 +235,10 @@ export function KitResult({
       });
       if (job.title && job.title !== title) router.refresh();
       if (job.status === "pending") {
-        if (!kicked.current) {
-          kicked.current = true;
-          void fetch(`/api/briefs/${itemId}`, { method: "POST" });
-        }
+        pendingTicks += 1;
+        // Recovery only: if the capture-time run never finished, ask once.
+        // The server ignores this for any brief that is no longer pending.
+        if (pendingTicks === 13) void fetch(`/api/briefs/${itemId}`, { method: "POST" });
         window.setTimeout(() => void tick(), 2500);
       }
     };
@@ -585,9 +585,8 @@ export function KitResult({
           pageBackground={pageBg}
           pageInk={pageInk}
           onRetry={() => {
-            kicked.current = true;
             setBrief((prev) => ({ ...prev, status: "pending", text: null, stub: false }));
-            void fetch(`/api/briefs/${itemId}`, { method: "POST" }).then(async (res) => {
+            void fetch(`/api/briefs/${itemId}?retry=1`, { method: "POST" }).then(async (res) => {
               if (!res.ok) {
                 setBrief((prev) => ({ ...prev, status: "failed" }));
                 return;

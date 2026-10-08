@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { NextRequest } from "next/server";
+import { NextRequest } from "next/server";
 import { generatedKitTitle, kitAltText, kitDisplayName } from "@/lib/kit-name";
 
 const mocks = vi.hoisted(() => ({
@@ -68,7 +68,7 @@ describe("brief API persisted title", () => {
   it.each([GET, POST])("returns the existing title despite a conflicting generated name (%#)", async (handler) => {
     existingTitle("Red Crimson");
     expect(generatedKitTitle({ briefText: ready.text, namedColors: ready.namedColors })).toBe("Soft Yellow");
-    const response = await handler({} as NextRequest, { params: Promise.resolve({ id: "kit" }) });
+    const response = await handler(new NextRequest("http://localhost/api/briefs/kit"), { params: Promise.resolve({ id: "kit" }) });
     const body = await response.json();
     expect(body.title).toBe("Red Crimson");
     expect(kitDisplayName(body)).toBe("Red Crimson");
@@ -77,7 +77,7 @@ describe("brief API persisted title", () => {
   });
 
   it("returns the newly persisted generated title", async () => {
-    const response = await GET({} as NextRequest, { params: Promise.resolve({ id: "kit" }) });
+    const response = await GET(new NextRequest("http://localhost/api/briefs/kit"), { params: Promise.resolve({ id: "kit" }) });
     expect((await response.json()).title).toBe("Soft Yellow");
     expect(mocks.set).toHaveBeenCalledWith({ title: "Soft Yellow", updatedAt: expect.any(Date) });
   });

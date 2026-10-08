@@ -26,7 +26,7 @@ export const BRIEF_REQUEST: {
   visionEdgePx: 384,
   visionJpegQuality: 72,
   maxTokens: 300,
-  temperature: null,
+  temperature: 0.3,
   reasoningEffort: "low",
   /** Parsed brief text over this length is a parse failure. */
   maxChars: 120,

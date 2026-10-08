@@ -7,6 +7,8 @@ import { assertItemOwned } from "@/lib/auth/owner";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+/** A pending brief older than this lost its background run; a plain POST may finish it. */
+const STALE_PENDING_MS = 30_000;
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ownerId = await requireOwnerId();
@@ -26,16 +28,27 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   );
 }
 
-export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ownerId = await requireOwnerId();
   const { id } = await params;
   await assertItemOwned(ownerId, id);
-  const job = await runBriefJob(id);
+  // Only the explicit BriefSlot retry may replace the stored brief. A plain
+  // POST may only finish a job left pending (the after() run was lost); it
+  // never touches a completed brief.
+  let job = request.nextUrl.searchParams.get("retry") === "1"
+    ? await runBriefJob(id, { retry: true })
+    : await readBriefJob(id);
+  if (job?.status === "pending" && Date.now() - (job.updatedAt ?? 0) > STALE_PENDING_MS) {
+    job = await runBriefJob(id);
+  }
   let title: string | null = null;
-  if (job.status === "ready") {
+  if (job?.status === "ready") {
     title = await persistKitTitleFromBrief(id, job);
     revalidatePath(`/items/${id}`);
     revalidatePath("/");
   }
-  return NextResponse.json({ ...job, title });
+  return NextResponse.json({
+    ...(job ?? { status: "pending", text: null, namedHexes: [], namedColors: [], stub: false, updatedAt: 0 }),
+    title,
+  });
 }

@@ -49,6 +49,7 @@ describe("brief image payload", () => {
     expect(body.model).toBe("glm-5.3-flash");
     expect(body.reasoning_effort).toBe("low");
     expect(body.max_tokens).toBe(300);
+    expect(body.temperature).toBe(0.3);
     expect(body.response_format).toEqual({ type: "json_object" });
     const user = body.messages.find((m) => m.role === "user");
     expect(Array.isArray(user?.content)).toBe(true);
