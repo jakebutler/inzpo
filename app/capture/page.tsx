@@ -3,6 +3,7 @@ import { CaptureForm } from "./CaptureForm";
 import { getLatestKit } from "@/lib/items";
 import { MascotStage } from "@/app/components/MascotStage";
 import { KitCard } from "@/app/components/KitCard";
+import { SAMPLE_KIT } from "@/lib/sample-kit";
 import { requireOwnerId } from "@/lib/auth/owner";
 import { LINKS_UNSUPPORTED_ERROR, LINKS_UNSUPPORTED_MESSAGE, isLinksUnsupportedRequest } from "@/lib/links";
 
@@ -59,7 +60,7 @@ export default async function CapturePage({
               hexes={last.hexColors}
             />
           ) : (
-            <KitCard title="Sample kit" />
+            <KitCard title={SAMPLE_KIT.title} imageSrc={SAMPLE_KIT.imageSrc} hexes={[...SAMPLE_KIT.hexes]} />
           )}
         </div>
 
