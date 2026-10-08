@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { isDevAuthBypassEnabled } from "@/lib/auth/dev-bypass";
+import { isFoldQaEnabled } from "@/lib/auth/dev-bypass";
 import { KitResult } from "@/app/components/KitResult";
 import { SaveBar } from "@/app/components/SaveBar";
 import { KitCard } from "@/app/components/KitCard";
@@ -47,7 +47,7 @@ export default async function FoldPage({
 }: {
   searchParams: Promise<{ state?: string; photo?: string; play?: string; hold?: string }>;
 }) {
-  if (!isDevAuthBypassEnabled()) notFound();
+  if (!isFoldQaEnabled()) notFound();
   const params = await searchParams;
   const state = (STATES.includes(params.state as FoldState) ? params.state : "result") as FoldState;
   const photo = (PHOTOS.includes(params.photo as FoldPhoto)

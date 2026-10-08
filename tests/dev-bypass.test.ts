@@ -43,4 +43,14 @@ describe("dev auth bypass", () => {
     expect(isDevAuthBypassEnabled()).toBe(true);
     expect(devOwnerId()).toBe(TEST_OWNER_ID);
   });
+
+  it("opens fold QA on Vercel Preview without skipping production", async () => {
+    delete process.env.INZPO_DEV_AUTH;
+    process.env.VERCEL_ENV = "preview";
+    const { isDevAuthBypassEnabled, isFoldQaEnabled } = await loadBypass();
+    expect(isDevAuthBypassEnabled()).toBe(false);
+    expect(isFoldQaEnabled()).toBe(true);
+    process.env.VERCEL_ENV = "production";
+    expect(isFoldQaEnabled()).toBe(false);
+  });
 });

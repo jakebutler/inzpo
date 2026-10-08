@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import {
   MASCOT_SIZE_BRIEF_PX,
-  MASCOT_SIZE_PX,
   MASCOT_SUCCESS_HOLD_MS,
   MASCOT_COPY,
   type MascotKit,
@@ -77,7 +76,7 @@ export function BriefSlot({
               justifyContent: "flex-start",
             }}
           >
-            <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_PX} revealedCount={stripeReveal} faceText />
+            <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText />
           </div>
         </div>
       </section>
@@ -97,7 +96,7 @@ export function BriefSlot({
           justifyContent: "flex-start",
         }}
       >
-        <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_PX} revealedCount={stripeReveal} faceText />
+        <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText />
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
         {shown ? (

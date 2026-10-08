@@ -9,6 +9,13 @@ export function isDevAuthBypassEnabled(): boolean {
   return process.env.INZPO_DEV_AUTH === "1";
 }
 
+/** /dev/fold and /dev/qa on Vercel Preview, or any non-prod host with INZPO_DEV_AUTH=1. */
+export function isFoldQaEnabled(): boolean {
+  if (process.env.VERCEL_ENV === "production") return false;
+  if (isDevAuthBypassEnabled()) return true;
+  return process.env.VERCEL_ENV === "preview";
+}
+
 export function devOwnerId(): string | null {
   if (!isDevAuthBypassEnabled()) return null;
   const id = process.env.INZPO_DEV_OWNER_ID?.trim();

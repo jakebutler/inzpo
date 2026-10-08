@@ -10,8 +10,6 @@
   --baku-surface: var(--baku-cream);
   --baku-text: var(--baku-cream);
   display: block;
-  width: 48px;
-  height: 48px;
   flex: 0 0 auto;
   overflow: visible;
 }

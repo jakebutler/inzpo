@@ -1,4 +1,6 @@
 import { gzipSync } from "node:zlib";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import {
@@ -6,6 +8,7 @@ import {
   MASCOT_CHEW_COPY_MS,
   MASCOT_COPY,
   MASCOT_POSES,
+  MASCOT_SIZE_BRIEF_PX,
   MASCOT_SIZE_PX,
   MASCOT_SUCCESS_HOLD_MS,
   MASCOT_WAIT_MS,
@@ -138,6 +141,16 @@ describe("stripe kit", () => {
 
   it("renders at 48px", () => {
     expect(MASCOT_SIZE_PX).toBe(48);
+  });
+
+  it("fills the 56px brief slot and multiply-blends the ground shadow", () => {
+    expect(MASCOT_SIZE_BRIEF_PX).toBe(56);
+    const brief = readFileSync(path.join(process.cwd(), "app/components/BriefSlot.tsx"), "utf8");
+    const sprite = readFileSync(path.join(process.cwd(), "app/components/BakuSprite.tsx"), "utf8");
+    expect(brief).toMatch(/size=\{MASCOT_SIZE_BRIEF_PX\}/);
+    expect(brief).not.toMatch(/size=\{MASCOT_SIZE_PX\}/);
+    expect(sprite).toContain('mixBlendMode: "multiply"');
+    expect(sprite).toContain("data-baku-shadow");
   });
 });
 

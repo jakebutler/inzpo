@@ -6,6 +6,7 @@ import { useGSAP } from "@gsap/react";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import {
   BAKU_CROSSFADE_MS,
+  BAKU_SHADOW_CLIP_PCT,
   bakuCanTint,
   bakuDensity,
   bakuV6BandsSrc,
@@ -132,6 +133,15 @@ export function BakuSprite({
 
   const src = tintFailed ? bakuV6ColorSrc(pose, density) : tinted ?? baseSrc;
   const showPng = !pngFailed;
+  const failPng = () => {
+    if (canTint && src !== bakuV6ColorSrc(pose, density)) {
+      setTintFailed(true);
+      return;
+    }
+    setPngFailed(true);
+  };
+  const shadowClip = `inset(${100 - BAKU_SHADOW_CLIP_PCT}% 0 0 0)`;
+  const bodyClip = `inset(0 0 ${BAKU_SHADOW_CLIP_PCT}% 0)`;
 
   return (
     <div
@@ -146,24 +156,34 @@ export function BakuSprite({
         transformOrigin: "50% 100%",
       }}
     >
-      <div ref={squashRef} className="h-full w-full" style={{ transformOrigin: "50% 100%" }}>
+      <div ref={squashRef} className="relative h-full w-full" style={{ transformOrigin: "50% 100%" }}>
         {showPng ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={src}
-            alt=""
-            width={size}
-            height={size}
-            className="block h-full w-full"
-            draggable={false}
-            onError={() => {
-              if (canTint && src !== bakuV6ColorSrc(pose, density)) {
-                setTintFailed(true);
-                return;
-              }
-              setPngFailed(true);
-            }}
-          />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt=""
+              width={size}
+              height={size}
+              data-baku-shadow
+              className="pointer-events-none absolute inset-0 block h-full w-full"
+              style={{ mixBlendMode: "multiply", clipPath: shadowClip }}
+              draggable={false}
+              onError={failPng}
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt=""
+              width={size}
+              height={size}
+              data-baku-body
+              className="relative block h-full w-full"
+              style={{ clipPath: bodyClip }}
+              draggable={false}
+              onError={failPng}
+            />
+          </>
         ) : (
           fallback
         )}
