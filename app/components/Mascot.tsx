@@ -29,9 +29,11 @@ export type MascotProps = {
   /** Set true once Snap can be tapped. Loads the Rive runtime then; SVG stays up until it arrives. */
   snapReady?: boolean;
   className?: string;
+  /** How many token-order stripes have landed. Null means all filled roles. */
+  revealedCount?: number | null;
 };
 
-export function Mascot({ pose, kit, size = 48, snapReady = false, className }: MascotProps) {
+export function Mascot({ pose, kit, size = 48, snapReady = false, className, revealedCount = null }: MascotProps) {
   const rawId = useId().replace(/:/g, "");
   const clipId = `baku-clip-${rawId}`;
   const colors = kitForPose(pose, kit);
@@ -82,6 +84,7 @@ export function Mascot({ pose, kit, size = 48, snapReady = false, className }: M
               {BAKU_STRIPE_DS.map((d, i) => {
                 const role = COLOR_ROLES[i];
                 if (!role || !colors[role]) return null;
+                if (revealedCount != null && i >= revealedCount) return null;
                 return <path key={STRIPE_CLASS[i]} className={STRIPE_CLASS[i]} d={d} />;
               })}
               {BAKU_SEAM_DS.map((d, i) => {

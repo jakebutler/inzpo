@@ -14,16 +14,18 @@ export function BriefSlot({
   kit,
   note,
   onRetry,
+  stripeReveal,
 }: {
   status: BriefSlotStatus;
   kit: MascotKit;
   note: string | null;
   onRetry?: () => void;
+  stripeReveal?: number | null;
 }) {
   return (
     <section className="mt-6" aria-label="Brief" style={{ minHeight: MASCOT_SIZE_PX }}>
       {status === "pending" ? (
-        <MascotStage moment="brief" kit={kit} size={MASCOT_SIZE_PX} snapReady={false} />
+        <MascotStage moment="brief" kit={kit} size={MASCOT_SIZE_PX} snapReady={false} revealedCount={stripeReveal} />
       ) : null}
       {status === "failed" ? (
         <MascotStage
@@ -32,6 +34,7 @@ export function BriefSlot({
           size={MASCOT_SIZE_PX}
           snapReady={false}
           onRetry={onRetry}
+          revealedCount={stripeReveal}
         />
       ) : null}
       {status === "ready" && note ? (

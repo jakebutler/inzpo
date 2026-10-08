@@ -47,29 +47,36 @@ export function SaveBar({
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur" data-save-bar>
-      <div className="mx-auto flex max-w-xl items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="min-h-11 flex-1 truncate rounded-lg border border-border px-3 text-left text-sm"
-        >
-          {selectedName}
-        </button>
-        <button
-          type="button"
-          disabled={pending || (!selected && !newName.trim())}
-          onClick={() => save(selected, newName.trim())}
-          className="h-14 min-w-24 rounded-xl bg-primary px-5 text-base font-medium text-primary-foreground disabled:opacity-50"
-          style={{ transitionDuration: `${MOTION_CSS.tapMs}ms` }}
-        >
-          {pending ? "Saving…" : "Save"}
-        </button>
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30" data-save-bar>
+      <div
+        className="pointer-events-none h-16 w-full"
+        style={{ background: "linear-gradient(to bottom, transparent, var(--background))" }}
+        aria-hidden
+      />
+      <div className="pointer-events-auto bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
+        <div className="mx-auto flex max-w-xl items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="min-h-11 flex-1 truncate text-left text-base"
+          >
+            Save to {selectedName} ⌄
+          </button>
+          <button
+            type="button"
+            disabled={pending || (!selected && !newName.trim())}
+            onClick={() => save(selected, newName.trim())}
+            className="h-14 min-w-24 bg-primary px-5 text-base font-medium text-primary-foreground disabled:opacity-50"
+            style={{ transitionDuration: `${MOTION_CSS.tapMs}ms` }}
+          >
+            {pending ? "Saving…" : "Save"}
+          </button>
+        </div>
       </div>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="bottom" className="max-h-[70vh] rounded-t-2xl pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <SheetContent side="bottom" className="max-h-[70vh] bg-background pb-[max(1rem,env(safe-area-inset-bottom))] shadow-none">
           <SheetHeader>
-            <SheetTitle>Collection</SheetTitle>
+            <SheetTitle className="font-heading text-2xl">Collection</SheetTitle>
           </SheetHeader>
           <div className="flex flex-col gap-1 px-4 pb-4">
             {creating ? (
@@ -93,16 +100,16 @@ export function SaveBar({
                   }}
                   placeholder="Collection name"
                   aria-label="New collection name"
-                  className="min-h-11 flex-1 rounded-lg border border-border bg-background px-3 text-sm"
+                  className="min-h-11 flex-1 border border-current bg-background px-3 text-base"
                 />
-                <button type="submit" className="min-h-11 rounded-lg px-3 text-sm">
+                <button type="submit" className="min-h-11 px-3 text-base">
                   Create
                 </button>
               </form>
             ) : (
               <button
                 type="button"
-                className="min-h-11 rounded-lg border border-dashed border-border px-3 text-left text-sm"
+                className="min-h-11 border border-dashed border-current px-3 text-left text-base"
                 onClick={() => setCreating(true)}
               >
                 New collection
@@ -112,7 +119,7 @@ export function SaveBar({
               <button
                 key={c.id}
                 type="button"
-                className={`min-h-11 rounded-lg px-3 text-left text-sm ${c.id === selected ? "bg-muted" : ""}`}
+                className={`min-h-11 px-3 text-left text-base ${c.id === selected ? "bg-secondary" : ""}`}
                 onClick={() => {
                   setSelected(c.id);
                   setNewName("");

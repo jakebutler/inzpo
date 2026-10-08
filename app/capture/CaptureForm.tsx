@@ -112,23 +112,21 @@ export function CaptureForm({
 
       {hasSubstance ? (
         <div ref={stageRef}>
-          <div data-stage="preview-card" className="mt-3 overflow-hidden rounded-2xl border border-border bg-card">
+          <div data-stage="preview-card" className="mt-3 overflow-hidden">
             {fileUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={fileUrl} alt="Captured image" className="max-h-72 w-full object-cover" />
             ) : null}
-            <div className="p-3">
-              <p className="truncate text-sm font-medium">{uploading ? "Uploading…" : file?.name ?? "Shared photo"}</p>
-            </div>
+            <p className="mt-2 truncate text-base">{uploading ? "Uploading…" : file?.name ?? "Shared photo"}</p>
           </div>
         </div>
       ) : null}
 
-      <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-xl border-t border-border bg-background/95 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-xl bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
         <button
           type="button"
           onClick={() => cameraRef.current?.click()}
-          className="h-14 w-full rounded-xl bg-primary text-base font-medium text-primary-foreground"
+          className="h-14 w-full bg-primary text-base font-medium text-primary-foreground"
           style={{ transitionDuration: `${MOTION_CSS.tapMs}ms` }}
         >
           Snap something
@@ -136,7 +134,7 @@ export function CaptureForm({
         <button
           type="button"
           onClick={() => libraryRef.current?.click()}
-          className="mt-2 min-h-11 w-full text-sm text-muted-foreground"
+          className="mt-2 min-h-11 w-full text-base"
         >
           Pick a photo
         </button>

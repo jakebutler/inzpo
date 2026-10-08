@@ -48,8 +48,8 @@ export default async function ItemDetailPage({
   if (isKit) {
     return (
       <main className="min-h-screen bg-background text-foreground">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/90 px-4 py-3 backdrop-blur">
-          <Link href={query.c ? `/?c=${query.c}` : "/"} className="text-sm text-muted-foreground">
+        <div className="sticky top-0 z-10 flex items-center justify-between bg-background px-4 py-3">
+          <Link href={query.c ? `/?c=${query.c}` : "/"} className="text-base">
             ← {query.c ? collections.find((c) => c.id === query.c)?.name ?? "Collection" : "Wall"}
           </Link>
           {query.c ? <ExportKitButton itemId={item.id} /> : null}

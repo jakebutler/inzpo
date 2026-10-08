@@ -22,6 +22,7 @@ export function MascotStage({
   onRetry,
   onShown,
   className,
+  revealedCount,
 }: {
   moment: MascotMoment;
   kit?: MascotKit | null;
@@ -30,6 +31,7 @@ export function MascotStage({
   onRetry?: () => void;
   onShown?: () => void;
   className?: string;
+  revealedCount?: number | null;
 }) {
   const pose = poseForMoment(moment);
   const delayed = waitBeforeShow(moment);
@@ -71,7 +73,7 @@ export function MascotStage({
   return (
     <div className={["flex items-start gap-3", className].filter(Boolean).join(" ")} style={{ minHeight: size }}>
       <div style={{ width: size, height: size, flex: "0 0 auto" }} className={shown ? "opacity-100" : "opacity-0"}>
-        <Mascot pose={pose} kit={kit} size={size} snapReady={snapReady} />
+        <Mascot pose={pose} kit={kit} size={size} snapReady={snapReady} revealedCount={revealedCount} />
       </div>
       {shown ? (
         <div className="min-w-0 pt-1">

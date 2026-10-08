@@ -11,6 +11,7 @@ import { bulkCollectionAction, bulkDeleteAction } from "@/app/actions/bulk";
 import { bulkBoardAction } from "@/app/actions/boards";
 import { ActionForm } from "@/app/components/ActionForm";
 import { MascotStage } from "@/app/components/MascotStage";
+import { BandStripe, rolesFromHexes } from "@/app/components/BandStripe";
 
 export interface WallCard {
   id: string;
@@ -23,15 +24,6 @@ export interface WallCard {
   freeTags: string[];
   sourceUrl: string | null;
 }
-
-const KIND_LABELS: Record<string, string> = {
-  url: "URL",
-  screenshot: "Screenshot",
-  photo: "Photo",
-  palette: "Palette",
-  article: "Article",
-  video: "Video",
-};
 
 export function WallGrid({
   items,
@@ -328,13 +320,9 @@ export function WallGrid({
                     toggle(item.id);
                   }
                 }}
-                className={`relative cursor-pointer break-inside-avoid overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${on ? "ring-2 ring-neutral-100" : ""}`}
+                className={`relative cursor-pointer break-inside-avoid ${on ? "outline outline-2 outline-offset-2 outline-primary" : ""}`}
               >
-                {item.displayKey ? (
-                  <img src={`/media/${item.displayKey}`} alt="" className="w-full object-cover" loading="lazy" />
-                ) : (
-                  <span className="flex h-24 items-center justify-center bg-neutral-900 px-3 text-center text-neutral-500">{item.title ?? "Untitled"}</span>
-                )}
+                <BandStripe roles={rolesFromHexes(item.hexColors)} title={item.title ?? "Untitled"} />
                 <span
                   aria-hidden
                   className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full ${
@@ -374,13 +362,13 @@ export function WallGrid({
           </p>
         </div>
       ) : null}
-      <div className="grid grid-cols-2 gap-4 items-start md:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-6 items-start sm:grid-cols-2 md:grid-cols-3">
       {Array.from({ length: colCount }, (_, c) => (
-        <div key={c} className="flex flex-col gap-4">
+        <div key={c} className="flex flex-col gap-6">
       {items.filter((_, i) => i % colCount === c).map((item) => (
-        <figure key={item.id} className="group relative break-inside-avoid overflow-hidden rounded-xl bg-neutral-900">
+        <div key={item.id} className="group relative">
           <Link
-            href={`/items/${item.id}`}
+            href={collectionId ? `/items/${item.id}?c=${collectionId}` : `/items/${item.id}`}
             onPointerDown={() => startLongPress(item.id)}
             onPointerUp={cancelLongPress}
             onPointerLeave={cancelLongPress}
@@ -393,20 +381,9 @@ export function WallGrid({
             }}
             className="block"
           >
-            {item.displayKey ? (
-              <img
-                src={`/media/${item.displayKey}`}
-                alt={item.title ?? "Item"}
-                loading="lazy"
-                decoding="async"
-                style={item.aspect ? { aspectRatio: String(item.aspect) } : undefined}
-                className="w-full object-cover"
-              />
-            ) : (
-              <span className="flex h-32 items-center justify-center px-3 text-center text-neutral-500">{item.title ?? "Untitled"}</span>
-            )}
+            <BandStripe roles={rolesFromHexes(item.hexColors)} title={item.title ?? "Untitled"} />
           </Link>
-          <div className="pointer-events-none absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+          <div className="pointer-events-none absolute right-0 top-0 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
             <button
               type="button"
               aria-label={`Select ${item.title ?? "Untitled"}`}
@@ -414,25 +391,12 @@ export function WallGrid({
                 setSelectMode(true);
                 setSelected((prev) => new Set(prev).add(item.id));
               }}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-500 bg-black/60 text-white focus-visible:pointer-events-auto focus-visible:opacity-100"
+              className="flex h-11 w-11 items-center justify-center text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100"
             >
               <Square className="h-4 w-4" />
             </button>
           </div>
-          <figcaption className="px-3 py-2">
-            <div className="text-xs">
-              <span className="uppercase tracking-wide text-neutral-500">{KIND_LABELS[item.kind] ?? item.kind}</span>
-              <span className="ml-2 text-neutral-300">{item.title ?? "Untitled"}</span>
-            </div>
-            {item.hexColors.length > 0 ? (
-              <div className="mt-1.5 flex gap-1">
-                {item.hexColors.slice(0, 6).map((hex, i) => (
-                  <span key={`${item.id}-${hex}-${i}`} className="inline-block h-3 w-3 rounded-full border border-neutral-700" style={{ backgroundColor: hex }} />
-                ))}
-              </div>
-            ) : null}
-          </figcaption>
-        </figure>
+        </div>
         ))}
         </div>
       ))}

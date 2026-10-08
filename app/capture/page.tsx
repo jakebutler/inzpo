@@ -29,17 +29,19 @@ export default async function CapturePage({
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-xl px-6 pb-36 pt-6">
+      <div className="mx-auto max-w-xl px-4 pb-36 pt-6">
         <div className="flex items-center justify-between">
-          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
+          <Link href="/" className="text-base">
             ← Wall
           </Link>
         </div>
 
-        <p className="mt-8 text-sm text-muted-foreground">Steal the colors off anything</p>
+        <h1 className="font-heading mt-8 max-w-[14ch] text-left text-[40px] leading-[1.15] tracking-tight">
+          Steal the colors off anything
+        </h1>
 
         {linksBlocked ? (
-          <p role="status" className="mt-3 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+          <p role="status" className="mt-3 text-base">
             {LINKS_UNSUPPORTED_MESSAGE}
           </p>
         ) : unreadable ? (
@@ -47,12 +49,12 @@ export default async function CapturePage({
             <MascotStage moment="error-unreadable" snapReady />
           </div>
         ) : params.error ? (
-          <p role="alert" className="mt-3 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p role="alert" className="mt-3 text-base text-primary">
             {ERRORS[params.error] ?? "Something went wrong."}
           </p>
         ) : null}
 
-        <div className="mt-6">
+        <div className="mt-8">
           {last ? (
             <KitCard
               title={last.title ?? "Last kit"}

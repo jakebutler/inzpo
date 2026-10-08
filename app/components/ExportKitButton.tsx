@@ -38,7 +38,7 @@ export function ExportKitButton({ itemId }: { itemId: string }) {
       <button
         type="button"
         onClick={() => void exportKit()}
-        className="min-h-11 text-sm"
+        className="inline-flex min-h-11 items-center border border-current px-4 text-base"
         data-export-path={note ?? ""}
       >
         Export kit

@@ -32,9 +32,9 @@ export default async function Wall({
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
+      <header className="sticky top-0 z-10 bg-background">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <h1 className="text-sm font-medium">
+          <h1 className="font-heading text-2xl">
             {collectionId ? collections.find((c) => c.id === collectionId)?.name ?? "Collection" : "Wall"}
           </h1>
           <div className="flex items-center gap-2">
@@ -55,7 +55,7 @@ export default async function Wall({
       </header>
 
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 pt-3">
-        <span className="text-xs text-muted-foreground">
+        <span className="text-base">
           {count} kit{count === 1 ? "" : "s"}
           {collectionId ? (
             <>
