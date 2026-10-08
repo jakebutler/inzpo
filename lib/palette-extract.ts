@@ -1,3 +1,4 @@
+import "server-only";
 import sharp from "sharp";
 import { hexToFamily, rgbToHex, type ColorFamily } from "@/lib/colors";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";

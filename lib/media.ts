@@ -1,3 +1,4 @@
+import "server-only";
 import sharp from "sharp";
 import { createHash } from "node:crypto";
 import { MEDIA_VARIANTS, variantKey, type MediaVariant } from "@/lib/r2";

@@ -1,3 +1,4 @@
+import "server-only";
 import sharp from "sharp";
 
 /** ISO-BMFF major brands used by HEIC/HEIF (see heic-decode / file-type). */

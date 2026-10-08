@@ -1,3 +1,4 @@
+import "server-only";
 import sharp from "sharp";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { r2 } from "@/lib/r2";
