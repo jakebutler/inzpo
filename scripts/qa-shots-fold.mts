@@ -307,7 +307,7 @@ async function main(): Promise<void> {
         path.join(ARTIFACTS, `r5_${longest}_${vp.name}_brief-full_motion.png`),
         false,
         700,
-        false,
+        true,
       );
       await page.close();
     }
