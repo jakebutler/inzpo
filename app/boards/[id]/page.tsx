@@ -5,15 +5,17 @@ import { getBoardDetail } from "@/lib/boards";
 import { getFacetsWithValues } from "@/lib/ontology";
 import { COLOR_FAMILIES } from "@/lib/colors";
 import { BoardEditor } from "./BoardEditor";
+import { ownerClause, requireOwnerId } from "@/lib/auth/owner";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Board editor — Inzpo" };
 
 async function loadBoardEditor(id: string) {
+  const ownerId = await requireOwnerId();
   const [board, facets, tagRows] = await Promise.all([
-    getBoardDetail(id),
-    getFacetsWithValues(),
-    db.select({ name: freeTags.name }).from(freeTags).orderBy(freeTags.name),
+    getBoardDetail(ownerId, id),
+    getFacetsWithValues(ownerId),
+    db.select({ name: freeTags.name }).from(freeTags).where(ownerClause(freeTags.ownerId, ownerId)).orderBy(freeTags.name),
   ]);
   if (!board) return null;
   return {

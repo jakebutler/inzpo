@@ -7,27 +7,27 @@ import { createLinkedItem } from "@/lib/capture-url";
 import { attachTags, parseTagSelection } from "@/lib/ontology";
 import { isHttpUrl } from "@/lib/url";
 import { r2, GetObjectCommand, DeleteObjectCommand } from "@/lib/r2";
+import { requireOwnerId } from "@/lib/auth/owner";
 
 export async function capture(formData: FormData): Promise<void> {
+  const ownerId = await requireOwnerId();
   const file = formData.get("image");
   const rawUrl = ((formData.get("url") as string) ?? "").trim();
   const shareToken = ((formData.get("shareToken") as string) ?? "").trim();
   const tags = parseTagSelection(formData.get("tags"));
 
-  // a stashed cold-start share image: only if it is still pending (tmp/ prefix) and survives the login
   if (shareToken.startsWith("tmp/") && !shareToken.includes("..")) {
     let itemId: string;
     try {
       const result = await r2().send(new GetObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: shareToken }));
       const buffer = Buffer.from(await result.Body!.transformToByteArray());
-      itemId = await createImageItem({ buffer, filename: "shared-image" });
-      await attachTags(itemId, tags);
+      itemId = await createImageItem({ ownerId, buffer, filename: "shared-image" });
+      await attachTags(ownerId, itemId, tags);
       await r2().send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: shareToken }));
       revalidatePath("/");
     } catch {
       redirect("/capture?error=capture-failed");
     }
-    // outside the try: redirect() throws NEXT_REDIRECT and must not be caught as a failure
     redirect(`/capture?saved=${itemId}`);
   }
 
@@ -35,11 +35,11 @@ export async function capture(formData: FormData): Promise<void> {
     const buffer = Buffer.from(await file.arrayBuffer());
     let itemId: string;
     try {
-      itemId = await createImageItem({ buffer, filename: file.name });
+      itemId = await createImageItem({ ownerId, buffer, filename: file.name });
     } catch {
       redirect("/capture?error=bad-image");
     }
-    await attachTags(itemId, tags);
+    await attachTags(ownerId, itemId, tags);
     revalidatePath("/");
     redirect(`/capture?saved=${itemId}`);
   }
@@ -50,7 +50,7 @@ export async function capture(formData: FormData): Promise<void> {
     }
     let result: Awaited<ReturnType<typeof createLinkedItem>>;
     try {
-      result = await createLinkedItem({ rawUrl, tags });
+      result = await createLinkedItem({ ownerId, rawUrl, tags });
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
       if (message.includes("Blocked")) redirect("/capture?error=blocked-url");

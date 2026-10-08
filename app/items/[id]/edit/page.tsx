@@ -8,14 +8,20 @@ import { PaletteColorEditor } from "./PaletteColorEditor";
 import { TagTray } from "@/app/capture/TagTray";
 import { loadTrayFacets } from "@/app/capture/tray";
 import { SubmitButton } from "@/app/components/SubmitButton";
+import { requireOwnerId } from "@/lib/auth/owner";
 
 export const dynamic = "force-dynamic";
 
 export default async function EditItemPage({ params }: { params: Promise<{ id: string }> }) {
+  const ownerId = await requireOwnerId();
   const { id } = await params;
-  const item = await getItemDetail(id);
+  const item = await getItemDetail(ownerId, id);
   if (!item) notFound();
-  const [tags, facets, trayFacets] = await Promise.all([getItemTags(id), getFacetsWithValues(), loadTrayFacets()]);
+  const [tags, facets, trayFacets] = await Promise.all([
+    getItemTags(ownerId, id),
+    getFacetsWithValues(ownerId),
+    loadTrayFacets(ownerId),
+  ]);
 
   const initialFacetValues: Record<string, string[]> = {};
   for (const t of tags.facetTags) {

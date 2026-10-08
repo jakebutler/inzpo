@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { boardPlacements, boards } from "@/lib/db/schema";
 import { contentBottom, packGridBand } from "@/lib/board-arrange";
+import { assertBoardOwned, ownerClause } from "@/lib/auth/owner";
 import {
   MAX_PLACEMENTS,
   clampPlacement,
@@ -16,22 +17,22 @@ export interface BoardOption {
   name: string;
 }
 
-export async function getBoards(): Promise<BoardOption[]> {
-  const all = await listBoards();
+export async function getBoards(ownerId: string): Promise<BoardOption[]> {
+  const all = await listBoards(ownerId);
   return all.map((b) => ({ id: b.id, name: b.title }));
 }
 
-export async function getItemBoards(itemId: string): Promise<BoardOption[]> {
+export async function getItemBoards(ownerId: string, itemId: string): Promise<BoardOption[]> {
   return db
     .select({ id: boards.id, name: boards.title })
     .from(boardPlacements)
     .innerJoin(boards, eq(boards.id, boardPlacements.boardId))
-    .where(eq(boardPlacements.itemId, itemId))
+    .where(and(eq(boardPlacements.itemId, itemId), ownerClause(boards.ownerId, ownerId)))
     .orderBy(boards.title);
 }
 
-export async function addItemsToBoard(boardId: string, itemIds: string[]): Promise<void> {
-  const detail = await getBoardDetail(boardId);
+export async function addItemsToBoard(ownerId: string, boardId: string, itemIds: string[]): Promise<void> {
+  const detail = await getBoardDetail(ownerId, boardId);
   if (!detail) return;
   const placed = new Set(detail.placements.map((p) => p.itemId));
   const fresh = [...new Set(itemIds)]
@@ -45,7 +46,7 @@ export async function addItemsToBoard(boardId: string, itemIds: string[]): Promi
     .map((r, i) => ({ itemId: fresh[i], x: r.x, y: r.y, w: r.w, h: r.h, z: zBase + 1 + i, showLabel: false }))
     .map((p) => clampPlacement(p, canvas))
     .filter((p): p is PlacementInput => p !== null);
-  await savePlacements(boardId, [
+  await savePlacements(ownerId, boardId, [
     ...detail.placements.map((p) => ({
       itemId: p.itemId,
       x: p.x,
@@ -60,7 +61,8 @@ export async function addItemsToBoard(boardId: string, itemIds: string[]): Promi
   await db.update(boards).set({ updatedAt: new Date() }).where(eq(boards.id, boardId));
 }
 
-export async function removeFromBoard(boardId: string, itemId: string): Promise<void> {
+export async function removeFromBoard(ownerId: string, boardId: string, itemId: string): Promise<void> {
+  await assertBoardOwned(ownerId, boardId);
   await db
     .delete(boardPlacements)
     .where(and(eq(boardPlacements.boardId, boardId), eq(boardPlacements.itemId, itemId)));

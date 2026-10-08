@@ -13,6 +13,7 @@ import { addToCollectionAction, removeFromCollectionAction } from "@/app/actions
 import { addItemToBoardAction, createBoardWithItemAction, removeItemFromBoardAction } from "@/app/actions/boards";
 import { saveExtractedAsPaletteAction } from "@/app/actions/palettes";
 import { getOrigin, getDerivedItems } from "@/lib/palettes";
+import { requireOwnerId } from "@/lib/auth/owner";
 
 export const dynamic = "force-dynamic";
 
@@ -26,20 +27,21 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 export default async function ItemDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const ownerId = await requireOwnerId();
   const { id } = await params;
-  const item = await getItemDetail(id);
+  const item = await getItemDetail(ownerId, id);
   if (!item) notFound();
-  const tags = await getItemTags(id);
+  const tags = await getItemTags(ownerId, id);
   const [memberships, options, articleHtml, boardMemberships, boardOptions] = await Promise.all([
-    getItemCollections(id),
-    listCollectionOptions(),
-    item.hasArticle ? getArticleHtml(id) : Promise.resolve(null),
-    getItemBoards(id),
-    getBoards(),
+    getItemCollections(ownerId, id),
+    listCollectionOptions(ownerId),
+    item.hasArticle ? getArticleHtml(ownerId, id) : Promise.resolve(null),
+    getItemBoards(ownerId, id),
+    getBoards(ownerId),
   ]);
   const joinable = options.filter((o) => !memberships.some((m) => m.id === o.id));
   const joinableBoards = boardOptions.filter((o) => !boardMemberships.some((m) => m.id === o.id));
-  const [originId, derived] = await Promise.all([getOrigin(id), getDerivedItems(id)]);
+  const [originId, derived] = await Promise.all([getOrigin(ownerId, id), getDerivedItems(ownerId, id)]);
 
   const embedSrc = item.oembedHtml?.match(/src=["']([^"']+)["']/i)?.[1] ?? null;
 

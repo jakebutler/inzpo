@@ -6,6 +6,7 @@ for (const line of fs.readFileSync(new URL("../.env", import.meta.url), "utf8").
   const m = line.match(/^([A-Za-z0-9_]+)=(.*)$/);
   if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
 }
+const { TEST_OWNER_ID: OWNER } = await import("../lib/auth/owner-ids");
 const BASE = "https://inzpo-butlerjake-gmailcoms-projects.vercel.app";
 const token = await new SignJWT({ sub: "owner" })
   .setProtectedHeader({ alg: "HS256" })
@@ -67,12 +68,12 @@ check("cold-start link share preserves prefill", cold2.status === 303 && loc4.in
 // cleanup: shared items + the stash object
 if (savedId) {
   const { deleteItem } = await import("../lib/items");
-  await deleteItem(savedId);
+  await deleteItem(OWNER, savedId);
 }
 const loc2Id = loc2.match(/saved=([^&]+)/)?.[1];
 if (loc2Id) {
   const { deleteItem } = await import("../lib/items");
-  await deleteItem(loc2Id);
+  await deleteItem(OWNER, loc2Id);
 }
 if (stashKey.startsWith("tmp/")) {
   const { r2, DeleteObjectCommand } = await import("../lib/r2");

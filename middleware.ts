@@ -1,17 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { isClerkConfigured } from "@/lib/auth/clerk-configured";
 
-export async function middleware(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  const valid = token ? await verifySessionToken(token) : false;
-  if (valid) return NextResponse.next();
+const isPublicRoute = createRouteMatcher([
+  "/login(.*)",
+  "/share",
+  "/api/reaper",
+  "/manifest.webmanifest",
+  "/icon.svg",
+  "/favicon.ico",
+]);
 
+function loginRedirect(request: NextRequest): NextResponse {
   const loginUrl = new URL("/login", request.url);
   const destination = request.nextUrl.pathname + request.nextUrl.search;
   if (destination !== "/") loginUrl.searchParams.set("next", destination);
   return NextResponse.redirect(loginUrl);
 }
 
+const clerkHandler = clerkMiddleware(async (auth, request) => {
+  if (isPublicRoute(request)) return;
+  const { userId } = await auth();
+  if (!userId) return loginRedirect(request);
+});
+
+export default function middleware(request: NextRequest, event: unknown) {
+  if (!isClerkConfigured()) {
+    if (isPublicRoute(request)) return NextResponse.next();
+    return loginRedirect(request);
+  }
+  return clerkHandler(request, event as never);
+}
+
 export const config = {
-  matcher: ["/((?!login|share|api/reaper|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.svg).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg).*)"],
 };

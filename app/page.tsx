@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { LayoutGrid, Plus } from "lucide-react";
 import { SavedPopover } from "./components/SavedPopover";
 import { LogoutButton } from "./components/LogoutButton";
+import { requireOwnerId, ownerClause } from "@/lib/auth/owner";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -23,18 +24,19 @@ export default async function Wall({
 }: {
   searchParams: Promise<{ f?: string; c?: string }>;
 }) {
+  const ownerId = await requireOwnerId();
   const params = await searchParams;
   const state = parseFilterParam(params.f ?? null);
-  const collectionId = typeof params.c === "string" && (await collectionExists(params.c)) ? params.c : null;
+  const collectionId = typeof params.c === "string" && (await collectionExists(ownerId, params.c)) ? params.c : null;
 
   const [wallItems, count, facets, tags, saved, collections, boards] = await Promise.all([
-    getWallItems(state, collectionId),
-    countWallItems(state, collectionId),
-    getFacetsWithValues(),
-    db.select({ name: freeTags.name }).from(freeTags).orderBy(freeTags.name),
-    listSavedSearches(),
-    listCollections(),
-    getBoards(),
+    getWallItems(ownerId, state, collectionId),
+    countWallItems(ownerId, state, collectionId),
+    getFacetsWithValues(ownerId),
+    db.select({ name: freeTags.name }).from(freeTags).where(ownerClause(freeTags.ownerId, ownerId)).orderBy(freeTags.name),
+    listSavedSearches(ownerId),
+    listCollections(ownerId),
+    getBoards(ownerId),
   ]);
 
   const savedSlot = (
@@ -84,10 +86,10 @@ export default async function Wall({
           ) : null}
         </span>
         <div className="flex items-center gap-4">
-          <Link href="/vocab" className="inline-flex min-h-[36px] items-center text-xs text-muted-foreground hover:text-foreground">
+          <Link href="/vocab" className="inline-flex min-h-[44px] items-center text-xs text-muted-foreground hover:text-foreground">
             Vocabulary
           </Link>
-          <Link href="/capture" className="inline-flex min-h-[36px] items-center text-xs text-muted-foreground hover:text-foreground">
+          <Link href="/capture" className="inline-flex min-h-[44px] items-center text-xs text-muted-foreground hover:text-foreground">
             + Capture
           </Link>
         </div>

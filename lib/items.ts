@@ -1,6 +1,7 @@
-import { desc, eq, and, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { itemColors, items, mediaAssets, type ItemKind } from "@/lib/db/schema";
+import { itemColors, items, mediaAssets, type ColorRole, type ItemKind } from "@/lib/db/schema";
+import { assertItemOwned, ownerClause } from "@/lib/auth/owner";
 import { newId } from "@/lib/ids";
 import { itemPrefix, originalKey, PutObjectCommand, GetObjectCommand, deletePrefix, r2 } from "@/lib/r2";
 import { processImage, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
@@ -25,8 +26,8 @@ export interface WallItem {
   sourceUrl: string | null;
 }
 
-export async function getWallItems(state: FilterState, collectionId?: string | null): Promise<WallItem[]> {
-  const { where, orderBy } = buildWallQuery(state, collectionId);
+export async function getWallItems(ownerId: string, state: FilterState, collectionId?: string | null): Promise<WallItem[]> {
+  const { where, orderBy } = buildWallQuery(state, collectionId, ownerId);
   const rows = await db.execute(sql`
     select i.id,
       i.kind,
@@ -48,8 +49,8 @@ export async function getWallItems(state: FilterState, collectionId?: string | n
   return rows.rows as unknown as WallItem[];
 }
 
-export async function countWallItems(state: FilterState, collectionId?: string | null): Promise<number> {
-  const { where } = buildWallQuery(state, collectionId);
+export async function countWallItems(ownerId: string, state: FilterState, collectionId?: string | null): Promise<number> {
+  const { where } = buildWallQuery(state, collectionId, ownerId);
   const rows = await db.execute(sql`select count(*)::int as n from items i where ${where}`);
   return (rows.rows[0] as { n: number }).n;
 }
@@ -64,11 +65,20 @@ export interface ItemDetail {
   oembedHtml: string | null;
   hasArticle: boolean;
   media: { originalKey: string; displayKey: string | null; placeholder: string | null; mime: string; width: number; height: number } | null;
-  colors: Array<{ hex: string; family: string; origin: string; position: number }>;
+  colors: Array<{
+    hex: string;
+    family: string;
+    origin: string;
+    position: number;
+    name: string | null;
+    role: ColorRole | null;
+    pinX: number | null;
+    pinY: number | null;
+  }>;
   origin: { derivedItemId: string; originItemId: string } | null;
 }
 
-export async function getItemDetail(id: string): Promise<ItemDetail | null> {
+export async function getItemDetail(ownerId: string, id: string): Promise<ItemDetail | null> {
   const rows = await db
     .select({
       id: items.id,
@@ -89,18 +99,34 @@ export async function getItemDetail(id: string): Promise<ItemDetail | null> {
       height: sql<number | null>`(select m.height from media_assets m where m.item_id = items.id limit 1)`,
     })
     .from(items)
-    .where(and(eq(items.id, id), eq(items.captureState, "ready")))
+    .where(and(eq(items.id, id), eq(items.captureState, "ready"), ownerClause(items.ownerId, ownerId)))
     .limit(1);
   const row = rows[0];
   if (!row) return null;
   const tagRows = await db.execute(sql`
-    select hex, family, origin, position from item_colors where item_id = ${id} order by position
+    select hex, family, origin, position, name, role, pin_x as "pinX", pin_y as "pinY"
+    from item_colors where item_id = ${id} order by position
   `);
-  const colors = (tagRows.rows as Array<{ hex: string; family: string; origin: string; position: number }>).map((c) => ({
+  const colors = (
+    tagRows.rows as Array<{
+      hex: string;
+      family: string;
+      origin: string;
+      position: number;
+      name: string | null;
+      role: ColorRole | null;
+      pinX: number | null;
+      pinY: number | null;
+    }>
+  ).map((c) => ({
     hex: c.hex,
     family: c.family,
     origin: c.origin,
     position: c.position,
+    name: c.name,
+    role: c.role,
+    pinX: c.pinX,
+    pinY: c.pinY,
   }));
   return {
     id: row.id,
@@ -127,12 +153,14 @@ export async function getItemDetail(id: string): Promise<ItemDetail | null> {
   };
 }
 
-export async function deleteItem(id: string): Promise<void> {
+export async function deleteItem(ownerId: string, id: string): Promise<void> {
+  await assertItemOwned(ownerId, id);
   await deletePrefix(itemPrefix(id));
-  await db.delete(items).where(eq(items.id, id));
+  await db.delete(items).where(and(eq(items.id, id), ownerClause(items.ownerId, ownerId)));
 }
 
 export async function createImageItem(input: {
+  ownerId: string;
   buffer: Buffer;
   filename?: string | null;
 }): Promise<string> {
@@ -140,6 +168,7 @@ export async function createImageItem(input: {
   const id = newId();
   await db.insert(items).values({
     id,
+    ownerId: input.ownerId,
     kind,
     title: deriveTitleFromFilename(input.filename),
     captureState: "preparing",
@@ -204,7 +233,8 @@ export async function createImageItem(input: {
   }
 }
 
-export async function getArticleHtml(itemId: string): Promise<string | null> {
+export async function getArticleHtml(ownerId: string, itemId: string): Promise<string | null> {
+  await assertItemOwned(ownerId, itemId);
   const rows = await db.execute(sql`select article_key from item_sources where item_id = ${itemId} and article_key is not null limit 1`);
   const key = (rows.rows[0] as { article_key?: string } | undefined)?.article_key;
   if (!key) return null;

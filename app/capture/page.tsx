@@ -4,7 +4,8 @@ import { SavedToast } from "./SavedToast";
 import { loadTrayFacets } from "./tray";
 import { db } from "@/lib/db";
 import { items } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { ownerClause, requireOwnerId } from "@/lib/auth/owner";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +22,17 @@ export default async function CapturePage({
 }: {
   searchParams: Promise<{ error?: string; saved?: string; url?: string; shareToken?: string }>;
 }) {
+  const ownerId = await requireOwnerId();
   const params = await searchParams;
-  const facets = await loadTrayFacets();
+  const facets = await loadTrayFacets(ownerId);
 
   let savedTitle: string | null = null;
   if (params.saved) {
-    const rows = await db.select({ title: items.title }).from(items).where(eq(items.id, params.saved)).limit(1);
+    const rows = await db
+      .select({ title: items.title })
+      .from(items)
+      .where(and(eq(items.id, params.saved), ownerClause(items.ownerId, ownerId)))
+      .limit(1);
     savedTitle = rows[0]?.title ?? null;
   }
 

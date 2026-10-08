@@ -1,22 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { items } from "@/lib/db/schema";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 import { clientKey, recordShareUpload, shareUploadLimited } from "@/lib/auth/ratelimit";
+import { optionalOwnerId } from "@/lib/auth/owner";
 import { createImageItem } from "@/lib/items";
 import { createLinkedItem } from "@/lib/capture-url";
 import { newId } from "@/lib/ids";
-import { r2, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@/lib/r2";
+import { r2, PutObjectCommand } from "@/lib/r2";
 
 export const dynamic = "force-dynamic";
 
 const MAX_STASH_BYTES = 10 * 1024 * 1024;
-
-async function authed(request: NextRequest): Promise<boolean> {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  return !!token && (await verifySessionToken(token));
-}
 
 function clientIp(request: NextRequest): string | null {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
@@ -33,7 +25,7 @@ function firstHttpUrl(...candidates: Array<string | null | undefined>): string |
 
 async function saveStashedImage(bytes: Buffer, mime: string): Promise<string> {
   const token = newId();
-  const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
+  const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : mime.includes("heic") || mime.includes("heif") ? "heic" : "jpg";
   await r2().send(
     new PutObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: `tmp/${token}.${ext}`, Body: bytes, ContentType: mime }),
   );
@@ -41,8 +33,8 @@ async function saveStashedImage(bytes: Buffer, mime: string): Promise<string> {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await authed(request))) {
-    // Stash files so a cold-start share survives the login round-trip; links ride the query string.
+  const ownerId = await optionalOwnerId();
+  if (!ownerId) {
     const contentType = request.headers.get("content-type") ?? "";
     let url = request.nextUrl.searchParams.get("url");
     let text = request.nextUrl.searchParams.get("text");
@@ -50,7 +42,6 @@ export async function POST(request: NextRequest) {
 
     if (contentType.includes("multipart/form-data")) {
       const key = clientKey(clientIp(request));
-      // reject before parsing the body — the cost is the point
       if (shareUploadLimited(key)) {
         return new NextResponse("Too many requests", { status: 429 });
       }
@@ -82,17 +73,15 @@ export async function POST(request: NextRequest) {
     text = text ?? (fd.get("text") as string | null);
   }
 
-  // image share → Photo item (first image only)
   if (file) {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const itemId = await createImageItem({ buffer, filename: file.name || "shared-image" });
+    const itemId = await createImageItem({ ownerId, buffer, filename: file.name || "shared-image" });
     return NextResponse.redirect(new URL(`/capture?saved=${itemId}`, request.url), 303);
   }
 
-  // link share: url param, else scan the text
   const link = url ?? firstHttpUrl(text ?? "");
   if (link) {
-    const result = await createLinkedItem({ rawUrl: link });
+    const result = await createLinkedItem({ ownerId, rawUrl: link });
     return NextResponse.redirect(new URL(`/capture?saved=${result.itemId}`, request.url), 303);
   }
 

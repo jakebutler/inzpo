@@ -6,9 +6,11 @@ if (!process.env.DATABASE_URL) {
   }
 }
 const sharp = (await import("sharp")).default;
+const { TEST_OWNER_ID: OWNER } = await import("../lib/auth/owner-ids");
 const { createImageItem } = await import("../lib/items");
 const { createLinkedItem } = await import("../lib/capture-url");
-const { attachTags } = await import("../lib/ontology");
+const { attachTags, seedFacetsForOwner } = await import("../lib/ontology");
+await seedFacetsForOwner(OWNER);
 const { db } = await import("../lib/db");
 const { sql } = await import("drizzle-orm");
 
@@ -16,17 +18,17 @@ const ids: string[] = [];
 const img = (r: number, g: number, b: number, w = 900, h = 600) =>
   sharp({ create: { width: w, height: h, channels: 3, background: { r, g, b } } }).png().toBuffer();
 
-const p1 = await createImageItem({ buffer: await img(212, 106, 62, 1200, 800), filename: "brutalist poster study.png" });
-await attachTags(p1, { facetValues: [{ facet: "Style", value: "brutalist" }, { facet: "Medium", value: "print" }], freeTags: ["poster"] });
+const p1 = await createImageItem({ ownerId: OWNER, buffer: await img(212, 106, 62, 1200, 800), filename: "brutalist poster study.png" });
+await attachTags(OWNER, p1, { facetValues: [{ facet: "Style", value: "brutalist" }, { facet: "Medium", value: "print" }], freeTags: ["poster"] });
 ids.push(p1);
 
-const p2 = await createImageItem({ buffer: await img(30, 90, 160, 700, 1000), filename: "swiss layout grid.png" });
-await attachTags(p2, { facetValues: [{ facet: "Style", value: "swiss" }, { facet: "Complexity", value: "airy" }], freeTags: [] });
+const p2 = await createImageItem({ ownerId: OWNER, buffer: await img(30, 90, 160, 700, 1000), filename: "swiss layout grid.png" });
+await attachTags(OWNER, p2, { facetValues: [{ facet: "Style", value: "swiss" }, { facet: "Complexity", value: "airy" }], freeTags: [] });
 ids.push(p2);
 
-const a1 = await createLinkedItem({ rawUrl: "https://www.joshwcomeau.com/animation/css-transitions/" });
+const a1 = await createLinkedItem({ ownerId: OWNER, rawUrl: "https://www.joshwcomeau.com/animation/css-transitions/" });
 ids.push(a1.itemId);
-const v1 = await createLinkedItem({ rawUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" });
+const v1 = await createLinkedItem({ ownerId: OWNER, rawUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" });
 ids.push(v1.itemId);
 
 const existing = await db.execute(sql`select id from items`);

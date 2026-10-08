@@ -6,6 +6,7 @@ import { freeTags } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
 import { getFacetsWithValues } from "@/lib/ontology";
 import { listSavedSearches } from "@/lib/saved-searches";
+import { ownerClause, requireOwnerId } from "@/lib/auth/owner";
 import { MergeForm } from "./MergeForm";
 import { ActionForm } from "@/app/components/ActionForm";
 import {
@@ -20,8 +21,9 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function VocabPage() {
+  const ownerId = await requireOwnerId();
   const [facets, tags] = await Promise.all([
-    getFacetsWithValues(),
+    getFacetsWithValues(ownerId),
     db
       .select({
         id: freeTags.id,
@@ -29,9 +31,10 @@ export default async function VocabPage() {
         usage: sql<number>`(select count(*)::int from item_free_tags ift where ift.free_tag_id = ${freeTags.id})`,
       })
       .from(freeTags)
+      .where(ownerClause(freeTags.ownerId, ownerId))
       .orderBy(freeTags.name),
   ]);
-  const saved = await listSavedSearches();
+  const saved = await listSavedSearches(ownerId);
 
   return (
     <main className="min-h-screen bg-background text-foreground">

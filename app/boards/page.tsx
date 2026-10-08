@@ -4,12 +4,14 @@ import { createBoardAction } from "@/app/actions/boards";
 import { BottomNav } from "@/app/components/BottomNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { requireOwnerId } from "@/lib/auth/owner";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Boards — Inzpo" };
 
 export default async function BoardsPage() {
-  const boards = await listBoards();
+  const ownerId = await requireOwnerId();
+  const boards = await listBoards(ownerId);
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">

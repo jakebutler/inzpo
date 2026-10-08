@@ -8,8 +8,8 @@ export function GET() {
   const manifest = {
     name: "Inzpo",
     short_name: "Inzpo",
-    description: "A personal design-inspiration vault",
-    start_url: "/",
+    description: "Steal the colors off anything",
+    start_url: "/capture",
     display: "standalone",
     background_color: "#0a0a0a",
     theme_color: "#0a0a0a",

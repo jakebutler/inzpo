@@ -8,6 +8,7 @@ import {
   uniqueIndex,
   index,
   primaryKey,
+  real,
 } from "drizzle-orm/pg-core";
 
 export const ITEM_KINDS = ["url", "screenshot", "photo", "palette", "article", "video"] as const;
@@ -20,6 +21,7 @@ export const items = pgTable(
   "items",
   {
     id: text("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
     kind: text("kind").notNull().$type<ItemKind>(),
     title: text("title"),
     note: text("note"),
@@ -27,7 +29,11 @@ export const items = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("items_capture_state_created_at_idx").on(t.captureState, t.createdAt.desc())],
+  (t) => [
+    index("items_capture_state_created_at_idx").on(t.captureState, t.createdAt.desc()),
+    index("items_owner_id_idx").on(t.ownerId),
+    index("items_owner_created_at_idx").on(t.ownerId, t.createdAt.desc()),
+  ],
 );
 
 export const itemSources = pgTable("item_sources", {
@@ -64,6 +70,9 @@ export const mediaAssets = pgTable("media_assets", {
   index("media_assets_original_key_idx").on(t.originalKey),
 ]);
 
+export const COLOR_ROLES = ["primary", "secondary", "accent", "background", "surface", "text"] as const;
+export type ColorRole = (typeof COLOR_ROLES)[number];
+
 export const itemColors = pgTable("item_colors", {
   id: text("id").primaryKey(),
   itemId: text("item_id")
@@ -73,13 +82,25 @@ export const itemColors = pgTable("item_colors", {
   family: text("family").notNull(),
   origin: text("origin").notNull(),
   position: integer("position").notNull().default(0),
+  name: text("name"),
+  role: text("role").$type<ColorRole>(),
+  pinX: real("pin_x"),
+  pinY: real("pin_y"),
 }, (t) => [index("item_colors_item_id_family_idx").on(t.itemId, t.family)]);
 
-export const facets = pgTable("facets", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  position: integer("position").notNull(),
-});
+export const facets = pgTable(
+  "facets",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    name: text("name").notNull(),
+    position: integer("position").notNull(),
+  },
+  (t) => [
+    uniqueIndex("facets_owner_name_uq").on(t.ownerId, t.name),
+    index("facets_owner_id_idx").on(t.ownerId),
+  ],
+);
 
 export const facetValues = pgTable(
   "facet_values",
@@ -111,11 +132,19 @@ export const itemFacetValues = pgTable(
   ],
 );
 
-export const freeTags = pgTable("free_tags", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const freeTags = pgTable(
+  "free_tags",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("free_tags_owner_name_uq").on(t.ownerId, t.name),
+    index("free_tags_owner_id_idx").on(t.ownerId),
+  ],
+);
 
 export const itemFreeTags = pgTable(
   "item_free_tags",
@@ -134,12 +163,17 @@ export const itemFreeTags = pgTable(
   ],
 );
 
-export const collections = pgTable("collections", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const collections = pgTable(
+  "collections",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("collections_owner_id_idx").on(t.ownerId)],
+);
 
 export const collectionItems = pgTable(
   "collection_items",
@@ -158,13 +192,18 @@ export const collectionItems = pgTable(
   ],
 );
 
-export const smartCollections = pgTable("smart_collections", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  filterState: jsonb("filter_state").notNull(),
-  sort: text("sort").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const smartCollections = pgTable(
+  "smart_collections",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    name: text("name").notNull(),
+    filterState: jsonb("filter_state").notNull(),
+    sort: text("sort").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("smart_collections_owner_id_idx").on(t.ownerId)],
+);
 
 export const origins = pgTable(
   "origins",
@@ -179,15 +218,20 @@ export const origins = pgTable(
   (t) => [index("origins_origin_item_id_idx").on(t.originItemId)],
 );
 
-export const boards = pgTable("boards", {
-  id: text("id").primaryKey(),
-  title: text("title").notNull().default("Untitled board"),
-  background: text("background").notNull().default("#0a0a0a"),
-  canvasW: integer("canvas_w").notNull(),
-  canvasH: integer("canvas_h").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const boards = pgTable(
+  "boards",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    title: text("title").notNull().default("Untitled board"),
+    background: text("background").notNull().default("#0a0a0a"),
+    canvasW: integer("canvas_w").notNull(),
+    canvasH: integer("canvas_h").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("boards_owner_id_idx").on(t.ownerId)],
+);
 
 export const boardPlacements = pgTable(
   "board_placements",

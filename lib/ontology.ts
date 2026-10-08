@@ -1,8 +1,10 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { facetValues, facets, freeTags, itemFacetValues, itemFreeTags } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
 import type { TagSelection } from "@/lib/tags";
+import { assertFacetOwned, assertItemOwned, ownerClause } from "@/lib/auth/owner";
+import { FACET_SEEDS } from "@/lib/ontology-seeds";
 
 export { parseTagSelection } from "@/lib/tags";
 export type { TagSelection } from "@/lib/tags";
@@ -13,7 +15,33 @@ export interface FacetWithValues {
   values: Array<{ id: string; value: string; usage: number }>;
 }
 
-export async function getFacetsWithValues(): Promise<FacetWithValues[]> {
+/** Idempotent per-owner seed of the six fixed facets. */
+export async function seedFacetsForOwner(ownerId: string): Promise<void> {
+  for (const seed of FACET_SEEDS) {
+    const existing = await db
+      .select({ id: facets.id })
+      .from(facets)
+      .where(and(ownerClause(facets.ownerId, ownerId), sql`lower(${facets.name}) = lower(${seed.name})`))
+      .limit(1);
+    let facetId = existing[0]?.id;
+    if (!facetId) {
+      facetId = newId();
+      await db.insert(facets).values({ id: facetId, ownerId, name: seed.name, position: seed.position });
+    }
+    for (const value of seed.values) {
+      const has = await db
+        .select({ id: facetValues.id })
+        .from(facetValues)
+        .where(and(eq(facetValues.facetId, facetId), sql`lower(${facetValues.value}) = lower(${value})`))
+        .limit(1);
+      if (!has[0]) {
+        await db.insert(facetValues).values({ id: newId(), facetId, value }).onConflictDoNothing();
+      }
+    }
+  }
+}
+
+export async function getFacetsWithValues(ownerId: string): Promise<FacetWithValues[]> {
   const rows = await db
     .select({
       id: facets.id,
@@ -24,6 +52,7 @@ export async function getFacetsWithValues(): Promise<FacetWithValues[]> {
     })
     .from(facets)
     .leftJoin(facetValues, eq(facetValues.facetId, facets.id))
+    .where(ownerClause(facets.ownerId, ownerId))
     .orderBy(asc(facets.position), asc(facetValues.value));
 
   const byFacet = new Map<string, FacetWithValues>();
@@ -40,7 +69,8 @@ export async function getFacetsWithValues(): Promise<FacetWithValues[]> {
   return [...byFacet.values()];
 }
 
-export async function ensureFacetValue(facetId: string, value: string): Promise<string> {
+export async function ensureFacetValue(ownerId: string, facetId: string, value: string): Promise<string> {
+  await assertFacetOwned(ownerId, facetId);
   const existing = await db
     .select({ id: facetValues.id })
     .from(facetValues)
@@ -57,40 +87,45 @@ export async function ensureFacetValue(facetId: string, value: string): Promise<
   return row[0].id;
 }
 
-export async function ensureFreeTag(name: string): Promise<string> {
+export async function ensureFreeTag(ownerId: string, name: string): Promise<string> {
   const existing = await db
     .select({ id: freeTags.id })
     .from(freeTags)
-    .where(sql`lower(${freeTags.name}) = lower(${name})`)
+    .where(and(ownerClause(freeTags.ownerId, ownerId), sql`lower(${freeTags.name}) = lower(${name})`))
     .limit(1);
   if (existing[0]) return existing[0].id;
   const id = newId();
-  await db.insert(freeTags).values({ id, name }).onConflictDoNothing();
+  await db.insert(freeTags).values({ id, ownerId, name }).onConflictDoNothing();
   const row = await db
     .select({ id: freeTags.id })
     .from(freeTags)
-    .where(sql`lower(${freeTags.name}) = lower(${name})`)
+    .where(and(ownerClause(freeTags.ownerId, ownerId), sql`lower(${freeTags.name}) = lower(${name})`))
     .limit(1);
   return row[0].id;
 }
 
-async function facetIdForName(name: string): Promise<string | null> {
-  const rows = await db.select({ id: facets.id }).from(facets).where(sql`lower(${facets.name}) = lower(${name})`).limit(1);
+async function facetIdForName(ownerId: string, name: string): Promise<string | null> {
+  const rows = await db
+    .select({ id: facets.id })
+    .from(facets)
+    .where(and(ownerClause(facets.ownerId, ownerId), sql`lower(${facets.name}) = lower(${name})`))
+    .limit(1);
   return rows[0]?.id ?? null;
 }
 
-export async function attachTags(itemId: string, selection: TagSelection): Promise<void> {
+export async function attachTags(ownerId: string, itemId: string, selection: TagSelection): Promise<void> {
+  await assertItemOwned(ownerId, itemId);
   for (const entry of selection.facetValues) {
     let facetId = entry.facetId;
     if (!facetId && entry.facet) {
-      facetId = (await facetIdForName(entry.facet)) ?? undefined;
+      facetId = (await facetIdForName(ownerId, entry.facet)) ?? undefined;
     }
     if (!facetId) continue;
-    const valueId = await ensureFacetValue(facetId, entry.value);
+    const valueId = await ensureFacetValue(ownerId, facetId, entry.value);
     await db.insert(itemFacetValues).values({ itemId, facetValueId: valueId }).onConflictDoNothing();
   }
   for (const name of selection.freeTags) {
-    const tagId = await ensureFreeTag(name);
+    const tagId = await ensureFreeTag(ownerId, name);
     await db.insert(itemFreeTags).values({ itemId, freeTagId: tagId }).onConflictDoNothing();
   }
 }
@@ -100,7 +135,8 @@ export interface ItemTags {
   freeTags: string[];
 }
 
-export async function getItemTags(itemId: string): Promise<ItemTags> {
+export async function getItemTags(ownerId: string, itemId: string): Promise<ItemTags> {
+  await assertItemOwned(ownerId, itemId);
   const facetRows = await db
     .select({ facet: facets.name, value: facetValues.value })
     .from(itemFacetValues)

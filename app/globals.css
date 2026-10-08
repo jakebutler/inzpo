@@ -120,11 +120,23 @@
   * {
     @apply border-border outline-ring/50;
     }
+  html {
+    @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+    }
   body {
     @apply bg-background text-foreground;
     }
-  html {
-    @apply font-sans;
+  button,
+  [role="button"],
+  a {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    }
+  input,
+  textarea,
+  select {
+    font-size: 16px;
     }
 }
 
