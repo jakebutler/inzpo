@@ -368,7 +368,12 @@ export function KitResult({
           </section>
         ) : null}
         {saved ? (
-          <p className="mt-4 text-base" role="status" style={{ transitionDuration: `${MOTION_CSS.enterMs}ms` }}>
+          <p
+            data-saved-note
+            className="mt-4 text-base"
+            role="status"
+            style={{ transitionDuration: `${MOTION_CSS.enterMs}ms` }}
+          >
             Saved. Baku is full.
           </p>
         ) : null}

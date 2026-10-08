@@ -44,7 +44,12 @@ export default async function FoldPage({
   if (state === "empty-roles") colors = dropRoles(colors, ["accent", "surface"] as ColorRole[]);
   const chips = state === "chips";
   const saved = state === "saved";
-  const reveal = state === "mid" ? "mid" : state === "result" || state === "saved" || state === "chips" || state === "empty-roles" || state === "dark" ? "landed" : state === "pending" ? "landed" : "play";
+  const reveal =
+    state === "mid"
+      ? "mid"
+      : state === "first" || state === "collection"
+        ? "play"
+        : "landed";
 
   if (state === "first") {
     return (
@@ -98,8 +103,8 @@ export default async function FoldPage({
         preview={{
           namedColors: chips ? [{ hex: "#e8c36a", label: "yellow door" }] : [],
           status: state === "pending" ? "pending" : chips || saved ? "ready" : "pending",
-          text: chips || saved ? "[stub — no DO_INFERENCE_API_KEY] Warm stone against shade." : null,
-          stub: chips || saved,
+          text: chips || saved ? "Warm stone against shade." : null,
+          stub: false,
           reveal,
           openRole: state === "edit" ? "primary" : null,
         }}

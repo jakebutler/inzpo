@@ -49,15 +49,18 @@ async function hideChrome(page: import("playwright").Page): Promise<void> {
 async function revealAboveSaveBar(page: import("playwright").Page): Promise<void> {
   await page.evaluate(() => {
     const bar = document.querySelector("[data-save-bar]");
-    const target =
-      document.querySelector("[data-named-chip]") ??
-      document.querySelector('[aria-label="Brief"]') ??
-      document.querySelector("[data-contrast-line]");
-    if (!bar || !target) return;
+    const candidates = [
+      document.querySelector("[data-named-chip]"),
+      document.querySelector('[aria-label="Brief"]'),
+      document.querySelector("[data-contrast-line]"),
+      document.querySelector("[data-saved-note]"),
+    ].filter((el): el is Element => el !== null);
+    if (!bar || candidates.length === 0) return;
     const fade = 48;
     const gap = 12;
     const limit = window.innerHeight - bar.getBoundingClientRect().height - fade - gap;
-    const need = target.getBoundingClientRect().bottom - limit;
+    const bottom = Math.max(...candidates.map((el) => el.getBoundingClientRect().bottom));
+    const need = bottom - limit;
     if (need > 0) window.scrollBy(0, need);
   });
 }
