@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { SignInForm, ClerkMissing, SignInUnavailable } from "./SignInForm";
 import { isClerkConfigured } from "@/lib/auth/clerk-configured";
 import { isDevAuthBypassEnabled } from "@/lib/auth/dev-bypass";
+import { optionalOwnerId } from "@/lib/auth/owner";
 import { validateRelativePath } from "@/lib/auth/redirect";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,9 @@ export default async function LoginPage({
   }
 
   if (isDevAuthBypassEnabled()) redirect(next);
+
+  const userId = await optionalOwnerId();
+  if (userId) redirect(next);
 
   return <SignInForm next={next} ticket={ticket} seedError={seedError} />;
 }

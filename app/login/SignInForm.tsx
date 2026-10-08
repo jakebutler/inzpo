@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSignIn, useSignUp } from "@clerk/nextjs";
+import { useSignIn, useSignUp, useUser } from "@clerk/nextjs";
 import { gsap } from "gsap";
 import { MOTION, motionFor } from "@/lib/motion";
 import { validateRelativePath } from "@/lib/auth/redirect";
@@ -29,6 +29,7 @@ export function SignInForm({
 }) {
   const { signIn, fetchStatus: signInFetch } = useSignIn();
   const { signUp, fetchStatus: signUpFetch } = useSignUp();
+  const { isSignedIn } = useUser();
   const [step, setStep] = useState<Step>("email");
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -63,7 +64,8 @@ export function SignInForm({
     const result = await finalize({
       navigate: ({ decorateUrl }) => {
         navigated = true;
-        window.location.assign(decorateUrl(dest));
+        const url = decorateUrl(dest);
+        window.location.assign(url.startsWith("https://") || url.startsWith("http://") ? url : dest);
       },
     });
     if (result.error) {
@@ -74,6 +76,11 @@ export function SignInForm({
     if (!navigated) window.location.assign(dest);
     return true;
   }
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+    window.location.assign(dest);
+  }, [isSignedIn, dest]);
 
   useEffect(() => {
     function sync() {

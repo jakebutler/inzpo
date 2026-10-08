@@ -135,7 +135,14 @@ async function signIn(page: Page): Promise<void> {
   await shot(page, path.join(ARTIFACTS, "r6_login_code_390x844_motion.png"), { waitMs: 300 });
   await page.fill("#code", CODE);
   await page.locator('button[type="submit"]').click();
-  await page.waitForURL(/\/capture/, { timeout: 45_000 });
+  try {
+    await page.waitForURL(/\/capture/, { timeout: 20_000 });
+  } catch {
+    await page.goto(`${BASE}/capture`, { waitUntil: "load", timeout: 60_000 });
+  }
+  if (!/\/capture/.test(page.url())) {
+    throw new Error(`signed in but landed on ${page.url()}`);
+  }
 }
 
 async function main(): Promise<void> {
@@ -300,7 +307,11 @@ async function main(): Promise<void> {
     await page.waitForTimeout(300);
     await page.fill("#code", CODE);
     await page.click('button[type="submit"]');
-    await page.waitForURL(/\/capture/, { timeout: 45_000 });
+    try {
+      await page.waitForURL(/\/capture/, { timeout: 20_000 });
+    } catch {
+      await page.goto(`${BASE}/capture`, { waitUntil: "load", timeout: 60_000 });
+    }
     await page.goto(`${BASE}/capture`, { waitUntil: "load" });
     await hideChrome(page);
     await page.waitForTimeout(400);

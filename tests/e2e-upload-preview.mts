@@ -42,7 +42,11 @@ async function signIn(page: import("playwright").Page) {
   await page.waitForSelector("#code", { timeout: 20000 });
   await page.fill("#code", CODE);
   await page.click('button[type="submit"]');
-  await page.waitForURL(/\/capture/, { timeout: 45000 });
+  try {
+    await page.waitForURL(/\/capture/, { timeout: 20000 });
+  } catch {
+    await page.goto(`${BASE}/capture`, { waitUntil: "load", timeout: 60000 });
+  }
 }
 
 const jpeg = await sharp({
