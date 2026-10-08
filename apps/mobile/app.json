@@ -57,6 +57,23 @@
     "experiments": {
       "typedRoutes": true,
       "tsconfigPaths": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "529d6681-6398-4009-adff-18b6bb5a6108"
+      }
+    },
+    "owner": "jakebutler",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/529d6681-6398-4009-adff-18b6bb5a6108"
+    },
+    "platforms": [
+      "ios",
+      "android"
+    ]
   }
 }
