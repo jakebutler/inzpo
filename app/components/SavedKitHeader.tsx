@@ -1,18 +1,25 @@
+"use client";
+
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { kitDisplayName } from "@/lib/kit-name";
+import { useKitDisplayName } from "./useKitDisplayName";
+import type { BriefState } from "@/lib/brief-state";
 import { ExportKitButton } from "@/app/components/ExportKitButton";
 
 export function SavedKitHeader({
   title,
   backHref,
   itemId,
+  primaryHex,
+  brief,
 }: {
-  title: string;
+  title: string | null;
   backHref: string;
   itemId?: string;
+  primaryHex?: string | null;
+  brief?: BriefState | null;
 }) {
-  const name = kitDisplayName({ title });
+  const name = useKitDisplayName({ title, primaryHex, brief });
   return (
     <header
       data-saved-header

@@ -15,7 +15,9 @@ import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { rolesFromColors } from "@/lib/tokens";
 import { clampPinCenter, coverWindowForPins, mapCoverPinRaw, objectPositionCss } from "@/lib/cover-pin";
 import { parseNamedColors, type NamedColor } from "@/lib/brief-copy";
-import { kitDisplayName } from "@/lib/kit-name";
+import { useKitDisplayName } from "./useKitDisplayName";
+import { SavedKitHeader } from "./SavedKitHeader";
+import { isRecentPendingBrief, type BriefState } from "@/lib/brief-state";
 import { SAVE_BAR_PAD } from "@/lib/layout";
 import { kitWearStyle } from "@/lib/kit-wear";
 import { claimRevealPlay, type RevealMode } from "@/lib/reveal";
@@ -98,6 +100,7 @@ export function KitResult({
   backHref = "/",
   showBack = true,
   preview,
+  initialBrief,
 }: {
   itemId: string;
   title: string | null;
@@ -110,6 +113,7 @@ export function KitResult({
   saved?: boolean;
   backHref?: string;
   showBack?: boolean;
+  initialBrief?: BriefState | null;
   preview?: {
     namedColors?: NamedColor[];
     status?: BriefSlotStatus;
@@ -159,17 +163,21 @@ export function KitResult({
     text: string | null;
     namedColors: NamedColor[];
     stub: boolean;
+    updatedAt: number;
+    title?: string | null;
   }>({
-    status: preview?.status ?? "pending",
+    status: preview?.status ?? initialBrief?.status ?? "pending",
     text: preview?.text ?? null,
     namedColors: preview?.namedColors ?? [],
-    stub: preview?.stub === true,
+    stub: preview?.stub ?? initialBrief?.stub ?? false,
+    updatedAt: preview ? Date.now() : initialBrief?.updatedAt ?? 0,
   });
   const [moving, setMoving] = useState(false);
   const [photoReady, setPhotoReady] = useState(!imageSrc);
   const reduced = prefersReducedMotion();
   const { background: pageBg, ink: pageInk } = pageChromeColors(roles);
-  const displayTitle = kitDisplayName({ title });
+  const primaryHex = COLOR_ROLES.map((role) => roles[role]).find(Boolean);
+  const displayTitle = useKitDisplayName({ title: brief.title ?? title, primaryHex, brief });
   const crop = useMemo(() => {
     // Keep the photo under the user's pointer fixed throughout the edit session.
     // Recompute for a resized box, but do not pan in response to a sampled pin.
@@ -213,7 +221,7 @@ export function KitResult({
   useEffect(() => {
     if (preview) return;
     let alive = true;
-    let pendingTicks = 0;
+    let recoveryRequested = false;
     const tick = async () => {
       const res = await fetch(`/api/briefs/${itemId}`, { cache: "no-store" });
       if (!res.ok || !alive) return;
@@ -224,19 +232,24 @@ export function KitResult({
         namedHexes?: string[];
         namedColors?: unknown;
         stub?: boolean;
+        updatedAt?: number;
       };
       setBrief({
         status: job.status,
         text: job.text,
         namedColors: parseNamedColors(job.namedColors, job.namedHexes ?? []),
         stub: job.stub === true,
+        updatedAt: job.updatedAt ?? 0,
+        title: job.title,
       });
       if (job.title && job.title !== title) router.refresh();
       if (job.status === "pending") {
-        pendingTicks += 1;
         // Recovery only: if the capture-time run never finished, ask once.
         // The server ignores this for any brief that is no longer pending.
-        if (pendingTicks === 13) void fetch(`/api/briefs/${itemId}`, { method: "POST" });
+        if (!recoveryRequested && !isRecentPendingBrief({ ...job, updatedAt: job.updatedAt ?? 0 })) {
+          recoveryRequested = true;
+          void fetch(`/api/briefs/${itemId}`, { method: "POST" });
+        }
         window.setTimeout(() => void tick(), 2500);
       }
     };
@@ -416,6 +429,8 @@ export function KitResult({
   const safeTop = readSafeTop(photoRef.current);
 
   return (
+    <>
+      {saved ? <SavedKitHeader title={brief.title ?? title} primaryHex={primaryHex} brief={brief} backHref={backHref} itemId={itemId} /> : null}
     <div ref={stageRef} className="relative w-full" style={wearStyle} data-kit-wear>
       {imageSrc ? (
         <div
@@ -576,7 +591,7 @@ export function KitResult({
           pageBackground={pageBg}
           pageInk={pageInk}
           onRetry={() => {
-            setBrief((prev) => ({ ...prev, status: "pending", text: null, stub: false }));
+            setBrief((prev) => ({ ...prev, status: "pending", text: null, stub: false, updatedAt: Date.now() }));
             void fetch(`/api/briefs/${itemId}?retry=1`, { method: "POST" }).then(async (res) => {
               if (!res.ok) {
                 setBrief((prev) => ({ ...prev, status: "failed" }));
@@ -589,15 +604,18 @@ export function KitResult({
                 namedHexes?: string[];
                 namedColors?: unknown;
                 stub?: boolean;
+                updatedAt?: number;
               };
               setBrief({
                 status: job.status,
                 text: job.text,
                 namedColors: parseNamedColors(job.namedColors, job.namedHexes ?? []),
                 stub: job.stub === true,
+                updatedAt: job.updatedAt ?? 0,
+                title: job.title,
               });
               if (job.title && job.title !== title) router.refresh();
-            });
+            }).catch(() => setBrief((prev) => ({ ...prev, status: "failed" })));
           }}
         />
         <ContrastAa roles={roles} />
@@ -625,5 +643,6 @@ export function KitResult({
         </section>
       ) : null}
     </div>
+    </>
   );
 }

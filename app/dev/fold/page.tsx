@@ -8,7 +8,6 @@ import { MascotStage } from "@/app/components/MascotStage";
 import { ExportKitButton } from "@/app/components/ExportKitButton";
 import { PhotoBackButton } from "@/app/components/PhotoBackButton";
 import { KitChrome } from "@/app/components/KitChrome";
-import { SavedKitHeader } from "@/app/components/SavedKitHeader";
 import { dropRoles, loadFoldKit, type FoldPhoto } from "@/lib/fold-kit";
 import { FOLD_BRIEFS } from "@/lib/fold-briefs";
 import { rolesFromColors } from "@/lib/tokens";
@@ -149,9 +148,6 @@ export default async function FoldPage({
   return (
     <main className="min-h-screen bg-background text-foreground">
       <KitChrome roles={roles}>
-        {saved ? (
-          <SavedKitHeader title={displayTitle} backHref={collectionHref} itemId="fold" />
-        ) : null}
         <KitResult
           itemId={`fold-${photo}`}
           title={displayTitle}

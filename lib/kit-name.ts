@@ -1,6 +1,7 @@
 import { hexToFamily, hexToHsl, isHexColor } from "@/lib/colors";
 import { sanitizeChipLabel, type NamedColor } from "@/lib/brief-copy";
 import { sanitizeBriefSubject, subjectFromBrief } from "@/lib/brief-subject";
+import { isRecentPendingBrief, STALE_PENDING_MS, type BriefState } from "@/lib/brief-state";
 
 export const UNTITLED_KIT = "Untitled kit";
 
@@ -73,17 +74,32 @@ function colorPart(input: KitNameInput, family: string, nounModifiersOnly = fals
   return family;
 }
 
-type KitNameInput = {
+export type KitNameInput = {
   title?: string | null;
   briefText?: string | null;
   subject?: string | null;
   primaryHex?: string | null;
   namedColors?: NamedColor[];
   pending?: boolean;
+  brief?: BriefState | null;
+  createdAt?: Date | string;
 };
 
-export function kitDisplayName(input: KitNameInput): string {
-  return generatedKitTitle(input) ?? "";
+/** Stable colour-only name, also used to recognise a fallback on a later retry. */
+export function fallbackKitName(primaryHex: string | null | undefined): string {
+  return titleCase(colorPart({}, primaryFamily(primaryHex) ?? "gray"));
+}
+
+export function kitDisplayName(input: KitNameInput, now = Date.now()): string {
+  const existing = generatedKitTitle({ title: input.title });
+  if (existing) return existing;
+  if (input.brief === undefined && input.createdAt != null) {
+    const createdAt = new Date(input.createdAt).getTime();
+    return now - createdAt < STALE_PENDING_MS ? "" : fallbackKitName(input.primaryHex);
+  }
+  if (isRecentPendingBrief(input.brief, now)) return "";
+  if (input.brief && (input.brief.status !== "ready" || input.brief.stub)) return fallbackKitName(input.primaryHex);
+  return generatedKitTitle(input) ?? fallbackKitName(input.primaryHex);
 }
 
 export function generatedKitTitle(input: KitNameInput): string | null {

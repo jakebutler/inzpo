@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { NextRequest } from "next/server";
 import { generatedKitTitle, kitAltText, kitDisplayName } from "@/lib/kit-name";
 import { COLOR_ROLES, itemColors, items, type ColorRole } from "@/lib/db/schema";
@@ -8,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   update: vi.fn(),
   set: vi.fn(),
+  where: vi.fn(),
   readBriefJob: vi.fn(),
   runBriefJob: vi.fn(),
   revalidatePath: vi.fn(),
@@ -38,7 +40,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   existingTitle(null);
   mocks.update.mockReturnValue({ set: mocks.set });
-  mocks.set.mockReturnValue({ where: async () => {} });
+  mocks.set.mockReturnValue({ where: mocks.where });
+  mocks.where.mockResolvedValue(undefined);
   mocks.readBriefJob.mockResolvedValue(ready);
   mocks.runBriefJob.mockResolvedValue(ready);
 });
@@ -99,16 +102,61 @@ describe("persistKitTitleFromBrief", () => {
     },
   );
 
-  it("does not generate names from pending, failed, or stub briefs", async () => {
-    for (const job of [{ ...ready, status: "pending" }, { ...ready, status: "failed" }, { ...ready, stub: true }]) {
-      expect(await persistKitTitleFromBrief("kit", job)).toBeNull();
-    }
+  it("leaves a pending brief's title alone", async () => {
+    expect(await persistKitTitleFromBrief("kit", { ...ready, status: "pending" })).toBeNull();
     expect(mocks.select).not.toHaveBeenCalled();
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it.each([{ ...ready, status: "failed" }, { ...ready, stub: true }])("persists a colour fallback for $status (stub=$stub)", async (job) => {
+    existingTitle("IMG_6208", [{ hex: "#a0adbb", role: "primary", origin: "sampled" }]);
+    expect(await persistKitTitleFromBrief("kit", job)).toBe("Gray");
+    expect(mocks.set).toHaveBeenCalledWith({ title: "Gray", updatedAt: expect.any(Date) });
+  });
+
+  it.each([{ ...ready, status: "failed" }, { ...ready, stub: true }, ready])("preserves a user title on $status (stub=$stub)", async (job) => {
+    existingTitle("My blue photo");
+    expect(await persistKitTitleFromBrief("kit", job)).toBe("My blue photo");
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("recomputes a muted fallback from the first real role before replacing it", async () => {
+    existingTitle("Gray", [
+      { hex: "#ff0000", role: "primary", origin: "extracted", pinX: 0.5, pinY: 0.5 },
+      { hex: "#a0adbb", role: "secondary", origin: "sampled" },
+    ]);
+    expect(await persistKitTitleFromBrief("kit", { ...ready, subject: "storefront" })).toBe("Storefront Gray");
+    expect(mocks.set).toHaveBeenCalledWith({ title: "Storefront Gray", updatedAt: expect.any(Date) });
+  });
+
+  it.each([null, "Yellow"])("guards against a concurrent user edit when replacing %s", async (title) => {
+    existingTitle(title);
+    await persistKitTitleFromBrief("kit", ready);
+    const condition = new PgDialect().sqlToQuery(mocks.where.mock.calls[0][0]);
+    expect(condition.sql).toContain('"items"."title" is not distinct from');
+    expect(condition.params).toEqual(["kit", title]);
+  });
+
+  it("replaces a stored fallback when a retry succeeds", async () => {
+    existingTitle("Yellow");
+    expect(await persistKitTitleFromBrief("kit", ready)).toBe("Soft Yellow");
+    expect(mocks.set).toHaveBeenCalledWith({ title: "Soft Yellow", updatedAt: expect.any(Date) });
+  });
+
+  it("persists a fallback when generatedKitTitle returns null", async () => {
+    existingTitle(null, []);
+    expect(await persistKitTitleFromBrief("kit", { ...ready, text: null, namedColors: [] })).toBe("Gray");
   });
 });
 
 describe("brief API persisted title", () => {
+  it.each([GET, POST])("returns a fallback immediately for a failed or timed-out brief (%#)", async (handler) => {
+    mocks.readBriefJob.mockResolvedValue({ ...ready, status: "failed", text: null });
+    existingTitle("IMG_6208", [{ hex: "#3f5e92", role: "primary", origin: "sampled" }]);
+    const response = await handler(new NextRequest("http://localhost/api/briefs/kit"), { params: Promise.resolve({ id: "kit" }) });
+    expect(await response.json()).toMatchObject({ title: "Blue", status: "failed" });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/");
+  });
   it.each([GET, POST])("returns the existing title despite a conflicting generated name (%#)", async (handler) => {
     existingTitle("Red Crimson");
     expect(generatedKitTitle({ briefText: ready.text, namedColors: ready.namedColors, primaryHex: "#ffff00" })).toBe("Soft Yellow");

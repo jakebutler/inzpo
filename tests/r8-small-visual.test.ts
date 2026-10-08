@@ -46,7 +46,7 @@ describe("small visual fixes", () => {
   });
 
   it("reserves static title skeletons in cards and saved headers", () => {
-    expect(src("app/components/KitCard.tsx")).toContain("kitDisplayName({ title: rawTitle })");
+    expect(src("app/components/KitCard.tsx")).toContain("useKitDisplayName({ title: rawTitle,");
     for (const file of ["app/components/BandStripe.tsx", "app/components/SavedKitHeader.tsx"]) {
       expect(src(file)).toContain("data-title-skeleton");
       expect(src(file)).not.toContain('"Untitled kit"');

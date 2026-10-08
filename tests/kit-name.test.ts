@@ -131,17 +131,18 @@ describe("persisted kit names", () => {
     expect(generatedKitTitle(input)).toBe("Soft Yellow");
     expect(kitDisplayName({ ...input, title: null })).toBe("Soft Yellow");
     expect(kitDisplayName({ ...input, title: UNTITLED_KIT })).toBe("Soft Yellow");
-    expect(kitDisplayName({})).toBe("");
+    expect(kitDisplayName({})).toBe("Gray");
   });
 
   it("wires the saved header, Wall and collection cards, and photo to the persisted title", () => {
     const src = (file: string) => readFileSync(path.join(process.cwd(), file), "utf8");
-    expect(src("app/items/[id]/page.tsx")).toContain("<SavedKitHeader title={kitTitle}");
-    expect(src("app/items/[id]/page.tsx")).toContain("kitDisplayName({ title: item.title");
-    expect(src("app/components/WallGrid.tsx").match(/title=\{kitDisplayName\(\{ title: item.title/g)).toHaveLength(2);
+    expect(src("app/items/[id]/page.tsx")).toContain("initialBrief={await readBriefJob(item.id)}");
+    expect(src("app/components/WallGrid.tsx").match(/title=\{item.title\}/g)).toHaveLength(2);
+    expect(src("app/components/WallGrid.tsx").match(/createdAt=\{item.createdAt\}/g)).toHaveLength(2);
     expect(src("app/components/KitCard.tsx")).toContain("alt={title}");
     const result = src("app/components/KitResult.tsx");
-    expect(result).toContain("const displayTitle = kitDisplayName({ title });");
+    expect(result).toContain("const displayTitle = useKitDisplayName({ title: brief.title ?? title, primaryHex, brief });");
+    expect(result).toContain("<SavedKitHeader title={brief.title ?? title}");
     expect(result).toContain("alt={displayTitle}");
     expect(result.match(/if \(job.title && job.title !== title\) router.refresh\(\);/g)).toHaveLength(2);
   });

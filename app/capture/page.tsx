@@ -7,7 +7,6 @@ import { loadFoldKit } from "@/lib/fold-kit";
 import { rolesFromColors } from "@/lib/tokens";
 import { requireOwnerId } from "@/lib/auth/owner";
 import { EMPTY_FILTER } from "@/lib/filter";
-import { kitDisplayName } from "@/lib/kit-name";
 import { LINKS_UNSUPPORTED_ERROR, LINKS_UNSUPPORTED_MESSAGE, isLinksUnsupportedRequest } from "@/lib/links";
 
 export const dynamic = "force-dynamic";
@@ -71,7 +70,8 @@ export default async function CapturePage({
                 return (
                   <KitCard
                     key={item.id}
-                    title={kitDisplayName({ title: item.title, briefText: item.note })}
+                    title={item.title}
+                    createdAt={item.createdAt}
                     imageSrc={item.displayKey ? `/media/${item.displayKey}` : null}
                     roles={item.roles}
                   />

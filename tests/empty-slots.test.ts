@@ -38,10 +38,10 @@ describe("empty slot UI", () => {
     expect(document.querySelectorAll(".inzpo-band:not(.inzpo-band-empty)")).toHaveLength(2);
   });
 
-  it("renders an unnamed empty card with a title skeleton and six empty slots", () => {
+  it("renders an unnamed empty card with a fallback and six empty slots", () => {
     const { document } = parseHTML(renderToStaticMarkup(createElement(KitCard, { title: "IMG_6208", imageSrc: "photo.jpg" })));
-    expect(document.querySelector("[data-title-skeleton]")).not.toBeNull();
-    expect(document.querySelector("img")?.getAttribute("alt")).toBe("");
+    expect(document.querySelector("[data-title-skeleton]")).toBeNull();
+    expect(document.querySelector("img")?.getAttribute("alt")).toBe("Gray");
     expect(document.querySelectorAll(".inzpo-band-empty")).toHaveLength(6);
     expect(document.body.textContent).not.toContain("Untitled kit");
   });

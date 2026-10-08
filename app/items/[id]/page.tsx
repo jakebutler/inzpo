@@ -17,9 +17,9 @@ import { SaveBar } from "@/app/components/SaveBar";
 import { TokenEditor } from "@/app/components/TokenEditor";
 import { BriefSlot } from "@/app/components/BriefSlot";
 import { KitChrome } from "@/app/components/KitChrome";
-import { SavedKitHeader } from "@/app/components/SavedKitHeader";
 import { kitFromColors } from "@/lib/mascot";
-import { kitAltText, kitDisplayName } from "@/lib/kit-name";
+import { readBriefJob } from "@/lib/brief";
+import { kitAltText } from "@/lib/kit-name";
 import { rolesFromColors } from "@/lib/tokens";
 import { listCollections } from "@/lib/collections";
 
@@ -51,16 +51,13 @@ export default async function ItemDetailPage({
   if (isKit) {
     const saved = query.saved === "1";
     const collectionHref = query.c ? `/?c=${query.c}` : "/";
-    const kitTitle = kitDisplayName({ title: item.title, briefText: item.note });
     return (
       <main className="min-h-screen bg-background text-foreground">
         <KitChrome roles={rolesFromColors(item.colors)}>
-          {saved ? (
-            <SavedKitHeader title={kitTitle} backHref={collectionHref} itemId={item.id} />
-          ) : null}
           <KitResult
             itemId={item.id}
             title={item.title}
+            initialBrief={await readBriefJob(item.id)}
             imageSrc={item.media?.displayKey ? `/media/${item.media.displayKey}` : null}
             width={item.media?.width ?? 390}
             height={item.media?.height ?? 488}

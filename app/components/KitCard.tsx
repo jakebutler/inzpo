@@ -1,7 +1,9 @@
+"use client";
+
 import { BandStripe } from "@/app/components/BandStripe";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import { emptyRoles, type RoleColors } from "@/lib/tokens";
-import { kitDisplayName } from "@/lib/kit-name";
+import { useKitDisplayName } from "./useKitDisplayName";
 
 function rolesFromList(hexes?: Array<string | null>): RoleColors {
   if (hexes && hexes.length > 0) {
@@ -20,21 +22,23 @@ export function KitCard({
   imageSrc,
   hexes,
   roles,
+  createdAt,
 }: {
-  title: string;
+  title: string | null;
   imageSrc?: string | null;
   hexes?: Array<string | null>;
   roles?: RoleColors;
+  createdAt?: Date | string;
 }) {
   const kit = roles ?? rolesFromList(hexes);
-  const title = kitDisplayName({ title: rawTitle });
+  const title = useKitDisplayName({ title: rawTitle, primaryHex: COLOR_ROLES.map((role) => kit[role]).find(Boolean), createdAt });
   return (
     <article className="inzpo-kit-card">
       {imageSrc ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={imageSrc} alt={title} className="inzpo-kit-card-photo" />
       ) : null}
-      <BandStripe roles={kit} title={title} />
+      <BandStripe roles={kit} title={title} createdAt={createdAt} />
     </article>
   );
 }

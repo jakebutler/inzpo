@@ -83,6 +83,7 @@ export default async function Wall({
           kind: w.kind,
           title: w.title,
           note: w.note,
+          createdAt: w.createdAt,
           displayKey: w.displayKey,
           aspect: w.aspect,
           hexColors: w.hexColors,

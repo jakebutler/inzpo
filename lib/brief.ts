@@ -139,12 +139,16 @@ export async function runBriefJob(itemId: string, { retry = false } = {}): Promi
     const existing = await readBriefJob(itemId);
     if (existing && existing.status !== "pending") return existing;
   }
+  if (retry) {
+    await writeBriefJob(itemId, jobPayload({ status: "pending", text: null, namedColors: [], stub: false }));
+  }
   const key = process.env.DO_INFERENCE_API_KEY;
   const base = process.env.DO_INFERENCE_BASE_URL ?? "https://inference.do-ai.run/v1";
   const model = briefModelId();
   if (!key) {
     const stub = stubJob();
     await writeBriefJob(itemId, stub);
+    await persistKitTitleFromBrief(itemId, stub);
     return stub;
   }
   const filled = await filledHexes(itemId).catch(() => new Set<string>());
@@ -177,6 +181,7 @@ export async function runBriefJob(itemId: string, { retry = false } = {}): Promi
     }
     const failed = jobPayload({ status: "failed", text: null, namedColors: [], stub: false });
     await writeBriefJob(itemId, failed);
+    await persistKitTitleFromBrief(itemId, failed);
     return failed;
   }
 }

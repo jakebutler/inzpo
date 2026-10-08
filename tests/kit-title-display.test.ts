@@ -1,0 +1,169 @@
+import { act, createElement, type ReactNode } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
+import { parseHTML } from "linkedom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { kitDisplayName, UNTITLED_KIT } from "@/lib/kit-name";
+import { STALE_PENDING_MS, type BriefState } from "@/lib/brief-state";
+import { emptyRoles } from "@/lib/tokens";
+
+const mocks = vi.hoisted(() => ({ refresh: vi.fn(), fetch: vi.fn(), retry: undefined as (() => void) | undefined }));
+vi.mock("next/navigation", () => {
+  const router = { refresh: mocks.refresh };
+  return { useRouter: () => router };
+});
+vi.mock("gsap", () => ({ gsap: { registerPlugin: vi.fn() } }));
+vi.mock("@gsap/react", () => ({ useGSAP: vi.fn() }));
+vi.mock("next/link", () => ({ default: ({ children, ...props }: { children: ReactNode; href: string }) => createElement("a", props, children) }));
+vi.mock("@/app/components/ExportKitButton", () => ({ ExportKitButton: () => null }));
+vi.mock("@/app/components/TokenEditor", () => ({ TokenEditor: ({ children }: { children: ReactNode }) => children }));
+vi.mock("@/app/components/BriefSlot", () => ({
+  BriefSlot: ({ status, onRetry }: { status: string; onRetry: () => void }) => {
+    mocks.retry = onRetry;
+    return createElement("div", { "data-slot-status": status });
+  },
+}));
+
+import { KitCard } from "@/app/components/KitCard";
+import { BandStripe } from "@/app/components/BandStripe";
+import { SavedKitHeader } from "@/app/components/SavedKitHeader";
+import { KitResult } from "@/app/components/KitResult";
+
+const now = 1_800_000_000_000;
+const roles = { ...emptyRoles(), primary: "#3f5e92" };
+const cases: Array<{ label: string; brief: BriefState | null; title: string | null; name: string }> = [
+  { label: "recent pending", brief: { status: "pending", updatedAt: now }, title: null, name: "" },
+  { label: "stale pending", brief: { status: "pending", updatedAt: now - STALE_PENDING_MS }, title: "IMG_6208", name: "Blue" },
+  { label: "failed / timed out", brief: { status: "failed", updatedAt: now }, title: "IMG_6208", name: "Blue" },
+  { label: "stub", brief: { status: "ready", updatedAt: now, stub: true }, title: null, name: "Blue" },
+  { label: "ready with title", brief: { status: "ready", updatedAt: now }, title: "Storefront Blue", name: "Storefront Blue" },
+  { label: "ready without title", brief: { status: "ready", updatedAt: now }, title: null, name: "Blue" },
+  { label: "missing job", brief: null, title: null, name: "Blue" },
+  { label: "missing pending timestamp", brief: { status: "pending", updatedAt: 0 }, title: null, name: "Blue" },
+  { label: "legacy untitled", brief: { status: "failed", updatedAt: now }, title: UNTITLED_KIT, name: "Blue" },
+];
+
+describe("kit title placeholders", () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(now); });
+  afterEach(() => vi.useRealTimers());
+
+  it.each(cases)("renders $label in the saved header", ({ brief, title, name }) => {
+    expect(kitDisplayName({ title, primaryHex: roles.primary, brief })).toBe(name);
+    const views = [
+      createElement(SavedKitHeader, { title, primaryHex: roles.primary, brief, backHref: "/" }),
+    ];
+    for (const view of views) {
+      const { document } = parseHTML(renderToStaticMarkup(view));
+      const caption = document.querySelector("figcaption, h1")!;
+      expect(caption.querySelector("[data-title-skeleton]") !== null).toBe(name === "");
+      expect(caption.textContent).toBe(name);
+      expect(caption.textContent).not.toMatch(/Untitled kit|IMG_6208/);
+      if (document.querySelector("img")) expect(document.querySelector("img")?.getAttribute("alt")).toBe(name);
+    }
+  });
+
+  it.each([
+    { label: "recent null title", title: null, createdAt: new Date(now), name: "" },
+    { label: "recent camera filename", title: "IMG_6208", createdAt: new Date(now - 59_999).toISOString(), name: "" },
+    { label: "recent legacy untitled", title: UNTITLED_KIT, createdAt: new Date(now), name: "" },
+    { label: "60s boundary", title: null, createdAt: new Date(now - 60_000), name: "Blue" },
+    { label: "older than 60s", title: "IMG_6208", createdAt: new Date(now - 60_001), name: "Blue" },
+    { label: "missing timestamp", title: null, createdAt: undefined, name: "Blue" },
+    { label: "invalid timestamp", title: null, createdAt: "invalid", name: "Blue" },
+    { label: "recent user title", title: "My photo", createdAt: new Date(now), name: "My photo" },
+    { label: "recent persisted fallback", title: "Blue", createdAt: new Date(now), name: "Blue" },
+  ])("uses item age without a brief job for $label in cards and bands", ({ title, createdAt, name }) => {
+    expect(kitDisplayName({ title, primaryHex: roles.primary, createdAt })).toBe(name);
+    const views = [
+      createElement(KitCard, { title, roles, createdAt, imageSrc: "photo.jpg" }),
+      createElement(BandStripe, { title: title ?? "", roles, createdAt }),
+    ];
+    for (const view of views) {
+      const { document } = parseHTML(renderToStaticMarkup(view));
+      const caption = document.querySelector("figcaption")!;
+      expect(caption.querySelector("[data-title-skeleton]") !== null).toBe(name === "");
+      expect(caption.textContent).toBe(name);
+      expect(document.body.textContent).not.toMatch(/Untitled kit|IMG_6208/);
+      if (document.querySelector("img")) expect(document.querySelector("img")?.getAttribute("alt")).toBe(name);
+    }
+  });
+
+  it("reuses the first filled real role for the card fallback", () => {
+    const { document } = parseHTML(renderToStaticMarkup(createElement(KitCard, {
+      title: null, roles: { ...emptyRoles(), secondary: "#a0adbb", accent: "#ff0000" },
+      createdAt: new Date(now - 60_000),
+    })));
+    expect(document.querySelector("figcaption")?.textContent).toBe("Gray");
+  });
+
+  it("uses the kit-name colour family for muted primary colours", () => {
+    expect(kitDisplayName({ title: "IMG_6208", primaryHex: "#a0adbb", brief: { status: "failed", updatedAt: now } })).toBe("Gray");
+    expect(kitDisplayName({ title: UNTITLED_KIT })).toBe("Gray");
+  });
+
+  it("keeps an existing title during a pending retry", () => {
+    expect(kitDisplayName({ title: "My photo", brief: { status: "pending", updatedAt: now } })).toBe("My photo");
+  });
+
+  it.each(cases.filter(({ brief }) => brief && (brief.status !== "ready" || brief.stub)))("ignores leftover brief text for $label", ({ brief, name }) => {
+    expect(kitDisplayName({ primaryHex: roles.primary, brief, briefText: "A yellow facade.", subject: "house" })).toBe(name);
+  });
+});
+
+describe("client brief transitions", () => {
+  let root: Root;
+  let document: ReturnType<typeof parseHTML>["document"];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const dom = parseHTML("<html><body><div id='root'></div></body></html>");
+    document = dom.document;
+    dom.window.matchMedia = vi.fn().mockReturnValue({ matches: false });
+    vi.stubGlobal("window", dom.window);
+    vi.stubGlobal("document", document);
+    vi.stubGlobal("navigator", { userAgent: "vitest" });
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("fetch", mocks.fetch);
+    root = createRoot(document.getElementById("root") as unknown as HTMLElement);
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("expires a wall skeleton while the page remains open", async () => {
+    await act(async () => root.render(createElement(KitCard, {
+      title: null, roles, createdAt: new Date(now),
+    })));
+    expect(document.querySelector("[data-title-skeleton]")).not.toBeNull();
+    await act(async () => { vi.advanceTimersByTime(STALE_PENDING_MS); });
+    expect(document.querySelector("[data-title-skeleton]")).toBeNull();
+    expect(document.querySelector("figcaption")?.textContent).toBe("Blue");
+  });
+
+  it("flips the saved header on failure and replaces the fallback on retry without a reload", async () => {
+    const response = (job: object) => ({ ok: true, json: async () => job });
+    mocks.fetch
+      .mockResolvedValueOnce(response({ status: "pending", updatedAt: now, text: null }))
+      .mockResolvedValueOnce(response({ status: "failed", updatedAt: now + 2500, text: null }))
+      .mockResolvedValueOnce(response({ status: "ready", title: "Storefront Blue", text: "A blue storefront.", updatedAt: now + 2500 }));
+    await act(async () => root.render(createElement(KitResult, {
+      itemId: "kit", title: "IMG_6208", imageSrc: null, width: 390, height: 488,
+      colors: [{ hex: roles.primary!, role: "primary", position: 0, origin: "sampled" }],
+      tileSrc: null, saved: true, initialBrief: { status: "pending", updatedAt: now },
+    })));
+    expect(document.querySelector("h1 [data-title-skeleton]")).not.toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
+    expect(document.querySelector("[data-slot-status]")?.getAttribute("data-slot-status")).toBe("failed");
+    expect(document.querySelector("h1")?.textContent).toBe("Blue");
+    expect(document.querySelector("h1 [data-title-skeleton]")).toBeNull();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    await act(async () => mocks.retry?.());
+    expect(mocks.fetch).toHaveBeenLastCalledWith("/api/briefs/kit?retry=1", { method: "POST" });
+    expect(document.querySelector("h1")?.textContent).toBe("Storefront Blue");
+  });
+});

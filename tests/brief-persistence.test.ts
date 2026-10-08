@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   select: vi.fn(),
+  update: vi.fn(),
+  set: vi.fn(),
   delete: vi.fn(),
   insert: vi.fn(),
   values: vi.fn(),
@@ -19,7 +21,7 @@ vi.mock("@/lib/r2", async (importOriginal) => ({
   r2: () => ({ send: mocks.send }),
 }));
 vi.mock("@/lib/db", () => ({
-  db: { select: mocks.select, delete: mocks.delete, insert: mocks.insert },
+  db: { select: mocks.select, update: mocks.update, delete: mocks.delete, insert: mocks.insert },
 }));
 vi.mock("@/lib/auth/owner", () => ({
   requireOwnerId: async () => "owner",
@@ -34,9 +36,10 @@ vi.mock("@/lib/brief-request", async (importOriginal) => ({
 
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { GET, POST } from "@/app/api/briefs/[id]/route";
-import { readBriefJob, runBriefJob, startBriefJob, type BriefJob } from "@/lib/brief";
+import { readBriefJob, runBriefJob, startBriefJob, writeBriefJob, type BriefJob } from "@/lib/brief";
 import { briefKey } from "@/lib/r2";
 import { itemColors } from "@/lib/db/schema";
+import { BriefTimeoutError } from "@/lib/brief-request";
 
 const ready: BriefJob = {
   status: "ready",
@@ -73,6 +76,8 @@ beforeEach(async () => {
     throw new Error("Unexpected storage access");
   });
   mocks.delete.mockReturnValue({ where: async () => {} });
+  mocks.update.mockReturnValue({ set: mocks.set });
+  mocks.set.mockReturnValue({ where: async () => {} });
   mocks.insert.mockReturnValue({ values: mocks.values });
   mocks.values.mockResolvedValue(undefined);
   mocks.select.mockReturnValue({ from: () => ({ where: async () => [{ hex: "#112233" }] }) });
@@ -89,6 +94,14 @@ function request(retry = false) {
 const params = () => ({ params: Promise.resolve({ id: "kit" }) });
 
 describe("brief persistence", () => {
+  it("writes brief jobs only to R2 without any database access", async () => {
+    await writeBriefJob("kit", ready);
+    expect(await readBriefJob("kit")).toEqual(ready);
+    expect(writes).toBe(1);
+    expect(mocks.select).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
   it("reads old jobs without subject and sanitizes subjects on stored jobs", async () => {
     expect((await readBriefJob("kit"))?.subject).toBeUndefined();
     stored = { ...ready, subject: " Victorian   houses " };
@@ -135,7 +148,7 @@ describe("brief persistence", () => {
     expect(await response.json()).toMatchObject({ status: "ready", text: "Blue glass over shade." });
     expect((await readBriefJob("kit"))?.text).toBe("Blue glass over shade.");
     expect(mocks.generate).toHaveBeenCalledTimes(1);
-    expect(writes).toBe(1);
+    expect(writes).toBe(2); // Explicit retry publishes its pending state before completion.
     await runBriefJob("kit");
     expect(mocks.generate).toHaveBeenCalledTimes(1);
   });
@@ -162,5 +175,30 @@ describe("brief persistence", () => {
     expect((await runBriefJob("kit")).status).toBe("failed");
     expect(mocks.generate).not.toHaveBeenCalled();
     expect(writes).toBe(0);
+  });
+
+  it("persists the fallback and keeps the stub job in R2 when inference is unavailable", async () => {
+    stored = null;
+    vi.stubEnv("DO_INFERENCE_API_KEY", "");
+    const job = await runBriefJob("kit");
+    expect(job).toMatchObject({ status: "ready", stub: true });
+    expect(mocks.persistTitle).toHaveBeenCalledWith("kit", job);
+    expect(await readBriefJob("kit")).toEqual(job);
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("persists the fallback and failed status after the 24s timeout", async () => {
+    stored = null;
+    mocks.generate.mockRejectedValue(new BriefTimeoutError());
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const job = await runBriefJob("kit");
+      expect(job.status).toBe("failed");
+      expect(mocks.persistTitle).toHaveBeenCalledWith("kit", job);
+      expect(await readBriefJob("kit")).toEqual(job);
+      expect(mocks.update).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+    }
   });
 });

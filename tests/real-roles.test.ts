@@ -148,8 +148,8 @@ describe("empty kits and legible chrome", () => {
       expect(style.color).toBe(chrome.ink);
       expect(roles).toEqual(snapshot);
     }
-    expect(kitDisplayName({ namedColors: [] })).toBe("");
-    expect(kitAltText({ namedColors: [] })).toBe("");
+    expect(kitDisplayName({ namedColors: [] })).toBe("Gray");
+    expect(kitAltText({ namedColors: [] })).toBe("Gray");
     expect(bakuSvgMarkup().match(/data-baku-empty="true"/g)).toHaveLength(6);
   });
 });
