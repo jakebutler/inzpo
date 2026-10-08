@@ -6,7 +6,7 @@ export const BAKU_V6_DIR = "/baku/v6";
 export const BAKU_TINT_ENABLED = process.env.NEXT_PUBLIC_BAKU_TINT !== "0";
 export const BAKU_CROSSFADE_MS = 150;
 export const BAKU_BAND_GRAYS = [40, 80, 120, 160, 200, 240] as const;
-/** Bottom slice of the sprite that holds the pale ground shadow. */
+/** Bottom slice used by the alpha conversion script to identify the baked ground shadow. */
 export const BAKU_SHADOW_CLIP_PCT = 10.5;
 
 export const BAKU_ART_POSES = [

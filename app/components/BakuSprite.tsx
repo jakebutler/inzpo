@@ -6,8 +6,6 @@ import { useGSAP } from "@gsap/react";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import {
   BAKU_CROSSFADE_MS,
-  BAKU_SHADOW_CLIP_PCT,
-  BAKU_TINT_ENABLED,
   bakuCanTint,
   bakuDensity,
   bakuV6BandsSrc,
@@ -16,10 +14,9 @@ import {
   type BakuDensity,
   type BakuSrcPose,
 } from "@/lib/baku-v6";
-import { defringePremulEdges, multiplyShadowPixels, tintRoles, tintSpriteWithBands } from "@/lib/baku-tint";
+import { tintRoles, tintSpriteWithBands } from "@/lib/baku-tint";
 import { kitForPose, type MascotKit } from "@/lib/mascot";
 import { prefersReducedMotion } from "@/lib/motion";
-import { PAPER } from "@/lib/brand";
 
 gsap.registerPlugin(useGSAP);
 
@@ -63,28 +60,6 @@ async function composeTint(
   return canvas.toDataURL("image/png");
 }
 
-async function bakeShadow(src: string): Promise<string> {
-  const img = await loadImage(src);
-  const canvas = document.createElement("canvas");
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("No 2d context");
-  ctx.drawImage(img, 0, 0);
-  const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  defringePremulEdges(data.data, canvas.width, canvas.height, 4);
-  multiplyShadowPixels(
-    data.data,
-    canvas.width,
-    canvas.height,
-    4,
-    "#000000",
-    BAKU_SHADOW_CLIP_PCT,
-  );
-  ctx.putImageData(data, 0, 0);
-  return canvas.toDataURL("image/png");
-}
-
 function useDensity(): BakuDensity {
   const [density, setDensity] = useState<BakuDensity>(1);
   useEffect(() => {
@@ -102,7 +77,6 @@ export function BakuSprite({
   size,
   revealedCount = null,
   faceText = false,
-  ground = PAPER,
   forcePoseAsset = false,
   fallback,
 }: {
@@ -126,7 +100,6 @@ export function BakuSprite({
   const [pngFailed, setPngFailed] = useState(false);
   const [tinted, setTinted] = useState<{ key: string; src: string } | null>(null);
   const [tintFailed, setTintFailed] = useState<string | null>(null);
-  const [shadowSrc, setShadowSrc] = useState<string | null>(null);
 
   useEffect(() => {
     setPngFailed(false);
@@ -174,23 +147,6 @@ export function BakuSprite({
   // While tint assets load, the SVG already has oatmeal empties on its first frame.
   const showPng = !pngFailed && (!canTint || tintedSrc != null || failedTint);
 
-  useEffect(() => {
-    if (!BAKU_TINT_ENABLED || !showPng) {
-      setShadowSrc(null);
-      return;
-    }
-    let alive = true;
-    void bakeShadow(src)
-      .then((url) => {
-        if (alive) setShadowSrc(url);
-      })
-      .catch(() => {
-        if (alive) setShadowSrc(null);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [src, ground, showPng]);
   const failPng = () => {
     if (canTint && src !== bakuV6ColorSrc(pose, density)) {
       setTintFailed(tintKey);
@@ -198,10 +154,7 @@ export function BakuSprite({
     }
     setPngFailed(true);
   };
-  const shadowClip = `inset(${100 - BAKU_SHADOW_CLIP_PCT}% 0 0 0)`;
-  const bodyClip = `inset(0 0 ${BAKU_SHADOW_CLIP_PCT}% 0)`;
-  // Flip the imgs, not a wrapper: a transformed ancestor isolates mix-blend-mode
-  // and the pale oval then reads as a white smudge on navy bands.
+  // Flip the complete sprite, including its baked black-alpha ground shadow.
   const flip = faceText && showPng ? "scaleX(-1)" : undefined;
 
   return (
@@ -209,7 +162,7 @@ export function BakuSprite({
       data-baku-sprite={showPng ? "png" : "svg"}
       data-baku-v6={showPng ? "1" : "0"}
       data-baku-tinted={tintedSrc && !failedTint ? "1" : "0"}
-      data-baku-shadow-baked={shadowSrc ? "1" : "0"}
+      data-baku-shadow-baked={showPng ? "1" : "0"}
       data-baku-density={density}
       style={{
         width: size,
@@ -219,25 +172,6 @@ export function BakuSprite({
       <div ref={squashRef} className="relative h-full w-full">
         {showPng ? (
           <>
-            {/* Black at 18% alpha darkens any ground, including before the bake finishes. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={shadowSrc ?? src}
-              alt=""
-              width={size}
-              height={size}
-              data-baku-shadow
-              className="pointer-events-none absolute inset-0 block h-full w-full"
-              style={{
-                clipPath: shadowSrc ? undefined : shadowClip,
-                filter: "brightness(0)",
-                opacity: 0.18,
-                transform: flip,
-                transformOrigin: "50% 100%",
-              }}
-              draggable={false}
-              onError={failPng}
-            />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={bodyRef}
@@ -247,7 +181,7 @@ export function BakuSprite({
               height={size}
               data-baku-body
               className="relative block h-full w-full"
-              style={{ clipPath: bodyClip, transform: flip, transformOrigin: "50% 100%" }}
+              style={{ transform: flip, transformOrigin: "50% 100%" }}
               draggable={false}
               onError={failPng}
             />

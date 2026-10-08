@@ -169,14 +169,15 @@ describe("stripe kit", () => {
     expect(MASCOT_SIZE_PX).toBe(48);
   });
 
-  it("fills the 56px brief slot and multiply-blends the ground shadow", () => {
+  it("fills the 56px brief slot and renders the baked-alpha ground shadow once", () => {
     expect(MASCOT_SIZE_BRIEF_PX).toBe(56);
     const brief = readFileSync(path.join(process.cwd(), "app/components/BriefSlot.tsx"), "utf8");
     const sprite = readFileSync(path.join(process.cwd(), "app/components/BakuSprite.tsx"), "utf8");
     expect(brief).toMatch(/size=\{MASCOT_SIZE_BRIEF_PX\}/);
     expect(brief).not.toMatch(/size=\{MASCOT_SIZE_PX\}/);
-    expect(sprite).toContain("multiplyShadowPixels");
-    expect(sprite).toContain("data-baku-shadow");
+    expect(sprite).not.toContain("multiplyShadowPixels");
+    expect(sprite).toContain("data-baku-shadow-baked");
+    expect(sprite.match(/<img\b/g)).toHaveLength(1);
     expect(brief).toContain("ground={pageBackground}");
   });
 });

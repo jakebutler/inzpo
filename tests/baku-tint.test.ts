@@ -94,10 +94,11 @@ describe("Baku rendering flag", () => {
           expect(body?.getAttribute("src")).toBe(flags.bakuV6ColorSrc(pose, 2));
           expect(body?.getAttribute("width")).toBe("96");
           expect(document.querySelector("[data-baku-tinted]")?.getAttribute("data-baku-tinted")).toBe("0");
-          const shadow = document.querySelector("[data-baku-shadow]");
-          expect(shadow?.getAttribute("src")).toBe(flags.bakuV6ColorSrc(pose, 2));
-          expect(shadow?.getAttribute("style")).toContain("brightness(0)");
-          expect(shadow?.getAttribute("style")).toContain("opacity:0.18");
+          expect(document.querySelector("[data-baku-shadow]")).toBeNull();
+          expect(document.querySelectorAll("[data-baku-body]")).toHaveLength(1);
+          expect(body?.getAttribute("style")).toContain("scaleX(-1)");
+          expect(body?.getAttribute("style")).not.toMatch(/clip-path|brightness|opacity/);
+          expect(document.querySelector("[data-baku-shadow-baked]")?.getAttribute("data-baku-shadow-baked")).toBe("1");
         }
       }
       expect(imageLoader).not.toHaveBeenCalled();

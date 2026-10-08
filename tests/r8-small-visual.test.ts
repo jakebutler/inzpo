@@ -3,22 +3,25 @@ import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { MASCOT_SIZE_UPLOAD_PX } from "@/lib/mascot";
 import { bakuDensity, bakuV6PoseSrc } from "@/lib/baku-v6";
-import { multiplyShadowPixels } from "@/lib/baku-tint";
 
 const src = (file: string) => readFileSync(file, "utf8");
 
 describe("small visual fixes", () => {
-  it("darkens every ground, including the shadow fallback before canvas composition", () => {
+  it("draws the baked black-alpha shadow once without a filter or body clip", async () => {
     const sprite = src("app/components/BakuSprite.tsx");
-    expect(sprite).toContain('filter: "brightness(0)"');
-    expect(sprite).toContain("opacity: 0.18");
-    expect(sprite).toContain('"#000000",\n    BAKU_SHADOW_CLIP_PCT');
-    const pixels = new Uint8ClampedArray([243, 238, 228, 128]);
-    multiplyShadowPixels(pixels, 1, 1, 4, "#000000", 100);
-    expect([...pixels]).toEqual([0, 0, 0, 128]);
-    for (const ground of [[56, 75, 95], [243, 238, 228], [0, 0, 0]]) {
-      expect(ground.map(c => c * (1 - 0.18 * pixels[3] / 255)).every((c, i) => c <= ground[i])).toBe(true);
+    expect(sprite.match(/<img\b/g)).toHaveLength(1);
+    expect(sprite).not.toMatch(/brightness\(0\)|clipPath|bakeShadow/);
+    const { data, info } = await sharp("public/baku/v6/baku-idle@3x.png").ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    let shadows = 0;
+    for (let p = 0; p < info.width * info.height; p++) {
+      const i = p * 4, alpha = data[i + 3]! / 255;
+      if (alpha <= 0 || alpha >= 1 || data[i] || data[i + 1] || data[i + 2]) continue;
+      shadows++;
+      for (const ground of [[66, 98, 151], [190, 190, 193], [243, 238, 228], [0, 0, 0]]) {
+        expect(ground.map(c => c * (1 - alpha)).every((c, channel) => c <= ground[channel]!)).toBe(true);
+      }
     }
+    expect(shadows).toBeGreaterThan(0);
   });
 
   it("shows a static skeleton instead of pending brief glyphs", () => {
