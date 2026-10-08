@@ -61,29 +61,61 @@ async function hideChrome(page: import("playwright").Page): Promise<void> {
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
 }
 
+async function recoverPage(
+  page: import("playwright").Page,
+  reduced: boolean,
+): Promise<import("playwright").Page> {
+  const browser = page.context().browser();
+  const vp = page.viewportSize();
+  try {
+    await page.close();
+  } catch {
+    // already gone
+  }
+  return (browser ?? page.context()).newPage({
+    viewport: vp ?? { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    reducedMotion: reduced ? "reduce" : "no-preference",
+  });
+}
+
 async function openShot(
   page: import("playwright").Page,
   url: string,
+  reduced: boolean,
 ): Promise<import("playwright").Page> {
   try {
     await page.goto(url, { waitUntil: "load", timeout: 60_000 });
     return page;
   } catch {
-    const browser = page.context().browser();
-    const vp = page.viewportSize();
-    const reduced = await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
-    try {
-      await page.close();
-    } catch {
-      // already gone
-    }
-    const next = await (browser ?? page.context()).newPage({
-      viewport: vp ?? { width: 390, height: 844 },
-      deviceScaleFactor: 2,
-      reducedMotion: reduced ? "reduce" : "no-preference",
-    });
+    const next = await recoverPage(page, reduced);
     await next.goto(url, { waitUntil: "load", timeout: 60_000 });
     return next;
+  }
+}
+
+async function captureShot(
+  page: import("playwright").Page,
+  url: string,
+  dest: string,
+  reduced: boolean,
+  waitMs: number,
+  aboveBar: boolean,
+): Promise<import("playwright").Page> {
+  let current = await openShot(page, url, reduced);
+  await hideChrome(current);
+  if (aboveBar) await revealAboveSaveBar(current);
+  try {
+    await current.waitForTimeout(waitMs);
+    await current.screenshot({ path: dest, animations: reduced ? "disabled" : "allow" });
+    return current;
+  } catch {
+    current = await openShot(await recoverPage(current, reduced), url, reduced);
+    await hideChrome(current);
+    if (aboveBar) await revealAboveSaveBar(current);
+    await current.waitForTimeout(Math.min(waitMs, 400));
+    await current.screenshot({ path: dest, animations: reduced ? "disabled" : "allow" });
+    return current;
   }
 }
 
@@ -147,21 +179,27 @@ async function main(): Promise<void> {
       });
       for (const photo of PHOTOS) {
         for (const shot of PER_PHOTO) {
-          page = await openShot(page, urlFor(shot, photo));
-          await hideChrome(page);
-          if (ABOVE_BAR.has(shot.state)) await revealAboveSaveBar(page);
-          await page.waitForTimeout(reduced ? 200 : 700);
           const name = `r4_${photo}_${vp.name}_${shot.state}_${label}.png`;
-          await page.screenshot({ path: path.join(ARTIFACTS, name), animations: reduced ? "disabled" : "allow" });
+          page = await captureShot(
+            page,
+            urlFor(shot, photo),
+            path.join(ARTIFACTS, name),
+            reduced,
+            reduced ? 200 : 700,
+            ABOVE_BAR.has(shot.state),
+          );
         }
       }
       for (const shot of EXTRA) {
-        page = await openShot(page, urlFor(shot, shot.photo ?? "IMG_6505"));
-        await hideChrome(page);
-        if (ABOVE_BAR.has(shot.state)) await revealAboveSaveBar(page);
-        await page.waitForTimeout(reduced ? 200 : 700);
         const name = `r4_${shot.photo}_${vp.name}_${shot.state}_${label}.png`;
-        await page.screenshot({ path: path.join(ARTIFACTS, name), animations: reduced ? "disabled" : "allow" });
+        page = await captureShot(
+          page,
+          urlFor(shot, shot.photo ?? "IMG_6505"),
+          path.join(ARTIFACTS, name),
+          reduced,
+          reduced ? 200 : 700,
+          ABOVE_BAR.has(shot.state),
+        );
       }
       await page.close();
     }
@@ -173,13 +211,14 @@ async function main(): Promise<void> {
       deviceScaleFactor: 2,
       reducedMotion: "no-preference",
     });
-    page = await openShot(page, `${BASE}/dev/fold?state=result&photo=IMG_5859&play=1`);
-    await hideChrome(page);
-    await page.waitForTimeout(200);
-    await page.screenshot({
-      path: path.join(ARTIFACTS, "r4_IMG_5859_390x844_reveal200ms_motion.png"),
-      animations: "allow",
-    });
+    page = await captureShot(
+      page,
+      `${BASE}/dev/fold?state=result&photo=IMG_5859&play=1`,
+      path.join(ARTIFACTS, "r4_IMG_5859_390x844_reveal200ms_motion.png"),
+      false,
+      200,
+      false,
+    );
     await page.close();
   }
 
