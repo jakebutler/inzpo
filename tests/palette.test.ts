@@ -3,7 +3,7 @@ import sharp from "sharp";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import { areaAverage, contrastRatio, extractPalette, textOnBackgroundContrast } from "@/lib/palette-extract";
 import { chooseTextureCrop } from "@/lib/texture";
-import { designTokenColors, rolesFromColors } from "@/lib/tokens";
+import { designTokenColors, moveRole, rolesFromColors, setRoleColor } from "@/lib/tokens";
 
 async function solid(hex: string, w = 120, h = 80): Promise<Buffer> {
   return sharp({
@@ -122,6 +122,22 @@ describe("area-averaged eyedropper", () => {
     const right = await areaAverage(buf, 0.8, 0.5, 4);
     expect(left.hex.startsWith("#")).toBe(true);
     expect(right.hex).not.toBe(left.hex);
+  });
+});
+
+describe("token editor roles", () => {
+  it("sets a role without padding the others", () => {
+    const next = setRoleColor(rolesFromColors([]), "accent", "#ff8800");
+    expect(next.accent).toBe("#ff8800");
+    expect(next.primary).toBeNull();
+    expect(next.background).toBeNull();
+  });
+
+  it("swaps two roles instead of duplicating a color", () => {
+    const start = setRoleColor(setRoleColor(rolesFromColors([]), "primary", "#111111"), "text", "#eeeeee");
+    const swapped = moveRole(start, "primary", "text");
+    expect(swapped.primary).toBe("#eeeeee");
+    expect(swapped.text).toBe("#111111");
   });
 });
 

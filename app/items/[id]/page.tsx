@@ -14,6 +14,7 @@ import { getOrigin, getDerivedItems } from "@/lib/palettes";
 import { requireOwnerId } from "@/lib/auth/owner";
 import { kitFromColors } from "@/lib/mascot";
 import { BriefSlot } from "@/app/components/BriefSlot";
+import { TokenEditor } from "@/app/components/TokenEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -123,31 +124,22 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
           </section>
         ) : null}
 
-        {item.colors.length > 0 ? (
-          <>
-            <section className="mt-6">
-              <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Colors</h2>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {item.colors.map((c) => (
-                  <span
-                    key={`${c.hex}-${c.position}`}
-                    title={`${c.hex} · ${c.family}`}
-                    className="flex items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-900 py-1 pl-1 pr-3"
-                  >
-                    <span className="inline-block h-6 w-6 rounded-full border border-neutral-700" style={{ backgroundColor: c.hex }} />
-                    <span className="text-xs text-neutral-400">
-                      {c.hex} · {c.family}
-                    </span>
-                  </span>
-                ))}
-              </div>
-            </section>
-            <BriefSlot
-              status={item.note ? "ready" : "pending"}
-              kit={kitFromColors(item.colors)}
-              note={item.note}
+        <section className="mt-6">
+          <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Palette</h2>
+          <div className="mt-2">
+            <TokenEditor
+              itemId={item.id}
+              imageSrc={item.media?.displayKey ? `/media/${item.media.displayKey}` : null}
+              colors={item.colors}
             />
-          </>
+          </div>
+        </section>
+        {item.colors.length > 0 ? (
+          <BriefSlot
+            status={item.note ? "ready" : "pending"}
+            kit={kitFromColors(item.colors)}
+            note={item.note}
+          />
         ) : null}
 
         {item.colors.length > 0 && (item.kind === "screenshot" || item.kind === "photo") ? (

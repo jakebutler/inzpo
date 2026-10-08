@@ -51,6 +51,30 @@ function nearestFilledHex(roles: RoleColors, index: number): string | null {
 }
 
 /** Empty roles fall back to the nearest real color and are marked fallback: true. */
+export function setRoleColor(roles: RoleColors, role: ColorRole, hex: string | null): RoleColors {
+  const next = { ...roles };
+  if (hex === null) {
+    next[role] = null;
+    return next;
+  }
+  if (!isHexColor(hex)) return next;
+  const value = normalizeHex(hex);
+  for (const other of COLOR_ROLES) {
+    if (other !== role && next[other] === value) next[other] = null;
+  }
+  next[role] = value;
+  return next;
+}
+
+export function moveRole(roles: RoleColors, from: ColorRole, to: ColorRole): RoleColors {
+  if (from === to) return roles;
+  const next = { ...roles };
+  const value = next[from];
+  next[from] = next[to];
+  next[to] = value;
+  return next;
+}
+
 export function designTokenColors(roles: RoleColors): Record<ColorRole, DesignTokenColor> | null {
   if (filledRoles(roles).length === 0) return null;
   const out = {} as Record<ColorRole, DesignTokenColor>;

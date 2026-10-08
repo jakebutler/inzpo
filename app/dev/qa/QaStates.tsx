@@ -80,7 +80,20 @@ export function QaStates({ issue, state }: { issue: string; state: string }) {
                 );
               })}
             </div>
-            <p className="mt-3 text-xs text-muted-foreground">Contrast hidden: text and background are both filled, so the line would show.</p>
+            <p className="mt-3 text-xs tabular-nums text-muted-foreground">Text on background 4.8:1</p>
+          </div>
+        ) : null}
+        {state === "editor-sheet" ? (
+          <div className="mt-8">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Edit primary</p>
+            <div className="mt-3 h-40 rounded-xl bg-[#6b6656]" />
+            <label className="mt-4 block text-xs uppercase tracking-wide text-muted-foreground">Hex</label>
+            <input defaultValue="#6b6656" readOnly className="mt-1 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base tabular-nums" />
+            <label className="mt-3 block text-xs uppercase tracking-wide text-muted-foreground">Role</label>
+            <select defaultValue="primary" className="mt-1 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base">
+              <option>primary</option>
+              <option>secondary</option>
+            </select>
           </div>
         ) : null}
         {state === "one-role" ? (
