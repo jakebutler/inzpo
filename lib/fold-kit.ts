@@ -6,6 +6,8 @@ import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { extractPalette } from "@/lib/palette-extract";
 import { HANDOFF_KITS, type MascotKit } from "@/lib/mascot";
 
+export type FoldPhoto = "IMG_6505" | "IMG_6208" | "IMG_5859";
+
 export type FoldColor = {
   hex: string;
   role: ColorRole;
@@ -38,25 +40,17 @@ function colorsFromKit(kit: MascotKit): FoldColor[] {
   });
 }
 
-export async function loadFoldKit(which: "IMG_6505" | "IMG_6208" = "IMG_6505"): Promise<FoldKit> {
-  const imageSrc = "/sample/IMG_6505.jpg";
-  const file = path.join(process.cwd(), "public/sample/IMG_6505.jpg");
+export async function loadFoldKit(which: FoldPhoto = "IMG_6505"): Promise<FoldKit> {
+  const imageSrc = `/sample/${which}.jpg`;
+  const file = path.join(process.cwd(), "public/sample", `${which}.jpg`);
+  const fallbackKit = which === "IMG_6208" ? HANDOFF_KITS.IMG_6208 : HANDOFF_KITS.IMG_6505;
   try {
     const buffer = await readFile(file);
     const meta = await sharp(buffer).metadata();
-    if (which === "IMG_6208") {
-      return {
-        title: "IMG_6208",
-        imageSrc,
-        width: meta.width ?? 1500,
-        height: meta.height ?? 2000,
-        colors: colorsFromKit(HANDOFF_KITS.IMG_6208),
-      };
-    }
     const palette = await extractPalette(buffer);
     const colors: FoldColor[] = [];
     COLOR_ROLES.forEach((role, position) => {
-      const hex = palette.roles[role];
+      const hex = which === "IMG_6208" ? fallbackKit[role] : palette.roles[role];
       if (!hex) return;
       const swatch =
         palette.swatches.find((row) => row.role === role) ??
@@ -70,11 +64,11 @@ export async function loadFoldKit(which: "IMG_6505" | "IMG_6208" = "IMG_6505"): 
       });
     });
     return {
-      title: "IMG_6505",
+      title: which,
       imageSrc,
       width: meta.width ?? 1500,
       height: meta.height ?? 2000,
-      colors: colors.length > 0 ? colors : colorsFromKit(HANDOFF_KITS.IMG_6505),
+      colors: colors.length > 0 ? colors : colorsFromKit(fallbackKit),
     };
   } catch {
     return {
@@ -82,7 +76,7 @@ export async function loadFoldKit(which: "IMG_6505" | "IMG_6208" = "IMG_6505"): 
       imageSrc,
       width: 1500,
       height: 2000,
-      colors: colorsFromKit(HANDOFF_KITS[which]),
+      colors: colorsFromKit(fallbackKit),
     };
   }
 }

@@ -9,7 +9,6 @@ import { ExportKitButton } from "@/app/components/ExportKitButton";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { HANDOFF_KITS, type MascotKit } from "@/lib/mascot";
 import { LINKS_UNSUPPORTED_MESSAGE } from "@/lib/links";
-import { MOTION, MOTION_CSS } from "@/lib/motion";
 
 function colorsFromKit(kit: MascotKit) {
   return COLOR_ROLES.filter((role) => kit[role]).map((role, i) => ({
@@ -25,9 +24,6 @@ export function QaStates({ issue, state }: { issue: string; state: string }) {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-[390px] px-4 py-6">
-        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          QA · #{issue} · {state}
-        </p>
         {state === "empty" || state === "capture-empty" ? (
           <div className="mt-8">
             <h1 className="text-xl font-semibold tracking-tight">Snap</h1>
@@ -295,13 +291,6 @@ export function QaStates({ issue, state }: { issue: string; state: string }) {
         {state === "brief-pending" ? (
           <BriefSlot status="pending" kit={HANDOFF_KITS.IMG_6505} note={null} />
         ) : null}
-        <dl className="mt-10 space-y-1 text-xs text-muted-foreground" data-motion>
-          <div>tap {MOTION.tap.duration}s {MOTION.tap.ease} ({MOTION_CSS.tapMs}ms)</div>
-          <div>small {MOTION.small.duration}s {MOTION.small.ease} ({MOTION_CSS.smallMs}ms)</div>
-          <div>enter {MOTION.enter.duration}s {MOTION.enter.ease} ({MOTION_CSS.enterMs}ms)</div>
-          <div>leave {MOTION.leave.duration}s {MOTION.leave.ease} ({MOTION_CSS.leaveMs}ms)</div>
-          <div>reduced {MOTION.reduced.duration}s {MOTION.reduced.ease} ({MOTION_CSS.reducedMs}ms)</div>
-        </dl>
       </div>
     </main>
   );
