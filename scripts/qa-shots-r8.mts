@@ -6,7 +6,7 @@
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { chromium, type Browser, type Page } from "playwright";
+import { chromium, request, type Browser, type Page } from "playwright";
 import { captureGuardIssues, cssRgbToHex } from "../lib/qa-capture-guard.ts";
 
 const BASE = (process.env.QA_BASE ?? "").replace(/\/+$/, "");
@@ -124,6 +124,63 @@ async function guard(page: Page, label: string, allowStatus = [200]): Promise<vo
     report.guard.checks.push({ label, pass: false, detail: errorText(error) });
     report.failures.push(`guard: ${label}: ${errorText(error)}`);
   }
+}
+
+async function iconGuard(page: Page): Promise<void> {
+  const record = (label: string, pass: boolean, detail?: unknown) => {
+    report.guard[pass ? "pass" : "fail"]++;
+    report.guard.checks.push({ label, pass, detail });
+    if (!pass) report.failures.push(`guard: ${label}`);
+  };
+  const expectedIcons = [
+    { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+    { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+    { src: "/icons/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+  ];
+  const urls = new Set(["/icons/favicon-32.png", "/icons/apple-touch-icon.png", ...expectedIcons.map(icon => icon.src)]);
+  try {
+    const links = await page.locator("head link").evaluateAll(nodes => nodes.map(node => ({
+      rel: node.getAttribute("rel") ?? "", href: node.getAttribute("href"),
+      sizes: node.getAttribute("sizes"), type: node.getAttribute("type"),
+    })));
+    const favicons = links.filter(link => link.rel.split(/\s+/).includes("icon"));
+    const apples = links.filter(link => link.rel === "apple-touch-icon");
+    const manifests = links.filter(link => link.rel === "manifest");
+    record("head: exactly one 32px PNG favicon", favicons.length === 1 &&
+      favicons[0]?.href === "/icons/favicon-32.png" && favicons[0]?.sizes === "32x32" && favicons[0]?.type === "image/png");
+    record("head: 180px Apple touch icon", apples.length === 1 &&
+      apples[0]?.href === "/icons/apple-touch-icon.png" && apples[0]?.sizes === "180x180");
+    record("head: web manifest", manifests.length === 1 && manifests[0]?.href === "/manifest.webmanifest");
+    for (const link of [...favicons, ...apples]) if (link.href) urls.add(link.href);
+  } catch (error) { record("head: web app icon links", false, errorText(error)); }
+
+  // This independent request context has no browser cookies or session. Do not follow
+  // redirects: a login response must never count as a successful public asset request.
+  const signedOut = await request.newContext();
+  try {
+    try {
+      const response = await signedOut.get(`${BASE}/manifest.webmanifest`, { maxRedirects: 0 });
+      try {
+        const manifest = await response.json();
+        record("signed-out manifest: HTTP 200 and Designer icons", response.status() === 200 &&
+          JSON.stringify(manifest.icons) === JSON.stringify(expectedIcons) &&
+          manifest.theme_color === "#F3EEE4" && manifest.background_color === "#F3EEE4");
+        if (Array.isArray(manifest.icons)) {
+          for (const icon of manifest.icons) if (typeof icon.src === "string") urls.add(icon.src);
+        }
+      } finally { await response.dispose(); }
+    } catch (error) { record("signed-out manifest: HTTP 200 and Designer icons", false, errorText(error)); }
+    for (const url of urls) {
+      const label = `signed-out icon: ${safePath(new URL(url, BASE).href)} HTTP 200 image/png`;
+      try {
+        const response = await signedOut.get(new URL(url, BASE).href, { maxRedirects: 0 });
+        try {
+          record(label, response.status() === 200 && response.headers()["content-type"]?.split(";")[0]?.trim() === "image/png",
+            { status: response.status() });
+        } finally { await response.dispose(); }
+      } catch (error) { record(label, false, errorText(error)); }
+    }
+  } finally { await signedOut.dispose(); }
 }
 async function screenshot(page: Page, name: string, fullPage = false): Promise<void> {
   await page.screenshot({ path: artifact(name), fullPage, animations: "allow", timeout: 30_000 });
@@ -424,6 +481,7 @@ async function main(): Promise<void> {
       await flow(browser, vp, `login ${vp.name}`, false, async page => {
         await goto(page, "/login");
         await page.locator("#email").waitFor();
+        await iconGuard(page);
         await shot(page, `r8_login_${vp.name}.png`);
       });
       await flow(browser, vp, `capture empty ${vp.name}`, true, async page => {

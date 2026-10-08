@@ -8,8 +8,7 @@ const isPublicRoute = createRouteMatcher([
   "/share",
   "/api/reaper",
   "/manifest.webmanifest",
-  "/icon.svg",
-  "/favicon.ico",
+  "/icons/(.*)",
 ]);
 const isDevQaRoute = createRouteMatcher(["/dev(.*)"]);
 
