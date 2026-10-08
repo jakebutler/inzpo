@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/login(.*)",
   "/share",
   "/api/reaper",
+  "/api/mobile(.*)", // Mobile routes verify Clerk Bearer tokens and return 401 JSON instead of a /login redirect.
   "/manifest.webmanifest",
   "/icon.svg",
   "/favicon.ico",

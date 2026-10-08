@@ -1,0 +1,311 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { BriefJob } from "@inzpo/shared";
+import type { ItemDetail } from "@/lib/items";
+
+const mocks = vi.hoisted(() => ({
+  verifyToken: vi.fn(), devOwnerId: vi.fn(), isClerkConfigured: vi.fn(),
+  send: vi.fn(), getSignedUrl: vi.fn(), presignUpload: vi.fn(), createImageItem: vi.fn(), getItemDetail: vi.fn(),
+  readBriefJob: vi.fn(), runBriefJob: vi.fn(), persistKitTitleFromBrief: vi.fn(), getItemCollections: vi.fn(),
+  assertItemOwned: vi.fn(), listCollections: vi.fn(), createCollection: vi.fn(), addToCollection: vi.fn(),
+  revalidatePath: vi.fn(), after: vi.fn(),
+}));
+
+vi.mock("@clerk/nextjs/server", () => ({ verifyToken: mocks.verifyToken }));
+vi.mock("@/lib/auth/dev-bypass", () => ({ devOwnerId: mocks.devOwnerId }));
+vi.mock("@/lib/auth/clerk-configured", () => ({ isClerkConfigured: mocks.isClerkConfigured }));
+vi.mock("@/lib/auth/owner", () => ({ assertItemOwned: mocks.assertItemOwned }));
+vi.mock("@/lib/items", () => ({ createImageItem: mocks.createImageItem, getItemDetail: mocks.getItemDetail }));
+vi.mock("@/lib/brief", () => ({ readBriefJob: mocks.readBriefJob, runBriefJob: mocks.runBriefJob }));
+vi.mock("@/lib/kit-title", () => ({ persistKitTitleFromBrief: mocks.persistKitTitleFromBrief }));
+vi.mock("@/lib/item-collections", () => ({ getItemCollections: mocks.getItemCollections }));
+vi.mock("@/lib/collections", () => ({
+  listCollections: mocks.listCollections, createCollection: mocks.createCollection, addToCollection: mocks.addToCollection,
+}));
+vi.mock("@/lib/r2", async () => {
+  const { GetObjectCommand, DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+  return { r2: () => ({ send: mocks.send }), GetObjectCommand, DeleteObjectCommand };
+});
+vi.mock("@aws-sdk/s3-request-presigner", () => ({ getSignedUrl: mocks.getSignedUrl }));
+vi.mock("@/lib/uploads", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/uploads")>(), presignUpload: mocks.presignUpload,
+}));
+vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
+vi.mock("next/server", async (importOriginal) => ({
+  ...await importOriginal<typeof import("next/server")>(), after: mocks.after,
+}));
+
+import { GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { MAX_UPLOAD_BYTES } from "@/lib/uploads";
+import { POST as presign } from "@/app/api/mobile/uploads/presign/route";
+import { POST as createKit } from "@/app/api/mobile/kits/route";
+import { GET as getKit } from "@/app/api/mobile/kits/[id]/route";
+import { GET as getBrief, POST as runBrief } from "@/app/api/mobile/kits/[id]/brief/route";
+import { GET as collections } from "@/app/api/mobile/collections/route";
+import { POST as saveKit } from "@/app/api/mobile/kits/[id]/save/route";
+
+const context = () => ({ params: Promise.resolve({ id: "kit_1" }) });
+const pending: BriefJob = { status: "pending", text: null, namedHexes: [], namedColors: [], stub: false, updatedAt: 0 };
+const ready: BriefJob = { ...pending, status: "ready", text: "A house with warm walls." };
+const item: ItemDetail = {
+  id: "kit_1", kind: "photo", title: "Warm House", note: null, createdAt: new Date(0),
+  source: null, oembedHtml: null, hasArticle: false, origin: null,
+  media: { originalKey: "items/kit_1/original.jpg", displayKey: "items/kit_1/w1600.webp", placeholder: null,
+    mime: "image/jpeg", width: 1000, height: 800, tileKey: null },
+  colors: [{ hex: "#ABCDEF", role: "primary", name: "Wall", origin: "extracted", family: "blue",
+    position: 0, pinX: null, pinY: null }],
+};
+
+function request(method = "GET", body?: unknown, token: string | null = "valid-token"): Request {
+  return new Request("https://inzpo.test/api/mobile/test", {
+    method,
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+}
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.stubEnv("R2_BUCKET", "test-bucket");
+  vi.stubEnv("CLERK_SECRET_KEY", "test-secret");
+  mocks.devOwnerId.mockReturnValue(null);
+  mocks.isClerkConfigured.mockReturnValue(true);
+  mocks.verifyToken.mockImplementation(async (token: string) => {
+    if (token !== "valid-token") throw new Error("Invalid token");
+    return { sub: "user_1" };
+  });
+  mocks.send.mockImplementation(async (command: unknown) => command instanceof GetObjectCommand
+    ? { ContentLength: 3, Body: { transformToByteArray: async () => new Uint8Array([1, 2, 3]) } }
+    : {});
+  mocks.getSignedUrl.mockResolvedValue("https://r2.test/photo?signed=1");
+  mocks.presignUpload.mockResolvedValue({ url: "https://r2.test/upload", key: "tmp/uploads/user_1/one.jpg", contentType: "image/jpeg" });
+  mocks.createImageItem.mockResolvedValue("kit_1");
+  mocks.getItemDetail.mockResolvedValue(item);
+  mocks.readBriefJob.mockResolvedValue(null);
+  mocks.runBriefJob.mockResolvedValue(ready);
+  mocks.persistKitTitleFromBrief.mockResolvedValue("Warm House");
+  mocks.getItemCollections.mockResolvedValue([{ id: "collection_1", name: "Houses" }]);
+  mocks.assertItemOwned.mockResolvedValue(undefined);
+  mocks.listCollections.mockResolvedValue([{ id: "collection_1", name: "Houses", count: 2, description: "Private description" }]);
+  mocks.createCollection.mockResolvedValue("collection_new");
+  mocks.addToCollection.mockResolvedValue(undefined);
+});
+afterEach(() => { vi.unstubAllEnvs(); });
+
+describe("mobile route authentication", () => {
+  const routes = [
+    { name: "uploads POST", call: (req: Request) => presign(req) },
+    { name: "kits POST", call: (req: Request) => createKit(req) },
+    { name: "kit GET", call: (req: Request) => getKit(req, context()) },
+    { name: "brief GET", call: (req: Request) => getBrief(req, context()) },
+    { name: "brief POST", call: (req: Request) => runBrief(req, context()) },
+    { name: "collections GET", call: (req: Request) => collections(req) },
+    { name: "save POST", call: (req: Request) => saveKit(req, context()) },
+  ];
+  it.each(routes)("$name returns JSON 401 without a token", async ({ call }) => {
+    const response = await call(request("POST", {}, null));
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "unauthorized" });
+    expect(response.headers.get("location")).toBeNull();
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.assertItemOwned).not.toHaveBeenCalled();
+    expect(mocks.getItemDetail).not.toHaveBeenCalled();
+    expect(mocks.listCollections).not.toHaveBeenCalled();
+    expect(mocks.createCollection).not.toHaveBeenCalled();
+    expect(mocks.presignUpload).not.toHaveBeenCalled();
+  });
+
+  it("returns JSON 401 for an invalid token", async () => {
+    const response = await collections(request("GET", undefined, "garbage"));
+    expect(response.status).toBe(401);
+    expect(mocks.listCollections).not.toHaveBeenCalled();
+  });
+});
+
+describe("mobile presign", () => {
+  it("uses the bearer owner and returns the shared DTO", async () => {
+    const response = await presign(request("POST", { contentType: "image/jpeg", bytes: 3 }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ url: "https://r2.test/upload", key: "tmp/uploads/user_1/one.jpg", contentType: "image/jpeg" });
+    expect(mocks.presignUpload).toHaveBeenCalledWith({ ownerId: "user_1", contentType: "image/jpeg", bytes: 3 });
+  });
+
+  it.each([null, [], {}, { contentType: 1, bytes: 3 }, { contentType: "application/pdf", bytes: 3 },
+    { contentType: "image/jpeg", bytes: MAX_UPLOAD_BYTES + 1 }])("validates the request before presigning", async (body) => {
+    const response = await presign(request("POST", body));
+    expect(response.status).toBe(400);
+    expect(mocks.presignUpload).not.toHaveBeenCalled();
+  });
+});
+
+describe("mobile kit creation", () => {
+  it.each(["tmp/uploads/user_2/one.jpg", "items/kit_1/original.jpg", "tmp/share-sheet.jpg", "tmp/uploads/user_1/../one.jpg"])(
+    "rejects a foreign, share-sheet, or invalid key (%s)", async (uploadKey) => {
+      const response = await createKit(request("POST", { uploadKey }));
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "Invalid upload key" });
+      expect(mocks.send).not.toHaveBeenCalled();
+      expect(mocks.createImageItem).not.toHaveBeenCalled();
+    },
+  );
+
+  it("creates the kit, removes the temp object, and schedules the brief after the response", async () => {
+    const response = await createKit(request("POST", { uploadKey: "tmp/uploads/user_1/one.jpg", filename: " house.jpg " }));
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ itemId: "kit_1" });
+    expect(mocks.createImageItem).toHaveBeenCalledWith({ ownerId: "user_1", buffer: Buffer.from([1, 2, 3]), filename: "house.jpg" });
+    expect(mocks.send.mock.calls[0]![0]).toBeInstanceOf(GetObjectCommand);
+    expect(mocks.send.mock.calls[1]![0]).toBeInstanceOf(DeleteObjectCommand);
+    expect(mocks.send.mock.calls[1]![0].input).toMatchObject({ Key: "tmp/uploads/user_1/one.jpg" });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/");
+    expect(mocks.runBriefJob).not.toHaveBeenCalled();
+    await mocks.after.mock.calls[0]![0]();
+    expect(mocks.runBriefJob).toHaveBeenCalledWith("kit_1");
+  });
+
+  it("rejects oversized upload metadata before consuming the body", async () => {
+    const read = vi.fn();
+    mocks.send.mockResolvedValueOnce({ ContentLength: MAX_UPLOAD_BYTES + 1, Body: { transformToByteArray: read } });
+    expect((await createKit(request("POST", { uploadKey: "tmp/uploads/user_1/one.jpg" }))).status).toBe(400);
+    expect(read).not.toHaveBeenCalled();
+    expect(mocks.createImageItem).not.toHaveBeenCalled();
+  });
+
+  it("also enforces the byte limit when metadata is absent", async () => {
+    mocks.send.mockResolvedValueOnce({ Body: { transformToByteArray: async () => new Uint8Array(MAX_UPLOAD_BYTES + 1) } });
+    expect((await createKit(request("POST", { uploadKey: "tmp/uploads/user_1/one.jpg" }))).status).toBe(400);
+    expect(mocks.createImageItem).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for unreadable uploads", async () => {
+    mocks.send.mockRejectedValueOnce(new Error("Missing object"));
+    expect((await createKit(request("POST", { uploadKey: "tmp/uploads/user_1/one.jpg" }))).status).toBe(400);
+  });
+
+  it("returns JSON 400 for malformed JSON", async () => {
+    const req = new Request("https://inzpo.test/api/mobile/kits", { method: "POST", headers: { Authorization: "Bearer valid-token" }, body: "{" });
+    const response = await createKit(req);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toHaveProperty("error");
+  });
+});
+
+describe("mobile kit detail", () => {
+  it("returns signed photos, role gaps, brief state, and owner-scoped memberships", async () => {
+    const response = await getKit(request(), context());
+    expect(response.status).toBe(200);
+    const dto = await response.json();
+    expect(dto).toEqual({
+      id: "kit_1", title: "Untitled kit",
+      photo: { url: "https://r2.test/photo?signed=1", width: 1000, height: 800, placeholder: null },
+      roles: { primary: "#abcdef", secondary: null, accent: null, background: null, surface: null, text: null },
+      colors: [{ hex: "#ABCDEF", role: "primary", name: "Wall", origin: "extracted" }],
+      brief: pending, collectionIds: ["collection_1"],
+    });
+    expect(mocks.getItemDetail).toHaveBeenCalledWith("user_1", "kit_1");
+    expect(mocks.getItemCollections).toHaveBeenCalledWith("user_1", "kit_1");
+    expect(mocks.getSignedUrl.mock.calls[0]![1].input).toMatchObject({ Key: "items/kit_1/w1600.webp" });
+    expect(mocks.getSignedUrl.mock.calls[0]![2]).toEqual({ expiresIn: 900 });
+  });
+
+  it("uses a display name once the brief is ready and falls back to the original photo", async () => {
+    mocks.readBriefJob.mockResolvedValue(ready);
+    mocks.getItemDetail.mockResolvedValue({ ...item, media: { ...item.media!, displayKey: null } });
+    const response = await getKit(request(), context());
+    expect((await response.json()).title).toBe("Warm House");
+    expect(mocks.getSignedUrl.mock.calls[0]![1].input).toMatchObject({ Key: "items/kit_1/original.jpg" });
+  });
+
+  it("supports a kit without media", async () => {
+    mocks.getItemDetail.mockResolvedValue({ ...item, media: null });
+    expect((await (await getKit(request(), context())).json()).photo).toBeNull();
+    expect(mocks.getSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it.each([null, { ...item, kind: "url" }])("returns JSON 404 for foreign, missing, or non-kit items", async (detail) => {
+    mocks.getItemDetail.mockResolvedValue(detail);
+    const response = await getKit(request(), context());
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Not found" });
+    expect(mocks.readBriefJob).not.toHaveBeenCalled();
+    expect(mocks.getSignedUrl).not.toHaveBeenCalled();
+  });
+});
+
+describe("mobile briefs", () => {
+  it("returns the same pending default as the web route", async () => {
+    const response = await getBrief(request(), context());
+    expect(await response.json()).toEqual(pending);
+    expect(mocks.assertItemOwned).toHaveBeenCalledWith("user_1", "kit_1");
+  });
+
+  it("persists a ready title and revalidates the web paths", async () => {
+    mocks.readBriefJob.mockResolvedValue(ready);
+    const response = await getBrief(request(), context());
+    expect(await response.json()).toEqual(ready);
+    expect(mocks.persistKitTitleFromBrief).toHaveBeenCalledWith("kit_1", ready);
+    expect(mocks.revalidatePath.mock.calls).toEqual([["/items/kit_1"], ["/"]]);
+  });
+
+  it("runs a brief after checking ownership", async () => {
+    const response = await runBrief(request("POST"), context());
+    expect(await response.json()).toEqual(ready);
+    expect(mocks.runBriefJob).toHaveBeenCalledWith("kit_1");
+    expect(mocks.revalidatePath.mock.calls).toEqual([["/items/kit_1"], ["/"]]);
+  });
+
+  it.each([getBrief, runBrief])("maps ownership errors to JSON 404 without reading or running a job", async (handler) => {
+    mocks.assertItemOwned.mockRejectedValueOnce(new Error("Not found"));
+    const response = await handler(request(), context());
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Not found" });
+    expect(mocks.readBriefJob).not.toHaveBeenCalled();
+    expect(mocks.runBriefJob).not.toHaveBeenCalled();
+  });
+});
+
+describe("mobile collections and saves", () => {
+  it("returns only collection summary fields for the bearer owner", async () => {
+    const response = await collections(request());
+    expect(await response.json()).toEqual([{ id: "collection_1", name: "Houses", count: 2 }]);
+    expect(mocks.listCollections).toHaveBeenCalledWith("user_1");
+  });
+
+  it.each([{}, { newName: "  " }, { collectionId: "" }, { newName: 5 }, null, []])(
+    "returns 400 without a usable collectionId or newName", async (body) => {
+      const response = await saveKit(request("POST", body), context());
+      expect(response.status).toBe(400);
+      expect(mocks.createCollection).not.toHaveBeenCalled();
+      expect(mocks.addToCollection).not.toHaveBeenCalled();
+    },
+  );
+
+  it("saves to an existing collection and preserves precedence over newName", async () => {
+    const response = await saveKit(request("POST", { collectionId: "collection_1", newName: "Ignored" }), context());
+    expect(await response.json()).toEqual({ collectionId: "collection_1" });
+    expect(mocks.createCollection).not.toHaveBeenCalled();
+    expect(mocks.addToCollection).toHaveBeenCalledWith("user_1", "collection_1", "kit_1");
+    expect(mocks.revalidatePath.mock.calls).toEqual([["/items/kit_1"], ["/"]]);
+  });
+
+  it("creates a named collection then adds the kit", async () => {
+    const response = await saveKit(request("POST", { newName: " New Houses " }), context());
+    expect(await response.json()).toEqual({ collectionId: "collection_new" });
+    expect(mocks.createCollection).toHaveBeenCalledWith("user_1", "New Houses");
+    expect(mocks.addToCollection).toHaveBeenCalledWith("user_1", "collection_new", "kit_1");
+  });
+
+  it("does not create a collection for an item belonging to another owner", async () => {
+    mocks.assertItemOwned.mockRejectedValueOnce(new Error("Not found"));
+    const response = await saveKit(request("POST", { newName: "Houses" }), context());
+    expect(response.status).toBe(404);
+    expect(mocks.createCollection).not.toHaveBeenCalled();
+    expect(mocks.addToCollection).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 for a collection belonging to another owner", async () => {
+    mocks.addToCollection.mockRejectedValueOnce(new Error("Not found"));
+    const response = await saveKit(request("POST", { collectionId: "foreign" }), context());
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Not found" });
+  });
+});
