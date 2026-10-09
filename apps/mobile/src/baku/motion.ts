@@ -1,4 +1,6 @@
-/** Seconds. The study and capture use the same adjustable choreography. */
+/** Seconds. The study and capture use the same adjustable choreography.
+ * Resolve captured defaults inside worklet bodies: parameter initializers run
+ * before Worklets hydrates this.__closure on the UI runtime. */
 export const TIMING = { inhale: 1.2, chew: 1.3, loop: 0.65, anticipation: 0.62, release: 0.22, landing: 0.86 };
 export const clamp = (v: number, min = 0, max = 1) => { "worklet"; return Math.min(max, Math.max(min, v)); };
 const smooth = (v: number) => { "worklet"; const x = clamp(v); return x * x * (3 - 2 * x); };
@@ -12,21 +14,24 @@ export interface Pose {
 }
 
 /** Success is latched to the next full chew, never halfway through one. */
-export function anticipationAt(readyAt: number, timing = TIMING) {
+export function anticipationAt(readyAt: number, timingOverride?: typeof TIMING) {
   "worklet";
+  const timing = timingOverride ?? TIMING;
   const earliest = timing.inhale + timing.chew;
   return earliest + Math.ceil(Math.max(0, readyAt - earliest) / timing.loop) * timing.loop;
 }
-export function durationFor(readyAt: number, timing = TIMING) {
+export function durationFor(readyAt: number, timingOverride?: typeof TIMING) {
   "worklet";
+  const timing = timingOverride ?? TIMING;
   return anticipationAt(readyAt, timing) + timing.anticipation + timing.release + timing.landing;
 }
 
 /** True extracted colors finish filling the knit before the sneeze, even when
  * readiness arrives late. Replays and backwards scrubbing reset the reveal.
  */
-export function coatFillAt(time: number, readyAt: number | null, timing = TIMING) {
+export function coatFillAt(time: number, readyAt: number | null, timingOverride?: typeof TIMING) {
   "worklet";
+  const timing = timingOverride ?? TIMING;
   if (readyAt === null) return 0;
   const start = Math.max(0.25, readyAt);
   const end = Math.min(Math.max(timing.inhale + 0.28, readyAt + 0.65), anticipationAt(readyAt, timing) + 0.42);
@@ -34,8 +39,9 @@ export function coatFillAt(time: number, readyAt: number | null, timing = TIMING
 }
 
 /** Pure pose sampling makes backwards scrubbing and replay identical to playback. */
-export function poseAt(time: number, readyAt: number | null, timing = TIMING): Pose {
+export function poseAt(time: number, readyAt: number | null, timingOverride?: typeof TIMING): Pose {
   "worklet";
+  const timing = timingOverride ?? TIMING;
   const t = Math.max(0, time);
   const p: Pose = { belly: 0, lean: 0, cheekL: 0, cheekR: 0, fullness: 0, snout: 0, trunkReach: 0, trunkFlare: 0, tremble: 0, ears: 0, feet: 0, squash: 0, closed: 0, happy: 0, breath: 0, beat: "notice" };
   // Lift, reach, and hold the nostril toward the photo; release the bend gently

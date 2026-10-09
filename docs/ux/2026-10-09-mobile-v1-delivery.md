@@ -77,3 +77,25 @@ On iPhone, scan the QR with Camera and open in Expo Go. Complete one real loop:
 sign in, take a photo, see the palette reveal, change a role, save, reopen from
 the collection, Copy kit, share CSS, and share JSON. Then check Reduced Motion,
 background/resume, a denied camera permission, and a failed-upload retry.
+
+## Device report and reveal crash correction
+
+Jake confirmed on October 9 that Expo Go launch, camera permission, capture,
+and photo upload work. Expo Go then closed to the iPhone home screen during
+processing/reveal. This supersedes the earlier wholly untested-device status;
+the complete capture-to-save loop has not yet passed.
+
+The compiled Worklets payload reproduces `ReferenceError: TIMING is not defined`
+in `poseAt`, `anticipationAt`, `durationFor`, and `coatFillAt`. Their default
+parameter `timing = TIMING` evaluates before the generated body reads TIMING
+from `this.__closure`. The ordinary JS function invoked by Jest's Reanimated
+mock retains its module scope, so the original tests could not see this fault.
+
+Those helpers now resolve the optional timing override inside the worklet body.
+The choreography, materials, and reveal remain intact. A new test compiles the
+actual sources with Expo's Babel preset and runs their serialized worklet code
+in an isolated JS realm. It reproduced two failures before the fix and passes
+all three checks afterward, including early/late readiness and timing overrides.
+This test is part of the normal mobile `npm test` command. It verifies compiled
+scope behavior, not iOS GPU execution; the replacement update still needs a
+phone retry before the reported crash can be considered device-verified fixed.

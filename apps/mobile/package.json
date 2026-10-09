@@ -57,9 +57,10 @@
     "ios": "expo start --ios",
     "android": "expo start --android",
     "typecheck": "tsc --noEmit",
-    "test": "jest",
+    "test": "npm run test:worklets && jest",
     "export": "expo export --platform ios --platform android",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test:worklets": "node --test tests/native-worklet-scope.cjs"
   },
   "private": true
 }
