@@ -57,7 +57,7 @@ the compiled bundle contains the intended backend URL before publishing. Do not
 run a normal EAS rebundle with that shared environment until it is deliberately
 reconciled.
 
-## Published Expo receipt
+## First Expo receipt (superseded after device crash)
 
 - Published October 9, 2026 at 23:10 UTC, branch `v1-pilot`, iOS only.
 - Native source commit: `f0198c1b30480fbfbdf0d32815601a03d7873c83`.
@@ -99,3 +99,22 @@ all three checks afterward, including early/late readiness and timing overrides.
 This test is part of the normal mobile `npm test` command. It verifies compiled
 scope behavior, not iOS GPU execution; the replacement update still needs a
 phone retry before the reported crash can be considered device-verified fixed.
+
+## Replacement Expo receipt
+
+- Published October 9, 2026 at 23:22:12 UTC (4:22 PM PDT), branch `v1-pilot`, iOS only.
+- Native source commit: `036ecaa2c123eca1c5ab2e170935ec9553a0da1f`.
+- Group: `1b3cf7ce-aee6-4d93-9b55-582bbc668d1a`.
+- Update: `01a122f9-6663-7c12-8d4a-3fb8ce2b6a01`.
+- Runtime: `exposdk:57.0.0`.
+- Published manifest returns 200; its launch-asset hash matches the tested local
+  iOS Hermes bundle, SHA256
+  `2b5e0cebaddf7c8fc01abff792206b6aa8c9524e9cacc4f6132d09c084f2133a`.
+- The bundle still targets the matched backend above, with no old Grok URL.
+- Validation: 3 compiled-worklet regression tests, 366 Jest tests across 37
+  suites, native lint/typecheck, and iOS export pass.
+- [Replacement Expo Go QR](https://qr.expo.dev/eas-update?projectId=529d6681-6398-4009-adff-18b6bb5a6108&groupId=1b3cf7ce-aee6-4d93-9b55-582bbc668d1a)
+- [Replacement EAS update](https://expo.dev/accounts/jakebutler/projects/inzpo/updates/1b3cf7ce-aee6-4d93-9b55-582bbc668d1a)
+
+Use the replacement QR for the phone retry. The first QR is pinned to the old,
+crashing update. Device confirmation of this correction is still pending.
