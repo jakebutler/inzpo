@@ -6,6 +6,7 @@ import { hexToLab } from '@/lib/color-distance';
 import { hexToFamily } from '@/lib/colors';
 import { areaAverage, assignRoles, extractPalette, type PaletteSwatch } from '@/lib/palette-extract';
 import { kitDisplayName } from '@/lib/kit-name';
+import { ciede2000 } from './helpers/ciede2000';
 
 function region(hex: string, patch: number, spatial?: PaletteSwatch['spatial']): PaletteSwatch {
   return { origin: 'region', hex, patch, share: patch, pinX: 0.5, pinY: 0.5,
@@ -45,6 +46,9 @@ describe('subject palette', () => {
     const image = format === 'jpeg' ? input : await sharp(input).resize({ width: 640 }).webp({ quality: 82 }).toBuffer();
     const palette = await extractPalette(image);
     expect(colorHue(palette.roles.primary)).toBe('yellow');
+    // Designer's sunlit siding sample: allow perceptual variation rather
+    // than pinning a particular extractor hex.
+    expect(ciede2000(hexToLab(palette.roles.primary!), hexToLab('#d6d3af'))).toBeLessThanOrEqual(4);
     expect(palette.roles.primary).not.toBe(palette.roles.background);
     expect(palette.roles.accent).toBeNull();
     expect(palette.roles.surface).toBeNull();

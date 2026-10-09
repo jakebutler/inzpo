@@ -22,6 +22,7 @@ export type BriefStatus = "pending" | "ready" | "failed";
 export interface BriefJob {
   status: BriefStatus;
   text: string | null;
+  subject?: string | null;
   namedHexes: string[];
   namedColors: NamedColor[];
   stub: boolean;
@@ -59,6 +60,7 @@ export async function readBriefJob(itemId: string): Promise<BriefJob | null> {
     return {
       status: parsed.status,
       text: typeof parsed.text === "string" ? parsed.text : null,
+      ...(typeof parsed.subject === "string" ? { subject: parsed.subject } : {}),
       namedColors,
       namedHexes: namedColors.map((c) => c.hex),
       stub: parsed.stub === true,
@@ -131,6 +133,7 @@ export async function runBriefJob(itemId: string): Promise<BriefJob> {
   const model = briefModelId();
   if (!key) {
     const stub = stubJob();
+    await persistKitTitleFromBrief(itemId, stub);
     await writeBriefJob(itemId, stub);
     return stub;
   }
@@ -151,17 +154,19 @@ export async function runBriefJob(itemId: string): Promise<BriefJob> {
     const ready = jobPayload({
       status: "ready",
       text: parsed.text,
+      subject: parsed.subject,
       namedColors,
       stub: false,
     });
-    await writeBriefJob(itemId, ready);
     await persistKitTitleFromBrief(itemId, ready);
+    await writeBriefJob(itemId, ready);
     return ready;
   } catch (err) {
     if (err instanceof BriefTimeoutError) {
       console.error("brief timed out", itemId);
     }
     const failed = jobPayload({ status: "failed", text: null, namedColors: [], stub: false });
+    await persistKitTitleFromBrief(itemId, failed);
     await writeBriefJob(itemId, failed);
     return failed;
   }

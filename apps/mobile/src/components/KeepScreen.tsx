@@ -25,9 +25,10 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
 }) {
   const client = useInzpoClient();
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { width, height, fontScale } = useWindowDimensions();
   const contentWidth = Math.min(350, width - 40);
   const artScale = Math.min(1, contentWidth / 350, (height - insets.top - insets.bottom) / 844);
+  const [headerHeight, setHeaderHeight] = useState(Math.max(40, insets.top) + 44 + 4 + 32 * fontScale);
   const [footerHeight, setFooterHeight] = useState(48);
   const [fieldHeight, setFieldHeight] = useState(40);
   const [underline, setUnderline] = useState({ left: 0, width: contentWidth });
@@ -97,11 +98,12 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
       <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <Animated.View style={styles.page} entering={FadeIn.duration(150).reduceMotion(ReduceMotion.Never)}>
       <PaperTexture />
-      <View testID="keep-header" style={{ width: contentWidth, alignSelf: 'center', gap: 4, paddingTop: Math.max(40, insets.top) }}>
+      <View testID="keep-header" style={[styles.header, { width: contentWidth, paddingTop: Math.max(40, insets.top) }]}
+        onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}>
         <BackButton onPress={onClose} disabled={saving} />
         <Text accessibilityRole="header" allowFontScaling style={[ui.heading, { fontSize: 30, lineHeight: 32 }]}>Keep this kit</Text>
       </View>
-      <ScrollView testID="keep-scroll" contentContainerStyle={{
+      <ScrollView testID="keep-scroll" style={[styles.scroll, { marginTop: headerHeight }]} contentContainerStyle={{
         paddingBottom: footerHeight + Math.max(insets.bottom, 24) + 32, alignItems: 'center' }} keyboardShouldPersistTaps="handled">
         {kit && <View style={{ width: contentWidth, height: 480 * artScale }}>
           <View style={{ width: contentWidth, height: 480, transformOrigin: '50% 0%', transform: [{ scale: artScale }] }}>
@@ -138,12 +140,12 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
               </Canvas>
             </View>
             <Text allowFontScaling style={styles.hint}>{"Name it the way you'd write it on the back of a photo."}</Text>
-            <View style={styles.collectionRow}>
+            <View testID="keep-collection-row" style={styles.collectionRow}>
               <Text allowFontScaling style={styles.fieldLabel}>Collection</Text>
               {selectedId ? <Text allowFontScaling style={styles.collectionValue}>{collections.find((collection) => collection.id === selectedId)?.name}</Text>
                 : <TextInput accessibilityLabel="New collection name" value={newName} onChangeText={setNewName}
                   editable={!saving} maxLength={100} placeholder="Collection name" underlineColorAndroid="transparent"
-                  style={[styles.collectionValue, { padding: 0 }]} />}
+                  style={[styles.collectionValue, { padding: 0, height: 20 * fontScale }]} />}
               <Pressable accessibilityRole="button" accessibilityLabel="Choose collection" disabled={saving}
                 onPress={() => setChoosingCollection((value) => !value)} style={styles.collectionChange}>
                 <Text style={styles.fieldLabel}>{choosingCollection ? 'Done' : 'Change'}</Text>
@@ -198,14 +200,16 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: PAPER },
+  header: { position: 'absolute', top: 0, zIndex: 20, alignSelf: 'center', gap: 4, flexShrink: 0 },
+  scroll: { flex: 1, flexBasis: 0, minHeight: 0 },
   sourcePrint: { position: 'absolute', left: 12, top: 310, transform: [{ rotate: '-3deg' }] },
   fieldLabel: { fontFamily: fonts.body, fontSize: 13, lineHeight: 20, color: INK, marginBottom: 4 },
   name: { fontFamily: fonts.heading, fontSize: 32, lineHeight: 38.4, letterSpacing: -0.6, color: INK,
     padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent' },
   measureName: { position: 'absolute', top: 14, left: 0, right: 0, opacity: 0 },
   hint: { fontFamily: fonts.body, fontSize: 14, letterSpacing: -0.2, lineHeight: 20, fontStyle: 'italic', color: INK },
-  collectionRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  collectionValue: { flex: 1, fontFamily: fonts.body, fontSize: 14, color: INK },
+  collectionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
+  collectionValue: { flex: 1, fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: INK },
   collectionChange: { minHeight: 44, minWidth: 44, justifyContent: 'center' },
   collections: { gap: 10 },
   collection: { padding: 16, minHeight: 60, borderRadius: 3, flexDirection: 'row', alignItems: 'center', gap: 12 },

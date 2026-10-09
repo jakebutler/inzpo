@@ -1,6 +1,7 @@
 import { act, fireEvent, render, within } from '@testing-library/react-native';
 import * as ExpoHaptics from 'expo-haptics';
 import { useReducedMotion } from 'react-native-reanimated';
+import * as Native from 'react-native';
 import { KeepScreen } from './KeepScreen';
 import { useInzpoClient } from '@/lib/api';
 import { createHaptics, haptics } from '@/lib/haptics';
@@ -15,7 +16,7 @@ beforeEach(() => {
   jest.mocked(useReducedMotion).mockReturnValue(false);
   Object.assign(haptics, createHaptics());
 });
-afterEach(() => jest.useRealTimers());
+afterEach(() => { jest.useRealTimers(); jest.restoreAllMocks(); });
 
 test('renders collections, picks one, and saves with collectionId', async () => {
   const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
@@ -137,4 +138,24 @@ test('choosing a collection leaves the header outside the changing scroll area',
   expect(view.getByTestId('keep-header')).toHaveStyle(before);
   expect(within(view.getByTestId('keep-scroll')).queryByText('Keep this kit')).toBeNull();
   expect(view.getByText('Neighborhood')).toBeTruthy();
+});
+
+test.each([{ width: 390, height: 844 }, { width: 375, height: 667 }])('Keep pins its measured header and constrains the scrolling viewport at $width', async (screen) => {
+  jest.spyOn(Native.Dimensions, 'get').mockReturnValue({ ...screen, scale: 3, fontScale: 1 });
+  const view = await render(<KeepScreen kitId="kit-1" kit={kitFixture} onClose={onClose} />);
+  await fireEvent(view.getByTestId('keep-header'), 'layout', { nativeEvent: { layout: { height: 120 } } });
+  const checkLayout = () => {
+    expect(view.getByTestId('keep-header')).toHaveStyle({ position: 'absolute', top: 0, flexShrink: 0, width: screen.width - 40 });
+    expect(view.getByTestId('keep-scroll')).toHaveStyle({ flex: 1, flexBasis: 0, minHeight: 0, marginTop: 120 });
+    expect(view.getByTestId('keep-collection-row')).toHaveStyle({ minHeight: 44 });
+  };
+  checkLayout();
+  await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
+  checkLayout();
+  await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
+  checkLayout();
+  await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
+  await fireEvent.press(view.getByRole('radio', { name: 'Start a new collection' }));
+  checkLayout();
+  expect(view.getByLabelText('New collection name')).toHaveStyle({ height: 20, lineHeight: 20 });
 });

@@ -3,11 +3,11 @@ import { COLOR_ROLES, type ColorRole } from '@inzpo/shared';
 export type ChipSlot = {
   role: ColorRole; x: number; y: number; width: number; height: number; rotation: number; zIndex: number;
 };
-// Final Round 5b CSS, measured at 390x844. Keep these seeds stable on refresh.
+// Staggered stock positions at 390x844; stable, varied role tilts look hand-dropped.
 const seeds = [
-  [0, 0, 132, 196, -2, 12], [133, 65, 118, 152, 1.2, 10],
-  [238, 22, 112, 160, -0.6, 11], [8, 181, 118, 154, 1.7, 8],
-  [120, 205, 120, 168, -1.3, 9], [237, 226, 113, 130, 2, 11],
+  [0, 0, 132, 196, 1.6, 12], [133, 65, 118, 152, 1.1, 10],
+  [238, 22, 112, 160, -1.8, 11], [8, 181, 118, 154, 1.3, 8],
+  [120, 205, 120, 168, -1.2, 9], [237, 226, 113, 130, -1.9, 11],
 ] as const;
 
 export function rotatedBounds(slot: ChipSlot) {
@@ -30,6 +30,12 @@ export function resultLayout({ width, height, topInset = 0, bottomInset = 0, fon
   const printWidth = Math.min(274 * horizontalScale, photoHeight * (248 / 330) + 26);
   const footerBottom = Math.max(24, bottomInset + 16);
   const footerTop = height - footerBottom - Math.max(48, actionHeight);
+  // Center the complete waiting composition in the space below the title.
+  // Reserve the real chew aspect ratio and its 72pt overlap with the film.
+  const waitingHeroHeight = Math.max(0, footerTop - 20 - printTop);
+  const waitingMunchWidth = Math.min(280, contentWidth * 0.8);
+  const waitingPrintHeight = Math.min(printHeight, Math.max(180, waitingHeroHeight - waitingMunchWidth * (144 / 176) + 48));
+  const waitingPrintWidth = Math.min(274 * horizontalScale, (waitingPrintHeight - 50) * (248 / 330) + 26);
   // Leave 20pt between the rotated stock and the action face. On smaller
   // phones only paint/spacing compress; label type never drops below 11pt.
   const pileTop = printTop + printHeight - 113;
@@ -56,7 +62,11 @@ export function resultLayout({ width, height, topInset = 0, bottomInset = 0, fon
     });
   }
   const pileHeight = Math.max(...slots.map((slot) => rotatedBounds(slot).bottom)) + 3;
+  // Rings must sit above the pile, including the stock's rotated top edge.
+  // The photo starts 13pt below the print's top border.
+  const pinHeight = Math.min(photoHeight, printHeight - 113 + Math.min(...slots.map((slot) => rotatedBounds(slot).top)) - 13);
   const heroHeight = printHeight - 113 + pileHeight;
   return { contentWidth, horizontalScale, printTop, printWidth, printHeight, photoHeight,
-    pileTop, pileHeight, heroHeight, footerTop, footerBottom, typeSize, slots };
+    pileTop, pileHeight, pinHeight, heroHeight, footerTop, footerBottom, typeSize, slots,
+    waitingHeroHeight, waitingMunchWidth, waitingPrintHeight, waitingPrintWidth };
 }

@@ -1,13 +1,21 @@
 import { Canvas, Path, Skia } from '@shopify/react-native-skia';
+import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { type SharedValue, useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
 import type { SamplePoint } from '@/lib/result-pins';
-import { fonts, INK } from '@/theme/tokens';
+import { fonts, INK, PAPER } from '@/theme/tokens';
 
-export function PrimaryArrow({ width, height, start, end, hue, progress, reducedMotion }: {
+export function primaryCaptionLeft(photoLeft: number, textWidth: number) {
+  return Math.max(4, Math.min(16, photoLeft - textWidth - 2));
+}
+
+export function PrimaryArrow({ width, height, start, end, hue, progress, reducedMotion, photoLeft }: {
   width: number; height: number; start: SamplePoint; end: SamplePoint; hue: string;
   progress: SharedValue<number>; reducedMotion: boolean;
+  photoLeft: number;
 }) {
+  const [captionWidth, setCaptionWidth] = useState(80);
+  const captionLeft = primaryCaptionLeft(photoLeft, captionWidth);
   const captionTop = end.y + 16;
   const control = { x: end.x - 28, y: end.y - 20 };
   const path = Skia.Path.MakeFromSVGString(`M${start.x} ${start.y} C${start.x - 28} ${end.y - 20} ${control.x} ${control.y} ${end.x} ${end.y}`)!;
@@ -25,8 +33,12 @@ export function PrimaryArrow({ width, height, start, end, hue, progress, reduced
         end={draw} color={INK} style="stroke" strokeWidth={2.9} strokeCap="round" />
     </Canvas>
     <View testID="primary-caption"
-      style={{ position: 'absolute', left: 16, top: captionTop, width: width - 32 }}>
-      <Text allowFontScaling style={{ fontFamily: fonts.hand, fontSize: 17, lineHeight: 26, paddingRight: 8, color: INK }}>{`This ${hue}.`}</Text>
+      style={{ position: 'absolute', left: captionLeft, top: captionTop, width: width - captionLeft - 16 }}>
+      <Text allowFontScaling onTextLayout={(event) => {
+        setCaptionWidth(Math.max(0, ...event.nativeEvent.lines.map((line) => line.width)));
+      }} style={{ alignSelf: 'flex-start', fontFamily: fonts.hand, fontSize: 17, lineHeight: 26, paddingRight: 2, color: INK,
+        // Long hue names and larger type may need more than the paper gutter.
+        backgroundColor: captionLeft + captionWidth + 2 > photoLeft ? PAPER : 'transparent' }}>{`This ${hue}.`}</Text>
     </View>
   </Animated.View>;
 }

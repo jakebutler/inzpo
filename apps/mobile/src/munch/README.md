@@ -5,6 +5,9 @@ Every third 400ms chew uses the variation. Playback stops offscreen/backgrounded
 reduced motion renders a still and never decodes the atlas. Decode failure also
 keeps the full-size still. No waiting haptics or artificial extraction delay.
 
+Both playback and the reduced-motion still use the same Skia felt correction
+to match the cream Baku poses, preserving knitted bands, eyes, blush and alpha.
+
 `python3 apps/mobile/scripts/import-capture-baku.py` renders the original 48
 chewLoop/chewVariation transforms from `assets/munch/chewing-source.png`, a
 full-resolution transparent cutout with a faint pink trunk tip. Each density

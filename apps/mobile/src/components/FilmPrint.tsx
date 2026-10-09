@@ -11,16 +11,17 @@ import { fonts, INK, VERMILION } from '@/theme/tokens';
 
 export const pinRing = Skia.Path.MakeFromSVGString('M4 -6 C-2 -10 -8 -5 -7 1 C-7 7 1 9 6 5 C9 2 8 -3 6 -5')!;
 
-export function FilmPrint({ kit, width, height, failed, onError, placeholder, markerStyle, selectedRole, onPinPress, interactive = true, showPins = true, onPhotoDisplay, preview, date, photoPosition = 'top', borderInset = 12, foot = 36 }: {
+export function FilmPrint({ kit, width, height, failed, onError, placeholder, markerStyle, selectedRole, onPinPress, interactive = true, showPins = true, onPhotoDisplay, preview, date, photoPosition = 'top', borderInset = 12, foot = 36, pinHeight }: {
   kit: Pick<MobileKit, 'photo' | 'roles' | 'colors'>; width: number; height: number; failed: boolean; onError: () => void; placeholder: ReactNode;
   markerStyle?: AnimatedProps<ViewProps>['style']; selectedRole?: ColorRole | null; onPinPress: (role: ColorRole) => void;
   onPhotoDisplay?: () => void; preview?: string;
   interactive?: boolean; showPins?: boolean; date?: string; photoPosition?: React.ComponentProps<typeof Image>['contentPosition'];
   borderInset?: number; foot?: number;
+  pinHeight?: number;
 }) {
   const photoWidth = width - 2 * (borderInset + 1);
   const photoHeight = height - borderInset - foot - 2;
-  const pins = photoPins(kit, photoWidth, photoHeight);
+  const pins = photoPins(kit, photoWidth, photoHeight, pinHeight);
   return (
     <View testID="film-print" style={[stockSurface, styles.print, { width, height, paddingTop: borderInset, paddingHorizontal: borderInset, paddingBottom: foot }]}>
       <View style={[styles.photo, { width: photoWidth, height: photoHeight }]}>

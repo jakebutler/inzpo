@@ -84,10 +84,10 @@ export default function ResultScreen() {
     celebratedKit.current = id;
     onSaved();
   }, [id, params.saved, ready, onSaved]);
-  const primaryPin = kit && kit.photo && !photoFailed ? photoPins(kit, layout.printWidth - 26, layout.photoHeight)
+  const primaryPin = kit && kit.photo && !photoFailed ? photoPins(kit, layout.printWidth - 26, layout.photoHeight, layout.pinHeight)
     .find((pin) => pin.role === 'primary') : undefined;
   const heroWidth = layout.contentWidth + 40;
-  const munchWidth = Math.min(280, layout.contentWidth * 0.8);
+  const munchWidth = layout.waitingMunchWidth;
   const printLeft = (heroWidth - layout.printWidth) / 2;
   const openRole = (role: ColorRole) => {
     if (sequence.interactive) setSheet({ kitId: id, type: 'edit', role });
@@ -109,8 +109,8 @@ export default function ResultScreen() {
           <BackButton onPress={() => router.dismissTo('/')} />
           <Text accessibilityRole="header" allowFontScaling style={[styles.heading, isSaved && styles.savedHeading]}>{isSaved && kit ? kit.title : 'Your colors'}</Text>
         </View>
-        {loading ? localPhoto ? <View style={{ minHeight: layout.heroHeight }}>
-          <FilmPrint kit={{ photo: localPhoto, roles: emptyRoles(), colors: [] }} width={layout.printWidth} height={layout.printHeight}
+        {loading ? localPhoto ? <View testID="waiting-composition" style={{ minHeight: layout.waitingHeroHeight, justifyContent: 'center' }}>
+          <FilmPrint kit={{ photo: localPhoto, roles: emptyRoles(), colors: [] }} width={layout.waitingPrintWidth} height={layout.waitingPrintHeight}
             failed={false} onError={() => setDisplayedPhoto(null)} onPhotoDisplay={() => setDisplayedPhoto({ id, url: localPhoto.url })}
             showPins={false} onPinPress={() => {}} placeholder={null} />
           {photoVisible && <View style={{ marginTop: -72, paddingBottom: 24 }}><MunchPlayer key={id} width={munchWidth} active={focused} /></View>}
@@ -130,8 +130,9 @@ export default function ResultScreen() {
                   {photoFailed && <ActionButton label="Reload photo" onPress={() => { setFailedPhotoUrl(null); retry(); }} />}
                 </View>} />
             </View>
-          </> : <View testID="result-hero" accessibilityLabel={kit.title} style={{ width: heroWidth, alignSelf: 'center', minHeight: layout.heroHeight }}>
-            <FilmPrint kit={kit} width={layout.printWidth} height={layout.printHeight} failed={photoFailed}
+          </> : <View testID="result-hero" accessibilityLabel={kit.title} style={{ width: heroWidth, alignSelf: 'center',
+            minHeight: ready ? layout.heroHeight : layout.waitingHeroHeight, justifyContent: ready ? undefined : 'center' }}>
+            <FilmPrint kit={kit} width={ready ? layout.printWidth : layout.waitingPrintWidth} height={ready ? layout.printHeight : layout.waitingPrintHeight} pinHeight={layout.pinHeight} failed={photoFailed}
               preview={localPhoto?.url} onPhotoDisplay={() => setDisplayedPhoto({ id, url: kit.photo!.url })}
               onError={() => { setDisplayedPhoto(null); setFailedPhotoUrl(kit.photo!.url); }} selectedRole={editing ? selectedRole : null}
               markerStyle={sequence.markerStyle} onPinPress={openRole} interactive={sequence.interactive} placeholder={<View style={styles.placeholder}>
@@ -154,6 +155,7 @@ export default function ResultScreen() {
                 }} />
             </View>}
             {ready && primaryPin && <PrimaryArrow width={heroWidth} height={layout.heroHeight}
+              photoLeft={printLeft + 13}
               start={{ x: 20 + layout.slots[0].x + 12, y: layout.printHeight - 113 + layout.slots[0].height * 0.25 }}
               end={{ x: printLeft + 13 + primaryPin.marker.x, y: 13 + primaryPin.marker.y }}
               hue={primaryHue(kit)} progress={sequence.values.markerOpacity} reducedMotion={sequence.reducedMotion} />}
@@ -171,7 +173,7 @@ export default function ResultScreen() {
           </View>}
         </> : null}
         </View>
-        {kit && <View style={[styles.brief, { width: layout.contentWidth, marginTop: isSaved ? 32 : ready ? 100 : 16 }]}>
+        {kit && ready && <View style={[styles.brief, { width: layout.contentWidth, marginTop: isSaved ? 32 : 100 }]}>
           <BriefBlock brief={kit.brief} failed={briefFailed} showBaku={false} motionStyle={ready ? sequence.briefStyle : undefined} />
           {(briefFailed || kit.brief.status === 'failed') && <ActionButton label="Check brief again" onPress={retry} />}
         </View>}

@@ -21,28 +21,30 @@ export function roleSample(kit: Pick<MobileKit, 'roles' | 'colors'>, role: Color
 }
 
 /** Map normalized source points through the same top/center cover as expo-image. */
-export function photoPins(kit: Pick<MobileKit, 'photo' | 'roles' | 'colors'>, width: number, height: number) {
+export function photoPins(kit: Pick<MobileKit, 'photo' | 'roles' | 'colors'>, width: number, height: number, visibleHeight = height) {
   const sourceWidth = kit.photo?.width ?? 1500;
   const sourceHeight = kit.photo?.height ?? 2000;
   const scale = Math.max(width / sourceWidth, height / sourceHeight);
   const cropX = (sourceWidth * scale - width) / 2;
   const cropY = 0;
   const markers: SamplePoint[] = [];
+  const markerBottom = Math.min(height, visibleHeight) - 17;
   return COLOR_ROLES.flatMap((role) => {
     const sample = roleSample(kit, role);
     if (!sample) return [];
     const target = { x: Math.max(0, Math.min(width, sample.x * sourceWidth * scale - cropX)),
       y: Math.max(0, Math.min(height, sample.y * sourceHeight * scale - cropY)) };
-    // Displace edge rings into the photo, with a leader to the source spot.
+    // Displace edge or covered rings into the visible photo, keeping a leader
+    // to the source spot even when it sits behind the result pile.
     // Match the two displaced reference dots at 248x330.
-    const marker = { x: Math.max(17, Math.min(width - 17, target.x)), y: Math.max(21, Math.min(height - 17, target.y)) };
+    const marker = { x: Math.max(17, Math.min(width - 17, target.x)), y: Math.max(21, Math.min(markerBottom, target.y)) };
     if (role === 'accent' && target.y < 21) { marker.x = 17; marker.y = 35; }
     if (role === 'text' && target.x < 45 && target.y < 35) { marker.x = 45; marker.y = 21; }
     // Keep distinct role rings visible when samples coincide or cover-cropping
     // moves several source points onto the same edge.
     if (markers.some((pin) => Math.hypot(pin.x - marker.x, pin.y - marker.y) < 18)) {
       let best = { ...marker }, bestDistance = -Infinity;
-      for (let y = 21; y <= height - 17; y += 18) for (let x = 17; x <= width - 17; x += 18) {
+      for (let y = 21; y <= markerBottom; y += 18) for (let x = 17; x <= width - 17; x += 18) {
         const clearance = Math.min(...markers.map((pin) => Math.hypot(pin.x - x, pin.y - y)));
         if (clearance < 18) continue;
         const distance = Math.hypot(x - target.x, y - target.y);

@@ -12,6 +12,8 @@ export interface NamedColor {
 export interface BriefJob {
   status: BriefStatus;
   text: string | null;
+  /** Vision's subject noun for naming once; absent in older jobs. */
+  subject?: string | null;
   namedHexes: string[];
   namedColors: NamedColor[];
   stub: boolean;

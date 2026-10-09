@@ -231,6 +231,7 @@ test('a pending brief polls and refetches the kit title after resolving', async 
   expect(view.queryByTestId('munch-player')).toBeNull();
   await fireEvent(view.getByLabelText('House photo'), 'display');
   expect(view.getByTestId('baku-chewing')).toBeTruthy();
+  expect(view.getByTestId('result-hero')).toHaveStyle({ justifyContent: 'center' });
   expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
   expect(view.queryByRole('button', { name: 'Edit' })).toBeNull();
   await act(async () => { resolveBrief(kitFixture.brief); });
@@ -726,6 +727,21 @@ test('each filled role has a photo pin and an empty role has only its label and 
   expect(view.getByText('ACCENT')).toBeTruthy();
   expect(view.getByText('No accent in this one. Add a color.')).toBeTruthy();
   expect(view.queryByText(/No color yet/)).toBeNull();
+});
+
+test('Your colors renders exactly four photo pins for four filled roles, even when their samples coincide', async () => {
+  const roles = { ...kitFixture.roles, surface: null };
+  const filledRoles = (['primary', 'secondary', 'background', 'text'] as const);
+  const kit = { ...kitFixture, roles, colors: filledRoles.map((role) => ({
+    role, hex: roles[role]!, name: null, origin: 'sampled', pinX: 0.5, pinY: 0.95,
+  })) };
+  client.getKit.mockResolvedValue(kit);
+  completedResultKits.add('kit-1');
+  const view = await render(<ResultScreen />);
+  expect(view.getAllByTestId(/^photo-pin-/)).toHaveLength(Object.values(roles).filter(Boolean).length);
+  for (const role of filledRoles) expect(view.getByTestId(`photo-pin-${role}`)).toBeTruthy();
+  expect(view.queryByTestId('photo-pin-accent')).toBeNull();
+  expect(view.queryByTestId('photo-pin-surface')).toBeNull();
 });
 
 

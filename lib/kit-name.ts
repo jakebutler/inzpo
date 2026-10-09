@@ -6,10 +6,13 @@ export const UNTITLED_KIT = "Untitled kit";
 
 /** Measured Primary supplies the color; only a recognized subject supplies the noun. */
 export function primaryKitTitle(primary: string | null | undefined, source: {
-  title?: string | null; briefText?: string | null; namedColors?: NamedColor[];
+  title?: string | null; briefText?: string | null; subject?: string | null; namedColors?: NamedColor[];
 } = {}): string {
   if (!primary) return UNTITLED_KIT;
-  const subject = subjectFromTitle(source.title) ?? subjectFromBrief(source.briefText) ?? subjectFromChips(source.namedColors);
+  const visionSubject = source.subject?.trim().toLowerCase();
+  // An explicit vision noun is not limited to the legacy brief vocabulary.
+  const subject = visionSubject && /^\p{L}{1,40}$/u.test(visionSubject) && !COLOR_WORDS.test(visionSubject) && visionSubject !== 'kit'
+    ? visionSubject : subjectFromBrief(source.briefText) ?? subjectFromTitle(source.title) ?? subjectFromChips(source.namedColors);
   return subject ? titleCase(`${colorHue(primary)} ${subject}`) : `${titleCase(colorHue(primary))} kit`;
 }
 
@@ -67,7 +70,9 @@ function subjectFromBrief(briefText: string | null | undefined): string | null {
   // Remove the complete address phrase before scanning, so "Garden Street"
   // cannot masquerade as a garden. Prefer a fallback over guessing an address.
   const cleaned = briefText.replace(ADDRESS, ' ');
-  const words = cleaned.toLowerCase().match(/\p{L}+/gu) ?? [];
+  const words: string[] = cleaned.toLowerCase().match(/\p{L}+/gu) ?? [];
+  // A Victorian is the subject even if prose mentions siding/trim first.
+  if (words.includes('victorian')) return 'victorian';
   return words.find((word) => SUBJECTS.has(word) && !COLOR_WORDS.test(word)) ?? null;
 }
 

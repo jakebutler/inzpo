@@ -34,10 +34,11 @@ export function KitDeck({ kit, closed = false, typeSize = 11 }: { kit: MobileKit
       <PaintChip role={role} color={kit.roles[role]} width={closed ? 124 : 120} height={closed ? 168 : 184}
         typeSize={typeSize} deck labelInset={closed ? 29 : 36} />
       {closed && index < order.length - 1 && <View testID={`deck-edge-${role}`} pointerEvents="none"
-        style={{ position: 'absolute', left: 0, top: 2, width: 3, height: 168 * 0.62,
+        style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
+          borderTopLeftRadius: 3, borderBottomLeftRadius: 3,
           backgroundColor: kit.roles[role] ?? OATMEAL_STOCK }} />}
     </View>)}
-    <View style={closed ? styles.closedRivet : styles.fanRivet}><Rivet size={closed ? 23 : 17} /></View>
+    <View testID="deck-rivet" style={closed ? styles.closedRivet : styles.fanRivet}><Rivet size={closed ? 23 : 17} /></View>
   </View>;
 }
 
@@ -46,7 +47,7 @@ const styles = StyleSheet.create({
     transformOrigin: '50% 40%', transform: [{ translateX: -6 }, { scale: 1.34 }] },
   closed: { width: 150, height: 210, transformOrigin: 'top left', transform: [{ scale: 1.18 }] },
   fanRivet: { position: 'absolute', left: 115, top: 247, zIndex: 20 },
-  closedRivet: { position: 'absolute', left: 33, top: 135, zIndex: 20 },
+  closedRivet: { position: 'absolute', left: 86, top: -6, zIndex: 20 },
   rivet: { borderWidth: 1, borderColor: '#694716', backgroundColor: '#B58B3E',
     boxShadow: [{ offsetX: 1, offsetY: 2, blurRadius: 2, color: '#1C1B1970' }] },
 });

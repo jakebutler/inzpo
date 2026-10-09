@@ -3,7 +3,7 @@ import { rolesFromColors, type MobileKit } from "@inzpo/shared";
 import type { ItemDetail } from "@/lib/items";
 import { getItemCollections } from "@/lib/item-collections";
 import { readBriefJob } from "@/lib/brief";
-import { primaryKitTitle } from "@/lib/kit-name";
+import { UNTITLED_KIT } from "@/lib/kit-name";
 import { r2, GetObjectCommand } from "@/lib/r2";
 import { pendingBrief } from "@/lib/mobile-api";
 import { upgradeMobilePalette } from "@/lib/mobile-palette";
@@ -24,10 +24,8 @@ export async function buildMobileKit(ownerId: string, item: ItemDetail): Promise
   const roles = rolesFromColors(item.colors);
   return {
     id: item.id,
-    // Automatic names depend only on the seeded photo palette. Brief prose,
-    // model labels and their ordering must never rename a fresh capture.
-    // Keep preserves the explicit name submitted when saving a collection kit.
-    title: collections.length && item.title?.trim() ? item.title.trim() : primaryKitTitle(roles.primary),
+    // Naming belongs to initial brief completion; reads never regenerate it.
+    title: item.title?.trim() || UNTITLED_KIT,
     photo,
     roles,
     colors: item.colors.map(({ hex, role, name, origin, pinX, pinY }) => ({ hex, role, name, origin, pinX, pinY })),

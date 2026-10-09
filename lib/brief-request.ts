@@ -119,6 +119,7 @@ export function buildBriefChatBody(input: {
 
 export function parseBriefModelContent(content: string): {
   text?: string;
+  subject?: string | null;
   namedColors?: unknown;
   namedHexes?: string[];
 } {
@@ -131,7 +132,7 @@ export function parseBriefModelContent(content: string): {
     .replace(/\s*```$/, "");
   const parsed: unknown = JSON.parse(trimmed);
   if (typeof parsed !== "object" || parsed === null) throw new Error("Brief is not an object");
-  return parsed as { text?: string; namedColors?: unknown; namedHexes?: string[] };
+  return parsed as { text?: string; subject?: string | null; namedColors?: unknown; namedHexes?: string[] };
 }
 
 function isAbortError(err: unknown): boolean {
@@ -149,7 +150,7 @@ export async function requestBriefCompletion(input: {
   model?: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
-}): Promise<{ text: string | null; namedColors: unknown; namedHexes: string[]; latencyMs: number }> {
+}): Promise<{ text: string | null; subject: string | null; namedColors: unknown; namedHexes: string[]; latencyMs: number }> {
   if (typeof input.apiKey !== "string" || input.apiKey.length === 0) {
     throw new Error("Brief API key is required");
   }
@@ -188,6 +189,7 @@ export async function requestBriefCompletion(input: {
     const parsed = content ? parseBriefModelContent(content) : {};
     return {
       text: acceptParsedBriefText(parsed.text),
+      subject: typeof parsed.subject === 'string' ? parsed.subject : null,
       namedColors: parsed.namedColors,
       namedHexes: Array.isArray(parsed.namedHexes)
         ? parsed.namedHexes.filter((hex): hex is string => typeof hex === "string")

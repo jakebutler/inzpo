@@ -223,23 +223,24 @@ describe("mobile kit detail", () => {
     expect(mocks.getSignedUrl.mock.calls[0]![1].input).toMatchObject({ Key: "items/kit_1/original.jpg" });
   });
 
-  it('names repeated captures from Primary regardless of model prose, title, labels or ordering', async () => {
+  it('reads the persisted name before and after saving, despite palette and brief changes', async () => {
     mocks.getItemCollections.mockResolvedValue([]);
     const titles = [];
-    for (const [title, brief] of [
-      ['IMG_6505', pending],
-      ['Yellow Facade', { ...ready, text: 'A yellow facade.', namedColors: [{ hex: '#ffffff', label: 'white windows' }] }],
-      ['Yellow kit', { ...ready, text: 'Soft and sunlit.', namedColors: [{ hex: '#426092', label: 'blue sky' }] }],
-    ] as const) {
-      const primary = { ...item.colors[0]!, hex: '#d2d0a8', name: title };
+    for (const brief of [pending, ready, { ...ready, text: 'A blue house.', namedColors: [{ hex: '#ffffff', label: 'white windows' }] }]) {
+      const primary = { ...item.colors[0]!, hex: '#426092', name: 'blue' };
       const secondary = { ...primary, role: 'secondary' as const, hex: '#426092', name: 'window' };
       for (const colors of [[primary, secondary], [secondary, primary]]) {
-        mocks.getItemDetail.mockResolvedValue({ ...item, title, colors });
+        mocks.getItemDetail.mockResolvedValue({ ...item, title: 'Yellow Victorian', colors });
         mocks.readBriefJob.mockResolvedValue(brief);
         titles.push((await (await getKit(request(), context())).json()).title);
       }
     }
-    expect(titles).toEqual(Array(6).fill('Yellow kit'));
+    expect(titles).toEqual(Array(6).fill('Yellow Victorian'));
+    mocks.getItemCollections.mockResolvedValue([{ id: 'collection_1', name: 'Houses' }]);
+    expect((await (await getKit(request(), context())).json()).title).toBe('Yellow Victorian');
+    const collection = await (await collectionDetail(request(), { params: Promise.resolve({ id: 'collection_1' }) })).json();
+    expect(collection.kits[0].title).toBe('Yellow Victorian');
+    expect(mocks.persistKitTitleFromBrief).not.toHaveBeenCalled();
   });
 
   it('preserves an explicit saved name when the brief changes', async () => {
