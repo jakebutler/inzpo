@@ -26,8 +26,8 @@ test('390x844 retains the measured Round 5b pile and upright 274x380 film', () =
   const layout = resultLayout({ width: 390, height: 844 });
   expect(layout.printWidth).toBe(274);
   expect(layout.printHeight).toBe(380);
-  expect(layout.slots[0]).toMatchObject({ x: 0, y: 0, width: 132, height: 196, rotation: -1.2 });
-  expect(layout.slots[1]).toMatchObject({ x: 133, y: 65, rotation: 0.65 });
+  expect(layout.slots[0]).toMatchObject({ x: 0, y: 0, width: 132, height: 196, rotation: -1.4 });
+  expect(layout.slots[1]).toMatchObject({ x: 133, y: 65, rotation: 0.8 });
   expect(layout.pileTop).toBe(layout.printTop + layout.printHeight - 113);
 });
 

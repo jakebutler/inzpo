@@ -1,10 +1,10 @@
 import { useAuth, useClerk, useSignIn } from '@clerk/expo';
+import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActionButton } from '@/components/ActionButton';
-import { Baku } from '@/components/Baku';
 import { AUTH_RETRY_MESSAGE, authErrorMessage } from '@/lib/auth-errors';
 import { ui } from '@/theme/styles';
 import { shade } from '@/theme/buttons';
@@ -23,15 +23,9 @@ export default function SignInScreen() {
   const inFlight = useRef(false);
   const [resent, setResent] = useState(false);
   const [keyboardShown, setKeyboardShown] = useState(Keyboard.isVisible());
-  const { width, height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const reducedMotion = useReducedMotion();
-  // Android may resize the window for the keyboard; retain the resting height.
-  const [restingWindow, setRestingWindow] = useState({ width, height });
-  if (width !== restingWindow.width || height > restingWindow.height) {
-    setRestingWindow({ width, height });
-  }
-  const restingSize = restingBakuSize(width, restingWindow.height - insets.top - insets.bottom);
+  const restingSize = restingBakuSize(width);
   const bakuSize = useSharedValue(restingSize);
   useEffect(() => {
     const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardShown(true));
@@ -43,7 +37,7 @@ export default function SignInScreen() {
     return () => cancelAnimation(bakuSize);
   }, [keyboardShown, restingSize, reducedMotion, bakuSize]);
   const bakuSlotStyle = useAnimatedStyle(() => ({ width: bakuSize.value, height: bakuSize.value }));
-  const bakuSpriteStyle = useAnimatedStyle(() => ({ transform: [{ scale: bakuSize.value / 160 }] }));
+  const bakuSpriteStyle = useAnimatedStyle(() => ({ transform: [{ scale: bakuSize.value / 224 }] }));
   useEffect(() => {
     if (!resent) return;
     const timer = setTimeout(() => setResent(false), 4000);
@@ -116,11 +110,12 @@ export default function SignInScreen() {
       <KeyboardAvoidingView style={ui.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={[ui.content, { flexGrow: 1, justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
           <Animated.View testID="sign-in-baku-slot" style={bakuSlotStyle}>
-            <Animated.View style={[{ position: 'absolute', width: 160, height: 160, transformOrigin: 'top left' }, bakuSpriteStyle]}>
-              <Baku pose="idle" size={160} />
+            <Animated.View style={[{ position: 'absolute', width: 224, height: 224, transformOrigin: 'top left' }, bakuSpriteStyle]}>
+              <Image testID="baku-idle" source={require('../../../assets/baku-v7/idle-login.png')} contentFit="contain"
+                accessible={false} style={{ width: 224, height: 224 }} />
             </Animated.View>
           </Animated.View>
-          <Text style={ui.heading}>Snap a house. Keep its colors.</Text>
+          <Text style={ui.heading}>Steal the colors off anything</Text>
           <Text style={[ui.body, { color: shade(INK, 0.28) }]}>
             {codeSent ? <>We sent a 6-digit code to <Text style={{ fontFamily: fonts.bodyMedium, color: INK }}>{email.trim()}</Text>.</> : "Enter your email and we'll send you a code."}
           </Text>

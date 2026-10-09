@@ -252,7 +252,7 @@ export async function createImageItem(input: {
           itemId: id,
           hex: c.hex,
           family: c.family,
-          origin: "extracted",
+          origin: c.origin,
           position: index,
           name: c.name,
           role: c.role,

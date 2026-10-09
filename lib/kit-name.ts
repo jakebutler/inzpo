@@ -1,4 +1,5 @@
 import { hexToFamily } from "@/lib/colors";
+import { colorHue } from "@inzpo/shared";
 import { sanitizeChipLabel, type NamedColor } from "@/lib/brief-copy";
 
 export const UNTITLED_KIT = "Untitled kit";
@@ -92,13 +93,20 @@ export function kitDisplayName(input: {
   briefText?: string | null;
   namedColors?: NamedColor[];
   pending?: boolean;
+  primary?: { hex: string; name?: string | null } | null;
 }): string {
   if (input.pending) return UNTITLED_KIT;
   const title = input.title?.trim() ?? "";
   if (title && !looksLikeDeviceTitle(title) && !/\d/.test(title) && !STREET.test(title)) {
-    return title;
+    // Existing generated names persist a color prefix. Keep the subject but
+    // refresh that prefix from the result, even after its brief has changed.
+    const prefixed = input.primary && title.match(/^(red|orange|yellow|gold|green|teal|blue|purple|pink|brown|black|white|gray|grey|cream|beige)\s+(.+)$/i);
+    if (prefixed) return titleCase(`${colorHue(input.primary!.hex, input.primary!.name)} ${prefixed[2]}`);
+    // Recognize our earlier generated title; keep custom names intact.
+    const oldDefault = input.primary && kitDisplayName({ briefText: input.briefText, namedColors: input.namedColors });
+    if (title !== oldDefault) return title;
   }
-  const color = colorWordFrom(input.namedColors);
+  const color = input.primary ? colorHue(input.primary.hex, input.primary.name) : colorWordFrom(input.namedColors);
   const subject = subjectFromBrief(input.briefText) ?? subjectFromChips(input.namedColors);
   if (color && subject && subject !== color) return titleCase(`${color} ${subject}`);
   if (subject) return titleCase(subject);

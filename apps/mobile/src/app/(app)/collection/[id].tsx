@@ -59,7 +59,15 @@ export default function CollectionScreen() {
 }
 
 const styles = StyleSheet.create({
-  kit: { padding: 12, gap: 12, borderRadius: 3 },
+  kit: { padding: 12, gap: 12, borderRadius: 3, marginVertical: 4,
+    borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1,
+    borderTopColor: '#FFFFFFCC', borderLeftColor: '#FFFFFFCC',
+    borderRightColor: '#E5DFD4', borderBottomColor: '#E5DFD4',
+    boxShadow: [
+      { offsetX: 1, offsetY: 2, blurRadius: 1, color: '#1C1B1945' },
+      { offsetX: 4, offsetY: 8, blurRadius: 14, color: '#1C1B1929' },
+    ],
+  },
   photo: { height: 220, width: '100%' },
   title: { fontFamily: fonts.heading, fontSize: 24, color: INK },
   colors: { flexDirection: 'row', gap: 4 },

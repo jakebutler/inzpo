@@ -1,3 +1,4 @@
+import { ChewingCaption } from '@/components/ChewingCaption';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -59,7 +60,7 @@ export default function SnapScreen() {
         <Text style={ui.body}>Bring its colors home.</Text>
         <View style={{ alignItems: 'center', gap: 16, paddingVertical: 24 }} accessibilityLiveRegion="polite">
           <Baku pose={uploading ? 'chewing' : error ? 'errorPhoto' : 'idle'} size={128} />
-          {uploading && <Text style={ui.message}>Baku is chewing on it…</Text>}
+          {uploading && <ChewingCaption />}
           {error && <Text accessibilityRole="alert" style={ui.message}>{error}</Text>}
         </View>
         <ActionButton label="Snap a house" primary disabled={busy} pressScale={SHUTTER_PRESS_SCALE} onPressIn={() => void haptics.light()} onPress={() => void pick('camera')} />

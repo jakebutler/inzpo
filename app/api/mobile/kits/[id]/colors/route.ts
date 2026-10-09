@@ -6,6 +6,7 @@ import { getItemDetail } from "@/lib/items";
 import { normalizeHex } from "@/lib/colors";
 import { replaceItemTokens } from "@/lib/item-tokens";
 import { buildMobileKit } from "@/lib/mobile-kit";
+import { upgradeMobilePalette } from "@/lib/mobile-palette";
 import { mobileError, mobileServerError, readMobileJson, type MobileKitContext } from "@/lib/mobile-api";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +24,9 @@ export async function PATCH(request: Request, { params }: MobileKitContext) {
   }
   const { id } = await params;
   try {
-    const item = await getItemDetail(auth.ownerId, id);
+    let item = await getItemDetail(auth.ownerId, id);
     if (!item || (item.kind !== "photo" && item.kind !== "screenshot")) return mobileError("Not found", 404);
+    item = await upgradeMobilePalette(item);
     const roles = rolesFromColors(item.colors);
     for (const [key, value] of Object.entries(input)) {
       roles[key as ColorRole] = value === null ? null : normalizeHex(value as string);
@@ -33,9 +35,13 @@ export async function PATCH(request: Request, { params }: MobileKitContext) {
     const origins: Partial<Record<ColorRole, string>> = {};
     for (const role of COLOR_ROLES) {
       const color = item.colors.find((color) => color.role === role);
+      if (Object.hasOwn(input, role) && (!color || roles[role] !== normalizeHex(color.hex))) {
+        if (roles[role]) origins[role] = "sampled";
+        continue;
+      }
       if (!color || roles[role] !== normalizeHex(color.hex)) continue;
       if (color.pinX !== null && color.pinY !== null) pins[role] = { pinX: color.pinX, pinY: color.pinY };
-      if (color.origin === "sampled") origins[role] = "sampled";
+      origins[role] = color.origin;
     }
     await replaceItemTokens(auth.ownerId, id, roles, pins, origins);
     revalidatePath(`/items/${id}`);

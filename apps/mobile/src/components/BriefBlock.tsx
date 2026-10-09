@@ -8,6 +8,7 @@ import { ui } from '@/theme/styles';
 import { stockSurface } from '@/theme/materials';
 import { fonts, INK, VERMILION } from '@/theme/tokens';
 import { PaperTexture } from './PaperTexture';
+import { ChewingCaption } from './ChewingCaption';
 
 export function BriefBlock({ brief, failed = false, showBaku = true, motionStyle }: {
   brief: BriefJob; failed?: boolean; showBaku?: boolean; motionStyle?: AnimatedProps<ViewProps>['style'];
@@ -24,10 +25,11 @@ export function BriefBlock({ brief, failed = false, showBaku = true, motionStyle
     );
   }
   if (brief.status === 'pending') {
+    if (!showBaku) return null;
     return (
       <View style={styles.status} accessibilityLiveRegion="polite">
         {showBaku && <Baku pose="chewing" />}
-        <Text allowFontScaling style={ui.message}>Baku is chewing on it…</Text>
+        <ChewingCaption />
       </View>
     );
   }

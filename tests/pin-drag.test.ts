@@ -38,7 +38,7 @@ describe("isNoopPinDrag", () => {
     expect(editor).toContain("sampleImagePixel");
     expect(editor).toContain("origins");
     expect(editor).toContain("SAMPLED_ORIGIN");
-    expect(src("lib/item-tokens.ts")).toContain('origin: origins[c.role] === "sampled" ? "sampled" : "extracted"');
+    expect(src("lib/item-tokens.ts")).toContain('origin: origins[c.role] === "sampled" ? "sampled"');
     expect(src("app/actions/tokens.ts")).toContain("origins");
   });
 });

@@ -9,6 +9,7 @@ import { Baku } from '@/components/Baku';
 import { BackButton } from '@/components/BackButton';
 import { BriefBlock } from '@/components/BriefBlock';
 import { ChipPile } from '@/components/ChipPile';
+import { ChewingCaption } from '@/components/ChewingCaption';
 import { ChipDetail } from '@/components/ChipDetail';
 import { CornerBaku } from '@/components/CornerBaku';
 import { EditSheet, type EditSheetHandle } from '@/components/EditSheet';
@@ -17,8 +18,7 @@ import { PaperTexture } from '@/components/PaperTexture';
 import { PrimaryArrow } from '@/components/PrimaryArrow';
 import { SavedKit } from '@/components/SavedKit';
 import { toggleChip } from '@/lib/chip-flip';
-import { SaveSheet } from '@/components/SaveSheet';
-import type { SavedCollection } from '@/components/SaveSheetContent';
+import type { SavedCollection } from '@/components/KeepScreen';
 import { useInzpoClient } from '@/lib/api';
 import { resultLayout } from '@/lib/result-layout';
 import { photoPins, primaryHue } from '@/lib/result-pins';
@@ -26,6 +26,7 @@ import { useKit } from '@/lib/use-kit';
 import { useResultSequence } from '@/lib/useResultSequence';
 import { useBakuPupils } from '@/lib/useBakuPupils';
 import { useBakuHop } from '@/lib/useBakuHop';
+import { MunchPlayer } from '@/munch/MunchPlayer';
 import { PAPER } from '@/theme/tokens';
 import { ui } from '@/theme/styles';
 
@@ -56,7 +57,7 @@ export default function ResultScreen() {
     }).catch(() => {});
     return () => { active = false; };
   }, [client, id, savedId, savedCollection?.kitId]);
-  const [sheet, setSheet] = useState<{ kitId: string; type: 'save' | 'edit'; role?: ColorRole } | null>(null);
+  const [sheet, setSheet] = useState<{ kitId: string; type: 'edit'; role?: ColorRole } | null>(null);
   const editing = sheet?.kitId === id && sheet.type === 'edit';
   const editSheet = useRef<EditSheetHandle>(null);
   const [selectedRole, setSelectedRole] = useState<ColorRole | null>(null);
@@ -69,9 +70,17 @@ export default function ResultScreen() {
   const pupils = useBakuPupils(96);
   const sequence = useResultSequence({ kitId: id, ready, roles: kit?.roles, jiggle: pupils.jiggle });
   const hop = useBakuHop({ kitId: id, base: sequence.values, jiggle: pupils.jiggle });
+  const celebratedKit = useRef<string | null>(null);
+  const onSaved = hop.onSaved;
+  useEffect(() => {
+    if (params.saved !== '1' || !ready || celebratedKit.current === id) return;
+    celebratedKit.current = id;
+    onSaved();
+  }, [id, params.saved, ready, onSaved]);
   const primaryPin = kit && kit.photo && !photoFailed ? photoPins(kit, layout.printWidth - 26, layout.photoHeight)
     .find((pin) => pin.role === 'primary') : undefined;
   const heroWidth = layout.contentWidth + 40;
+  const munchWidth = Math.min(280, layout.contentWidth * 0.8);
   const printLeft = (heroWidth - layout.printWidth) / 2;
   const openRole = (role: ColorRole) => {
     if (sequence.interactive) setSheet({ kitId: id, type: 'edit', role });
@@ -92,15 +101,14 @@ export default function ResultScreen() {
           <Text accessibilityRole="header" allowFontScaling style={[styles.heading, isSaved && styles.savedHeading]}>{isSaved && kit ? kit.title : 'Your colors'}</Text>
         </View>
         {loading ? <View style={ui.center}>
-          <Baku pose="chewing" motionStyle={sequence.bakuStyle} />
-          <Text style={ui.message}>Baku is chewing on it…</Text>
+          <MunchPlayer key={id} width={munchWidth} active={focused} />
         </View> : error ? <View style={ui.center}>
           <Baku pose={error === 'notFound' ? 'notFound' : 'errorPhoto'} />
           <Text style={ui.message}>{error === 'notFound' ? 'This kit couldn’t be found.' : 'Couldn’t load this kit. Please try again.'}</Text>
           <ActionButton label="Try again" onPress={retry} />
         </View> : kit ? <>
           {isSaved ? <>
-            <Text allowFontScaling accessibilityLabel={`Saved to ${collectionName}`} accessibilityLiveRegion="polite" style={[ui.body, styles.savedCopy]}>Saved. It’s in the collection.</Text>
+            <Text allowFontScaling accessibilityLabel={`Saved to ${collectionName}`} accessibilityLiveRegion="polite" style={[ui.body, styles.savedCopy]}>Saved to your collection.</Text>
             <View accessibilityLabel={kit.title}>
               <SavedKit kit={kit} failed={photoFailed} disabled={!sequence.interactive} onError={() => setFailedPhotoUrl(kit.photo!.url)} onEdit={() => setSheet({ kitId: id, type: 'edit' })}
                 placeholder={<View style={styles.placeholder}><Baku pose={photoFailed ? 'errorPhoto' : 'empty'} />
@@ -116,6 +124,9 @@ export default function ResultScreen() {
                 <Text style={ui.message}>{photoFailed ? 'Couldn’t load the photo.' : 'No photo in this kit.'}</Text>
                 {photoFailed && <ActionButton label="Reload photo" onPress={() => { setFailedPhotoUrl(null); retry(); }} />}
               </View>} />
+            {!ready && <View style={{ marginTop: -72, paddingBottom: 24 }}>
+              <MunchPlayer key={id} width={munchWidth} active={focused} />
+            </View>}
             {ready && <View style={{ marginTop: -113, marginHorizontal: 20 }}>
               <ChipPile roles={kit.roles} slots={layout.slots} height={layout.pileHeight} typeSize={layout.typeSize}
                 expandedRole={detail?.kitId === id ? detail.role : null} motion={sequence.bands} disabled={!sequence.interactive} selectedRole={editing ? selectedRole : null}
@@ -128,7 +139,6 @@ export default function ResultScreen() {
                 }} />
             </View>}
             {ready && primaryPin && <PrimaryArrow width={heroWidth} height={layout.heroHeight}
-              start={{ x: 32, y: layout.printHeight - 113 + layout.slots[0].height * 0.24 }}
               end={{ x: printLeft + 13 + primaryPin.marker.x, y: 13 + primaryPin.marker.y }}
               hue={primaryHue(kit)} progress={sequence.values.markerOpacity} reducedMotion={sequence.reducedMotion} />}
           </View>}
@@ -144,10 +154,12 @@ export default function ResultScreen() {
             <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 0, y: 40 }} colors={['#F3EEE400', PAPER]} />
           </Rect>
         </Canvas>
-        <View style={[styles.host, isSaved && { bottom: 4 }]}>
+        {(loading || (!!kit && !ready)) && <ChewingCaption key={id}
+          style={{ position: 'absolute', left: 82, right: 16, bottom: actionHeight + 16 }} />}
+        {ready && <View style={[styles.host, isSaved && { bottom: 4 }]}>
           <CornerBaku size={isSaved ? 64 : 62} focused={focused && sheet?.kitId !== id && detail?.kitId !== id} pose={hop.pose && hop.pose !== 'idle' ? hop.pose : !ready ? 'chewing' : isSaved ? 'success' : failedBrief ? 'errorBrief' : 'idle'}
             motionStyle={hop.bakuStyle} shadowStyle={hop.shadowStyle} />
-        </View>
+        </View>}
         <View style={[styles.actions, isSaved && styles.savedActions]} onLayout={(event) => setActionHeight(Math.max(48, event.nativeEvent.layout.height))}>
           {isSaved ? <>
             <ActionButton label="See your collection" primary disabled={!savedId}
@@ -155,7 +167,8 @@ export default function ResultScreen() {
             <ActionButton label="Snap another" onPress={() => router.dismissTo('/')} />
           </> : <>
             <View style={styles.edit}><ActionButton label="Edit" disabled={!sequence.interactive} onPress={() => setSheet({ kitId: id, type: 'edit' })} /></View>
-            <View style={styles.save}><ActionButton label="Save" primary disabled={!sequence.interactive} onPress={() => setSheet({ kitId: id, type: 'save' })} /></View>
+            <View style={styles.save}><ActionButton label="Save" primary disabled={!sequence.interactive}
+              onPress={() => router.push({ pathname: '/keep/[id]', params: { id } })} /></View>
           </>}
         </View>
       </View>
@@ -165,13 +178,6 @@ export default function ResultScreen() {
           origin={{ x: (width - heroWidth) / 2 + 20 + layout.slots.find((slot) => slot.role === detail.role)!.x,
             y: layout.pileTop + layout.slots.find((slot) => slot.role === detail.role)!.y - detail.scrollY }}
           onClose={() => setDetail(null)} onEdit={() => { const role = detail.role; setDetail(null); openRole(role); }} />}
-        <SaveSheet visible={sheet?.kitId === id && sheet.type === 'save'} kitId={kit.id} kit={kit}
-          onClose={() => setSheet((current) => current?.kitId === id && current.type === 'save' ? null : current)}
-          onSaved={(collection) => {
-            hop.onSaved();
-            setSavedCollection({ ...collection, kitId: id });
-            router.setParams({ saved: '1', c: collection.collectionId });
-          }} onSaveError={hop.onSaveError} />
         <EditSheet ref={editSheet} visible={sheet?.kitId === id && sheet.type === 'edit'} kit={kit}
           initialRole={sheet?.kitId === id && sheet.type === 'edit' ? sheet.role : undefined} onSelectedRole={setSelectedRole}
           onUpdated={replaceKit} onClose={() => { setSelectedRole(null); setSheet((current) => current?.kitId === id && current.type === 'edit' ? null : current); }} />

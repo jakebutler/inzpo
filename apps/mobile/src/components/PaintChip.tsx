@@ -38,10 +38,10 @@ export function PaintChip({ role, color, width, height, typeSize = 44 / 3, lifte
             {tints.map((tint, index) => <View key={index} style={{ flex: 1, backgroundColor: tint }} />)}
             <PaperTexture kind="color" tileSize={128} />
           </View>
-        </> : <View testID={`role-empty-${role}`} style={[styles.empty, { minHeight: bodyHeight, backgroundColor: OATMEAL_STOCK }]}>
+        </> : <View testID={`role-empty-${role}`} style={[styles.empty, { minHeight: bodyHeight, backgroundColor: OATMEAL_STOCK }, bodyHeight < 90 && { paddingVertical: 2 }]}>
           {/* Limit mottle beneath oatmeal print to keep the measured 11.79:1. */}
           <PaperTexture opacity={0.25} />
-          <View style={styles.emptyRuling}>
+          <View style={[styles.emptyRuling, bodyHeight < 90 && { paddingVertical: 3 }]}>
             <Text allowFontScaling style={{ fontFamily: fonts.body, fontSize: typeSize, lineHeight: typeSize * 1.15, color: ink }}>
               {`No ${role} in this one. Add a color.`}
             </Text>

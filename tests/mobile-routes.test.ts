@@ -353,7 +353,7 @@ describe("mobile color editing", () => {
     expect(response.status).toBe(200);
     expect(mocks.replaceItemTokens).toHaveBeenCalledWith("user_1", "kit_1",
       { primary: "#abcdef", secondary: null, accent: "#123456", background: null, surface: null, text: null },
-      { primary: { pinX: 0.2, pinY: 0.4 } }, { primary: "sampled" });
+      { primary: { pinX: 0.2, pinY: 0.4 } }, { primary: "sampled", accent: "sampled" });
     expect(mocks.revalidatePath.mock.calls).toEqual([["/items/kit_1"], ["/"]]);
     const dto = await response.json();
     expect(dto).toEqual(await (await getKit(request(), context())).json());
@@ -361,7 +361,7 @@ describe("mobile color editing", () => {
     expect(dto.colors).toHaveLength(2);
   });
 
-  it("drops changed pins and origins, clears a role, and preserves an omitted role", async () => {
+  it("drops changed pins, marks user colors sampled, clears a role, and preserves an omitted role", async () => {
     mocks.getItemDetail.mockResolvedValue({ ...item, colors: [
       { ...item.colors[0]!, pinX: 0.3, pinY: 0.4, origin: "sampled" },
       { ...item.colors[0]!, role: "secondary", hex: "#111111", pinX: 0.5, pinY: 0.6, origin: "sampled" },
@@ -370,7 +370,7 @@ describe("mobile color editing", () => {
     expect((await updateColors(request("PATCH", { roles: { primary: "#654321", accent: null } }), context())).status).toBe(200);
     expect(mocks.replaceItemTokens).toHaveBeenCalledWith("user_1", "kit_1",
       { primary: "#654321", secondary: "#111111", accent: null, background: null, surface: null, text: null },
-      { secondary: { pinX: 0.5, pinY: 0.6 } }, { secondary: "sampled" });
+      { secondary: { pinX: 0.5, pinY: 0.6 } }, { secondary: "sampled", primary: "sampled" });
   });
 
   it.each(["#ABC", " ABC ", "#AABBCC", " AABBCC "])("preserves sampled pins for normalized omitted and unchanged roles (%s)", async (hex) => {

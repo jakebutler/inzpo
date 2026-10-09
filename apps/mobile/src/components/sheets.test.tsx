@@ -1,15 +1,13 @@
 import { BottomSheetModal, type BottomSheetModalProps, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { act, fireEvent, render, renderHook } from '@testing-library/react-native';
-import * as ExpoHaptics from 'expo-haptics';
 import { createRef, type ReactNode, type ReactElement } from 'react';
-import { Dimensions } from 'react-native';
 import { ReduceMotion, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { useInzpoClient } from '@/lib/api';
 import { createHaptics, haptics } from '@/lib/haptics';
 import { kitFixture, mockClient } from '../../tests/fixtures';
 import { EditSheet, type EditSheetHandle } from './EditSheet';
-import { EditBackdrop, SaveBackdrop } from './MotionSheet';
-import { SaveSheet } from './SaveSheet';
+import { EditBackdrop } from './MotionSheet';
+import { KeepScreen } from './KeepScreen';
 
 jest.mock('@/lib/api', () => ({ useInzpoClient: jest.fn() }));
 
@@ -38,34 +36,6 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
-test.each([false, true])('Keep modal fills the screen, handles the keyboard, and disables travel with reduced motion (%s)', async (reduced) => {
-  jest.mocked(useReducedMotion).mockReturnValue(reduced);
-  const present = jest.spyOn(MockModal.prototype, 'present');
-  const dismiss = jest.spyOn(MockModal.prototype, 'dismiss');
-  const onClose = jest.fn();
-  const view = await render(<SaveSheet visible={false} kitId="kit-1" onClose={onClose} />);
-  expect(view.queryByText('Keep this kit')).toBeNull();
-  await view.rerender(<SaveSheet visible kitId="kit-1" onClose={onClose} />);
-  expect(present).toHaveBeenCalledTimes(1);
-  expect(sheetProps).toMatchObject({
-    enableDynamicSizing: false, snapPoints: [Dimensions.get('window').height], handleComponent: null,
-    overrideReduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.Never,
-    keyboardBehavior: 'interactive', keyboardBlurBehavior: 'restore', android_keyboardInputMode: 'adjustResize',
-    enablePanDownToClose: true,
-    animationConfigs: { damping: reduced ? 40 : 30, stiffness: reduced ? 400 : 300 },
-    backgroundStyle: { backgroundColor: '#F3EEE4', borderTopLeftRadius: 20, borderTopRightRadius: 20 },
-    handleIndicatorStyle: { width: 36, height: 4 },
-  });
-  expect(view.getByLabelText('New collection name').props.autoFocus).toBe(true);
-  expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
-  expect(ExpoHaptics.notificationAsync).not.toHaveBeenCalled();
-  dismiss.mockClear();
-  await fireEvent.press(view.getByRole('button', { name: 'Not now' }));
-  expect(dismiss).toHaveBeenCalledTimes(1);
-  await act(async () => sheetProps.onDismiss?.());
-  expect(onClose).toHaveBeenCalledTimes(1);
-});
-
 test('Edit peeks with six chips, expands to the picker, and exposes snapToPeek', async () => {
   const ref = createRef<EditSheetHandle>();
   const snap = jest.spyOn(MockModal.prototype, 'snapToIndex');
@@ -83,9 +53,8 @@ test('Edit peeks with six chips, expands to the picker, and exposes snapToPeek',
   expect(view.queryByText('Color picking comes next')).toBeNull();
 });
 
-test('Save and Edit backdrops dim at their highest snap only', async () => {
+test('Edit backdrop dims at its highest snap only', async () => {
   const { result } = await renderHook(() => ({ animatedIndex: useSharedValue(0), animatedPosition: useSharedValue(0) }));
-  expect(SaveBackdrop(result.current).props).toMatchObject({ opacity: 0.35, appearsOnIndex: 0, disappearsOnIndex: -1 });
   expect(EditBackdrop(result.current).props).toMatchObject({ opacity: 0.35, appearsOnIndex: 1, disappearsOnIndex: 0 });
 });
 
@@ -102,7 +71,7 @@ test('a pin-opened editor can collapse to peek and respects reduced motion', asy
   expect(view.getByTestId('edit-role-primary')).toBeTruthy();
 });
 
-test.each(['save', 'edit'])('%s keeps the modal open during a write so its success reaches the result', async (kind) => {
+test.each(['save', 'edit'])('%s keeps the editor open during a write so its success reaches the result', async (kind) => {
   let finish!: () => void;
   const onSuccess = jest.fn();
   const onClose = jest.fn();
@@ -111,7 +80,7 @@ test.each(['save', 'edit'])('%s keeps the modal open during a write so its succe
     client.updateKitColors.mockReturnValue(new Promise((resolve) => { finish = () => resolve(kitFixture); }));
   }
   const view = await render(kind === 'save'
-    ? <SaveSheet visible kitId="kit-1" onClose={onClose} onSaved={onSuccess} />
+    ? <KeepScreen kitId="kit-1" onClose={onClose} onSaved={onSuccess} />
     : <EditSheet visible kit={kitFixture} onClose={onClose} onUpdated={onSuccess} />);
   if (kind === 'save') {
     await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
@@ -123,11 +92,18 @@ test.each(['save', 'edit'])('%s keeps the modal open during a write so its succe
   }
   const { result } = await renderHook(() => ({ animatedIndex: useSharedValue(0), animatedPosition: useSharedValue(0) }));
   const backdrop = () => (sheetProps.backdropComponent as (props: BottomSheetBackdropProps) => ReactElement<{ pressBehavior: string }>)(result.current);
-  expect(sheetProps.enablePanDownToClose).toBe(false);
-  expect(backdrop().props.pressBehavior).toBe('none');
+  if (kind === 'edit') {
+    expect(sheetProps.enablePanDownToClose).toBe(false);
+    expect(backdrop().props.pressBehavior).toBe('none');
+  } else {
+    expect(view.getByRole('button', { name: 'Back' })).toBeDisabled();
+    expect(view.getByRole('button', { name: 'Not now' })).toBeDisabled();
+  }
   expect(onSuccess).not.toHaveBeenCalled();
   await act(async () => finish());
   expect(onSuccess).toHaveBeenCalledTimes(1);
-  expect(sheetProps.enablePanDownToClose).toBe(true);
-  expect(backdrop().props.pressBehavior).toBe('close');
+  if (kind === 'edit') {
+    expect(sheetProps.enablePanDownToClose).toBe(true);
+    expect(backdrop().props.pressBehavior).toBe('close');
+  }
 });

@@ -1,16 +1,13 @@
 import { type CollectionSummary, type MobileKit } from '@inzpo/shared';
-import { BottomSheetScrollView, BottomSheetTextInput, BottomSheetView } from '@gorhom/bottom-sheet';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInzpoClient } from '@/lib/api';
 import { haptics } from '@/lib/haptics';
 import { fonts, INK } from '@/theme/tokens';
-import { HOP_TIMELINE } from '@/theme/motion';
 import { ui } from '@/theme/styles';
 import { ActionButton } from './ActionButton';
 import { BackButton } from './BackButton';
-import { CornerBaku } from './CornerBaku';
 import { FilmPrint } from './FilmPrint';
 import { InkIcon } from './InkIcon';
 import { KitDeck } from './KitDeck';
@@ -22,14 +19,15 @@ import { SaveButton } from './SaveButton';
 
 export type SavedCollection = { collectionId: string; collectionName: string };
 
-export function SaveSheetContent({ kitId, onClose, onSaved, onSaveError, onSavingChange, kit }: {
+export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChange, kit }: {
   kitId: string; kit?: MobileKit; onClose: () => void; onSaved?: (collection: SavedCollection) => void; onSaveError?: () => void;
   onSavingChange?: (saving: boolean) => void;
 }) {
   const client = useInzpoClient();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const contentWidth = Math.min(350, width - 40);
+  const artScale = Math.min(1, contentWidth / 350, (height - insets.top - insets.bottom) / 844);
   const [footerHeight, setFooterHeight] = useState(48);
   const [fieldHeight, setFieldHeight] = useState(40);
   const [underline, setUnderline] = useState({ left: 0, width: contentWidth });
@@ -37,10 +35,10 @@ export function SaveSheetContent({ kitId, onClose, onSaved, onSaveError, onSavin
   const [collections, setCollections] = useState<CollectionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [newName, setNewName] = useState('');
+  const defaultName = kit?.title.trim() || 'My collection';
+  const [newName, setNewName] = useState(defaultName);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [successPose, setSuccessPose] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [collectionError, setCollectionError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -60,11 +58,6 @@ export function SaveSheetContent({ kitId, onClose, onSaved, onSaveError, onSavin
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
   }, [client, attempt]);
-  useEffect(() => {
-    if (!saved) return;
-    const timer = setTimeout(() => setSuccessPose(false), HOP_TIMELINE.successHoldMs);
-    return () => clearTimeout(timer);
-  }, [saved]);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => {
@@ -74,18 +67,17 @@ export function SaveSheetContent({ kitId, onClose, onSaved, onSaveError, onSavin
   }, [saved]);
 
   async function save() {
-    if (saveInFlight.current || saved || (!selectedId && !newName.trim())) return;
+    if (saveInFlight.current || saved) return;
     saveInFlight.current = true;
     setSaving(true);
     setSaveError(null);
     try {
-      const result = await client.saveKit(kitId, selectedId ? { collectionId: selectedId } : { newName: newName.trim() });
+      const result = await client.saveKit(kitId, selectedId ? { collectionId: selectedId } : { newName: newName.trim() || defaultName });
       if (!active.current) return;
       setSaved(true);
-      setSuccessPose(true);
       void haptics.success();
       onSaved?.({ collectionId: result.collectionId,
-        collectionName: selectedId ? collections.find((collection) => collection.id === selectedId)?.name ?? 'your collection' : newName.trim() });
+        collectionName: selectedId ? collections.find((collection) => collection.id === selectedId)?.name ?? 'your collection' : newName.trim() || defaultName });
     } catch {
       if (!active.current) return;
       setSaveError('Couldn’t save this kit. Please try again.');
@@ -98,25 +90,28 @@ export function SaveSheetContent({ kitId, onClose, onSaved, onSaveError, onSavin
   }
 
   return (
-    <BottomSheetView style={styles.page}>
+    <SafeAreaView style={ui.screen} edges={['left', 'right']} testID="keep-screen">
+      <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <Animated.View style={styles.page} entering={FadeIn.duration(150).reduceMotion(ReduceMotion.Never)}>
       <PaperTexture />
-      <BottomSheetScrollView testID="keep-scroll" contentContainerStyle={{ paddingTop: Math.max(40, insets.top),
+      <ScrollView testID="keep-scroll" contentContainerStyle={{ paddingTop: Math.max(40, insets.top),
         paddingBottom: footerHeight + Math.max(insets.bottom, 24) + 32, alignItems: 'center' }} keyboardShouldPersistTaps="handled">
         <View style={{ width: contentWidth, gap: 4 }}>
           <BackButton onPress={onClose} disabled={saving} />
-          <Text allowFontScaling style={[ui.heading, { fontSize: 30, lineHeight: 32 }]}>Keep this kit</Text>
+          <Text accessibilityRole="header" allowFontScaling style={[ui.heading, { fontSize: 30, lineHeight: 32 }]}>Keep this kit</Text>
         </View>
-        {kit && <View style={{ width: contentWidth, height: 480 }}>
+        {kit && <View style={{ width: contentWidth, height: 480 * artScale }}>
+          <View style={{ width: contentWidth, height: 480, transformOrigin: '50% 0%', transform: [{ scale: artScale }] }}>
           <View style={styles.sourcePrint}>
             <FilmPrint kit={kit} width={145} height={167} borderInset={7} foot={23} photoPosition={{ left: '50%', top: '34.7%' }}
               failed={photoFailed} onError={() => setPhotoFailed(true)}
               showPins={false} onPinPress={() => {}} placeholder={<Text style={ui.body}>No photo in this kit.</Text>} />
           </View>
           <KitDeck kit={kit} />
+          </View>
         </View>}
         <View style={{ width: contentWidth, gap: 12 }}>
-          {saved ? <Text allowFontScaling accessibilityLiveRegion="polite" style={ui.body}>Its colors have a home.</Text> : <>
+          {saved ? <Text allowFontScaling accessibilityLiveRegion="polite" style={ui.body}>Saved to your collection.</Text> : <>
             <View>
               <Text allowFontScaling style={styles.fieldLabel}>New collection</Text>
               <Text allowFontScaling accessible={false} pointerEvents="none" style={[styles.name, styles.measureName]}
@@ -124,8 +119,8 @@ export function SaveSheetContent({ kitId, onClose, onSaved, onSaveError, onSavin
                   const last = event.nativeEvent.lines.at(-1);
                   if (last) setUnderline({ left: last.x, width: last.width });
                 }}>{newName || kit?.title || 'Collection name'}</Text>
-              <BottomSheetTextInput accessibilityLabel="New collection name" placeholder={kit?.title ?? 'Collection name'}
-                placeholderTextColor={INK} autoFocus value={newName}
+              <TextInput accessibilityLabel="New collection name" placeholder={kit?.title ?? 'Collection name'}
+                placeholderTextColor={INK} value={newName}
                 onChangeText={(name) => { setNewName(name); setSelectedId(null); }} editable={!saving} maxLength={100}
                 multiline scrollEnabled={false} returnKeyType="done" blurOnSubmit
                 onContentSizeChange={(event) => setFieldHeight(Math.max(40, event.nativeEvent.contentSize.height))}
@@ -143,7 +138,7 @@ export function SaveSheetContent({ kitId, onClose, onSaved, onSaveError, onSavin
               {collections.map((collection) => <Pressable key={collection.id} accessibilityRole="radio"
                 accessibilityLabel={`${collection.name}, ${collection.count} kits`}
                 accessibilityState={{ checked: selectedId === collection.id, disabled: saving }} disabled={saving}
-                onPress={() => { setSelectedId(collection.id); setNewName(''); }}
+                onPress={() => setSelectedId(collection.id)}
                 style={[stockSurface, styles.collection, selectedId === collection.id && styles.selected]}>
                 <PaperTexture />
                 <View style={{ flex: 1, gap: 4 }}>
@@ -162,27 +157,25 @@ export function SaveSheetContent({ kitId, onClose, onSaved, onSaveError, onSavin
           </>}
           {saveError && <Text allowFontScaling accessibilityRole="alert" style={ui.message}>{saveError}</Text>}
         </View>
-      </BottomSheetScrollView>
+      </ScrollView>
       <View style={[styles.footer, { bottom: Math.max(insets.bottom, 24) }]}>
         <PaperTexture />
-        <View style={styles.host} accessibilityLiveRegion="polite">
-          <CornerBaku focused size={64} testID="keep-baku" shadowTestID="keep-contact-shadow" pose={successPose ? 'success' : saveError ? 'errorBrief' : 'idle'} />
-        </View>
         <View style={styles.actions} onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}>
           <View style={{ width: 96 }}><ActionButton label={saved ? 'Done' : 'Not now'} disabled={saving} onPress={onClose} /></View>
           <View style={{ flex: 1 }}><SaveButton label="Save kit" saved={saved} saving={saving}
-            disabled={saving || (!selectedId && !newName.trim())} onPress={() => void save()} /></View>
+            disabled={saving} onPress={() => void save()} /></View>
         </View>
       </View>
       </Animated.View>
-    </BottomSheetView>
+    </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
   sourcePrint: { position: 'absolute', left: 12, top: 310, transform: [{ rotate: '-3deg' }] },
-  fieldLabel: { fontFamily: fonts.body, fontSize: 11, color: INK },
+  fieldLabel: { fontFamily: fonts.body, fontSize: 13, lineHeight: 20, color: INK, marginBottom: 4 },
   name: { fontFamily: fonts.heading, fontSize: 32, lineHeight: 38.4, letterSpacing: -0.6, color: INK, padding: 0 },
   measureName: { position: 'absolute', top: 14, left: 0, right: 0, opacity: 0 },
   hint: { fontFamily: fonts.body, fontSize: 44 / 3, lineHeight: 21, fontStyle: 'italic', color: INK },
@@ -192,6 +185,5 @@ const styles = StyleSheet.create({
   collectionName: { fontFamily: fonts.body, fontSize: 16, color: INK },
   choice: { width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: '#857B68' },
   footer: { position: 'absolute', left: 0, right: 0, paddingTop: 12, backgroundColor: '#F3EEE4' },
-  host: { position: 'absolute', left: 16, bottom: -8 },
-  actions: { marginLeft: 82, marginRight: 16, flexDirection: 'row', gap: 8 },
+  actions: { marginLeft: 16, marginRight: 16, flexDirection: 'row', gap: 8 },
 });

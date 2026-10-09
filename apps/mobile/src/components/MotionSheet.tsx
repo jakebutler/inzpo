@@ -9,11 +9,6 @@ export function useSheetSpring() {
   return useBottomSheetSpringConfigs(reducedMotion ? REDUCED_SHEET_SPRING : SHEET_SPRING);
 }
 
-export function SaveBackdrop(props: BottomSheetBackdropProps) {
-  // Dynamic sizing supplies one snap: it is also the highest snap.
-  return <BottomSheetBackdrop {...props} style={[props.style, sheetStyles.backdrop]} opacity={0.35} appearsOnIndex={0} disappearsOnIndex={-1} pressBehavior="close" />;
-}
-
 export function EditBackdrop(props: BottomSheetBackdropProps) {
   return <BottomSheetBackdrop {...props} style={[props.style, sheetStyles.backdrop]} opacity={0.35} appearsOnIndex={1} disappearsOnIndex={0} pressBehavior="close" />;
 }

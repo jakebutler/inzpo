@@ -18,6 +18,7 @@ export default function AppLayout() {
     }}>
       <Stack.Screen name="index" options={{ title: 'Inzpo' }} />
       <Stack.Screen name="kit/[id]" options={{ title: 'Your colors' }} />
+      <Stack.Screen name="keep/[id]" options={{ title: 'Keep this kit', headerShown: false }} />
     </Stack>
   );
 }

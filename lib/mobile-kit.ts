@@ -6,8 +6,10 @@ import { readBriefJob } from "@/lib/brief";
 import { kitDisplayName } from "@/lib/kit-name";
 import { r2, GetObjectCommand } from "@/lib/r2";
 import { pendingBrief } from "@/lib/mobile-api";
+import { upgradeMobilePalette } from "@/lib/mobile-palette";
 
 export async function buildMobileKit(ownerId: string, item: ItemDetail): Promise<MobileKit> {
+  item = await upgradeMobilePalette(item);
   const id = item.id;
   const [job, collections] = await Promise.all([readBriefJob(id), getItemCollections(ownerId, id)]);
   const brief = job ?? pendingBrief();
@@ -19,12 +21,14 @@ export async function buildMobileKit(ownerId: string, item: ItemDetail): Promise
     height: item.media.height,
     placeholder: item.media.placeholder,
   } : null;
+  const roles = rolesFromColors(item.colors);
+  const primary = item.colors.find((color) => color.role === "primary" && color.hex.toLowerCase() === roles.primary?.toLowerCase());
   return {
     id: item.id,
     title: kitDisplayName({ title: item.title, briefText: brief.text, namedColors: brief.namedColors,
-      pending: brief.status === "pending" || brief.stub }),
+      pending: brief.status === "pending" || brief.stub, primary }),
     photo,
-    roles: rolesFromColors(item.colors),
+    roles,
     colors: item.colors.map(({ hex, role, name, origin, pinX, pinY }) => ({ hex, role, name, origin, pinX, pinY })),
     brief,
     collectionIds: collections.map((collection) => collection.id),

@@ -11,6 +11,14 @@ jest.mock('react-native-reanimated', () => {
     // The installed official mock omits useReducedMotion and creates fresh
     // shared values on every render. Add the native hook's stable identity.
     useReducedMotion: jest.fn(() => false),
+    // The installed mock also omits the UI frame clock. Tests can drive frames
+    // explicitly without starting a JS interval in place of native playback.
+    useFrameCallback: jest.fn((callback) => {
+      const ref = React.useRef(null);
+      if (ref.current === null) ref.current = { setActive: jest.fn(), callback };
+      ref.current.callback = callback;
+      return ref.current;
+    }),
     useSharedValue: (initial) => {
       const ref = React.useRef(null);
       if (ref.current === null) ref.current = mock.useSharedValue(initial);
@@ -66,7 +74,7 @@ jest.mock('expo-router', () => {
   return {
     Stack,
     Redirect: ({ href }) => React.createElement(Text, null, `redirect:${href}`),
-    router: { push: jest.fn(), back: jest.fn(), dismissTo: jest.fn(), setParams: jest.fn() },
+    router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), dismissTo: jest.fn(), setParams: jest.fn() },
     useLocalSearchParams: jest.fn(() => ({ id: 'kit-1' })),
     useIsFocused: jest.fn(() => true),
   };

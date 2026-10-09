@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { COLOR_ROLES } from "@/lib/db/schema";
-import { areaAverage, contrastRatio, extractPalette, fillMissingRoles, textOnBackgroundContrast } from "@/lib/palette-extract";
-import { markDerivedRoles } from "@/lib/derived-roles";
-import { emptyRoles } from "@/lib/tokens";
+import { areaAverage, contrastRatio, extractPalette, textOnBackgroundContrast } from "@/lib/palette-extract";
 import { chooseTextureCrop } from "@/lib/texture";
 import { designTokenColors, moveRole, rolesFromColors, setRoleColor } from "@/lib/tokens";
 
@@ -51,53 +49,29 @@ async function subjectOnField(): Promise<Buffer> {
     .toBuffer();
 }
 
-describe("extractPalette fills all six roles", () => {
-  it("pads a single-color photo to six roles with AA contrast", async () => {
+describe("real-only extraction", () => {
+  it("keeps a single colour and leaves five slots empty", async () => {
     const palette = await extractPalette(await solid("#6b6656"));
-    expect(palette.swatches.length).toBeGreaterThanOrEqual(6);
-    for (const role of COLOR_ROLES) {
-      expect(palette.roles[role]).toBeTruthy();
-    }
-    expect(palette.contrast).not.toBeNull();
-    expect(palette.contrast!).toBeGreaterThanOrEqual(4.5);
-    expect(textOnBackgroundContrast(palette.roles)!).toBeGreaterThanOrEqual(4.5);
-    const derived = markDerivedRoles(
-      palette.swatches.map((s, position) => ({
-        hex: s.hex,
-        role: s.role,
-        pinX: s.pinX,
-        pinY: s.pinY,
-        position,
-      })),
-    );
-    expect(derived.some((row) => row.derivedFrom != null)).toBe(true);
+    expect(palette.swatches).toHaveLength(1);
+    expect(palette.roles.background).toBe("#6b6656");
+    expect(Object.values(palette.roles).filter(Boolean)).toHaveLength(1);
+    expect(palette.contrast).toBeNull();
   });
 
-  it("fills leftover roles as auto tints and keeps contrast at 4.5:1", async () => {
-    const palette = await extractPalette(await split("#1a1a1a", "#e8e0c8"));
-    const filled = COLOR_ROLES.filter((role) => palette.roles[role] !== null);
-    expect(filled).toEqual([...COLOR_ROLES]);
-    expect(palette.contrast).not.toBeNull();
-    expect(palette.contrast!).toBeGreaterThanOrEqual(4.5);
-    const derived = markDerivedRoles(
-      palette.swatches.map((s, position) => ({
-        hex: s.hex,
-        role: s.role,
-        pinX: s.pinX,
-        pinY: s.pinY,
-        position,
-      })),
-    );
-    expect(derived.filter((row) => row.derivedFrom).length).toBeGreaterThanOrEqual(1);
-    for (const swatch of palette.swatches) {
-      expect(swatch.pinX).toBeGreaterThanOrEqual(0);
-      expect(swatch.pinX).toBeLessThanOrEqual(1);
-      expect(swatch.pinY).toBeGreaterThanOrEqual(0);
-      expect(swatch.pinY).toBeLessThanOrEqual(1);
-    }
-    const padded = fillMissingRoles([], emptyRoles());
-    expect(COLOR_ROLES.every((role) => padded.roles[role])).toBe(true);
+  it("samples a grayscale photo as one real RGB colour", async () => {
+    const input = await sharp(await solid("#555555")).greyscale().png().toBuffer();
+    const palette = await extractPalette(input);
+    expect(Object.values(palette.roles).filter(Boolean)).toEqual(["#555555"]);
+    expect((await areaAverage(input, 0.5, 0.5)).hex).toBe("#555555");
   });
+
+  it("keeps real text/background samples even when their contrast fails AA", async () => {
+    const palette = await extractPalette(await split("#777777", "#aaaaaa"));
+    expect(Object.values(palette.roles).filter(Boolean).sort()).toEqual(["#777777", "#aaaaaa"]);
+    expect(palette.contrast).toBeLessThan(4.5);
+    expect(COLOR_ROLES.filter((role) => palette.roles[role] === null)).toHaveLength(4);
+  });
+
 });
 
 describe("design tokens fallback", () => {

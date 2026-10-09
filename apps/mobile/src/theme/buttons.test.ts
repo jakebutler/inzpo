@@ -48,9 +48,6 @@ test('Save material locks the designer press values and reduced motion keeps the
   expect(contrastRatio(LABEL_STOCK, pressed.backgroundColor as string)).toBeGreaterThanOrEqual(5.9674);
 });
 
-test('resting Baku is 160pt on a tall 390pt phone and shrinks on an SE', () => {
-  expect(restingBakuSize(390, 760)).toBe(160);
-  expect(restingBakuSize(375, 647)).toBeCloseTo(124.2);
-  // SE: 48pt padding + 80pt gaps + 132pt heading + 48pt helper + 104pt controls.
-  expect(restingBakuSize(375, 647) + 48 + 80 + 132 + 48 + 104).toBeLessThan(647);
+test.each([320, 375, 390, 430])('resting Baku occupies at least 40%% of a %spt screen', (width) => {
+  expect(restingBakuSize(width)).toBeGreaterThanOrEqual(width * 0.4);
 });

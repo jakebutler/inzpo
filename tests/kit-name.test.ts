@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { generatedKitTitle, isCameraFilename, kitAltText, kitDisplayName, UNTITLED_KIT } from "@/lib/kit-name";
 
 describe("kitDisplayName", () => {
+  it('uses current Primary for a stored generated name even when the brief changes', () => {
+    expect(kitDisplayName({ title: 'White Victorian', briefText: 'Sun-faded paint at the windows.',
+      namedColors: [{ hex: '#ffffff', label: 'white windows' }], primary: { hex: '#d1cb9e', name: 'cream/beige' } }))
+      .toBe('Yellow Victorian');
+    expect(kitDisplayName({ title: 'Sunday Walk', primary: { hex: '#d1cb9e' } })).toBe('Sunday Walk');
+  });
   it("never uses camera filenames and stays Untitled while pending", () => {
     expect(isCameraFilename("IMG_5859.jpg")).toBe(true);
     expect(kitDisplayName({ title: "IMG_5859", pending: true })).toBe(UNTITLED_KIT);

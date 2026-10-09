@@ -1,4 +1,4 @@
-import { COLOR_ROLES, type ColorRole, type MobileKit } from '@inzpo/shared';
+import { colorHue, COLOR_ROLES, type ColorRole, type MobileKit } from '@inzpo/shared';
 
 export type SamplePoint = { x: number; y: number };
 // Older MobileKits lack coordinates. Deterministic normalized points from the
@@ -43,17 +43,7 @@ export function photoPins(kit: MobileKit, width: number, height: number) {
 
 export function roleHue(kit: MobileKit, role: ColorRole): string {
   const color = kit.colors.find((color) => color.role === role && color.hex.toLowerCase() === kit.roles[role]?.toLowerCase());
-  const named = color?.name?.toLowerCase().match(/\b(red|orange|yellow|green|blue|purple|pink|brown|cream|black|white|gray|grey)\b/);
-  if (named) return named[0];
-  if (color?.name?.trim()) return color.name.trim().toLowerCase();
-  const hex = kit.roles[role];
-  if (!hex) return 'color';
-  const [r, g, b] = [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255);
-  const max = Math.max(r, g, b), min = Math.min(r, g, b), delta = max - min;
-  if (delta < 0.08) return max < 0.15 ? 'black' : min > 0.85 ? 'white' : 'gray';
-  const hue = ((max === r ? (g - b) / delta : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4) * 60 + 360) % 360;
-  return hue < 20 || hue >= 345 ? 'red' : hue < 45 ? 'orange' : hue < 75 ? 'yellow'
-    : hue < 165 ? 'green' : hue < 255 ? 'blue' : hue < 300 ? 'purple' : 'pink';
+  return colorHue(kit.roles[role], color?.name);
 }
 
 export function primaryHue(kit: MobileKit): string { return roleHue(kit, 'primary'); }

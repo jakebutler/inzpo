@@ -42,7 +42,7 @@ export async function replaceItemTokens(
       itemId,
       hex: c.hex,
       family: hexToFamily(c.hex),
-      origin: origins[c.role] === "sampled" ? "sampled" : "extracted",
+      origin: origins[c.role] === "sampled" ? "sampled" : origins[c.role] === "region" ? "region" : "extracted",
       position,
       name: c.name ?? hexToFamily(c.hex),
       role: c.role,

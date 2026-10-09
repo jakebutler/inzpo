@@ -121,18 +121,18 @@ describe("r5 derived auto tags", () => {
     expect(src("app/components/TokenEditor.tsx")).toContain("photoBox.w / 2");
   });
 
-  it("reports auto roles per fold fixture and fills every token role", async () => {
-    const report: Record<string, string[]> = {};
+  it("keeps real fold palette gaps rather than padding every role", async () => {
     for (const id of ["IMG_6505", "IMG_6208", "IMG_5859"] as const) {
       const kit = await loadFoldKit(id);
-      const roles = kit.colors.map((c) => c.role).sort();
-      expect(roles).toEqual([...COLOR_ROLES].sort());
-      report[id] = kit.colors.filter((c) => c.derivedFrom).map((c) => c.role).sort();
+      const roles = kit.colors.map((c) => c.role);
+      expect(roles.length).toBeGreaterThan(0);
+      expect(new Set(roles).size).toBe(roles.length);
+      expect(roles.every((role) => COLOR_ROLES.includes(role))).toBe(true);
+      if (id === "IMG_6505") {
+        expect(roles).not.toContain('accent');
+        expect(roles).not.toContain('surface');
+      }
     }
-    expect(report.IMG_6505.length).toBeGreaterThanOrEqual(1);
-    expect(report.IMG_6208.length).toBeGreaterThanOrEqual(1);
-    expect(report.IMG_5859.length).toBeGreaterThanOrEqual(1);
-    expect(Object.keys(report).sort()).toEqual(["IMG_5859", "IMG_6208", "IMG_6505"]);
   });
 });
 

@@ -1,13 +1,15 @@
 import "server-only";
 import sharp from "sharp";
-import { hexToFamily, hexToHsv, hexToRgb, hsvToHex, rgbToHex, type ColorFamily } from "@/lib/colors";
+import { hexToFamily, rgbToHex, type ColorFamily } from "@/lib/colors";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
-import { contrastRatio } from "@/lib/contrast";
+import { contrastRatio, textOnBackgroundContrast } from "@/lib/contrast";
 import { emptyRoles, type RoleColors } from "@/lib/tokens";
+import { hexToLab, MIN_ROLE_DELTA_E, rgbToLab, roleDeltaE } from "@/lib/color-distance";
 
 export { contrastRatio, textOnBackgroundContrast } from "@/lib/contrast";
 
 export interface PaletteSwatch {
+  origin: "region";
   hex: string;
   share: number;
   patch: number;
@@ -18,20 +20,34 @@ export interface PaletteSwatch {
   family: ColorFamily;
   name: string;
   role: ColorRole | null;
+  spatial?: {
+    touchesTop: boolean;
+    borderEdges: number;
+    upperShare: number;
+    centralShare: number;
+    texture: number;
+  };
 }
 
 export interface ExtractedPalette {
   swatches: PaletteSwatch[];
+  /** All connected region means, including components not selected for roles. */
+  regions: PaletteSwatch[];
+  /** Components sharing a pixel edge; not merely nearby centroids. */
+  neighbours: ReadonlyMap<PaletteSwatch, ReadonlySet<PaletteSwatch>>;
+  /** Resolve a normalized pin to the component owning that pixel. */
+  regionAtPin: (pinX: number, pinY: number) => PaletteSwatch | undefined;
   roles: RoleColors;
   contrast: number | null;
 }
 
-const THUMB = 256;
-const K = 12;
+export const PALETTE_THUMB = 384;
+const K = 16;
 const EDGE = 0.06;
-const MIN_SHARE = 0.015;
-const MIN_PATCH = 0.004;
-const MERGE_DE = 10;
+const MIN_SHARE = 0.0003;
+const MIN_PATCH = 0.0003;
+export const MIN_ROLE_PATCH = 0.001;
+const MERGE_DE = 7;
 const MAX_SWATCHES = 6;
 const TARGET_CONTRAST = 4.5;
 
@@ -45,55 +61,48 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-function srgbToLin(c: number): number {
-  const x = c / 255;
-  return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
-}
-
-function rgbToLab(r: number, g: number, b: number): [number, number, number] {
-  const rl = srgbToLin(r);
-  const gl = srgbToLin(g);
-  const bl = srgbToLin(b);
-  const x = (0.4124 * rl + 0.3576 * gl + 0.1805 * bl) / 0.9505;
-  const y = 0.2126 * rl + 0.7152 * gl + 0.0722 * bl;
-  const z = (0.0193 * rl + 0.1192 * gl + 0.9505 * bl) / 1.089;
-  const f = (v: number) => (v > 0.008856 ? Math.cbrt(v) : 7.787 * v + 16 / 116);
-  const fx = f(x);
-  const fy = f(y);
-  const fz = f(z);
-  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
-}
-
-function deltaE(a: [number, number, number], b: [number, number, number]): number {
-  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+// Use squared Lab distance for the per-pixel fitting loop; role distinctness
+// uses the corresponding CIE76 distance on the rounded colors.
+function labDistanceSquared(a: [number, number, number], b: [number, number, number]): number {
+  return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
 }
 
 function kmeans(points: Array<[number, number, number]>, k: number, iterations = 25): { assign: Int32Array; centers: Array<[number, number, number]> } {
   const rng = mulberry32(0);
   const n = points.length;
   const centers: Array<[number, number, number]> = [];
-  const used = new Set<number>();
-  while (centers.length < k && used.size < n) {
-    const i = Math.floor(rng() * n);
-    if (used.has(i)) continue;
-    used.add(i);
-    centers.push([...points[i]!]);
+  // Farthest-point seeds cover small, distinct colours instead of repeatedly
+  // seeding the dominant wall. A solid image gets exactly one cluster.
+  centers.push([...points[Math.floor(rng() * n)]!]);
+  const distances = new Float64Array(n).fill(Infinity);
+  while (centers.length < k) {
+    const last = centers[centers.length - 1]!;
+    let farthest = 0;
+    for (let i = 0; i < n; i++) {
+      distances[i] = Math.min(distances[i]!, labDistanceSquared(points[i]!, last));
+      if (distances[i]! > distances[farthest]!) farthest = i;
+    }
+    if (distances[farthest]! < 1) break;
+    centers.push([...points[farthest]!]);
   }
-  const assign = new Int32Array(n);
+  const assign = new Int32Array(n).fill(-1);
   for (let iter = 0; iter < iterations; iter++) {
+    let changed = false;
     for (let i = 0; i < n; i++) {
       let best = 0;
       let bestD = Infinity;
       const p = points[i]!;
       for (let j = 0; j < centers.length; j++) {
-        const d = deltaE(p, centers[j]!);
+        const d = labDistanceSquared(p, centers[j]!);
         if (d < bestD) {
           bestD = d;
           best = j;
         }
       }
+      if (assign[i] !== best) changed = true;
       assign[i] = best;
     }
+    if (!changed) break;
     const sums = centers.map(() => [0, 0, 0, 0] as [number, number, number, number]);
     for (let i = 0; i < n; i++) {
       const j = assign[i]!;
@@ -112,213 +121,198 @@ function kmeans(points: Array<[number, number, number]>, k: number, iterations =
   return { assign, centers };
 }
 
-function largestBlob(mask: Uint8Array, w: number, h: number): { size: number; cx: number; cy: number } | null {
+function connectedRegions(mask: Uint8Array, w: number, h: number): number[][] {
   const seen = new Uint8Array(w * h);
-  let bestSize = 0;
-  let bestCx = 0;
-  let bestCy = 0;
-  const qx = new Int32Array(w * h);
-  const qy = new Int32Array(w * h);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const start = y * w + x;
-      if (!mask[start] || seen[start]) continue;
-      let head = 0;
-      let tail = 0;
-      qx[tail] = x;
-      qy[tail] = y;
-      tail++;
-      seen[start] = 1;
-      let size = 0;
-      let sumX = 0;
-      let sumY = 0;
-      let maxDist = -1;
-      let interiorX = x;
-      let interiorY = y;
-      while (head < tail) {
-        const cx = qx[head]!;
-        const cy = qy[head]!;
-        head++;
-        size++;
-        sumX += cx;
-        sumY += cy;
-        // 4-connected
-        const neighbors = [cx - 1, cy, cx + 1, cy, cx, cy - 1, cx, cy + 1];
-        for (let n = 0; n < 8; n += 2) {
-          const nx = neighbors[n]!;
-          const ny = neighbors[n + 1]!;
-          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-          const idx = ny * w + nx;
-          if (!mask[idx] || seen[idx]) continue;
-          seen[idx] = 1;
-          qx[tail] = nx;
-          qy[tail] = ny;
-          tail++;
-        }
-        let dist = 0;
-        if (cx > 0 && mask[cy * w + (cx - 1)]) dist++;
-        if (cx + 1 < w && mask[cy * w + (cx + 1)]) dist++;
-        if (cy > 0 && mask[(cy - 1) * w + cx]) dist++;
-        if (cy + 1 < h && mask[(cy + 1) * w + cx]) dist++;
-        if (dist >= maxDist) {
-          maxDist = dist;
-          interiorX = cx;
-          interiorY = cy;
-        }
+  const queue = new Int32Array(w * h);
+  const regions: number[][] = [];
+  for (let start = 0; start < mask.length; start++) {
+    if (!mask[start] || seen[start]) continue;
+    let head = 0;
+    let tail = 1;
+    queue[0] = start;
+    seen[start] = 1;
+    while (head < tail) {
+      const index = queue[head++]!;
+      const x = index % w;
+      const y = Math.floor(index / w);
+      const neighbors = [x > 0 ? index - 1 : -1, x + 1 < w ? index + 1 : -1,
+        y > 0 ? index - w : -1, y + 1 < h ? index + w : -1];
+      for (const next of neighbors) {
+        if (next < 0 || !mask[next] || seen[next]) continue;
+        seen[next] = 1;
+        queue[tail++] = next;
       }
-      if (size > bestSize) {
-        bestSize = size;
-        const meanX = sumX / size;
-        const meanY = sumY / size;
-        const meanIdx = Math.round(meanY) * w + Math.round(meanX);
-        if (meanIdx >= 0 && meanIdx < mask.length && mask[meanIdx]) {
-          bestCx = meanX;
-          bestCy = meanY;
-        } else {
-          bestCx = interiorX;
-          bestCy = interiorY;
-        }
+    }
+    if (tail / (w * h) >= MIN_PATCH) regions.push(Array.from(queue.subarray(0, tail)));
+  }
+  return regions;
+}
+
+export function isSkyLike(swatch: Pick<PaletteSwatch, "lab" | "spatial">): boolean {
+  const spatial = swatch.spatial;
+  return Boolean(spatial?.touchesTop && spatial.upperShare >= 0.6 && spatial.texture < 6 &&
+    (swatch.lab[2] < -12 || (swatch.lab[0] > 85 && Math.hypot(swatch.lab[1], swatch.lab[2]) < 12)));
+}
+
+/** Follow smooth sky across clouds/roof cutouts, without excluding blue objects. */
+function skyRegions(regions: PaletteSwatch[], neighbours: ReadonlyMap<PaletteSwatch, ReadonlySet<PaletteSwatch>>) {
+  const sky = new Set(regions.filter(isSkyLike));
+  const queue = [...sky];
+  for (const region of queue) {
+    for (const next of neighbours.get(region) ?? []) {
+      const spatial = next.spatial;
+      if (!sky.has(next) && spatial && spatial.upperShare >= 0.6 && spatial.texture < 6 &&
+        (next.lab[2] < -12 || (next.lab[0] > 85 && Math.hypot(next.lab[1], next.lab[2]) < 12))) {
+        sky.add(next);
+        queue.push(next);
       }
     }
   }
-  if (bestSize === 0) return null;
-  return { size: bestSize, cx: bestCx, cy: bestCy };
+  return sky;
 }
 
-function looksLikeSky(lab: [number, number, number], pinY: number): boolean {
-  const chroma = Math.hypot(lab[1], lab[2]);
-  return pinY < 0.12 && lab[0] > 60 && chroma < 22;
+function isSidewalk(swatch: PaletteSwatch): boolean {
+  return swatch.pinY > 0.85 && Math.hypot(swatch.lab[1], swatch.lab[2]) < 14 &&
+    swatch.lab[0] > 30 && swatch.lab[0] < 78 && (swatch.spatial?.centralShare ?? 1) < 0.1;
 }
 
-function looksLikeSidewalk(lab: [number, number, number], pinY: number): boolean {
-  const chroma = Math.hypot(lab[1], lab[2]);
-  return pinY > 0.85 && chroma < 14 && lab[0] > 30 && lab[0] < 78;
-}
-
-function assignRoles(swatches: PaletteSwatch[]): RoleColors {
-  const roles = emptyRoles();
-  if (swatches.length === 0) return roles;
-  const bg = swatches.reduce((a, b) => (a.share >= b.share ? a : b));
-  bg.role = "background";
-  roles.background = bg.hex;
-  const others = swatches.filter((s) => s !== bg);
-  if (others.length > 0) {
-    const text = others.slice().sort((a, b) => a.lab[0] - b.lab[0])[0]!;
-    text.role = "text";
-    roles.text = text.hex;
+/**
+ * A shadow has low chroma (C* < 25), is at least 10 L* below a meaningful
+ * side-adjacent region, with an absolute chroma difference of at most 5 C*.
+ * Their Lab hue angles must be within 30° (including wrap), or both C* < 3
+ * (the neutral family). L* is the perceptual transform of relative luminance.
+ * Adjacency comes from shared pixel edges, never centroid proximity.
+ */
+export function isShadowRegion(swatch: PaletteSwatch, neighbours: Iterable<PaletteSwatch>): boolean {
+  const chroma = Math.hypot(swatch.lab[1], swatch.lab[2]);
+  if (chroma >= 25) return false;
+  for (const neighbour of neighbours) {
+    const litChroma = Math.hypot(neighbour.lab[1], neighbour.lab[2]);
+    if (neighbour.patch < MIN_ROLE_PATCH || neighbour.lab[0] - swatch.lab[0] < 10 || Math.abs(chroma - litChroma) > 5) continue;
+    const sameHue = (chroma < 3 && litChroma < 3) ||
+      (chroma >= 3 && litChroma >= 3 &&
+        (swatch.lab[1] * neighbour.lab[1] + swatch.lab[2] * neighbour.lab[2]) >=
+          chroma * litChroma * Math.cos(Math.PI / 6));
+    if (sameHue) return true;
   }
-  const leftover: ColorRole[] = ["primary", "secondary", "accent", "surface"];
-  const rest = swatches.filter((s) => s.role === null).sort((a, b) => b.score - a.score);
-  for (const s of rest) {
-    const role = leftover.shift();
-    if (!role) continue;
-    s.role = role;
-    roles[role] = s.hex;
-  }
-  return roles;
+  return false;
 }
 
-function deriveHex(base: string, lightnessDelta: number): string {
-  const hsv = hexToHsv(base);
-  const v = Math.max(0.08, Math.min(0.95, hsv.v + lightnessDelta));
-  const s = Math.max(0.08, Math.min(1, hsv.s * (lightnessDelta > 0 ? 0.82 : 1.08)));
-  return hsvToHex(hsv.h, s, v);
-}
-
-function swatchFromHex(hex: string, role: ColorRole): PaletteSwatch {
-  const { r, g, b } = hexToRgb(hex);
-  const family = hexToFamily(hex);
-  return {
-    hex,
-    share: 0,
-    patch: 0,
-    pinX: 0.5,
-    pinY: 0.5,
-    lab: rgbToLab(r, g, b),
-    score: 0,
-    family,
-    name: family,
-    role,
+/** Merge near-duplicate choices by role rank; refill only from real components. */
+export function assignRoles(
+  regions: PaletteSwatch[],
+  neighbours: ReadonlyMap<PaletteSwatch, ReadonlySet<PaletteSwatch>> = new Map(),
+): PaletteSwatch[] {
+  for (const region of regions) region.role = null;
+  const sky = skyRegions(regions, neighbours);
+  const candidates = regions.filter((s) => s.patch >= MIN_ROLE_PATCH && !sky.has(s) && !isSidewalk(s));
+  const suitableText = candidates.filter((s) => s.lab[0] < 60 && Math.hypot(s.lab[1], s.lab[2]) < 25)
+    .sort((a, b) => a.lab[0] - b.lab[0] || b.patch - a.patch);
+  const lightOrNeutral = (s: PaletteSwatch) => s.lab[0] >= 60 || Math.hypot(s.lab[1], s.lab[2]) < 12;
+  // Find the largest light/neutral before the contrast gate: a dominant dark
+  // shadow must not transfer this exemption to a smaller shaded component.
+  const largestField = candidates.filter(lightOrNeutral).sort((a, b) => b.patch - a.patch)[0];
+  const shadows = new Set(candidates.filter((s) =>
+    !(s === largestField && suitableText[0] && contrastRatio(s.hex, suitableText[0].hex) >= TARGET_CONTRAST) &&
+    isShadowRegion(s, neighbours.get(s) ?? [])));
+  const selected: PaletteSwatch[] = [];
+  const take = (role: ColorRole, ranked: PaletteSwatch[]) => {
+    const distinct = (s: PaletteSwatch) => !selected.some((t) => roleDeltaE(s.lab, t.lab) < MIN_ROLE_DELTA_E);
+    const available = ranked.filter(distinct);
+    const nonShadows = available.filter((s) => !shadows.has(s));
+    // Shadows may fill any role only after its distinct non-shadow choices
+    // are exhausted. Apply the same preference to near-duplicate merging.
+    const choices = nonShadows.length ? nonShadows : available;
+    let swatch = choices[0];
+    if (!swatch) return;
+    if (role === "primary" || role === "background") {
+      // Keep the larger connected component of a near-duplicate family, while
+      // retaining the chosen subject/backdrop class. Do not average regions.
+      const preferred = swatch;
+      swatch = choices.filter((s) => isSkyLike(s) === isSkyLike(preferred) &&
+        ((s.spatial?.borderEdges ?? 0) >= 2) === ((preferred.spatial?.borderEdges ?? 0) >= 2) &&
+        roleDeltaE(s.lab, preferred.lab) < MIN_ROLE_DELTA_E)
+        .sort((a, b) => b.patch - a.patch || b.score - a.score)[0]!;
+    }
+    swatch.role = role;
+    selected.push(swatch);
   };
-}
-
-function ensureTextBackgroundContrast(text: string, background: string): { text: string; background: string } {
-  let t = text;
-  let bg = background;
-  for (let i = 0; i < 28; i++) {
-    if (contrastRatio(t, bg) >= TARGET_CONTRAST) return { text: t, background: bg };
-    const th = hexToHsv(t);
-    const bh = hexToHsv(bg);
-    t = hsvToHex(th.h, th.s, Math.max(0, th.v - 0.05));
-    bg = hsvToHex(bh.h, Math.max(0, bh.s * 0.98), Math.min(1, bh.v + 0.05));
+  const byScore = (rows: PaletteSwatch[]) => rows.slice().sort((a, b) => b.score - a.score || b.patch - a.patch);
+  const chromatic = candidates.filter((s) => Math.hypot(s.lab[1], s.lab[2]) >= 12);
+  const primaryScore = (s: PaletteSwatch) => s.score * (0.5 + (s.spatial?.centralShare ?? 0.5)) *
+    (isSkyLike(s) ? 0.08 : 1) * ((s.spatial?.borderEdges ?? 0) >= 2 ? 0.35 : 1);
+  let primaryCandidates: PaletteSwatch[] = [];
+  // Reserve the dominant subject before field/trim assignment can take it.
+  // A neutral-only image still follows the existing background/text semantics.
+  if (chromatic.length) {
+    take("text", suitableText);
+    const nonSky = candidates.filter((s) => !isSkyLike(s));
+    const foreground = nonSky.filter((s) =>
+      ((s.spatial?.borderEdges ?? 0) < 2 || (s.spatial?.centralShare ?? 0.5) >= 0.5));
+    const subjects = foreground.filter((s) => Math.hypot(s.lab[1], s.lab[2]) >= 12 &&
+      selected.every((t) => roleDeltaE(s.lab, t.lab) >= MIN_ROLE_DELTA_E));
+    primaryCandidates = (subjects.length ? subjects : foreground.length ? foreground : nonSky).slice()
+      .sort((a, b) => primaryScore(b) - primaryScore(a) || b.patch - a.patch);
+    take("primary", primaryCandidates);
   }
-  if (contrastRatio(t, bg) >= TARGET_CONTRAST) return { text: t, background: bg };
-  const dark = "#0a0a0a";
-  const light = "#f7f4ee";
-  if (contrastRatio(dark, bg) >= TARGET_CONTRAST && contrastRatio(dark, bg) >= contrastRatio(light, bg)) {
-    return { text: dark, background: bg };
-  }
-  if (contrastRatio(light, bg) >= TARGET_CONTRAST) return { text: light, background: bg };
-  const bgForDark = contrastRatio(dark, "#f7f4ee") >= TARGET_CONTRAST ? "#f7f4ee" : "#111111";
-  return { text: dark, background: bgForDark };
-}
-
-function replaceRoleHex(swatches: PaletteSwatch[], role: ColorRole, hex: string): void {
-  const row = swatches.find((s) => s.role === role);
-  if (row) {
-    row.hex = hex;
-    row.family = hexToFamily(hex);
-    row.name = row.family;
-    const rgb = hexToRgb(hex);
-    row.lab = rgbToLab(rgb.r, rgb.g, rgb.b);
-    return;
-  }
-  swatches.push(swatchFromHex(hex, role));
-}
-
-/** Fill every token role. Derived tints sit on the center pin so markDerivedRoles tags them auto. */
-export function fillMissingRoles(swatches: PaletteSwatch[], roles: RoleColors): { swatches: PaletteSwatch[]; roles: RoleColors } {
-  const nextRoles = { ...roles };
-  const nextSwatches = swatches.slice();
-  if (!nextRoles.background) {
-    const bg = nextSwatches[0];
-    if (bg) {
-      bg.role = "background";
-      nextRoles.background = bg.hex;
-    } else {
-      nextRoles.background = "#6b6656";
-      nextSwatches.push(swatchFromHex(nextRoles.background, "background"));
+  const calm = candidates.filter((s) => Math.hypot(s.lab[1], s.lab[2]) < 12);
+  const fields = chromatic.length ? calm : calm.filter((s) => s.lab[0] >= 60);
+  const text = selected.find((s) => s.role === "text") ?? suitableText[0];
+  const primary = selected.find((s) => s.role === "primary");
+  // Reserve the subject, then prefer the largest eligible L* >= 75 region.
+  // Fall back to the largest light/neutral region if no brighter one clears
+  // the gates, including subject replacement. Check rounded hex Lab.
+  const backgrounds = text ? candidates.filter((s) =>
+    lightOrNeutral(s) &&
+    contrastRatio(s.hex, text.hex) >= TARGET_CONTRAST &&
+    !shadows.has(s) &&
+    selected.every((t) => t === primary || roleDeltaE(s.lab, t.lab) >= MIN_ROLE_DELTA_E))
+    .sort((a, b) => Number(b.lab[0] >= 75) - Number(a.lab[0] >= 75) ||
+      b.patch - a.patch || b.score - a.score) : [];
+  let background: PaletteSwatch | undefined;
+  for (const candidate of backgrounds) {
+    if (!primary || roleDeltaE(candidate.lab, primary.lab) >= MIN_ROLE_DELTA_E) {
+      background = candidate;
+      break;
+    }
+    // A real variant of the same reserved subject can release larger lit trim.
+    // Keep its subject/backdrop class; never tint either hex to clear the gate.
+    const replacement = primaryCandidates.filter((s) =>
+      !shadows.has(s) &&
+      isSkyLike(s) === isSkyLike(primary) &&
+      ((s.spatial?.borderEdges ?? 0) >= 2) === ((primary.spatial?.borderEdges ?? 0) >= 2) &&
+      roleDeltaE(s.lab, primary.lab) < MIN_ROLE_DELTA_E &&
+      roleDeltaE(s.lab, candidate.lab) >= MIN_ROLE_DELTA_E &&
+      selected.every((t) => t === primary || roleDeltaE(s.lab, t.lab) >= MIN_ROLE_DELTA_E))
+      .sort((a, b) => b.patch - a.patch || primaryScore(b) - primaryScore(a))[0];
+    if (replacement) {
+      primary.role = null;
+      replacement.role = "primary";
+      selected[selected.indexOf(primary)] = replacement;
+      background = candidate;
+      break;
     }
   }
-  if (!nextRoles.text) {
-    const bg = nextRoles.background!;
-    const dark = deriveHex(bg, -0.45);
-    const light = deriveHex(bg, 0.42);
-    nextRoles.text = contrastRatio(dark, bg) >= contrastRatio(light, bg) ? dark : light;
-    nextSwatches.push(swatchFromHex(nextRoles.text, "text"));
-  }
-  const deltas = [0.18, -0.16, 0.3, -0.28];
-  const sources = COLOR_ROLES.filter((role) => nextRoles[role]);
-  const leftover = COLOR_ROLES.filter((role) => !nextRoles[role]);
-  leftover.forEach((role, i) => {
-    const srcRole = sources[i % sources.length] ?? "background";
-    const base = nextRoles[srcRole] ?? nextRoles.background!;
-    const hex = deriveHex(base, deltas[i % deltas.length]!);
-    nextRoles[role] = hex;
-    nextSwatches.push(swatchFromHex(hex, role));
-  });
-  const fixed = ensureTextBackgroundContrast(nextRoles.text!, nextRoles.background!);
-  nextRoles.text = fixed.text;
-  nextRoles.background = fixed.background;
-  replaceRoleHex(nextSwatches, "text", fixed.text);
-  replaceRoleHex(nextSwatches, "background", fixed.background);
-  return { swatches: nextSwatches, roles: nextRoles };
+  take("background", background ? [background] : byScore(fields.length ? fields : calm.length ? calm : candidates));
+  if (!selected.some((s) => s.role === "text")) take("text", candidates.filter((s) => s.lab[0] < 60)
+    .sort((a, b) => a.lab[0] - b.lab[0] || b.patch - a.patch));
+  take("surface", candidates.filter((s) => s.lab[0] >= 70)
+    .sort((a, b) => Number((a.spatial?.borderEdges ?? 0) > 0) - Number((b.spatial?.borderEdges ?? 0) > 0) ||
+      b.lab[0] - a.lab[0] || b.patch - a.patch));
+  // A chromatic, perceptually separate detail earns accent; gray never does.
+  take("accent", byScore(candidates.filter((s) => Math.hypot(s.lab[1], s.lab[2]) >= 25)));
+  take("secondary", candidates.slice().sort((a, b) => primaryScore(b) - primaryScore(a) || b.patch - a.patch));
+  return selected;
 }
 
-export async function extractPalette(input: Buffer): Promise<ExtractedPalette> {
+export async function extractPalette(
+  input: Buffer,
+  auditRegion?: (swatch: PaletteSwatch, pixels: readonly number[], width: number, height: number) => void,
+): Promise<ExtractedPalette> {
   const { data, info } = await sharp(input)
     .rotate()
-    .resize({ width: THUMB, height: THUMB, fit: "inside" })
+    .resize({ width: PALETTE_THUMB, height: PALETTE_THUMB, fit: "inside" })
+    .toColourspace("srgb")
     .removeAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
@@ -343,93 +337,136 @@ export async function extractPalette(input: Buffer): Promise<ExtractedPalette> {
       }
     }
   }
+  // Extremely narrow images may have no interior after the edge crop.
+  if (keepIdx.length === 0) for (let i = 0; i < pixels; i++) keepIdx.push(i);
   const keptLabs = keepIdx.map((i) => labs[i]!);
   const { assign, centers } = kmeans(keptLabs, Math.min(K, keptLabs.length));
 
   const fullAssign = new Int32Array(pixels).fill(-1);
   for (let i = 0; i < keepIdx.length; i++) fullAssign[keepIdx[i]!] = assign[i]!;
+  // Fit on the cropped interior, but segment the whole image. Otherwise no
+  // region can touch the actual top/border and sky detection is impossible.
+  for (let i = 0; i < pixels; i++) {
+    if (fullAssign[i] !== -1) continue;
+    let best = 0;
+    for (let j = 1; j < centers.length; j++) {
+      if (labDistanceSquared(labs[i]!, centers[j]!) < labDistanceSquared(labs[i]!, centers[best]!)) best = j;
+    }
+    fullAssign[i] = best;
+  }
 
   const candidates: PaletteSwatch[] = [];
+  const regions = new Map<PaletteSwatch, number[]>();
+  // Join neighbouring colour clusters before spatial segmentation, so slight
+  // texture/shading does not fragment a continuous wall into tiny pieces.
+  const groups: number[][] = [];
   for (let j = 0; j < centers.length; j++) {
-    const members: number[] = [];
-    for (let i = 0; i < keepIdx.length; i++) if (assign[i] === j) members.push(keepIdx[i]!);
-    const share = members.length / keepIdx.length;
-    if (share < MIN_SHARE) continue;
-
+    const group = groups.find((g) => labDistanceSquared(centers[j]!, centers[g[0]!]!) < MERGE_DE ** 2);
+    if (group) group.push(j);
+    else groups.push([j]);
+  }
+  for (const group of groups) {
     const mask = new Uint8Array(pixels);
-    for (let p = 0; p < pixels; p++) if (fullAssign[p] === j) mask[p] = 1;
-    const blob = largestBlob(mask, w, h);
-    if (!blob) continue;
-    const patch = blob.size / pixels;
-    if (patch < MIN_PATCH) continue;
-
-    const pinX = blob.cx / w;
-    const pinY = blob.cy / h;
-    const C = centers[j]!;
-    if (looksLikeSky(C, pinY) || looksLikeSidewalk(C, pinY)) continue;
-
-    let sr = 0;
-    let sg = 0;
-    let sb = 0;
-    for (const idx of members) {
-      const rgb = rgbs[idx]!;
-      sr += rgb[0];
-      sg += rgb[1];
-      sb += rgb[2];
+    for (let index = 0; index < pixels; index++) if (group.includes(fullAssign[index]!)) mask[index] = 1;
+    const clusterShare = mask.reduce((sum, value) => sum + value, 0) / pixels;
+    for (const region of connectedRegions(mask, w, h)) {
+      const area = region.length / pixels;
+      if (area < MIN_SHARE) continue;
+      // Resampling can create a one-pixel colour along a hard boundary. A
+      // region needs an interior pixel to count as its own material/detail.
+      if (!region.some((i) => i % w > 0 && i % w < w - 1 && i >= w && i < pixels - w &&
+        mask[i - 1] && mask[i + 1] && mask[i - w] && mask[i + w])) continue;
+      let sr = 0;
+      let sg = 0;
+      let sb = 0;
+      let sx = 0;
+      let sy = 0;
+      let upper = 0;
+      let central = 0;
+      let texture = 0;
+      let textureEdges = 0;
+      const borders = new Set<string>();
+      for (const index of region) {
+        sr += rgbs[index]![0];
+        sg += rgbs[index]![1];
+        sb += rgbs[index]![2];
+        const x = index % w;
+        const y = Math.floor(index / w);
+        sx += x;
+        sy += y;
+        if (y < h * 0.35) upper++;
+        if (x > w * 0.2 && x < w * 0.8 && y > h * 0.2 && y < h * 0.8) central++;
+        if (y === 0) borders.add("top");
+        if (y === h - 1) borders.add("bottom");
+        if (x === 0) borders.add("left");
+        if (x === w - 1) borders.add("right");
+        for (const next of [x + 1 < w ? index + 1 : -1, y + 1 < h ? index + w : -1]) {
+          if (next >= 0 && mask[next]) {
+            texture += Math.sqrt(labDistanceSquared(labs[index]!, labs[next]!));
+            textureEdges++;
+          }
+        }
+      }
+      const hex = rgbToHex(sr / region.length, sg / region.length, sb / region.length);
+      // Separation is checked on the exact rounded hex the user receives.
+      const lab = hexToLab(hex);
+      const chroma = Math.hypot(lab[1], lab[2]);
+      let perimeter = 0;
+      for (const index of region) {
+        const x = index % w;
+        const y = Math.floor(index / w);
+        if (x === 0 || !mask[index - 1]) perimeter++;
+        if (x === w - 1 || !mask[index + 1]) perimeter++;
+        if (y === 0 || !mask[index - w]) perimeter++;
+        if (y === h - 1 || !mask[index + w]) perimeter++;
+      }
+      // A long antialiased edge must not outrank a compact tile/detail of the
+      // same colour. This still scores only measured, connected photo pixels.
+      const compactness = Math.sqrt(4 * Math.PI * region.length / (perimeter * perimeter));
+      const family = hexToFamily(hex);
+      const swatch: PaletteSwatch = {
+        origin: "region",
+        hex, share: clusterShare, patch: area, pinX: sx / region.length / w, pinY: sy / region.length / h, lab,
+        score: area * (1 + chroma / 25) * compactness, family, name: family, role: null,
+        spatial: { touchesTop: borders.has("top"), borderEdges: borders.size,
+          upperShare: upper / region.length, centralShare: central / region.length,
+          texture: textureEdges ? texture / textureEdges : 0 },
+      };
+      candidates.push(swatch);
+      regions.set(swatch, region);
     }
-    const hex = rgbToHex(sr / members.length, sg / members.length, sb / members.length);
-    const chroma = Math.hypot(C[1], C[2]);
-    const score = share * (1 + chroma / 25) * (C[0] > 15 && C[0] < 95 ? 1 : 0.5);
-    const family = hexToFamily(hex);
-    candidates.push({
-      hex,
-      share,
-      patch,
-      pinX,
-      pinY,
-      lab: C,
-      score,
-      family,
-      name: family,
-      role: null,
-    });
   }
-
-  candidates.sort((a, b) => b.score - a.score);
-  const swatches: PaletteSwatch[] = [];
-  for (const s of candidates) {
-    if (swatches.some((t) => deltaE(s.lab, t.lab) < MERGE_DE)) continue;
-    swatches.push(s);
-    if (swatches.length >= MAX_SWATCHES) break;
+  // Track side-adjacent real components so a passing but shaded region cannot
+  // become background merely because it is large or neutral.
+  const owners = new Int32Array(pixels).fill(-1);
+  candidates.forEach((swatch, i) => {
+    for (const pixel of regions.get(swatch)!) owners[pixel] = i;
+  });
+  const neighbours = new Map(candidates.map((s) => [s, new Set<PaletteSwatch>()]));
+  for (let i = 0; i < pixels; i++) {
+    if (owners[i]! < 0) continue;
+    for (const next of [i % w + 1 < w ? i + 1 : -1, i + w < pixels ? i + w : -1]) {
+      if (next < 0 || owners[next]! < 0 || owners[i] === owners[next]) continue;
+      const a = candidates[owners[i]!]!;
+      const b = candidates[owners[next]!]!;
+      neighbours.get(a)!.add(b);
+      neighbours.get(b)!.add(a);
+    }
   }
-
-  if (swatches.length === 0) {
-    const stats = await sharp(input).stats();
-    const hex = rgbToHex(stats.dominant.r, stats.dominant.g, stats.dominant.b);
-    const family = hexToFamily(hex);
-    const only: PaletteSwatch = {
-      hex,
-      share: 1,
-      patch: 1,
-      pinX: 0.5,
-      pinY: 0.5,
-      lab: rgbToLab(stats.dominant.r, stats.dominant.g, stats.dominant.b),
-      score: 1,
-      family,
-      name: family,
-      role: "background",
-    };
-    const roles = emptyRoles();
-    roles.background = hex;
-    const filled = fillMissingRoles([only], roles);
-    const contrast = contrastRatio(filled.roles.text!, filled.roles.background!);
-    return { swatches: filled.swatches, roles: filled.roles, contrast };
+  const swatches = assignRoles(candidates, neighbours).slice(0, MAX_SWATCHES);
+  const roles = emptyRoles();
+  for (const swatch of swatches) {
+    const region = regions.get(swatch)!;
+    roles[swatch.role!] = swatch.hex;
+    auditRegion?.(swatch, region, w, h);
   }
-
-  const assigned = assignRoles(swatches);
-  const filled = fillMissingRoles(swatches, assigned);
-  const contrast = contrastRatio(filled.roles.text!, filled.roles.background!);
-  return { swatches: filled.swatches, roles: filled.roles, contrast };
+  return { swatches, regions: candidates, neighbours,
+    regionAtPin: (pinX, pinY) => {
+      if (!Number.isFinite(pinX) || !Number.isFinite(pinY) || pinX < 0 || pinX > 1 || pinY < 0 || pinY > 1) return undefined;
+      const pixel = Math.min(h - 1, Math.floor(pinY * h)) * w + Math.min(w - 1, Math.floor(pinX * w));
+      return candidates[owners[pixel]!];
+    },
+    roles, contrast: textOnBackgroundContrast(roles) };
 }
 
 export async function areaAverage(
@@ -438,7 +475,7 @@ export async function areaAverage(
   ny: number,
   radius = 8,
 ): Promise<{ hex: string; pinX: number; pinY: number }> {
-  const { data, info } = await sharp(input).rotate().removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { data, info } = await sharp(input).rotate().toColourspace("srgb").removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const w = info.width;
   const h = info.height;
   const cx = Math.max(0, Math.min(w - 1, Math.round(nx * w)));

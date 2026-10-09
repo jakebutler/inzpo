@@ -1,10 +1,10 @@
 import { act, fireEvent, render } from '@testing-library/react-native';
 import * as ExpoHaptics from 'expo-haptics';
 import { useReducedMotion } from 'react-native-reanimated';
-import { SaveSheetContent } from './SaveSheetContent';
+import { KeepScreen } from './KeepScreen';
 import { useInzpoClient } from '@/lib/api';
 import { createHaptics, haptics } from '@/lib/haptics';
-import { mockClient } from '../../tests/fixtures';
+import { kitFixture, mockClient } from '../../tests/fixtures';
 
 jest.mock('@/lib/api', () => ({ useInzpoClient: jest.fn() }));
 let client: ReturnType<typeof mockClient>;
@@ -18,15 +18,15 @@ beforeEach(() => {
 afterEach(() => jest.useRealTimers());
 
 test('renders collections, picks one, and saves with collectionId', async () => {
-  const view = await render(<SaveSheetContent kitId="kit-1" onClose={onClose} />);
+  const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
   expect(view.getByText('Keep this kit')).toBeTruthy();
   expect(await view.findByText('Neighborhood')).toBeTruthy();
-  expect(view.getByRole('button', { name: 'Save kit' })).toBeDisabled();
+  expect(view.getByRole('button', { name: 'Save kit' })).toBeEnabled();
   await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
   expect(client.saveKit).toHaveBeenCalledWith('kit-1', { collectionId: 'collection-1' });
   expect(view.getByText('Saved')).toBeTruthy();
-  expect(view.getByTestId('baku-success')).toBeTruthy();
+  expect(view.queryByTestId('keep-baku')).toBeNull();
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledWith(ExpoHaptics.NotificationFeedbackType.Success);
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledTimes(1);
   expect(view.getByTestId('save-check')).toBeTruthy();
@@ -35,7 +35,7 @@ test('renders collections, picks one, and saves with collectionId', async () => 
 });
 
 test('typing a new name clears an existing choice and sends only newName', async () => {
-  const view = await render(<SaveSheetContent kitId="kit-1" onClose={onClose} />);
+  const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
   await view.findByText('Neighborhood');
   await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
   await fireEvent.changeText(view.getByLabelText('New collection name'), '  Sunday walks  ');
@@ -47,12 +47,11 @@ test('typing a new name clears an existing choice and sends only newName', async
 
 test('a save error keeps the selection available for retry', async () => {
   client.saveKit.mockRejectedValueOnce(new Error('offline'));
-  const view = await render(<SaveSheetContent kitId="kit-1" onClose={onClose} />);
+  const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
   await view.findByText('Neighborhood');
   await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
   expect(view.getByText('Couldn’t save this kit. Please try again.')).toBeTruthy();
-  expect(view.getByTestId('baku-errorBrief')).toBeTruthy();
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledWith(ExpoHaptics.NotificationFeedbackType.Error);
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledTimes(1);
   expect(view.queryByText('Saved')).toBeNull();
@@ -62,41 +61,36 @@ test('a save error keeps the selection available for retry', async () => {
 
 test('collection loading failure can be retried', async () => {
   client.listCollections.mockRejectedValueOnce(new Error('offline'));
-  const view = await render(<SaveSheetContent kitId="kit-1" onClose={onClose} />);
+  const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
   expect(await view.findByText('Couldn’t load collections. Please try again.')).toBeTruthy();
   await fireEvent.press(view.getByRole('button', { name: 'Reload collections' }));
   expect(await view.findByText('Neighborhood')).toBeTruthy();
 });
 
-test('whitespace alone cannot create a new collection', async () => {
-  const view = await render(<SaveSheetContent kitId="kit-1" onClose={onClose} />);
+test('clearing the name uses the default and keeps Save enabled', async () => {
+  const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
   await fireEvent.changeText(view.getByLabelText('New collection name'), '   ');
-  expect(view.getByRole('button', { name: 'Save kit' })).toBeDisabled();
-});
-
-test.each([false, true])('success holds for 2s then returns to idle (reduced motion: %s)', async (reducedMotion) => {
-  jest.useFakeTimers();
-  jest.mocked(useReducedMotion).mockReturnValue(reducedMotion);
-  const view = await render(<SaveSheetContent kitId="kit-1" onClose={onClose} />);
-  expect(view.getByLabelText('New collection name').props.autoFocus).toBe(true);
-  await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
+  expect(view.getByRole('button', { name: 'Save kit' })).toBeEnabled();
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
-  expect(view.getByTestId('baku-success')).toBeTruthy();
-  expect(ExpoHaptics.notificationAsync).toHaveBeenCalledWith(ExpoHaptics.NotificationFeedbackType.Success);
-  await act(async () => { jest.advanceTimersByTime(1999); });
-  expect(view.getByTestId('baku-success')).toBeTruthy();
-  await act(async () => { jest.advanceTimersByTime(1); });
-  expect(view.getByTestId('baku-idle')).toBeTruthy();
-  expect(view.getByRole('button', { name: 'Saved' })).toBeDisabled();
-  await view.unmount();
-  jest.useRealTimers();
+  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { newName: 'My collection' });
 });
 
+test('a full-screen Keep prefills the kit title and omits Baku', async () => {
+  const view = await render(<KeepScreen kitId="kit-1" kit={kitFixture} onClose={onClose} />);
+  expect(view.getByTestId('keep-screen')).toBeTruthy();
+  expect(view.getAllByText('Keep this kit')).toHaveLength(1);
+  expect(view.getByLabelText('New collection name').props.value).toBe(kitFixture.title);
+  expect(view.getByLabelText('New collection name').props.autoFocus).not.toBe(true);
+  expect(view.queryByTestId('keep-baku')).toBeNull();
+  expect(view.getByRole('button', { name: 'Save kit' })).toBeEnabled();
+  await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
+  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { newName: kitFixture.title });
+});
 
 test('success reports the collection and automatically dismisses after 900ms', async () => {
   jest.useFakeTimers();
   const onSaved = jest.fn();
-  const view = await render(<SaveSheetContent kitId="kit-1" onClose={onClose} onSaved={onSaved} />);
+  const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} onSaved={onSaved} />);
   await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
   expect(onSaved).toHaveBeenCalledWith({ collectionId: 'collection-1', collectionName: 'Neighborhood' });
@@ -111,7 +105,7 @@ test('success reports the collection and automatically dismisses after 900ms', a
 
 test('success reports the trimmed new collection name', async () => {
   const onSaved = jest.fn();
-  const view = await render(<SaveSheetContent kitId="kit-1" onClose={onClose} onSaved={onSaved} />);
+  const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} onSaved={onSaved} />);
   await fireEvent.changeText(view.getByLabelText('New collection name'), '  Walks  ');
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
   expect(onSaved).toHaveBeenCalledWith({ collectionId: 'collection-1', collectionName: 'Walks' });
@@ -119,7 +113,7 @@ test('success reports the trimmed new collection name', async () => {
 
 test('unmounting after success cancels the automatic dismissal timer', async () => {
   jest.useFakeTimers();
-  const view = await render(<SaveSheetContent kitId="kit-1" onClose={onClose} />);
+  const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
   await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
   await view.unmount();

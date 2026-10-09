@@ -6,20 +6,21 @@ import * as ExpoHaptics from 'expo-haptics';
 import * as Reanimated from 'react-native-reanimated';
 import { Keyboard, Platform } from 'react-native';
 import { fonts, INK } from '@/theme/tokens';
-import { router, Stack } from 'expo-router';
-import { BottomSheetModal, type BottomSheetModalProps } from '@gorhom/bottom-sheet';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import SignInScreen from '@/app/(auth)/sign-in';
 import SnapScreen from '@/app/(app)/index';
 import ResultScreen from '@/app/(app)/kit/[id]';
+import KeepRoute from '@/app/(app)/keep/[id]';
 import AuthLayout from '@/app/(auth)/_layout';
 import AppLayout from '@/app/(app)/_layout';
 import { completedResultKits } from '@/lib/useResultSequence';
 import { useInzpoClient } from '@/lib/api';
 import { createHaptics, haptics } from '@/lib/haptics';
 import { uploadPhoto } from '@/lib/upload';
-import { resultSequenceBeats, SHUTTER_PRESS_SCALE, TAP_TIMING, BUTTON_PRESS_SCALE, HOP_TIMELINE } from '@/theme/motion';
+import { resultSequenceBeats, SHUTTER_PRESS_SCALE, TAP_TIMING, BUTTON_PRESS_SCALE } from '@/theme/motion';
 import { kitFixture, mockClient } from '../../tests/fixtures';
 import { mockReanimatedMotion } from '../../tests/reanimated-motion';
+import { restingBakuSize } from '@/theme/sign-in';
 
 jest.mock('@/lib/api', () => ({ useInzpoClient: jest.fn() }));
 jest.mock('@/lib/upload', () => ({ uploadPhoto: jest.fn() }));
@@ -33,6 +34,7 @@ const signIn = {
 
 beforeEach(() => {
   completedResultKits.clear();
+  jest.mocked(useLocalSearchParams).mockReturnValue({ id: 'kit-1' });
   Object.assign(haptics, createHaptics());
   jest.mocked(Reanimated.useReducedMotion).mockReturnValue(false);
   client = mockClient();
@@ -56,7 +58,7 @@ afterEach(() => { jest.restoreAllMocks(); jest.useRealTimers(); });
 
 test('sign-in renders, sends an email code, verifies six digits, and activates the session', async () => {
   const view = await render(<SignInScreen />);
-  expect(view.getByText('Snap a house. Keep its colors.')).toBeTruthy();
+  expect(view.getByText('Steal the colors off anything')).toBeTruthy();
   expect(view.getByText("Enter your email and we'll send you a code.")).toBeTruthy();
   expect(view.getByRole('button', { name: 'Send code' })).toBeDisabled();
   await fireEvent.changeText(view.getByLabelText('Email'), ' invited@example.com ');
@@ -136,7 +138,7 @@ test('upload pending disables both actions; failure restores them and shows one 
   jest.mocked(uploadPhoto).mockReturnValue(new Promise((_resolve, reject) => { rejectUpload = reject; }));
   const view = await render(<SnapScreen />);
   await fireEvent.press(view.getByRole('button', { name: 'Pick from library' }));
-  expect(view.getByText('Baku is chewing on it…')).toBeTruthy();
+  expect(view.queryByText('Chewing on it.')).toBeNull();
   expect(view.getByRole('button', { name: 'Snap a house' })).toBeDisabled();
   expect(view.getByRole('button', { name: 'Pick from library' })).toBeDisabled();
   await act(async () => { rejectUpload(new Error('offline')); });
@@ -193,7 +195,7 @@ test('a pending brief polls and refetches the kit title after resolving', async 
   let resolveBrief!: (brief: typeof kitFixture.brief) => void;
   client.getBrief.mockReturnValue(new Promise((resolve) => { resolveBrief = resolve; }));
   const view = await render(<ResultScreen />);
-  expect(await view.findByText('Baku is chewing on it…')).toBeVisible();
+  expect(view.queryByText('Chewing on it.')).toBeNull();
   expect(view.getByTestId('baku-chewing')).toBeTruthy();
   expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
   expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
@@ -202,6 +204,26 @@ test('a pending brief polls and refetches the kit title after resolving', async 
   expect(await view.findByLabelText('The brick house')).toBeTruthy();
   expect(client.getKit).toHaveBeenCalledTimes(2);
   expect(client.getBrief).toHaveBeenCalledWith('kit-1', expect.objectContaining({ signal: expect.anything() }));
+});
+
+test('waiting shows the delayed caption above fixed Result actions, then removes it when ready', async () => {
+  jest.useFakeTimers();
+  client.getKit.mockResolvedValueOnce({ ...kitFixture, brief: { ...kitFixture.brief, status: 'pending', text: null } })
+    .mockResolvedValueOnce(kitFixture);
+  let resolveBrief!: (brief: typeof kitFixture.brief) => void;
+  client.getBrief.mockReturnValue(new Promise((resolve) => { resolveBrief = resolve; }));
+  const view = await render(<ResultScreen />);
+  await act(async () => jest.advanceTimersByTime(1999));
+  expect(view.queryByText('Chewing on it.')).toBeNull();
+  await act(async () => jest.advanceTimersByTime(1));
+  const actions = within(view.getByTestId('result-actions'));
+  expect(view.getByTestId('munch-player')).toHaveStyle({ width: 280 });
+  expect(actions.getByText('Chewing on it.')).toHaveStyle({ bottom: 64, position: 'absolute' });
+  expect(within(view.getByTestId('result-content')).queryByText('Chewing on it.')).toBeNull();
+  expect(actions.getByRole('button', { name: 'Save' })).toBeDisabled();
+  await act(async () => { resolveBrief(kitFixture.brief); });
+  expect(view.queryByText('Chewing on it.')).toBeNull();
+  expect(view.queryByTestId('munch-player')).toBeNull();
 });
 
 test('brief errors preserve the colors and render brief-error Baku', async () => {
@@ -230,11 +252,13 @@ test('missing kit renders the 404 placeholder and retry', async () => {
   expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
 });
 
-test('opening Save presents the collection content in the result modal', async () => {
+test('opening Save navigates to the full-screen Keep route', async () => {
   const view = await render(<ResultScreen />);
   await view.findByLabelText(kitFixture.title);
   await fireEvent(view.getByTestId('result-content'), 'scrollBeginDrag');
   await fireEvent.press(view.getByRole('button', { name: 'Save' }));
+  expect(router.push).toHaveBeenCalledWith({ pathname: '/keep/[id]', params: { id: 'kit-1' } });
+  await view.rerender(<KeepRoute />);
   expect(await view.findByText('Keep this kit')).toBeTruthy();
   expect(await view.findByText('Neighborhood')).toBeTruthy();
 });
@@ -331,14 +355,20 @@ test.each([false, true])('Save success reaches the Result Baku, with exactly one
   completedResultKits.add('kit-1');
   const view = await render(<ResultScreen />);
   await fireEvent.press(view.getByRole('button', { name: 'Save' }));
+  expect(router.push).toHaveBeenCalledWith({ pathname: '/keep/[id]', params: { id: 'kit-1' } });
+  await view.rerender(<KeepRoute />);
   await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
-  expect(within(view.getByTestId('result-baku')).getByTestId('baku-success')).toBeTruthy();
+  expect(view.queryByTestId('result-baku')).toBeNull();
   expect(view.getByText('Saved')).toBeTruthy();
   expect(view.getByTestId('save-check')).toBeTruthy();
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledTimes(1);
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledWith(ExpoHaptics.NotificationFeedbackType.Success);
-  await act(async () => { jest.advanceTimersByTime(HOP_TIMELINE.anticipationMs); });
+  await act(async () => { jest.advanceTimersByTime(900); });
+  expect(router.replace).toHaveBeenCalledWith({ pathname: '/kit/[id]', params: { id: 'kit-1', saved: '1', c: 'collection-1' } });
+  jest.mocked(useLocalSearchParams).mockReturnValue({ id: 'kit-1', saved: '1', c: 'collection-1' });
+  await view.rerender(<ResultScreen />);
+  await act(async () => { jest.advanceTimersByTime(80); });
   if (reduced) {
     expect(Reanimated.withTiming).not.toHaveBeenCalledWith(-14, expect.anything(), expect.anything());
     expect(Reanimated.withTiming).not.toHaveBeenCalledWith(0.92, expect.anything(), expect.anything());
@@ -357,21 +387,25 @@ test.each([false, true])('Save success reaches the Result Baku, with exactly one
   await view.unmount();
 });
 
-test('Save failure emits one Error haptic and shows errorBrief in Result without hopping or shaking', async () => {
+test('Save failure stays on Keep with one Error haptic and no Baku', async () => {
   jest.useFakeTimers(); mockReanimatedMotion(); completedResultKits.add('kit-1');
   client.saveKit.mockRejectedValue(new Error('offline'));
   const view = await render(<ResultScreen />);
   await fireEvent.press(view.getByRole('button', { name: 'Save' }));
+  expect(router.push).toHaveBeenCalledWith({ pathname: '/keep/[id]', params: { id: 'kit-1' } });
+  await view.rerender(<KeepRoute />);
   await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
-  expect(within(view.getByTestId('result-baku')).getByTestId('baku-errorBrief')).toBeTruthy();
+  expect(view.queryByTestId('result-baku')).toBeNull();
   expect(view.getByText('Couldn’t save this kit. Please try again.')).toBeTruthy();
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledTimes(1);
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledWith(ExpoHaptics.NotificationFeedbackType.Error);
   expect(Reanimated.withTiming).not.toHaveBeenCalledWith(-14, expect.anything(), expect.anything());
   expect(Reanimated.withSpring).not.toHaveBeenCalled();
+  await fireEvent.press(view.getByRole('button', { name: 'Not now' }));
   await act(async () => { jest.advanceTimersByTime(3000); });
-  expect(within(view.getByTestId('result-baku')).getByTestId('baku-errorBrief')).toBeTruthy();
+  expect(view.queryByTestId('result-baku')).toBeNull();
+  expect(router.back).toHaveBeenCalled();
   expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
   await view.unmount();
 });
@@ -430,12 +464,17 @@ test('saving enters the saved state, sets the title, and offers the collection a
   completedResultKits.add('kit-1');
   const view = await render(<ResultScreen />);
   await fireEvent.press(view.getByRole('button', { name: 'Save' }));
+  expect(router.push).toHaveBeenCalledWith({ pathname: '/keep/[id]', params: { id: 'kit-1' } });
+  await view.rerender(<KeepRoute />);
   await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
+  await act(async () => { jest.advanceTimersByTime(900); });
+  expect(router.replace).toHaveBeenCalledWith({ pathname: '/kit/[id]', params: { id: 'kit-1', saved: '1', c: 'collection-1' } });
+  jest.mocked(useLocalSearchParams).mockReturnValue({ id: 'kit-1', saved: '1', c: 'collection-1' });
+  await view.rerender(<ResultScreen />);
   expect(view.getByLabelText('Saved to Neighborhood')).toBeTruthy();
   expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
   expect(Stack.Screen).toHaveBeenLastCalledWith(expect.objectContaining({ options: expect.objectContaining({ title: kitFixture.title, headerShown: false }) }), undefined);
-  expect(router.setParams).toHaveBeenCalledWith({ saved: '1', c: 'collection-1' });
   await fireEvent.press(view.getByRole('button', { name: 'Snap another' }));
   expect(router.dismissTo).toHaveBeenCalledWith('/');
   await view.rerender(<ResultScreen />);
@@ -459,23 +498,25 @@ test('saved kit collection lookup failure uses the fallback name', async () => {
   expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
 });
 
-test('a delayed Save dismissal cannot close the Edit sheet', async () => {
+test('Keep replaces Result with one header and no Baku, then Back restores Result', async () => {
   completedResultKits.add('kit-1');
-  let saveProps!: BottomSheetModalProps;
-  const prototype = (BottomSheetModal as unknown as { prototype: { render: () => unknown; props: BottomSheetModalProps } }).prototype;
-  const originalRender = prototype.render;
-  jest.spyOn(prototype, 'render').mockImplementation(function (this: typeof prototype) {
-    if (this.props.name === 'save-kit') saveProps = this.props;
-    return originalRender.call(this);
-  });
   const view = await render(<ResultScreen />);
   await fireEvent.press(view.getByRole('button', { name: 'Save' }));
-  const dismissSave = saveProps.onDismiss;
+  expect(router.push).toHaveBeenCalledWith({ pathname: '/keep/[id]', params: { id: 'kit-1' } });
+  await view.rerender(<KeepRoute />);
+  expect(view.getAllByText('Keep this kit')).toHaveLength(1);
+  expect(view.queryByText('Your colors')).toBeNull();
+  expect(view.queryByTestId('result-actions')).toBeNull();
+  expect(view.queryByTestId('result-baku')).toBeNull();
+  expect(view.getByLabelText('New collection name').props.value).toBe(kitFixture.title);
+  expect(view.getByRole('button', { name: 'Save kit' })).toBeEnabled();
+  await fireEvent.press(view.getByRole('button', { name: 'Back' }));
+  expect(router.back).toHaveBeenCalled();
+  await view.rerender(<ResultScreen />);
+  expect(view.getByText('Your colors')).toBeTruthy();
   await fireEvent.press(view.getByRole('button', { name: 'Edit' }));
-  await act(async () => dismissSave?.());
   expect(view.getByTestId('edit-role-primary')).toBeTruthy();
 });
-
 
 test('resend reuses the existing sign-in, disables while busy, and announces success temporarily', async () => {
   jest.useFakeTimers();
@@ -534,7 +575,8 @@ test.each([
   await act(async () => (listeners.keyboardWillShow ?? listeners.keyboardDidShow)());
   expect(timing).toHaveBeenCalledWith(96, { duration: reduced ? 0 : 220 });
   await act(async () => (listeners.keyboardWillHide ?? listeners.keyboardDidHide)());
-  expect(timing).toHaveBeenLastCalledWith(160, { duration: reduced ? 0 : 220 });
+  const dimensions = jest.requireActual<typeof import('react-native')>('react-native').Dimensions.get('window');
+  expect(timing).toHaveBeenLastCalledWith(restingBakuSize(dimensions.width), { duration: reduced ? 0 : 220 });
   await view.unmount();
   expect(remove).toHaveBeenCalledTimes(subscriptions.mock.calls.length);
 });
@@ -579,7 +621,7 @@ test('saved actions have enamel/paper materials, navigate to the chosen collecti
   completedResultKits.add('kit-1');
   client.getKit.mockResolvedValue({ ...kitFixture, collectionIds: ['collection-1'] });
   const view = await render(<ResultScreen />);
-  await view.findByText('Saved. It’s in the collection.');
+  await view.findByText('Saved to your collection.');
   expect(view.getByTestId('saved-composition')).toHaveStyle({ transform: [{ rotate: '-1.75deg' }] });
   expect(view.getByTestId('closed-kit-deck')).toBeTruthy();
   expect(view.queryByTestId('chip-pile')).toBeNull();
@@ -601,6 +643,6 @@ test('saved deck retains the editing guard while its brief is pending', async ()
     brief: { ...kitFixture.brief, status: 'pending', text: null } });
   client.getBrief.mockReturnValue(new Promise(() => {}));
   const view = await render(<ResultScreen />);
-  expect(await view.findByText('Baku is chewing on it…')).toBeVisible();
+  expect(view.queryByText('Chewing on it.')).toBeNull();
   expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
 });
