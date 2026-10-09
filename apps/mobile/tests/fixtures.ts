@@ -28,6 +28,8 @@ export function mockClient(): jest.Mocked<InzpoClient> {
     runBrief: jest.fn<ReturnType<InzpoClient['runBrief']>, Parameters<InzpoClient['runBrief']>>()
       .mockResolvedValue(kitFixture.brief),
     listCollections: jest.fn(async () => [{ id: 'collection-1', name: 'Neighborhood', count: 2 }]),
+    getCollection: jest.fn<ReturnType<InzpoClient['getCollection']>, Parameters<InzpoClient['getCollection']>>()
+      .mockResolvedValue({ id: 'collection-1', name: 'Neighborhood', kits: [kitFixture] }),
     saveKit: jest.fn<ReturnType<InzpoClient['saveKit']>, Parameters<InzpoClient['saveKit']>>()
       .mockResolvedValue({ collectionId: 'collection-1' }),
   };

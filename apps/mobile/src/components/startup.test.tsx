@@ -40,5 +40,5 @@ test('splash waits for fonts, then for Clerk to load', async () => {
 test('loads Akaya for display text and Geist for all body variants, without Fraunces', async () => {
   await render(<RootLayout />);
   const loaded = jest.mocked(useFonts).mock.calls[0][0];
-  expect(Object.keys(loaded)).toEqual(['AkayaKanadaka_400Regular', 'Geist_400Regular', 'Geist_500Medium', 'GeistMono_400Regular']);
+  expect(Object.keys(loaded)).toEqual(['AkayaKanadaka_400Regular', 'Geist_400Regular', 'Geist_500Medium', 'Geist_600SemiBold', 'GeistMono_400Regular', 'Caveat']);
 });

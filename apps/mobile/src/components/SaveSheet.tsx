@@ -1,12 +1,13 @@
+import type { MobileKit } from '@inzpo/shared';
 import { BottomSheetModal, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { cloneElement, useCallback, useEffect, useRef, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
-import { ReduceMotion } from 'react-native-reanimated';
+import { ReduceMotion, useReducedMotion } from 'react-native-reanimated';
 import { SaveBackdrop, sheetStyles, useSheetSpring } from './MotionSheet';
 import { SaveSheetContent, type SavedCollection } from './SaveSheetContent';
 
-export function SaveSheet({ visible, kitId, onClose, onSaved, onSaveError }: {
-  visible: boolean; kitId: string; onClose: () => void; onSaved?: (collection: SavedCollection) => void; onSaveError?: () => void;
+export function SaveSheet({ visible, kitId, kit, onClose, onSaved, onSaveError }: {
+  visible: boolean; kitId: string; kit?: MobileKit; onClose: () => void; onSaved?: (collection: SavedCollection) => void; onSaveError?: () => void;
 }) {
   const modal = useRef<BottomSheetModal>(null);
   const [saving, setSaving] = useState(false);
@@ -14,6 +15,7 @@ export function SaveSheet({ visible, kitId, onClose, onSaved, onSaveError }: {
     cloneElement(SaveBackdrop(props), { pressBehavior: saving ? 'none' : 'close' }), [saving]);
   const { height } = useWindowDimensions();
   const animationConfigs = useSheetSpring();
+  const reducedMotion = useReducedMotion();
   useEffect(() => {
     if (visible) modal.current?.present();
     else modal.current?.dismiss();
@@ -23,21 +25,22 @@ export function SaveSheet({ visible, kitId, onClose, onSaved, onSaveError }: {
     <BottomSheetModal
       ref={modal}
       name="save-kit"
-      enableDynamicSizing
-      maxDynamicContentSize={height * 0.6}
+      enableDynamicSizing={false}
+      snapPoints={[height]}
+      handleComponent={null}
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
       enableBlurKeyboardOnGesture
       enablePanDownToClose={!saving}
       animationConfigs={animationConfigs}
-      overrideReduceMotion={ReduceMotion.Never}
+      overrideReduceMotion={reducedMotion ? ReduceMotion.Always : ReduceMotion.Never}
       backgroundStyle={sheetStyles.background}
       handleIndicatorStyle={sheetStyles.grabber}
       backdropComponent={backdrop}
       onDismiss={() => { setSaving(false); onClose(); }}
     >
-      {visible && <SaveSheetContent key={kitId} kitId={kitId} onClose={() => modal.current?.dismiss()} onSaved={onSaved} onSaveError={onSaveError} onSavingChange={setSaving} />}
+      {visible && <SaveSheetContent key={kitId} kitId={kitId} kit={kit} onClose={() => modal.current?.dismiss()} onSaved={onSaved} onSaveError={onSaveError} onSavingChange={setSaving} />}
     </BottomSheetModal>
   );
 }

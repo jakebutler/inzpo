@@ -33,6 +33,7 @@ describe("shared mobile client", () => {
     await client.getBrief("kit/id");
     await client.runBrief("kit/id");
     await client.listCollections();
+    await client.getCollection("collection/id");
     await client.saveKit("kit/id", { newName: "Houses" });
     expect(fetcher.mock.calls.map(([url, init]) => [url, init?.method])).toEqual([
       ["https://inzpo.test/api/mobile/kits", "POST"],
@@ -40,12 +41,13 @@ describe("shared mobile client", () => {
       ["https://inzpo.test/api/mobile/kits/kit%2Fid/brief", "GET"],
       ["https://inzpo.test/api/mobile/kits/kit%2Fid/brief", "POST"],
       ["https://inzpo.test/api/mobile/collections", "GET"],
+      ["https://inzpo.test/api/mobile/collections/collection%2Fid", "GET"],
       ["https://inzpo.test/api/mobile/kits/kit%2Fid/save", "POST"],
     ]);
     for (const [, init] of fetcher.mock.calls) expect(init?.headers).toHaveProperty("Authorization", "Bearer session-token");
     expect(fetcher.mock.calls[0]![1]?.body).toBe(JSON.stringify({ uploadKey: "tmp/uploads/user/one.jpg", filename: "house.jpg" }));
-    expect(fetcher.mock.calls[5]![1]?.body).toBe(JSON.stringify({ newName: "Houses" }));
-    expect(getToken).toHaveBeenCalledTimes(6);
+    expect(fetcher.mock.calls[6]![1]?.body).toBe(JSON.stringify({ newName: "Houses" }));
+    expect(getToken).toHaveBeenCalledTimes(7);
   });
 
   it("throws the exported error with the server's 4xx message", async () => {

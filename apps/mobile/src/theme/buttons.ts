@@ -1,5 +1,6 @@
 import type { ViewStyle } from 'react-native';
-import { INK, PAPER, VERMILION } from './tokens';
+import { INK } from './tokens';
+import { ENAMEL_LIP, ENAMEL_RIM, LABEL_STOCK, SKY_ENAMEL } from './materials';
 
 /** Mix a hex color toward white (positive) or black (negative). */
 export function shade(hex: string, amount: number): string {
@@ -15,18 +16,32 @@ export function shade(hex: string, amount: number): string {
 }
 
 export const buttonColors = {
-  primary: { fill: VERMILION, border: shade(VERMILION, 0.18), shadow: shade(VERMILION, -0.25) },
-  secondary: { fill: shade(PAPER, 0.35), border: shade(INK, 0.38), shadow: shade(PAPER, -0.35) },
+  primary: { fill: SKY_ENAMEL, border: ENAMEL_RIM, shadow: ENAMEL_LIP, ink: LABEL_STOCK },
+  secondary: { fill: '#F7F1E6', border: '#FFFDF8', shadow: '#C5BBAB', ink: INK },
 };
 
-export function buttonSurface(primary: boolean, pressed: boolean, disabled: boolean): ViewStyle {
+export const SAVE_PRESS = {
+  rest: { sink: 0, lip: 4, shadowX: 4, shadowY: 8, shadowBlur: 12, darken: 0 },
+  pressed: { sink: 2, lip: 1, shadowX: 1, shadowY: 2, shadowBlur: 4, darken: -0.07 },
+} as const;
+
+export function buttonSurface(primary: boolean, pressed: boolean, disabled: boolean, reducedMotion = false): ViewStyle {
   const colors = primary ? buttonColors.primary : buttonColors.secondary;
+  const down = pressed && !disabled;
+  const material = down ? SAVE_PRESS.pressed : SAVE_PRESS.rest;
+  const restingShadow = primary ? { x: 4, y: 8, blur: 12 } : { x: 3, y: 7, blur: 11 };
   return {
-    backgroundColor: pressed && !disabled ? shade(colors.fill, -0.04) : colors.fill,
-    borderColor: pressed && !disabled ? shade(colors.border, -0.04) : colors.border,
-    boxShadow: disabled ? [] : [{
-      offsetX: 0, offsetY: pressed ? 1 : 2, blurRadius: pressed ? 2 : 4,
-      spreadDistance: 0, color: colors.shadow + '26',
-    }],
+    backgroundColor: down ? shade(colors.fill, primary ? material.darken : -0.04) : colors.fill,
+    borderColor: colors.border,
+    // Reduced motion changes opacity/face only; no physical compression.
+    transform: [{ translateY: reducedMotion ? 0 : material.sink }],
+    boxShadow: disabled ? [] : [
+      { offsetX: 0, offsetY: reducedMotion ? 4 : material.lip, blurRadius: 0, color: colors.shadow },
+      { offsetX: down && !reducedMotion ? material.shadowX : restingShadow.x,
+        offsetY: down && !reducedMotion ? material.shadowY : restingShadow.y,
+        blurRadius: down && !reducedMotion ? material.shadowBlur : restingShadow.blur, color: '#1C1B1928' },
+      { inset: true, offsetX: 0, offsetY: 1, blurRadius: down ? 2 : 1, color: down ? '#1C1B1933' : '#FFFFFF77' },
+      { inset: true, offsetX: 0, offsetY: -1, blurRadius: 1, color: '#00000019' },
+    ],
   };
 }

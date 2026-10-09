@@ -4,6 +4,7 @@ import { useFonts } from '@expo-google-fonts/akaya-kanadaka/useFonts';
 import { AkayaKanadaka_400Regular } from '@expo-google-fonts/akaya-kanadaka/400Regular';
 import { Geist_400Regular } from '@expo-google-fonts/geist/400Regular';
 import { Geist_500Medium } from '@expo-google-fonts/geist/500Medium';
+import { Geist_600SemiBold } from '@expo-google-fonts/geist/600SemiBold';
 import { GeistMono_400Regular } from '@expo-google-fonts/geist-mono/400Regular';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Stack } from 'expo-router';
@@ -45,7 +46,8 @@ function ReadyApp() {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    AkayaKanadaka_400Regular, Geist_400Regular, Geist_500Medium, GeistMono_400Regular,
+    AkayaKanadaka_400Regular, Geist_400Regular, Geist_500Medium, Geist_600SemiBold, GeistMono_400Regular,
+    Caveat: require('../../assets/fonts/Caveat.ttf'),
   });
   const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
   if (!fontsLoaded && !fontError) return null;

@@ -3,7 +3,7 @@ import { act, fireEvent, render, renderHook } from '@testing-library/react-nativ
 import * as ExpoHaptics from 'expo-haptics';
 import { createRef, type ReactNode, type ReactElement } from 'react';
 import { Dimensions } from 'react-native';
-import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
+import { ReduceMotion, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { useInzpoClient } from '@/lib/api';
 import { createHaptics, haptics } from '@/lib/haptics';
 import { kitFixture, mockClient } from '../../tests/fixtures';
@@ -38,7 +38,7 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
-test.each([false, true])('Save modal sizes to content, handles the keyboard, and uses the shared spring (reduced: %s)', async (reduced) => {
+test.each([false, true])('Keep modal fills the screen, handles the keyboard, and disables travel with reduced motion (%s)', async (reduced) => {
   jest.mocked(useReducedMotion).mockReturnValue(reduced);
   const present = jest.spyOn(MockModal.prototype, 'present');
   const dismiss = jest.spyOn(MockModal.prototype, 'dismiss');
@@ -48,7 +48,8 @@ test.each([false, true])('Save modal sizes to content, handles the keyboard, and
   await view.rerender(<SaveSheet visible kitId="kit-1" onClose={onClose} />);
   expect(present).toHaveBeenCalledTimes(1);
   expect(sheetProps).toMatchObject({
-    enableDynamicSizing: true, maxDynamicContentSize: Dimensions.get('window').height * 0.6,
+    enableDynamicSizing: false, snapPoints: [Dimensions.get('window').height], handleComponent: null,
+    overrideReduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.Never,
     keyboardBehavior: 'interactive', keyboardBlurBehavior: 'restore', android_keyboardInputMode: 'adjustResize',
     enablePanDownToClose: true,
     animationConfigs: { damping: reduced ? 40 : 30, stiffness: reduced ? 400 : 300 },
@@ -59,7 +60,7 @@ test.each([false, true])('Save modal sizes to content, handles the keyboard, and
   expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
   expect(ExpoHaptics.notificationAsync).not.toHaveBeenCalled();
   dismiss.mockClear();
-  await fireEvent.press(view.getByRole('button', { name: 'Cancel' }));
+  await fireEvent.press(view.getByRole('button', { name: 'Not now' }));
   expect(dismiss).toHaveBeenCalledTimes(1);
   await act(async () => sheetProps.onDismiss?.());
   expect(onClose).toHaveBeenCalledTimes(1);
@@ -88,6 +89,19 @@ test('Save and Edit backdrops dim at their highest snap only', async () => {
   expect(EditBackdrop(result.current).props).toMatchObject({ opacity: 0.35, appearsOnIndex: 1, disappearsOnIndex: 0 });
 });
 
+test('a pin-opened editor can collapse to peek and respects reduced motion', async () => {
+  jest.mocked(useReducedMotion).mockReturnValue(true);
+  const view = await render(<EditSheet visible initialRole="primary" kit={kitFixture}
+    onUpdated={jest.fn()} onClose={jest.fn()} />);
+  expect(sheetProps.index).toBe(1);
+  expect(sheetProps.overrideReduceMotion).toBe(ReduceMotion.Always);
+  expect(view.getByText('Pick a primary color')).toBeTruthy();
+  await act(async () => sheetProps.onChange?.(0, 156, 0));
+  expect(view.queryByText('Pick a primary color')).toBeNull();
+  expect(view.queryByLabelText('Hex color')).toBeNull();
+  expect(view.getByTestId('edit-role-primary')).toBeTruthy();
+});
+
 test.each(['save', 'edit'])('%s keeps the modal open during a write so its success reaches the result', async (kind) => {
   let finish!: () => void;
   const onSuccess = jest.fn();
@@ -101,7 +115,7 @@ test.each(['save', 'edit'])('%s keeps the modal open during a write so its succe
     : <EditSheet visible kit={kitFixture} onClose={onClose} onUpdated={onSuccess} />);
   if (kind === 'save') {
     await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
-    await fireEvent.press(view.getByRole('button', { name: 'Save' }));
+    await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
   } else {
     await fireEvent.press(view.getByTestId('edit-role-primary'));
     await fireEvent.press(view.getByRole('button', { name: 'Clear' }));

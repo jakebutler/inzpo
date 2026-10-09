@@ -1,6 +1,6 @@
 import type {
   ApiError, BriefJob, CollectionSummary, CreateKitRequest, CreateKitResponse,
-  MobileKit, PresignUploadRequest, PresignUploadResponse, SaveKitRequest, SaveKitResponse, UpdateKitColorsRequest,
+  MobileKit, MobileCollection, PresignUploadRequest, PresignUploadResponse, SaveKitRequest, SaveKitResponse, UpdateKitColorsRequest,
 } from "./types";
 
 export class InzpoApiError extends Error {
@@ -65,6 +65,7 @@ export function createInzpoClient(options: InzpoClientOptions) {
       request<BriefJob>(`${kitPath(id)}/brief`, "GET", undefined, options?.signal),
     runBrief: (id: string) => request<BriefJob>(`${kitPath(id)}/brief`, "POST"),
     listCollections: () => request<CollectionSummary[]>("/collections"),
+    getCollection: (id: string) => request<MobileCollection>(`/collections/${encodeURIComponent(id)}`),
     saveKit: (id: string, input: SaveKitRequest) => request<SaveKitResponse>(`${kitPath(id)}/save`, "POST", input),
   };
 }

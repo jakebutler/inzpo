@@ -2,7 +2,7 @@ import { COLOR_ROLES, type ColorRole, type MobileKit, type RoleColors } from '@i
 import { BottomSheetModal, BottomSheetScrollView, BottomSheetTextInput, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { cloneElement, forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { ReduceMotion } from 'react-native-reanimated';
+import { ReduceMotion, useReducedMotion } from 'react-native-reanimated';
 import { useInzpoClient } from '@/lib/api';
 import { haptics } from '@/lib/haptics';
 import { contrastTextColor } from '@/lib/contrast';
@@ -13,32 +13,35 @@ import { EditBackdrop, sheetStyles, useSheetSpring } from './MotionSheet';
 
 const SNAP_POINTS = [156, '64%'];
 export type EditSheetHandle = { snapToPeek: () => void };
-type Props = { visible: boolean; kit: MobileKit; onClose: () => void; onUpdated: (kit: MobileKit) => void };
+type Props = { visible: boolean; kit: MobileKit; onClose: () => void; onUpdated: (kit: MobileKit) => void;
+  initialRole?: ColorRole; onSelectedRole?: (role: ColorRole | null) => void };
 
 export const EditSheet = forwardRef<EditSheetHandle, Props>(
-  function EditSheet({ visible, kit, onClose, onUpdated }, ref) {
+  function EditSheet({ visible, kit, onClose, onUpdated, initialRole, onSelectedRole }, ref) {
     const modal = useRef<BottomSheetModal>(null);
-    const [index, setIndex] = useState(0);
+    const [index, setIndex] = useState<number>();
     const [saving, setSaving] = useState(false);
     const backdrop = useCallback((props: BottomSheetBackdropProps) =>
       cloneElement(EditBackdrop(props), { pressBehavior: saving ? 'none' : 'close' }), [saving]);
     const animationConfigs = useSheetSpring();
+    const reducedMotion = useReducedMotion();
     useImperativeHandle(ref, () => ({ snapToPeek: () => modal.current?.snapToIndex(0) }), []);
     useEffect(() => {
       if (visible) modal.current?.present();
       else modal.current?.dismiss();
-    }, [visible]);
+    }, [visible, initialRole]);
     return (
       <BottomSheetModal
-        ref={modal} name="edit-kit" index={0} snapPoints={SNAP_POINTS}
+        ref={modal} name="edit-kit" index={initialRole ? 1 : 0} snapPoints={SNAP_POINTS}
         enableDynamicSizing={false} enablePanDownToClose={!saving}
         keyboardBehavior="interactive" keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize" enableBlurKeyboardOnGesture
-        animationConfigs={animationConfigs} overrideReduceMotion={ReduceMotion.Never}
+        animationConfigs={animationConfigs} overrideReduceMotion={reducedMotion ? ReduceMotion.Always : ReduceMotion.Never}
         backgroundStyle={sheetStyles.background} handleIndicatorStyle={sheetStyles.grabber}
-        backdropComponent={backdrop} onChange={setIndex} onDismiss={() => { setIndex(0); setSaving(false); onClose(); }}
+        backdropComponent={backdrop} onChange={setIndex} onDismiss={() => { setIndex(undefined); setSaving(false); onClose(); }}
       >
-        {visible && <EditSheetContent key={kit.id} kit={kit} expanded={index === 1}
+        {visible && <EditSheetContent key={`${kit.id}-${initialRole ?? 'peek'}`} kit={kit} expanded={(index ?? (initialRole ? 1 : 0)) === 1}
+          initialRole={initialRole} onSelectedRole={onSelectedRole}
           onExpand={() => { setIndex(1); modal.current?.snapToIndex(1); }}
           onClose={() => modal.current?.dismiss()} onUpdated={onUpdated} onSavingChange={setSaving} />}
       </BottomSheetModal>
@@ -46,20 +49,22 @@ export const EditSheet = forwardRef<EditSheetHandle, Props>(
   },
 );
 
-function EditSheetContent({ kit, expanded, onExpand, onClose, onUpdated, onSavingChange }: {
+function EditSheetContent({ kit, expanded, onExpand, onClose, onUpdated, onSavingChange, initialRole, onSelectedRole }: {
   kit: MobileKit; expanded: boolean; onExpand: () => void; onClose: () => void; onUpdated: (kit: MobileKit) => void;
   onSavingChange: (saving: boolean) => void;
+  initialRole?: ColorRole; onSelectedRole?: (role: ColorRole | null) => void;
 }) {
   const client = useInzpoClient();
   const [draft, setDraft] = useState<RoleColors>(() => ({ ...kit.roles }));
-  const [role, setRole] = useState<ColorRole | null>(null);
-  const [hex, setHex] = useState('');
+  const [role, setRole] = useState<ColorRole | null>(initialRole ?? null);
+  const [hex, setHex] = useState(initialRole ? kit.roles[initialRole] ?? '' : '');
   const [hexError, setHexError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const inFlight = useRef(false);
   const active = useRef(true);
   useEffect(() => { onSavingChange(saving); }, [saving, onSavingChange]);
+  useEffect(() => { onSelectedRole?.(role); }, [role, onSelectedRole]);
   useEffect(() => {
     active.current = true;
     return () => { active.current = false; };

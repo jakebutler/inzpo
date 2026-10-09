@@ -4,7 +4,7 @@ import type { ItemDetail } from "@/lib/items";
 
 const mocks = vi.hoisted(() => ({
   verifyToken: vi.fn(), devOwnerId: vi.fn(), isClerkConfigured: vi.fn(),
-  send: vi.fn(), getSignedUrl: vi.fn(), presignUpload: vi.fn(), createImageItem: vi.fn(), getItemDetail: vi.fn(),
+  send: vi.fn(), getSignedUrl: vi.fn(), presignUpload: vi.fn(), createImageItem: vi.fn(), getItemDetail: vi.fn(), getWallItems: vi.fn(),
   readBriefJob: vi.fn(), runBriefJob: vi.fn(), persistKitTitleFromBrief: vi.fn(), getItemCollections: vi.fn(),
   assertItemOwned: vi.fn(), listCollections: vi.fn(), createCollection: vi.fn(), addToCollection: vi.fn(),
   revalidatePath: vi.fn(), after: vi.fn(), replaceItemTokens: vi.fn(),
@@ -14,7 +14,7 @@ vi.mock("@clerk/nextjs/server", () => ({ verifyToken: mocks.verifyToken }));
 vi.mock("@/lib/auth/dev-bypass", () => ({ devOwnerId: mocks.devOwnerId }));
 vi.mock("@/lib/auth/clerk-configured", () => ({ isClerkConfigured: mocks.isClerkConfigured }));
 vi.mock("@/lib/auth/owner", () => ({ assertItemOwned: mocks.assertItemOwned }));
-vi.mock("@/lib/items", () => ({ createImageItem: mocks.createImageItem, getItemDetail: mocks.getItemDetail }));
+vi.mock("@/lib/items", () => ({ createImageItem: mocks.createImageItem, getItemDetail: mocks.getItemDetail, getWallItems: mocks.getWallItems }));
 vi.mock("@/lib/brief", () => ({ readBriefJob: mocks.readBriefJob, runBriefJob: mocks.runBriefJob }));
 vi.mock("@/lib/kit-title", () => ({ persistKitTitleFromBrief: mocks.persistKitTitleFromBrief }));
 vi.mock("@/lib/item-collections", () => ({ getItemCollections: mocks.getItemCollections }));
@@ -42,6 +42,7 @@ import { POST as createKit } from "@/app/api/mobile/kits/route";
 import { GET as getKit } from "@/app/api/mobile/kits/[id]/route";
 import { GET as getBrief, POST as runBrief } from "@/app/api/mobile/kits/[id]/brief/route";
 import { GET as collections } from "@/app/api/mobile/collections/route";
+import { GET as collectionDetail } from "@/app/api/mobile/collections/[id]/route";
 import { POST as saveKit } from "@/app/api/mobile/kits/[id]/save/route";
 
 import { PATCH as updateColors } from "@/app/api/mobile/kits/[id]/colors/route";
@@ -83,6 +84,7 @@ beforeEach(() => {
   mocks.presignUpload.mockResolvedValue({ url: "https://r2.test/upload", key: "tmp/uploads/user_1/one.jpg", contentType: "image/jpeg" });
   mocks.createImageItem.mockResolvedValue("kit_1");
   mocks.getItemDetail.mockResolvedValue(item);
+  mocks.getWallItems.mockResolvedValue([{ id: item.id }]);
   mocks.readBriefJob.mockResolvedValue(null);
   mocks.runBriefJob.mockResolvedValue(ready);
   mocks.persistKitTitleFromBrief.mockResolvedValue("Warm House");
@@ -103,6 +105,7 @@ describe("mobile route authentication", () => {
     { name: "brief GET", call: (req: Request) => getBrief(req, context()) },
     { name: "brief POST", call: (req: Request) => runBrief(req, context()) },
     { name: "collections GET", call: (req: Request) => collections(req) },
+    { name: "collection GET", call: (req: Request) => collectionDetail(req, context()) },
     { name: "save POST", call: (req: Request) => saveKit(req, context()) },
   ];
   it.each(routes)("$name returns JSON 401 without a token", async ({ call }) => {
@@ -113,6 +116,7 @@ describe("mobile route authentication", () => {
     expect(mocks.send).not.toHaveBeenCalled();
     expect(mocks.assertItemOwned).not.toHaveBeenCalled();
     expect(mocks.getItemDetail).not.toHaveBeenCalled();
+    expect(mocks.getWallItems).not.toHaveBeenCalled();
     expect(mocks.listCollections).not.toHaveBeenCalled();
     expect(mocks.createCollection).not.toHaveBeenCalled();
     expect(mocks.presignUpload).not.toHaveBeenCalled();
@@ -202,7 +206,7 @@ describe("mobile kit detail", () => {
       id: "kit_1", title: "Untitled kit",
       photo: { url: "https://r2.test/photo?signed=1", width: 1000, height: 800, placeholder: null },
       roles: { primary: "#abcdef", secondary: null, accent: null, background: null, surface: null, text: null },
-      colors: [{ hex: "#ABCDEF", role: "primary", name: "Wall", origin: "extracted" }],
+      colors: [{ hex: "#ABCDEF", role: "primary", name: "Wall", origin: "extracted", pinX: null, pinY: null }],
       brief: pending, collectionIds: ["collection_1"],
     });
     expect(mocks.getItemDetail).toHaveBeenCalledWith("user_1", "kit_1");
@@ -223,6 +227,12 @@ describe("mobile kit detail", () => {
     mocks.getItemDetail.mockResolvedValue({ ...item, media: null });
     expect((await (await getKit(request(), context())).json()).photo).toBeNull();
     expect(mocks.getSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it.each([[0.2, 0.4], [0, 1]])("returns source sample coordinates, including boundary values (%s, %s)", async (pinX, pinY) => {
+    mocks.getItemDetail.mockResolvedValue({ ...item, colors: [{ ...item.colors[0]!, pinX, pinY }] });
+    const dto = await (await getKit(request(), context())).json();
+    expect(dto.colors[0]).toMatchObject({ pinX, pinY });
   });
 
   it.each([null, { ...item, kind: "url" }])("returns JSON 404 for foreign, missing, or non-kit items", async (detail) => {
@@ -373,5 +383,72 @@ describe("mobile color editing", () => {
       { primary: "#aabbcc", secondary: "#aabbcc", accent: null, background: null, surface: null, text: null },
       { primary: { pinX: 0, pinY: 1 }, secondary: { pinX: 0.2, pinY: 0.4 } },
       { primary: "sampled", secondary: "sampled" });
+  });
+});
+
+describe("mobile collection detail", () => {
+  const collectionContext = () => ({ params: Promise.resolve({ id: "collection_1" }) });
+  it("returns only collection kits, display names, roles and signed photo URLs for the bearer owner", async () => {
+    const response = await collectionDetail(request(), collectionContext());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ id: "collection_1", name: "Houses", kits: [{
+      id: "kit_1", title: "Untitled kit",
+      roles: { primary: "#abcdef", secondary: null, accent: null, background: null, surface: null, text: null },
+      photo: { url: "https://r2.test/photo?signed=1" },
+    }] });
+    expect(mocks.listCollections).toHaveBeenCalledWith("user_1");
+    expect(mocks.getWallItems).toHaveBeenCalledWith("user_1", expect.objectContaining({
+      kinds: { photo: "include", screenshot: "include" },
+    }), "collection_1");
+    expect(mocks.getItemDetail).toHaveBeenCalledWith("user_1", "kit_1");
+    expect(mocks.getSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      input: { Bucket: "test-bucket", Key: "items/kit_1/w1600.webp" },
+    }), { expiresIn: 900 });
+  });
+  it("returns 404 for missing or foreign collections before reading kits", async () => {
+    mocks.listCollections.mockResolvedValue([]);
+    const response = await collectionDetail(request(), collectionContext());
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Not found" });
+    expect(mocks.getWallItems).not.toHaveBeenCalled();
+    expect(mocks.getItemDetail).not.toHaveBeenCalled();
+  });
+  it("returns an empty list for an empty collection", async () => {
+    mocks.getWallItems.mockResolvedValue([]);
+    expect(await (await collectionDetail(request(), collectionContext())).json())
+      .toEqual({ id: "collection_1", name: "Houses", kits: [] });
+  });
+  it("bounds detail query concurrency for large collections without dropping kits", async () => {
+    mocks.getWallItems.mockResolvedValue(Array.from({ length: 24 }, (_, index) => ({ id: `kit_${index}` })));
+    let inFlight = 0;
+    let peak = 0;
+    mocks.getItemDetail.mockImplementation(async (_owner: string, id: string) => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await Promise.resolve();
+      inFlight -= 1;
+      return { ...item, id };
+    });
+    const response = await collectionDetail(request(), collectionContext());
+    expect(response.status).toBe(200);
+    const dto = await response.json();
+    expect(dto.kits.map((kit: { id: string }) => kit.id)).toEqual(
+      Array.from({ length: 24 }, (_, index) => `kit_${index}`));
+    expect(peak).toBe(8);
+  });
+  it("omits deleted, foreign and non-kit items and supports missing photos", async () => {
+    mocks.getWallItems.mockResolvedValue([{ id: "gone" }, { id: "url" }, { id: "kit_1" }]);
+    mocks.getItemDetail.mockResolvedValueOnce(null).mockResolvedValueOnce({ ...item, kind: "url" })
+      .mockResolvedValueOnce({ ...item, media: null });
+    const dto = await (await collectionDetail(request(), collectionContext())).json();
+    expect(dto.kits).toHaveLength(1);
+    expect(dto.kits[0].photo).toBeNull();
+    expect(mocks.getSignedUrl).not.toHaveBeenCalled();
+  });
+  it("returns JSON 500 for query failures", async () => {
+    mocks.getWallItems.mockRejectedValue(new Error("offline"));
+    const response = await collectionDetail(request(), collectionContext());
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "Could not complete request" });
   });
 });

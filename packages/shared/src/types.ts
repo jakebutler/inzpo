@@ -24,6 +24,12 @@ export interface CollectionSummary {
   count: number;
 }
 
+export interface MobileCollection {
+  id: string;
+  name: string;
+  kits: Array<Pick<MobileKit, "id" | "title" | "roles"> & { photo: { url: string } | null }>;
+}
+
 export interface PresignUploadRequest {
   contentType: string;
   bytes: number;
@@ -56,7 +62,12 @@ export interface MobileKit {
     placeholder: string | null;
   } | null;
   roles: RoleColors;
-  colors: Array<{ hex: string; role: ColorRole | null; name: string | null; origin: string }>;
+  colors: Array<{
+    hex: string; role: ColorRole | null; name: string | null; origin: string;
+    /** Normalized source-photo sample coordinates (0..1), absent on older kits. */
+    pinX?: number | null;
+    pinY?: number | null;
+  }>;
   brief: BriefJob;
   collectionIds: string[];
 }

@@ -66,7 +66,8 @@ jest.mock('expo-router', () => {
   return {
     Stack,
     Redirect: ({ href }) => React.createElement(Text, null, `redirect:${href}`),
-    router: { push: jest.fn(), dismissTo: jest.fn(), setParams: jest.fn() },
+    router: { push: jest.fn(), back: jest.fn(), dismissTo: jest.fn(), setParams: jest.fn() },
     useLocalSearchParams: jest.fn(() => ({ id: 'kit-1' })),
+    useIsFocused: jest.fn(() => true),
   };
 });

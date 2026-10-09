@@ -3,8 +3,8 @@ import { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, wi
 import { BUTTON_PRESS_SCALE, ENTER_SPRING, FADE_TIMING, TAP_TIMING } from '@/theme/motion';
 
 export function usePressFeedback({
-  pressScale = BUTTON_PRESS_SCALE, disabled = false, disabledOpacity = 0.4, onPressIn,
-}: { pressScale?: number; disabled?: boolean; disabledOpacity?: number; onPressIn?: () => void }) {
+  pressScale = BUTTON_PRESS_SCALE, disabled = false, disabledOpacity = 0.4, onPressIn, pressOffset,
+}: { pressScale?: number; disabled?: boolean; disabledOpacity?: number; onPressIn?: () => void; pressOffset?: number }) {
   const reducedMotion = useReducedMotion();
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
@@ -19,7 +19,8 @@ export function usePressFeedback({
   }, [disabled, scale, opacity]);
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: disabled ? disabledOpacity : opacity.value,
-    transform: [{ scale: reducedMotion ? 1 : scale.value }],
+    transform: pressOffset === undefined ? [{ scale: reducedMotion ? 1 : scale.value }]
+      : [{ translateY: reducedMotion ? 0 : pressOffset }, { scale: reducedMotion ? 1 : scale.value }],
   }));
 
   return {

@@ -25,7 +25,7 @@ export async function buildMobileKit(ownerId: string, item: ItemDetail): Promise
       pending: brief.status === "pending" || brief.stub }),
     photo,
     roles: rolesFromColors(item.colors),
-    colors: item.colors.map(({ hex, role, name, origin }) => ({ hex, role, name, origin })),
+    colors: item.colors.map(({ hex, role, name, origin, pinX, pinY }) => ({ hex, role, name, origin, pinX, pinY })),
     brief,
     collectionIds: collections.map((collection) => collection.id),
   };

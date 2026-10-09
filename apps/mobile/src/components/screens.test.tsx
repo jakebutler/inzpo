@@ -147,10 +147,10 @@ test('upload pending disables both actions; failure restores them and shows one 
 
 test('result renders filled bands and preserves an empty accent without a swatch', async () => {
   const view = await render(<ResultScreen />);
-  expect(await view.findByText(kitFixture.title)).toBeTruthy();
-  expect(view.getByText('#B35831')).toBeTruthy();
-  expect(view.getByText('No accent in this one.')).toBeTruthy();
-  expect(view.getByTestId('role-empty-accent')).toHaveStyle({ backgroundColor: '#F3EEE4', borderStyle: 'dashed' });
+  expect(await view.findByLabelText(kitFixture.title)).toBeTruthy();
+  expect(view.getByText('#b35831')).toBeTruthy();
+  expect(view.getByText('No accent in this one. Add a color.')).toBeTruthy();
+  expect(view.getByTestId('role-empty-accent')).toHaveStyle({ backgroundColor: '#E4D9C6' });
   expect(view.queryByTestId('role-swatch-accent')).toBeNull();
   expect(view.getByText(kitFixture.brief.text!)).toBeTruthy();
   expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
@@ -159,19 +159,47 @@ test('result renders filled bands and preserves an empty accent without a swatch
   expect(client.getBrief).not.toHaveBeenCalled();
 });
 
+test('result actions sit outside the scroll content, film stays upright, and filled roles have fallback pins', async () => {
+  completedResultKits.add('kit-1');
+  const view = await render(<ResultScreen />);
+  expect(within(view.getByTestId('result-content')).queryByRole('button', { name: 'Save' })).toBeNull();
+  expect(within(view.getByTestId('result-actions')).getByRole('button', { name: 'Save' })).toBeEnabled();
+  expect(view.getByTestId('film-print').props.style).not.toEqual(expect.arrayContaining([expect.objectContaining({ transform: expect.anything() })]));
+  expect(view.getByRole('button', { name: 'Edit primary photo sample' })).toBeEnabled();
+  expect(view.queryByTestId('photo-pin-accent')).toBeNull();
+  await fireEvent.press(view.getByRole('button', { name: 'Edit primary photo sample' }));
+  expect(view.getByText('Pick a primary color')).toBeTruthy();
+  expect(view.getByLabelText('Hex color').props.value).toBe(kitFixture.roles.primary);
+});
+
+test('chip detail keeps contrast behind a tap and offers the existing role editor', async () => {
+  jest.useFakeTimers();
+  completedResultKits.add('kit-1');
+  const view = await render(<ResultScreen />);
+  expect(view.queryByTestId('chip-detail-back')).toBeNull();
+  await fireEvent.press(view.getByRole('button', { name: 'primary: #b35831. Show color detail.' }));
+  await act(async () => jest.advanceTimersByTime(540));
+  expect(view.getByTestId('chip-detail-back')).toBeTruthy();
+  expect(view.getByText('From this spot.')).toBeTruthy();
+  expect(view.queryByText(/\d+\.\d+:1/)).toBeNull();
+  await fireEvent(view.getByTestId('chip-detail-toggle'), 'longPress');
+  expect(view.queryByTestId('chip-detail-back')).toBeNull();
+  expect(view.getByText('Pick a primary color')).toBeTruthy();
+});
+
 test('a pending brief polls and refetches the kit title after resolving', async () => {
   client.getKit.mockResolvedValueOnce({ ...kitFixture, brief: { ...kitFixture.brief, status: 'pending', text: null } })
     .mockResolvedValueOnce({ ...kitFixture, title: 'The brick house' });
   let resolveBrief!: (brief: typeof kitFixture.brief) => void;
   client.getBrief.mockReturnValue(new Promise((resolve) => { resolveBrief = resolve; }));
   const view = await render(<ResultScreen />);
-  expect(await view.findByText('Baku is chewing on it…')).toBeTruthy();
+  expect(await view.findByText('Baku is chewing on it…')).toBeVisible();
   expect(view.getByTestId('baku-chewing')).toBeTruthy();
   expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
   expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
   expect(view.getByRole('button', { name: 'Save' })).toHaveStyle({ opacity: 0.4 });
   await act(async () => { resolveBrief(kitFixture.brief); });
-  expect(await view.findByText('The brick house')).toBeTruthy();
+  expect(await view.findByLabelText('The brick house')).toBeTruthy();
   expect(client.getKit).toHaveBeenCalledTimes(2);
   expect(client.getBrief).toHaveBeenCalledWith('kit-1', expect.objectContaining({ signal: expect.anything() }));
 });
@@ -182,7 +210,7 @@ test('brief errors preserve the colors and render brief-error Baku', async () =>
   const view = await render(<ResultScreen />);
   expect(await view.findByText('Baku couldn’t finish the brief. Your colors are here.')).toBeTruthy();
   expect(view.getByTestId('baku-errorBrief')).toBeTruthy();
-  expect(view.getByText('No accent in this one.')).toBeTruthy();
+  expect(view.getByText('No accent in this one. Add a color.')).toBeTruthy();
 });
 
 test('Save stays disabled until a kit has loaded', async () => {
@@ -204,7 +232,7 @@ test('missing kit renders the 404 placeholder and retry', async () => {
 
 test('opening Save presents the collection content in the result modal', async () => {
   const view = await render(<ResultScreen />);
-  await view.findByText(kitFixture.title);
+  await view.findByLabelText(kitFixture.title);
   await fireEvent(view.getByTestId('result-content'), 'scrollBeginDrag');
   await fireEvent.press(view.getByRole('button', { name: 'Save' }));
   expect(await view.findByText('Keep this kit')).toBeTruthy();
@@ -214,7 +242,7 @@ test('opening Save presents the collection content in the result modal', async (
 test('ready data waits for the sequence before enabling both result actions', async () => {
   jest.useFakeTimers();
   const view = await render(<ResultScreen />);
-  expect(view.getByText(kitFixture.title)).toBeTruthy();
+  expect(view.getByLabelText(kitFixture.title)).toBeTruthy();
   expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
   expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
   const { interactiveMs } = resultSequenceBeats(6, false);
@@ -259,7 +287,7 @@ test('tapping during pending preserves the hero and keeps buttons gated until it
 
 test('Edit opens at the peek and preserves the empty accent chip', async () => {
   const view = await render(<ResultScreen />);
-  await view.findByText(kitFixture.title);
+  await view.findByLabelText(kitFixture.title);
   await fireEvent(view.getByTestId('result-content'), 'scrollBeginDrag');
   await fireEvent.press(view.getByRole('button', { name: 'Edit' }));
   expect(view.getByTestId('edit-role-accent')).toHaveStyle({ backgroundColor: '#F3EEE4', borderStyle: 'dashed' });
@@ -304,7 +332,7 @@ test.each([false, true])('Save success reaches the Result Baku, with exactly one
   const view = await render(<ResultScreen />);
   await fireEvent.press(view.getByRole('button', { name: 'Save' }));
   await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
-  await fireEvent.press(view.getAllByRole('button', { name: 'Save' }).at(-1)!);
+  await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
   expect(within(view.getByTestId('result-baku')).getByTestId('baku-success')).toBeTruthy();
   expect(view.getByText('Saved')).toBeTruthy();
   expect(view.getByTestId('save-check')).toBeTruthy();
@@ -323,7 +351,7 @@ test.each([false, true])('Save success reaches the Result Baku, with exactly one
   await act(async () => { jest.advanceTimersByTime(1919); });
   expect(within(view.getByTestId('result-baku')).getByTestId('baku-success')).toBeTruthy();
   await act(async () => { jest.advanceTimersByTime(1); });
-  expect(within(view.getByTestId('result-baku')).getByTestId('baku-idle')).toBeTruthy();
+  expect(within(view.getByTestId('result-baku')).getByTestId('baku-success')).toBeTruthy();
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledTimes(1);
   expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
   await view.unmount();
@@ -335,7 +363,7 @@ test('Save failure emits one Error haptic and shows errorBrief in Result without
   const view = await render(<ResultScreen />);
   await fireEvent.press(view.getByRole('button', { name: 'Save' }));
   await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
-  await fireEvent.press(view.getAllByRole('button', { name: 'Save' }).at(-1)!);
+  await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
   expect(within(view.getByTestId('result-baku')).getByTestId('baku-errorBrief')).toBeTruthy();
   expect(view.getByText('Couldn’t save this kit. Please try again.')).toBeTruthy();
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledTimes(1);
@@ -361,7 +389,7 @@ test('choosing an Edit role and swatch saves the changed role and updates the re
   await fireEvent.press(view.getByRole('button', { name: 'Save colors' }));
   expect(client.updateKitColors).toHaveBeenCalledWith('kit-1', { roles: { accent: '#b35831' } });
   expect(view.getByTestId('role-swatch-accent')).toHaveStyle({ backgroundColor: '#b35831' });
-  expect(view.queryByText('No accent in this one.')).toBeNull();
+  expect(view.queryByText('No accent in this one. Add a color.')).toBeNull();
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledTimes(1);
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledWith(ExpoHaptics.NotificationFeedbackType.Success);
   expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
@@ -397,18 +425,18 @@ test('Edit failure keeps the draft and displays one error haptic', async () => {
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledWith(ExpoHaptics.NotificationFeedbackType.Error);
 });
 
-test('saving enters the saved state, sets the title, and offers Snap another house', async () => {
+test('saving enters the saved state, sets the title, and offers the collection and Snap actions', async () => {
   jest.useFakeTimers();
   completedResultKits.add('kit-1');
   const view = await render(<ResultScreen />);
   await fireEvent.press(view.getByRole('button', { name: 'Save' }));
   await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
-  await fireEvent.press(view.getAllByRole('button', { name: 'Save' }).at(-1)!);
-  expect(view.getByText('✓ Saved to Neighborhood')).toBeTruthy();
+  await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
+  expect(view.getByLabelText('Saved to Neighborhood')).toBeTruthy();
   expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
-  expect(Stack.Screen).toHaveBeenLastCalledWith(expect.objectContaining({ options: { title: kitFixture.title } }), undefined);
+  expect(Stack.Screen).toHaveBeenLastCalledWith(expect.objectContaining({ options: expect.objectContaining({ title: kitFixture.title, headerShown: false }) }), undefined);
   expect(router.setParams).toHaveBeenCalledWith({ saved: '1', c: 'collection-1' });
-  await fireEvent.press(view.getByRole('button', { name: 'Snap another house' }));
+  await fireEvent.press(view.getByRole('button', { name: 'Snap another' }));
   expect(router.dismissTo).toHaveBeenCalledWith('/');
   await view.rerender(<ResultScreen />);
   expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
@@ -417,17 +445,17 @@ test('saving enters the saved state, sets the title, and offers Snap another hou
 test('a kit with collectionIds loads directly into its saved state', async () => {
   client.getKit.mockResolvedValue({ ...kitFixture, collectionIds: ['collection-1'] });
   const view = await render(<ResultScreen />);
-  expect(await view.findByText('✓ Saved to Neighborhood')).toBeTruthy();
+  expect(await view.findByLabelText('Saved to Neighborhood')).toBeTruthy();
   expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
   expect(view.getByRole('button', { name: 'Edit' })).toBeTruthy();
-  expect(Stack.Screen).toHaveBeenLastCalledWith(expect.objectContaining({ options: { title: kitFixture.title } }), undefined);
+  expect(Stack.Screen).toHaveBeenLastCalledWith(expect.objectContaining({ options: expect.objectContaining({ title: kitFixture.title, headerShown: false }) }), undefined);
 });
 
 test('saved kit collection lookup failure uses the fallback name', async () => {
   client.getKit.mockResolvedValue({ ...kitFixture, collectionIds: ['missing'] });
   client.listCollections.mockRejectedValue(new Error('offline'));
   const view = await render(<ResultScreen />);
-  expect(await view.findByText('✓ Saved to your collection')).toBeTruthy();
+  expect(await view.findByLabelText('Saved to your collection')).toBeTruthy();
   expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
 });
 
@@ -514,14 +542,65 @@ test.each([
 
 test('long kit names wrap in Akaya while description and controls retain their intended fonts', async () => {
   const title = 'The little house with the very tall windows and a long garden wall';
-  client.getKit.mockResolvedValue({ ...kitFixture, title });
+  client.getKit.mockResolvedValue({ ...kitFixture, title, collectionIds: ['collection-1'] });
   const view = await render(<ResultScreen />);
   const heading = await view.findByText(title);
-  expect(heading).toHaveStyle({ fontFamily: fonts.heading, fontSize: 32, lineHeight: 44 });
+  expect(heading).toHaveStyle({ fontFamily: fonts.heading, fontSize: 31, lineHeight: 31 });
   expect(heading.props.numberOfLines).toBeUndefined();
   expect(heading.props.maxFontSizeMultiplier).toBeUndefined();
   expect(heading.props.allowFontScaling).not.toBe(false);
-  expect(view.getByText('Description')).toHaveStyle({ fontFamily: fonts.heading, lineHeight: 30 });
+  expect(view.getByText('The brief')).toHaveStyle({ fontFamily: fonts.heading, lineHeight: 30 });
   expect(view.getByText(kitFixture.brief.text!)).toHaveStyle({ fontFamily: fonts.body });
-  expect(view.getByText('Edit')).toHaveStyle({ fontFamily: fonts.bodyMedium });
+  expect(view.getByRole('button', { name: 'Snap another' })).toBeTruthy();
+});
+
+test.each([false, true])('only one chip expands, replaces another, and returns to the table (reduced: %s)', async (reduced) => {
+  jest.useFakeTimers();
+  jest.mocked(Reanimated.useReducedMotion).mockReturnValue(reduced);
+  completedResultKits.add('kit-1');
+  const view = await render(<ResultScreen />);
+  await fireEvent.press(view.getByTestId('flip-chip-primary'));
+  expect(view.getByTestId('flip-chip-primary').props.accessibilityState.expanded).toBe(true);
+  expect(view.getByTestId('flip-chip-secondary').props.accessibilityState.expanded).toBe(false);
+  await fireEvent.press(view.getByTestId('flip-chip-secondary'));
+  expect(view.getByTestId('flip-chip-primary').props.accessibilityState.expanded).toBe(false);
+  expect(view.getByTestId('flip-chip-secondary').props.accessibilityState.expanded).toBe(true);
+  expect(view.getAllByTestId('chip-detail-layer')).toHaveLength(1);
+  await act(async () => jest.advanceTimersByTime(reduced ? 150 : 540));
+  await fireEvent.press(view.getByTestId('chip-detail-toggle'));
+  await act(async () => jest.advanceTimersByTime(reduced ? 150 : 540));
+  expect(view.getByTestId('flip-chip-secondary').props.accessibilityState.expanded).toBe(false);
+  expect(view.queryByTestId('chip-detail-layer')).toBeNull();
+  expect(ExpoHaptics.notificationAsync).not.toHaveBeenCalled();
+  await view.unmount();
+});
+
+test('saved actions have enamel/paper materials, navigate to the chosen collection and keep Snap on the root', async () => {
+  completedResultKits.add('kit-1');
+  client.getKit.mockResolvedValue({ ...kitFixture, collectionIds: ['collection-1'] });
+  const view = await render(<ResultScreen />);
+  await view.findByText('Saved. It’s in the collection.');
+  expect(view.getByTestId('saved-composition')).toHaveStyle({ transform: [{ rotate: '-1.75deg' }] });
+  expect(view.getByTestId('closed-kit-deck')).toBeTruthy();
+  expect(view.queryByTestId('chip-pile')).toBeNull();
+  expect(view.queryByTestId('photo-pins')).toBeNull();
+  const collection = view.getByRole('button', { name: 'See your collection' });
+  const snap = view.getByRole('button', { name: 'Snap another' });
+  expect(collection).toHaveStyle({ backgroundColor: '#426092', borderRadius: 24, minHeight: 48 });
+  expect(snap).toHaveStyle({ backgroundColor: '#F7F1E6', borderRadius: 5, minHeight: 48 });
+  await fireEvent.press(collection);
+  expect(router.push).toHaveBeenCalledWith({ pathname: '/collection/[id]', params: { id: 'collection-1' } });
+  await fireEvent.press(snap);
+  expect(router.dismissTo).toHaveBeenCalledWith('/');
+  await fireEvent.press(view.getByRole('button', { name: 'Edit' }));
+  expect(view.getByTestId('edit-role-primary')).toBeTruthy();
+});
+
+test('saved deck retains the editing guard while its brief is pending', async () => {
+  client.getKit.mockResolvedValue({ ...kitFixture, collectionIds: ['collection-1'],
+    brief: { ...kitFixture.brief, status: 'pending', text: null } });
+  client.getBrief.mockReturnValue(new Promise(() => {}));
+  const view = await render(<ResultScreen />);
+  expect(await view.findByText('Baku is chewing on it…')).toBeVisible();
+  expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
 });
