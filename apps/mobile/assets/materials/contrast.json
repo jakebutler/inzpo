@@ -1,0 +1,128 @@
+{
+  "samples": [
+    {
+      "role": "Primary",
+      "x": 307,
+      "y": 889,
+      "hex": "#d1cb9e",
+      "matched_pixel": "#d1ca9e",
+      "distance_squared": 1,
+      "tints": [
+        "#E6E2CA",
+        "#DBD6B3",
+        "#A39E7B"
+      ]
+    },
+    {
+      "role": "Secondary",
+      "x": 1288,
+      "y": 358,
+      "hex": "#6f6c58",
+      "matched_pixel": "#6f6c59",
+      "distance_squared": 1,
+      "tints": [
+        "#B0AEA3",
+        "#8F8C7D",
+        "#575445"
+      ],
+      "search_region": {
+        "x_min": 81,
+        "x_max": 1418,
+        "y_min": 301,
+        "y_max": 1918
+      }
+    },
+    {
+      "role": "Accent",
+      "x": 120,
+      "y": 81,
+      "hex": "#426092",
+      "matched_pixel": "#426092",
+      "distance_squared": 0,
+      "tints": [
+        "#97A8C3",
+        "#6C83AA",
+        "#334B72"
+      ]
+    },
+    {
+      "role": "Background",
+      "x": 1315,
+      "y": 585,
+      "hex": "#d0c7b2",
+      "matched_pixel": "#cfc7b2",
+      "distance_squared": 1,
+      "tints": [
+        "#E5E0D5",
+        "#DAD3C3",
+        "#A29B8B"
+      ]
+    },
+    {
+      "role": "Text",
+      "x": 169,
+      "y": 129,
+      "hex": "#050404",
+      "matched_pixel": "#040404",
+      "distance_squared": 1,
+      "tints": [
+        "#767575",
+        "#3C3B3B",
+        "#040303"
+      ]
+    }
+  ],
+  "label": {
+    "darkest_grain": 245,
+    "worst_background": "#F1EEE9",
+    "role_ink": "#1C1B19",
+    "hex_ink": "#1C1B19",
+    "role_contrast": 14.230941996824399,
+    "hex_contrast": 14.230941996824399,
+    "printed_ink_worst": "#201f1d",
+    "mottled_ink_contrast": 14.230941996824399,
+    "clean_ink_contrast": 14.872002136964154
+  },
+  "buttons": [
+    {
+      "role": "Accent",
+      "fill": "#426092",
+      "ink": "#FBF8F2",
+      "contrast": 5.967404905628667
+    },
+    {
+      "role": "Primary",
+      "fill": "#d1cb9e",
+      "ink": "#1C1B19",
+      "contrast": 10.446900618696102
+    },
+    {
+      "role": "Text",
+      "fill": "#050404",
+      "ink": "#FBF8F2",
+      "contrast": 19.31697918404316
+    }
+  ],
+  "surface_label_contrast": 11.794191564616058,
+  "empty_surface": {
+    "role": "Surface",
+    "hex": null,
+    "x": null,
+    "y": null,
+    "stock": "#E4D9C6",
+    "copy": "No surface in this one. Add a color."
+  },
+  "sample_method": "closest single RGB pixel by minimum squared sRGB distance; reject all pixels within 80px of any JPEG border; no averaging",
+  "photo_cover": {
+    "width": 324,
+    "height": 435,
+    "scale": 0.2175,
+    "crop_x": 1.125,
+    "crop_y": 0,
+    "object_position": [
+      0.5,
+      0.347
+    ]
+  },
+  "flip_text_contrast": 14.872002136964154
+}

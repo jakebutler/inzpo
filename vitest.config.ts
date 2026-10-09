@@ -9,6 +9,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@inzpo/shared": path.resolve(__dirname, "packages/shared/src"),
       "@": path.resolve(__dirname, "."),
       "server-only": path.resolve(__dirname, "tests/shims/server-only.ts"),
     },

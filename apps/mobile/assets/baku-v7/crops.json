@@ -1,0 +1,24 @@
+{
+  "idle": {
+    "source": "idle-cut.png",
+    "alphaBounds": [
+      352,
+      84,
+      1031,
+      654
+    ],
+    "width": 62,
+    "height": 52
+  },
+  "success": {
+    "source": "success-cut.png",
+    "alphaBounds": [
+      365,
+      70,
+      998,
+      582
+    ],
+    "width": 62,
+    "height": 50
+  }
+}
