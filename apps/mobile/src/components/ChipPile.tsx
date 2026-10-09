@@ -23,7 +23,7 @@ function PileCard({ slot, color, typeSize, motion, disabled, onPress, selected, 
     position: 'absolute', left: slot.x, top: slot.y, width: slot.width, minHeight: slot.height, zIndex: selected ? 20 : slot.zIndex,
   }, animatedStyle]}>
     <Pressable testID={`flip-chip-${slot.role}`} accessibilityRole="button" accessibilityState={{ disabled, expanded }} disabled={disabled}
-      accessibilityLabel={color ? `${slot.role}: ${color}. Show color detail.` : `${slot.role}: No color yet. Add a color.`}
+      accessibilityLabel={color ? `${slot.role}: ${color}. Show color detail.` : `${slot.role}: No ${slot.role} in this one. Add a color.`}
       onPress={() => onPress(slot.role)} style={{ minHeight: 44, minWidth: 44 }}>
       <PaintChip role={slot.role} color={color} width={slot.width} height={slot.height} typeSize={typeSize} lifted={selected} />
     </Pressable>

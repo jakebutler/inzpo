@@ -20,11 +20,12 @@ afterEach(() => jest.useRealTimers());
 test('renders collections, picks one, and saves with collectionId', async () => {
   const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
   expect(view.getByText('Keep this kit')).toBeTruthy();
+  await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
   expect(await view.findByText('Neighborhood')).toBeTruthy();
   expect(view.getByRole('button', { name: 'Save kit' })).toBeEnabled();
   await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
-  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { collectionId: 'collection-1' });
+  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { collectionId: 'collection-1', title: 'Untitled kit' });
   expect(view.getByText('Saved')).toBeTruthy();
   expect(view.queryByTestId('keep-baku')).toBeNull();
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledWith(ExpoHaptics.NotificationFeedbackType.Success);
@@ -34,20 +35,24 @@ test('renders collections, picks one, and saves with collectionId', async () => 
   expect(onClose).toHaveBeenCalledTimes(1);
 });
 
-test('typing a new name clears an existing choice and sends only newName', async () => {
+test('starting a new collection replaces the existing collection choice', async () => {
   const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
+  await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
   await view.findByText('Neighborhood');
   await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
+  await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
+  await fireEvent.press(view.getByRole('radio', { name: 'Start a new collection' }));
   await fireEvent.changeText(view.getByLabelText('New collection name'), '  Sunday walks  ');
-  expect(view.getByRole('radio', { name: /Neighborhood/ })).not.toBeChecked();
+  expect(view.queryByText('Neighborhood')).toBeNull();
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
-  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { newName: 'Sunday walks' });
+  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { newName: 'Sunday walks', title: 'Untitled kit' });
   expect(view.getByText('Saved')).toBeTruthy();
 });
 
 test('a save error keeps the selection available for retry', async () => {
   client.saveKit.mockRejectedValueOnce(new Error('offline'));
   const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
+  await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
   await view.findByText('Neighborhood');
   await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
@@ -62,6 +67,7 @@ test('a save error keeps the selection available for retry', async () => {
 test('collection loading failure can be retried', async () => {
   client.listCollections.mockRejectedValueOnce(new Error('offline'));
   const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
+  await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
   expect(await view.findByText('Couldn’t load collections. Please try again.')).toBeTruthy();
   await fireEvent.press(view.getByRole('button', { name: 'Reload collections' }));
   expect(await view.findByText('Neighborhood')).toBeTruthy();
@@ -72,25 +78,26 @@ test('clearing the name uses the default and keeps Save enabled', async () => {
   await fireEvent.changeText(view.getByLabelText('New collection name'), '   ');
   expect(view.getByRole('button', { name: 'Save kit' })).toBeEnabled();
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
-  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { newName: 'My collection' });
+  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { newName: 'My collection', title: 'Untitled kit' });
 });
 
 test('a full-screen Keep prefills the kit title and omits Baku', async () => {
   const view = await render(<KeepScreen kitId="kit-1" kit={kitFixture} onClose={onClose} />);
   expect(view.getByTestId('keep-screen')).toBeTruthy();
   expect(view.getAllByText('Keep this kit')).toHaveLength(1);
-  expect(view.getByLabelText('New collection name').props.value).toBe(kitFixture.title);
+  expect(view.getByLabelText('Kit name').props.value).toBe(kitFixture.title);
   expect(view.getByLabelText('New collection name').props.autoFocus).not.toBe(true);
   expect(view.queryByTestId('keep-baku')).toBeNull();
   expect(view.getByRole('button', { name: 'Save kit' })).toBeEnabled();
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
-  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { newName: kitFixture.title });
+  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { newName: 'My collection', title: kitFixture.title });
 });
 
 test('success reports the collection and automatically dismisses after 900ms', async () => {
   jest.useFakeTimers();
   const onSaved = jest.fn();
   const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} onSaved={onSaved} />);
+  await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
   await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
   expect(onSaved).toHaveBeenCalledWith({ collectionId: 'collection-1', collectionName: 'Neighborhood' });

@@ -23,7 +23,7 @@ export function PaintChip({ role, color, width, height, typeSize = 44 / 3, lifte
   const ink = contrastTextColor(stock);
   const readableWidth = width - (deck ? labelInset + 4 : 8);
   const roleLines = Math.ceil(role.length * typeSize * 0.58 * fontScale / readableWidth);
-  const hexLines = Math.ceil((color?.length ?? 12) * typeSize * 0.6 * fontScale / readableWidth);
+  const hexLines = Math.ceil((color?.length ?? 0) * typeSize * 0.6 * fontScale / readableWidth);
   const labelHeight = Math.max(height * 0.3, typeSize * 1.2 * fontScale * (roleLines + hexLines) + (deck ? 19 : 9));
   const bodyHeight = Math.max(0, height - labelHeight);
   const tints = color ? referenceTints[color.toLowerCase()] ?? [shade(color, 0.45), shade(color, 0.22), shade(color, -0.22)] : [];
@@ -42,7 +42,7 @@ export function PaintChip({ role, color, width, height, typeSize = 44 / 3, lifte
           {/* Limit mottle beneath oatmeal print to keep the measured 11.79:1. */}
           <PaperTexture opacity={0.25} />
           <View style={[styles.emptyRuling, bodyHeight < 90 && { paddingVertical: 3 }]}>
-            <Text allowFontScaling style={{ fontFamily: fonts.body, fontSize: typeSize, lineHeight: typeSize * 1.15, color: ink }}>
+            <Text allowFontScaling style={{ fontFamily: fonts.body, fontSize: typeSize, lineHeight: typeSize * 1.15, fontStyle: 'italic', color: ink }}>
               {`No ${role} in this one. Add a color.`}
             </Text>
           </View>
@@ -51,7 +51,7 @@ export function PaintChip({ role, color, width, height, typeSize = 44 / 3, lifte
           <PaperTexture opacity={color ? 1 : 0.25} />
           {deck && color && <Text accessible={false} style={styles.wordmark}>INZPO</Text>}
           <Text allowFontScaling style={[styles.role, deck && { letterSpacing: 0 }, { fontSize: typeSize, lineHeight: typeSize * 1.2, color: ink }]}>{role.toUpperCase()}</Text>
-          <Text allowFontScaling style={[styles.hex, deck && { letterSpacing: 0 }, { fontSize: typeSize, lineHeight: typeSize * 1.2, color: ink }]}>{color?.toLowerCase() ?? 'No color yet'}</Text>
+          {color && <Text allowFontScaling style={[styles.hex, deck && { letterSpacing: 0 }, { fontSize: typeSize, lineHeight: typeSize * 1.2, color: ink }]}>{color.toLowerCase()}</Text>}
           {deck && color && <Text accessible={false} style={styles.code}>{`IZ-${color.slice(1, 5).toLowerCase()}`}</Text>}
           {color && !deck && <Canvas style={styles.registration} accessible={false} pointerEvents="none">
             <Path path={registration!} color={INK} opacity={0.5} style="stroke" strokeWidth={0.8} transform={[{ translateX: 3 }, { translateY: 3 }]} />

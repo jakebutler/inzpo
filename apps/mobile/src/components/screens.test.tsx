@@ -197,9 +197,8 @@ test('a pending brief polls and refetches the kit title after resolving', async 
   const view = await render(<ResultScreen />);
   expect(view.queryByText('Chewing on it.')).toBeNull();
   expect(view.getByTestId('baku-chewing')).toBeTruthy();
-  expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
-  expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
-  expect(view.getByRole('button', { name: 'Save' })).toHaveStyle({ opacity: 0.4 });
+  expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
+  expect(view.queryByRole('button', { name: 'Edit' })).toBeNull();
   await act(async () => { resolveBrief(kitFixture.brief); });
   expect(await view.findByLabelText('The brick house')).toBeTruthy();
   expect(client.getKit).toHaveBeenCalledTimes(2);
@@ -220,7 +219,7 @@ test('waiting shows the delayed caption above fixed Result actions, then removes
   expect(view.getByTestId('munch-player')).toHaveStyle({ width: 280 });
   expect(actions.getByText('Chewing on it.')).toHaveStyle({ bottom: 64, position: 'absolute' });
   expect(within(view.getByTestId('result-content')).queryByText('Chewing on it.')).toBeNull();
-  expect(actions.getByRole('button', { name: 'Save' })).toBeDisabled();
+  expect(actions.queryByRole('button', { name: 'Save' })).toBeNull();
   await act(async () => { resolveBrief(kitFixture.brief); });
   expect(view.queryByText('Chewing on it.')).toBeNull();
   expect(view.queryByTestId('munch-player')).toBeNull();
@@ -235,11 +234,11 @@ test('brief errors preserve the colors and render brief-error Baku', async () =>
   expect(view.getByText('No accent in this one. Add a color.')).toBeTruthy();
 });
 
-test('Save stays disabled until a kit has loaded', async () => {
+test('Save is hidden until a kit has loaded', async () => {
   let resolveKit!: (kit: typeof kitFixture) => void;
   client.getKit.mockReturnValue(new Promise((resolve) => { resolveKit = resolve; }));
   const view = await render(<ResultScreen />);
-  expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
+  expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
   await act(async () => { resolveKit(kitFixture); });
   await waitFor(() => expect(view.getByRole('button', { name: 'Save' })).toBeEnabled());
 });
@@ -249,7 +248,7 @@ test('missing kit renders the 404 placeholder and retry', async () => {
   const view = await render(<ResultScreen />);
   expect(await view.findByText('This kit couldn’t be found.')).toBeTruthy();
   expect(view.getByTestId('baku-notFound')).toBeTruthy();
-  expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
+  expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
 });
 
 test('opening Save navigates to the full-screen Keep route', async () => {
@@ -260,6 +259,7 @@ test('opening Save navigates to the full-screen Keep route', async () => {
   expect(router.push).toHaveBeenCalledWith({ pathname: '/keep/[id]', params: { id: 'kit-1' } });
   await view.rerender(<KeepRoute />);
   expect(await view.findByText('Keep this kit')).toBeTruthy();
+  await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
   expect(await view.findByText('Neighborhood')).toBeTruthy();
 });
 
@@ -296,8 +296,8 @@ test('tapping during pending preserves the hero and keeps buttons gated until it
   client.getBrief.mockReturnValue(new Promise((resolve) => { resolveBrief = resolve; }));
   const view = await render(<ResultScreen />);
   await fireEvent(view.getByTestId('result-content'), 'touchStart');
-  expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
-  expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
+  expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
+  expect(view.queryByRole('button', { name: 'Edit' })).toBeNull();
   await act(async () => { resolveBrief(kitFixture.brief); });
   expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
   expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
@@ -318,6 +318,21 @@ test('Edit opens at the peek and preserves the empty accent chip', async () => {
   expect(view.queryByText('Color picking comes next')).toBeNull();
   expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
   expect(ExpoHaptics.notificationAsync).not.toHaveBeenCalled();
+});
+
+test('an empty Accent opens its picker and can be filled without changing other roles', async () => {
+  completedResultKits.add('kit-1');
+  const view = await render(<ResultScreen />);
+  expect(view.queryByTestId('role-swatch-accent')).toBeNull();
+  expect(view.queryByTestId('photo-pin-accent')).toBeNull();
+  await fireEvent.press(view.getByRole('button', { name: 'accent: No accent in this one. Add a color.' }));
+  expect(view.getByText('Pick a accent color')).toBeTruthy();
+  expect(view.getByLabelText('Hex color').props.value).toBe('');
+  await fireEvent.changeText(view.getByLabelText('Hex color'), '#426092');
+  await fireEvent.press(view.getByRole('button', { name: 'Save colors' }));
+  expect(client.updateKitColors).toHaveBeenCalledWith('kit-1', { roles: { accent: '#426092' } });
+  expect(view.getByTestId('role-swatch-accent')).toHaveStyle({ backgroundColor: '#426092' });
+  expect(view.getByTestId('role-swatch-primary')).toHaveStyle({ backgroundColor: '#b35831' });
 });
 
 test.each([
@@ -466,6 +481,7 @@ test('saving enters the saved state, sets the title, and offers the collection a
   await fireEvent.press(view.getByRole('button', { name: 'Save' }));
   expect(router.push).toHaveBeenCalledWith({ pathname: '/keep/[id]', params: { id: 'kit-1' } });
   await view.rerender(<KeepRoute />);
+  await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
   await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
   await act(async () => { jest.advanceTimersByTime(900); });
@@ -508,7 +524,7 @@ test('Keep replaces Result with one header and no Baku, then Back restores Resul
   expect(view.queryByText('Your colors')).toBeNull();
   expect(view.queryByTestId('result-actions')).toBeNull();
   expect(view.queryByTestId('result-baku')).toBeNull();
-  expect(view.getByLabelText('New collection name').props.value).toBe(kitFixture.title);
+  expect(view.getByLabelText('Kit name').props.value).toBe(kitFixture.title);
   expect(view.getByRole('button', { name: 'Save kit' })).toBeEnabled();
   await fireEvent.press(view.getByRole('button', { name: 'Back' }));
   expect(router.back).toHaveBeenCalled();
@@ -645,4 +661,34 @@ test('saved deck retains the editing guard while its brief is pending', async ()
   const view = await render(<ResultScreen />);
   expect(view.queryByText('Chewing on it.')).toBeNull();
   expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
+});
+
+
+test('Keep edits the kit name independently of the collection name', async () => {
+  const view = await render(<KeepRoute />);
+  expect(view.getByLabelText('Kit name').props.value).toBe(kitFixture.title);
+  expect(view.getByText("Name it the way you'd write it on the back of a photo.")).toBeTruthy();
+  await fireEvent.changeText(view.getByLabelText('Kit name'), 'Orange Victorian');
+  await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
+  await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
+  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { title: 'Orange Victorian', newName: 'Walks' });
+});
+
+test('Keep can save the renamed kit to an existing collection', async () => {
+  const view = await render(<KeepRoute />);
+  await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
+  await fireEvent.press(view.getByRole('radio', { name: 'Neighborhood, 2 kits' }));
+  await fireEvent.changeText(view.getByLabelText('Kit name'), 'Orange House');
+  await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
+  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { title: 'Orange House', collectionId: 'collection-1' });
+});
+
+test('each filled role has a photo pin and an empty role has only its label and body', async () => {
+  completedResultKits.add('kit-1');
+  const view = await render(<ResultScreen />);
+  for (const role of ['primary', 'secondary', 'background', 'surface', 'text']) expect(view.getByTestId(`photo-pin-${role}`)).toBeTruthy();
+  expect(view.queryByTestId('photo-pin-accent')).toBeNull();
+  expect(view.getByText('ACCENT')).toBeTruthy();
+  expect(view.getByText('No accent in this one. Add a color.')).toBeTruthy();
+  expect(view.queryByText(/No color yet/)).toBeNull();
 });

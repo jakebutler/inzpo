@@ -90,7 +90,8 @@ export default function ResultScreen() {
     <SafeAreaView style={ui.screen} edges={['left', 'right']} onTouchStart={sequence.skipToEnd}>
       <Stack.Screen options={{ headerShown: false, title: isSaved && kit ? kit.title : 'Your colors' }} />
       <PaperTexture />
-      <ScrollView testID="result-content" contentContainerStyle={{ paddingTop: Math.max(isSaved ? 40 : 20, insets.top), paddingBottom: actionHeight + footerBottom + 32 }}
+      <ScrollView testID="result-content" contentContainerStyle={{ paddingTop: Math.max(isSaved ? 40 : 20, insets.top),
+        paddingBottom: isSaved ? footerBottom : actionHeight + footerBottom + 32, minHeight: isSaved ? height : undefined }}
         onScrollBeginDrag={sequence.skipToEnd} onMomentumScrollBegin={sequence.skipToEnd}
         onScroll={({ nativeEvent }) => {
           scrollY.current = nativeEvent.contentOffset.y;
@@ -110,7 +111,9 @@ export default function ResultScreen() {
           {isSaved ? <>
             <Text allowFontScaling accessibilityLabel={`Saved to ${collectionName}`} accessibilityLiveRegion="polite" style={[ui.body, styles.savedCopy]}>Saved to your collection.</Text>
             <View accessibilityLabel={kit.title}>
-              <SavedKit kit={kit} failed={photoFailed} disabled={!sequence.interactive} onError={() => setFailedPhotoUrl(kit.photo!.url)} onEdit={() => setSheet({ kitId: id, type: 'edit' })}
+              <SavedKit kit={kit} failed={photoFailed} disabled={!sequence.interactive}
+                maxHeight={height - Math.max(40, insets.top) - (headerHeight ?? 89) - 48 * fontScale - Math.max(108, actionHeight) - footerBottom - 40}
+                onError={() => setFailedPhotoUrl(kit.photo!.url)} onEdit={() => setSheet({ kitId: id, type: 'edit' })}
                 placeholder={<View style={styles.placeholder}><Baku pose={photoFailed ? 'errorPhoto' : 'empty'} />
                   <Text style={ui.message}>{photoFailed ? 'Couldn’t load the photo.' : 'No photo in this kit.'}</Text>
                   {photoFailed && <ActionButton label="Reload photo" onPress={() => { setFailedPhotoUrl(null); retry(); }} />}
@@ -142,13 +145,24 @@ export default function ResultScreen() {
               end={{ x: printLeft + 13 + primaryPin.marker.x, y: 13 + primaryPin.marker.y }}
               hue={primaryHue(kit)} progress={sequence.values.markerOpacity} reducedMotion={sequence.reducedMotion} />}
           </View>}
+          {isSaved && <View testID="result-actions" style={styles.savedFooter}>
+            <View style={styles.savedHost}>
+              <CornerBaku size={64} focused={focused && sheet?.kitId !== id && detail?.kitId !== id}
+                pose={hop.pose && hop.pose !== 'idle' ? hop.pose : 'success'} motionStyle={hop.bakuStyle} shadowStyle={hop.shadowStyle} />
+            </View>
+            <View style={styles.savedActions} onLayout={(event) => setActionHeight(Math.max(108, event.nativeEvent.layout.height))}>
+              <ActionButton label="See your collection" primary disabled={!savedId}
+                onPress={() => { if (savedId) router.push({ pathname: '/collection/[id]', params: { id: savedId } }); }} />
+              <ActionButton label="Snap another" onPress={() => router.dismissTo('/')} />
+            </View>
+          </View>}
           <View style={[styles.brief, { width: layout.contentWidth, marginTop: isSaved ? 32 : ready ? 100 : 16 }]}>
             <BriefBlock brief={kit.brief} failed={briefFailed} showBaku={false} motionStyle={ready ? sequence.briefStyle : undefined} />
             {(briefFailed || kit.brief.status === 'failed') && <ActionButton label="Check brief again" onPress={retry} />}
           </View>
         </> : null}
       </ScrollView>
-      <View testID="result-actions" pointerEvents="box-none" style={[styles.footer, { bottom: footerBottom, maxWidth: 390 }]}>
+      {!isSaved && <View testID="result-actions" pointerEvents="box-none" style={[styles.footer, { bottom: footerBottom, maxWidth: 390 }]}>
         <Canvas accessible={false} pointerEvents="none" style={StyleSheet.flatten([styles.fade, { height: actionHeight + footerBottom + 20 }])}>
           <Rect x={0} y={0} width={Math.min(width, 390)} height={actionHeight + footerBottom + 20}>
             <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 0, y: 40 }} colors={['#F3EEE400', PAPER]} />
@@ -156,22 +170,16 @@ export default function ResultScreen() {
         </Canvas>
         {(loading || (!!kit && !ready)) && <ChewingCaption key={id}
           style={{ position: 'absolute', left: 82, right: 16, bottom: actionHeight + 16 }} />}
-        {ready && <View style={[styles.host, isSaved && { bottom: 4 }]}>
-          <CornerBaku size={isSaved ? 64 : 62} focused={focused && sheet?.kitId !== id && detail?.kitId !== id} pose={hop.pose && hop.pose !== 'idle' ? hop.pose : !ready ? 'chewing' : isSaved ? 'success' : failedBrief ? 'errorBrief' : 'idle'}
+        {ready && <View style={styles.host}>
+          <CornerBaku size={62} focused={focused && sheet?.kitId !== id && detail?.kitId !== id} pose={hop.pose && hop.pose !== 'idle' ? hop.pose : failedBrief ? 'errorBrief' : 'idle'}
             motionStyle={hop.bakuStyle} shadowStyle={hop.shadowStyle} />
         </View>}
-        <View style={[styles.actions, isSaved && styles.savedActions]} onLayout={(event) => setActionHeight(Math.max(48, event.nativeEvent.layout.height))}>
-          {isSaved ? <>
-            <ActionButton label="See your collection" primary disabled={!savedId}
-              onPress={() => { if (savedId) router.push({ pathname: '/collection/[id]', params: { id: savedId } }); }} />
-            <ActionButton label="Snap another" onPress={() => router.dismissTo('/')} />
-          </> : <>
-            <View style={styles.edit}><ActionButton label="Edit" disabled={!sequence.interactive} onPress={() => setSheet({ kitId: id, type: 'edit' })} /></View>
-            <View style={styles.save}><ActionButton label="Save" primary disabled={!sequence.interactive}
-              onPress={() => router.push({ pathname: '/keep/[id]', params: { id } })} /></View>
-          </>}
-        </View>
-      </View>
+        {ready && <View style={styles.actions} onLayout={(event) => setActionHeight(Math.max(48, event.nativeEvent.layout.height))}>
+          <View style={styles.edit}><ActionButton label="Edit" disabled={!sequence.interactive} onPress={() => setSheet({ kitId: id, type: 'edit' })} /></View>
+          <View style={styles.save}><ActionButton label="Save" primary disabled={!sequence.interactive}
+            onPress={() => router.push({ pathname: '/keep/[id]', params: { id } })} /></View>
+        </View>}
+      </View>}
       {kit && <>
         {detail?.kitId === id && kit.roles[detail.role] && <ChipDetail key={`${id}-${detail.role}`} kit={kit} role={detail.role}
           slot={layout.slots.find((slot) => slot.role === detail.role)!}
@@ -192,7 +200,9 @@ const styles = StyleSheet.create({
   savedHeader: { gap: 9, marginBottom: 0 },
   savedHeading: { maxWidth: 310, fontSize: 31, lineHeight: 31 },
   savedCopy: { marginTop: 10, marginBottom: 18, marginHorizontal: 20, fontSize: 14, lineHeight: 20 },
-  savedActions: { marginLeft: 96, flexDirection: 'column', gap: 12 },
+  savedFooter: { marginTop: 24, marginHorizontal: 16, flexDirection: 'row', alignItems: 'flex-end', gap: 16 },
+  savedHost: { width: 64, marginBottom: 4 },
+  savedActions: { flex: 1, gap: 12 },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   brief: { alignSelf: 'center', gap: 16 },
   footer: { position: 'absolute', left: 0, right: 0, width: '100%', alignSelf: 'center' },

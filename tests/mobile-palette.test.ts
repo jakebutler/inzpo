@@ -3,6 +3,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { COLOR_ROLES, colorHue, rolesFromColors } from '@inzpo/shared';
 import type { ItemDetail } from '@/lib/items';
 import { upgradeMobilePalette } from '@/lib/mobile-palette';
+import { extractPalette } from '@/lib/palette-extract';
 
 const mocks = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock('@/lib/r2', async () => ({
@@ -38,13 +39,31 @@ it('reopening a legacy house refreshes its automatic roles and caches the photo,
   expect(rolesFromColors((await upgradeMobilePalette(original)).colors).accent).toBeNull();
 });
 
-it('does not reinterpret manually edited or already current kits', async () => {
+it('does not reinterpret manual hex edits or sampled colors', async () => {
   const original = legacy('edited-house');
   const changed = { ...original, colors: original.colors.map((c) => c.role === 'primary' ? { ...c, pinX: null, pinY: null } : c) };
   expect(await upgradeMobilePalette(changed)).toBe(changed);
-  const current = { ...original, colors: original.colors.map((c) => ({ ...c, origin: 'region' })) };
+  const current = { ...original, colors: original.colors.map((c) => ({ ...c, origin: 'sampled' })) };
   expect(await upgradeMobilePalette(current)).toBe(current);
   expect(mocks.send).not.toHaveBeenCalled();
+});
+
+it('reanchors stored region pins without filling cleared roles or changing explicit samples', async () => {
+  const input = await readFile('public/sample/IMG_6505.jpg');
+  const palette = await extractPalette(input);
+  mocks.send.mockResolvedValue({ Body: { transformToByteArray: async () => input } });
+  const original = legacy('region-house');
+  original.colors = palette.swatches.filter((s) => s.role !== 'secondary').map((s, position) => ({
+    hex: s.hex, role: s.role, name: s.name, family: s.family, origin: s.origin, position, pinX: 0.4, pinY: 0.3,
+  }));
+  const sampled = { ...original.colors[0], role: 'accent' as const, hex: '#426092', origin: 'sampled', pinX: 0.08, pinY: 0.04 };
+  original.colors.push(sampled);
+  const updated = await upgradeMobilePalette(original);
+  expect(updated.colors.find((c) => c.role === 'accent')).toEqual(sampled);
+  expect(updated.colors.find((c) => c.role === 'secondary')).toBeUndefined();
+  const primary = updated.colors.find((c) => c.role === 'primary')!;
+  expect(palette.regionAtPin(primary.pinX!, primary.pinY!)?.role).toBe('primary');
+  expect(primary.hex).toBe(rolesFromColors(original.colors).primary);
 });
 
 it('a failed photo refresh can retry rather than caching a rejection', async () => {

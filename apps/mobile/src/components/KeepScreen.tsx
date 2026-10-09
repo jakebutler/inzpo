@@ -4,7 +4,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInzpoClient } from '@/lib/api';
 import { haptics } from '@/lib/haptics';
-import { fonts, INK } from '@/theme/tokens';
+import { fonts, INK, PAPER } from '@/theme/tokens';
 import { ui } from '@/theme/styles';
 import { ActionButton } from './ActionButton';
 import { BackButton } from './BackButton';
@@ -35,7 +35,10 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
   const [collections, setCollections] = useState<CollectionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const defaultName = kit?.title.trim() || 'My collection';
+  const defaultTitle = kit?.title.trim() || 'Untitled kit';
+  const [kitName, setKitName] = useState(defaultTitle);
+  const defaultName = 'My collection';
+  const [choosingCollection, setChoosingCollection] = useState(false);
   const [newName, setNewName] = useState(defaultName);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -72,7 +75,7 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
     setSaving(true);
     setSaveError(null);
     try {
-      const result = await client.saveKit(kitId, selectedId ? { collectionId: selectedId } : { newName: newName.trim() || defaultName });
+      const result = await client.saveKit(kitId, { title: kitName.trim() || defaultTitle, ...(selectedId ? { collectionId: selectedId } : { newName: newName.trim() || defaultName }) });
       if (!active.current) return;
       setSaved(true);
       void haptics.success();
@@ -113,32 +116,52 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
         <View style={{ width: contentWidth, gap: 12 }}>
           {saved ? <Text allowFontScaling accessibilityLiveRegion="polite" style={ui.body}>Saved to your collection.</Text> : <>
             <View>
-              <Text allowFontScaling style={styles.fieldLabel}>New collection</Text>
+              <Text allowFontScaling style={styles.fieldLabel}>Kit name</Text>
               <Text allowFontScaling accessible={false} pointerEvents="none" style={[styles.name, styles.measureName]}
                 onTextLayout={(event) => {
                   const last = event.nativeEvent.lines.at(-1);
-                  if (last) setUnderline({ left: last.x, width: last.width });
-                }}>{newName || kit?.title || 'Collection name'}</Text>
-              <TextInput accessibilityLabel="New collection name" placeholder={kit?.title ?? 'Collection name'}
-                placeholderTextColor={INK} value={newName}
-                onChangeText={(name) => { setNewName(name); setSelectedId(null); }} editable={!saving} maxLength={100}
+                  if (last) {
+                    setUnderline({ left: last.x, width: last.width });
+                    setFieldHeight(Math.max(38.4, last.y + last.height));
+                  }
+                }}>{kitName || defaultTitle}</Text>
+              <TextInput accessibilityLabel="Kit name" placeholder={defaultTitle}
+                placeholderTextColor={INK} value={kitName}
+                onChangeText={setKitName} editable={!saving} maxLength={100}
                 multiline scrollEnabled={false} returnKeyType="done" blurOnSubmit
-                onContentSizeChange={(event) => setFieldHeight(Math.max(40, event.nativeEvent.contentSize.height))}
-                onSubmitEditing={() => void save()} style={[styles.name, { minHeight: fieldHeight }]} />
+                underlineColorAndroid="transparent"
+                onSubmitEditing={() => void save()} style={[styles.name, { height: fieldHeight },
+                  Platform.OS === 'web' && { outlineWidth: 0 }]} />
               <Canvas accessible={false} pointerEvents="none" style={{ height: 8, width: contentWidth }}>
                 <Path path={Skia.Path.MakeFromSVGString(`M${underline.left + 2} 5 Q${underline.left + underline.width * 0.45} 3 ${underline.left + underline.width - 3} 4`)!}
                   color="#61594C" style="stroke" strokeWidth={0.75} strokeCap="round" />
               </Canvas>
             </View>
-            <Text allowFontScaling style={styles.hint}>Name it the way you’d write it on the back of a photo.</Text>
-            <Text allowFontScaling style={ui.body}>Choose a collection or start a new one.</Text>
+            <Text allowFontScaling style={styles.hint}>{"Name it the way you'd write it on the back of a photo."}</Text>
+            <View style={styles.collectionRow}>
+              <Text allowFontScaling style={styles.fieldLabel}>Collection</Text>
+              {selectedId ? <Text allowFontScaling style={styles.collectionValue}>{collections.find((collection) => collection.id === selectedId)?.name}</Text>
+                : <TextInput accessibilityLabel="New collection name" value={newName} onChangeText={setNewName}
+                  editable={!saving} maxLength={100} placeholder="Collection name" underlineColorAndroid="transparent"
+                  style={[styles.collectionValue, { padding: 0 }]} />}
+              <Pressable accessibilityRole="button" accessibilityLabel="Choose collection" disabled={saving}
+                onPress={() => setChoosingCollection((value) => !value)} style={styles.collectionChange}>
+                <Text style={styles.fieldLabel}>{choosingCollection ? 'Done' : 'Change'}</Text>
+              </Pressable>
+            </View>
+            {choosingCollection && <>
             {loading && <Text allowFontScaling style={ui.body}>Loading collections…</Text>}
             {!loading && collections.length === 0 && !collectionError && <Text allowFontScaling style={ui.body}>Your first collection starts here.</Text>}
             <View style={styles.collections}>
+              <Pressable accessibilityRole="radio" accessibilityLabel="Start a new collection"
+                accessibilityState={{ checked: selectedId === null, disabled: saving }} disabled={saving}
+                onPress={() => { setSelectedId(null); setChoosingCollection(false); }} style={[stockSurface, styles.collection]}>
+                <Text style={styles.collectionName}>Start a new collection</Text>
+              </Pressable>
               {collections.map((collection) => <Pressable key={collection.id} accessibilityRole="radio"
                 accessibilityLabel={`${collection.name}, ${collection.count} kits`}
                 accessibilityState={{ checked: selectedId === collection.id, disabled: saving }} disabled={saving}
-                onPress={() => setSelectedId(collection.id)}
+                onPress={() => { setSelectedId(collection.id); setChoosingCollection(false); }}
                 style={[stockSurface, styles.collection, selectedId === collection.id && styles.selected]}>
                 <PaperTexture />
                 <View style={{ flex: 1, gap: 4 }}>
@@ -154,11 +177,12 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
                 setLoading(true); setCollectionError(null); setAttempt((value) => value + 1);
               }} />
             </>}
+            </>}
           </>}
           {saveError && <Text allowFontScaling accessibilityRole="alert" style={ui.message}>{saveError}</Text>}
         </View>
       </ScrollView>
-      <View style={[styles.footer, { bottom: Math.max(insets.bottom, 24) }]}>
+      <View testID="keep-footer" style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 24) }]}>
         <PaperTexture />
         <View style={styles.actions} onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}>
           <View style={{ width: 96 }}><ActionButton label={saved ? 'Done' : 'Not now'} disabled={saving} onPress={onClose} /></View>
@@ -173,17 +197,21 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1 },
+  page: { flex: 1, backgroundColor: PAPER },
   sourcePrint: { position: 'absolute', left: 12, top: 310, transform: [{ rotate: '-3deg' }] },
   fieldLabel: { fontFamily: fonts.body, fontSize: 13, lineHeight: 20, color: INK, marginBottom: 4 },
-  name: { fontFamily: fonts.heading, fontSize: 32, lineHeight: 38.4, letterSpacing: -0.6, color: INK, padding: 0 },
+  name: { fontFamily: fonts.heading, fontSize: 32, lineHeight: 38.4, letterSpacing: -0.6, color: INK,
+    padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent' },
   measureName: { position: 'absolute', top: 14, left: 0, right: 0, opacity: 0 },
-  hint: { fontFamily: fonts.body, fontSize: 44 / 3, lineHeight: 21, fontStyle: 'italic', color: INK },
+  hint: { fontFamily: fonts.body, fontSize: 14, letterSpacing: -0.2, lineHeight: 20, fontStyle: 'italic', color: INK },
+  collectionRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  collectionValue: { flex: 1, fontFamily: fonts.body, fontSize: 14, color: INK },
+  collectionChange: { minHeight: 44, minWidth: 44, justifyContent: 'center' },
   collections: { gap: 10 },
   collection: { padding: 16, minHeight: 60, borderRadius: 3, flexDirection: 'row', alignItems: 'center', gap: 12 },
   selected: { borderColor: '#426092', borderWidth: 1 },
   collectionName: { fontFamily: fonts.body, fontSize: 16, color: INK },
   choice: { width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: '#857B68' },
-  footer: { position: 'absolute', left: 0, right: 0, paddingTop: 12, backgroundColor: '#F3EEE4' },
+  footer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 12, backgroundColor: PAPER },
   actions: { marginLeft: 16, marginRight: 16, flexDirection: 'row', gap: 8 },
 });

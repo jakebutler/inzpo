@@ -2,6 +2,7 @@ import type { MobileKit, ColorRole } from '@inzpo/shared';
 import { Canvas, Circle, RadialGradient } from '@shopify/react-native-skia';
 import { StyleSheet, View } from 'react-native';
 import { PaintChip } from './PaintChip';
+import { OATMEAL_STOCK } from '@/theme/materials';
 
 const order: readonly ColorRole[] = ['text', 'surface', 'background', 'accent', 'secondary', 'primary'];
 
@@ -20,18 +21,21 @@ function Rivet({ size }: { size: number }) {
 }
 
 /** Six pieces of stock, including empty roles, share the physical corner pivot. */
-export function KitDeck({ kit, closed = false }: { kit: MobileKit; closed?: boolean }) {
+export function KitDeck({ kit, closed = false, typeSize = 11 }: { kit: MobileKit; closed?: boolean; typeSize?: number }) {
   return <View testID={closed ? 'closed-kit-deck' : 'keep-kit-fan'} accessible={false}
     style={closed ? styles.closed : styles.fan}>
     {order.map((role, index) => <View key={role} style={closed ? {
-      position: 'absolute', left: 18 + index * 3, top: index * -1.5, zIndex: index,
+      position: 'absolute', left: 18 + index * 3, top: (5 - index) * 1.5, zIndex: index,
       transformOrigin: '12px 154px', transform: [{ rotate: '-3deg' }],
     } : {
       position: 'absolute', left: 112, top: 80, zIndex: index,
       transformOrigin: '12px 170px', transform: [{ rotate: `${-30 + index * 12}deg` }],
     }}>
       <PaintChip role={role} color={kit.roles[role]} width={closed ? 110 : 120} height={closed ? 168 : 184}
-        typeSize={11} deck labelInset={closed ? 29 : 36} />
+        typeSize={typeSize} deck labelInset={closed ? 29 : 36} />
+      {closed && index < order.length - 1 && <View testID={`deck-edge-${role}`} pointerEvents="none"
+        style={{ position: 'absolute', left: 1, top: 2, width: 3, height: 168 * 0.62,
+          backgroundColor: kit.roles[role] ?? OATMEAL_STOCK }} />}
     </View>)}
     <View style={closed ? styles.closedRivet : styles.fanRivet}><Rivet size={closed ? 23 : 17} /></View>
   </View>;

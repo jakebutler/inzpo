@@ -51,6 +51,11 @@ describe('subject palette', () => {
     const primary = palette.swatches.find((s) => s.role === 'primary')!;
     expect(primary.pinX).toBeGreaterThan(0);
     expect(primary.pinY).toBeGreaterThan(0.2);
+    // A region centroid can be on the window inside a connected wall. Every
+    // actual pin must belong to its selected component, including Primary.
+    for (const swatch of palette.swatches) {
+      expect(palette.regionAtPin(swatch.pinX, swatch.pinY)).toBe(swatch);
+    }
     // The old brief name and new caption both use this exact result's Primary.
     const title = kitDisplayName({ title: 'White Victorian', briefText: 'A white Victorian with a black door.',
       namedColors: [{ hex: '#ffffff', label: 'white trim' }], primary });

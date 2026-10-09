@@ -35,3 +35,13 @@ test('reference markers retain displaced edge leaders and the primary arrow endp
   expect(pins.find((pin) => pin.role === 'text')!.marker.x).toBe(45);
   expect(primaryHue(kit)).toBe('yellow');
 });
+
+
+test('coincident samples retain separate pins for every filled role', () => {
+  const colors = Object.entries(kitFixture.roles).flatMap(([role, hex]) => hex ? [{ role: role as keyof typeof kitFixture.roles, hex, name: null, origin: 'sampled', pinX: 0.5, pinY: 0.5 }] : []);
+  const pins = photoPins({ ...kitFixture, colors }, 248, 330);
+  expect(pins.map((pin) => pin.role)).toEqual(['primary', 'secondary', 'background', 'surface', 'text']);
+  for (let i = 0; i < pins.length; i++) for (const other of pins.slice(i + 1)) {
+    expect(Math.hypot(pins[i].marker.x - other.marker.x, pins[i].marker.y - other.marker.y)).toBeGreaterThanOrEqual(18);
+  }
+});

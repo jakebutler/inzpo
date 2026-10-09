@@ -1,5 +1,5 @@
 // From cursor/inzpo-munch-spike's sampleFrame: 24-frame chews at 60fps,
-// with the full-cheek variation on every third cycle. Repacked without resampling.
+// with the full-cheek variation on every third cycle. Rendered from the clean cutout at each display density.
 export const FRAME_WIDTH = 176;
 export const FRAME_HEIGHT = 144;
 export const FRAME_COUNT = 48;

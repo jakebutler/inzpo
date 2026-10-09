@@ -5,7 +5,7 @@ import type { ItemDetail } from "@/lib/items";
 const mocks = vi.hoisted(() => ({
   verifyToken: vi.fn(), devOwnerId: vi.fn(), isClerkConfigured: vi.fn(),
   send: vi.fn(), getSignedUrl: vi.fn(), presignUpload: vi.fn(), createImageItem: vi.fn(), getItemDetail: vi.fn(), getWallItems: vi.fn(),
-  readBriefJob: vi.fn(), runBriefJob: vi.fn(), persistKitTitleFromBrief: vi.fn(), getItemCollections: vi.fn(),
+  readBriefJob: vi.fn(), runBriefJob: vi.fn(), persistKitTitleFromBrief: vi.fn(), saveKitTitle: vi.fn(), getItemCollections: vi.fn(),
   assertItemOwned: vi.fn(), listCollections: vi.fn(), createCollection: vi.fn(), addToCollection: vi.fn(),
   revalidatePath: vi.fn(), after: vi.fn(), replaceItemTokens: vi.fn(),
 }));
@@ -16,7 +16,7 @@ vi.mock("@/lib/auth/clerk-configured", () => ({ isClerkConfigured: mocks.isClerk
 vi.mock("@/lib/auth/owner", () => ({ assertItemOwned: mocks.assertItemOwned }));
 vi.mock("@/lib/items", () => ({ createImageItem: mocks.createImageItem, getItemDetail: mocks.getItemDetail, getWallItems: mocks.getWallItems }));
 vi.mock("@/lib/brief", () => ({ readBriefJob: mocks.readBriefJob, runBriefJob: mocks.runBriefJob }));
-vi.mock("@/lib/kit-title", () => ({ persistKitTitleFromBrief: mocks.persistKitTitleFromBrief }));
+vi.mock("@/lib/kit-title", () => ({ persistKitTitleFromBrief: mocks.persistKitTitleFromBrief, saveKitTitle: mocks.saveKitTitle }));
 vi.mock("@/lib/item-collections", () => ({ getItemCollections: mocks.getItemCollections }));
 vi.mock("@/lib/collections", () => ({
   listCollections: mocks.listCollections, createCollection: mocks.createCollection, addToCollection: mocks.addToCollection,
@@ -203,7 +203,7 @@ describe("mobile kit detail", () => {
     expect(response.status).toBe(200);
     const dto = await response.json();
     expect(dto).toEqual({
-      id: "kit_1", title: "Untitled kit",
+      id: "kit_1", title: "Blue House",
       photo: { url: "https://r2.test/photo?signed=1", width: 1000, height: 800, placeholder: null },
       roles: { primary: "#abcdef", secondary: null, accent: null, background: null, surface: null, text: null },
       colors: [{ hex: "#ABCDEF", role: "primary", name: "Wall", origin: "extracted", pinX: null, pinY: null }],
@@ -215,12 +215,27 @@ describe("mobile kit detail", () => {
     expect(mocks.getSignedUrl.mock.calls[0]![2]).toEqual({ expiresIn: 900 });
   });
 
-  it("uses a display name once the brief is ready and falls back to the original photo", async () => {
+  it("keeps the Primary name once the brief is ready and falls back to the original photo", async () => {
     mocks.readBriefJob.mockResolvedValue(ready);
     mocks.getItemDetail.mockResolvedValue({ ...item, media: { ...item.media!, displayKey: null } });
     const response = await getKit(request(), context());
-    expect((await response.json()).title).toBe("Warm House");
+    expect((await response.json()).title).toBe("Blue House");
     expect(mocks.getSignedUrl.mock.calls[0]![1].input).toMatchObject({ Key: "items/kit_1/original.jpg" });
+  });
+
+  it('uses Primary with a valid noun and falls back for adjective-only model titles', async () => {
+    const titles = [];
+    for (const [title, brief] of [
+      ['Yellow Victorian', pending], ['Yellow Sunlit', ready],
+      ['A different model name', { ...ready, text: 'Cream trim and a blue sky.',
+        namedColors: [{ hex: '#426092', label: 'blue sky' }] }],
+    ] as const) {
+      mocks.getItemDetail.mockResolvedValue({ ...item, title,
+        colors: [{ ...item.colors[0]!, hex: '#d2d0a8', name: title }] });
+      mocks.readBriefJob.mockResolvedValue(brief);
+      titles.push((await (await getKit(request(), context())).json()).title);
+    }
+    expect(titles).toEqual(['Yellow Victorian', 'Yellow House', 'Yellow Trim']);
   });
 
   it("supports a kit without media", async () => {
@@ -392,7 +407,7 @@ describe("mobile collection detail", () => {
     const response = await collectionDetail(request(), collectionContext());
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ id: "collection_1", name: "Houses", kits: [{
-      id: "kit_1", title: "Untitled kit",
+      id: "kit_1", title: "Blue House",
       roles: { primary: "#abcdef", secondary: null, accent: null, background: null, surface: null, text: null },
       photo: { url: "https://r2.test/photo?signed=1" },
     }] });
@@ -451,4 +466,18 @@ describe("mobile collection detail", () => {
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: "Could not complete request" });
   });
+});
+
+
+it('saves the kit title separately from an existing collection', async () => {
+  const response = await saveKit(request('POST', { collectionId: 'collection_1', title: ' Yellow Victorian ' }), context());
+  expect(response.status).toBe(200);
+  expect(mocks.saveKitTitle).toHaveBeenCalledWith('user_1', 'kit_1', 'Yellow Victorian');
+  expect(mocks.addToCollection).toHaveBeenCalledWith('user_1', 'collection_1', 'kit_1');
+  expect(mocks.createCollection).not.toHaveBeenCalled();
+});
+it.each([123, '', ' '.repeat(3), 'a'.repeat(101)])('rejects an invalid kit title: %s', async (title) => {
+  expect((await saveKit(request('POST', { newName: 'Walks', title }), context())).status).toBe(400);
+  expect(mocks.createCollection).not.toHaveBeenCalled();
+  expect(mocks.saveKitTitle).not.toHaveBeenCalled();
 });

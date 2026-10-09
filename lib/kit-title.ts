@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { items } from "@/lib/db/schema";
 import type { NamedColor } from "@/lib/brief-copy";
@@ -31,4 +31,10 @@ export async function persistKitTitleFromBrief(itemId: string, job: BriefTitleSo
   if (current?.trim() === name) return name;
   await db.update(items).set({ title: name, updatedAt: new Date() }).where(eq(items.id, itemId));
   return name;
+}
+
+/** Rename an owned kit separately from its collection. */
+export async function saveKitTitle(ownerId: string, itemId: string, title: string): Promise<void> {
+  await db.update(items).set({ title, updatedAt: new Date() })
+    .where(and(eq(items.id, itemId), eq(items.ownerId, ownerId)));
 }

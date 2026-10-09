@@ -71,7 +71,7 @@ export function useKit(id: string) {
         if (!active) return;
         setState((current) => current?.id === id && current.kit && brief.updatedAt >= current.kit.brief.updatedAt
           ? { ...current, briefFailed: false, kit: { ...current.kit, brief } } : current);
-        // The brief can rename the kit. Refresh its title and signed photo URL.
+        // Refresh signed photo URLs and any edits made while the brief ran.
         // If that refresh fails, retain the resolved brief and the loaded kit.
         const refreshReplacement = replacement.current;
         const refreshed = await client.getKit(id).catch(() => null);

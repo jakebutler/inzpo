@@ -12,8 +12,10 @@ export async function upgradeMobilePalette(item: ItemDetail): Promise<ItemDetail
   const automatic = item.colors.filter((color) => color.origin !== 'sampled');
   // Old manual hex edits have no pin. Leave those kits alone rather than
   // guessing whether an absent role or coordinate was a user decision.
-  if (!item.media || item.colors.length !== 6 || !automatic.length || automatic.some((color) => color.origin !== 'extracted' ||
-    color.pinX == null || color.pinY == null)) return item;
+  const legacy = item.colors.length === 6 && automatic.length > 0 && automatic.every((color) => color.origin === 'extracted' &&
+    color.pinX != null && color.pinY != null);
+  const needsPins = automatic.some((color) => color.origin === 'region');
+  if (!item.media || (!legacy && !needsPins)) return item;
   const key = `${process.env.R2_BUCKET}:${item.media.originalKey}`;
   let pending = refreshed.get(key);
   if (!pending) {
@@ -28,6 +30,15 @@ export async function upgradeMobilePalette(item: ItemDetail): Promise<ItemDetail
     pending.catch(() => { if (refreshed.get(key) === pending) refreshed.delete(key); });
   }
   const palette = await pending;
+  if (!legacy) {
+    // Reanchor older region centroids without filling user-cleared roles or
+    // changing a sampled color. The painted hex and role remain unchanged.
+    return { ...item, colors: item.colors.map((color) => {
+      if (color.origin !== 'region') return color;
+      const match = palette.swatches.find((swatch) => swatch.role === color.role && swatch.hex.toLowerCase() === color.hex.toLowerCase());
+      return match ? { ...color, pinX: match.pinX, pinY: match.pinY } : color;
+    }) };
+  }
   const colors: ItemDetail['colors'] = palette.swatches.map((swatch, position) => ({
     hex: swatch.hex, role: swatch.role, name: swatch.name, family: swatch.family,
     origin: swatch.origin, position, pinX: swatch.pinX, pinY: swatch.pinY,

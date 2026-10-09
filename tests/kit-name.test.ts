@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { generatedKitTitle, isCameraFilename, kitAltText, kitDisplayName, UNTITLED_KIT } from "@/lib/kit-name";
+import { generatedKitTitle, isCameraFilename, kitAltText, kitDisplayName, primaryKitTitle, UNTITLED_KIT } from "@/lib/kit-name";
+
+it('builds the mobile default only from Primary, including before the brief resolves', () => {
+  expect(primaryKitTitle('#d2d0a8')).toBe('Yellow kit');
+  expect(primaryKitTitle('#D2D0A8')).toBe(primaryKitTitle('#d2d0a8'));
+  expect(primaryKitTitle('#426092')).toBe('Blue kit');
+  expect(primaryKitTitle(null)).toBe(UNTITLED_KIT);
+});
 
 describe("kitDisplayName", () => {
-  it('uses current Primary for a stored generated name even when the brief changes', () => {
+  it('uses current Primary for a stored noun and rejects unsupported names', () => {
     expect(kitDisplayName({ title: 'White Victorian', briefText: 'Sun-faded paint at the windows.',
       namedColors: [{ hex: '#ffffff', label: 'white windows' }], primary: { hex: '#d1cb9e', name: 'cream/beige' } }))
       .toBe('Yellow Victorian');
-    expect(kitDisplayName({ title: 'Sunday Walk', primary: { hex: '#d1cb9e' } })).toBe('Sunday Walk');
+    expect(kitDisplayName({ title: 'Sunday Walk', primary: { hex: '#d1cb9e' } })).toBe('Yellow kit');
   });
   it("never uses camera filenames and stays Untitled while pending", () => {
     expect(isCameraFilename("IMG_5859.jpg")).toBe(true);
@@ -40,5 +47,27 @@ describe("kitDisplayName", () => {
         namedColors: [{ hex: "#e8c36a", label: "yellow siding" }],
       }),
     ).toBe("Yellow Victorian");
+  });
+});
+
+
+describe('generated color + noun names', () => {
+  const primary = '#d2d0a8';
+  it.each(['Warm and sunlit.', 'Soft buttery and lovely.', 'Yellow Sunlit', 'Yellow Study', '123', '123 Main Street', 'Garden Street', 'Stone Road', 'Garden St', 'Sunset Blvd', '123 Garden Ave', 'IMG_5859.jpg'])('falls back for %s', (text) => {
+    expect(primaryKitTitle(primary, { title: text, briefText: text, namedColors: [{ hex: primary, label: text }] })).toBe('Yellow kit');
+    expect(kitDisplayName({ title: 'Yellow Sunlit', briefText: text, primary: { hex: primary } })).toBe('Yellow kit');
+  });
+  it.each([
+    ['A sunlit yellow Victorian with a black door.', 'Yellow Victorian'],
+    ['Warm stone against shade.', 'Yellow Stone'],
+    ['A house at 123 Garden Street.', 'Yellow House'],
+    ['A soft ceramic bowl.', 'Yellow Bowl'],
+  ])('selects a solid noun from %s', (briefText, expected) => {
+    expect(primaryKitTitle(primary, { briefText })).toBe(expected);
+  });
+  it('gets the noun from photo titles or labels and the color from Primary', () => {
+    expect(primaryKitTitle(primary, { title: 'Warm House' })).toBe('Yellow House');
+    expect(primaryKitTitle(primary, { namedColors: [{ hex: '#ffffff', label: 'white door' }] })).toBe('Yellow Door');
+    expect(primaryKitTitle(primary, { title: 'White Victorian', briefText: 'Soft and sunlit.' })).toBe('Yellow Victorian');
   });
 });

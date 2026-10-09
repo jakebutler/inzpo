@@ -77,6 +77,8 @@ export interface UpdateKitColorsRequest {
 }
 
 export interface SaveKitRequest {
+  /** Kit title, independent of the collection name. */
+  title?: string;
   collectionId?: string;
   newName?: string;
 }

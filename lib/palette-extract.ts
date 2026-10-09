@@ -457,6 +457,28 @@ export async function extractPalette(
   const roles = emptyRoles();
   for (const swatch of swatches) {
     const region = regions.get(swatch)!;
+    // A component can surround windows: its centroid need not belong to it.
+    // Choose real interior paint closest to the region mean, then use the
+    // centroid only to break ties. Never put a pin on another material.
+    const mean = [1, 3, 5].map((offset) => parseInt(swatch.hex.slice(offset, offset + 2), 16));
+    let sample = region[0]!;
+    let bestColor = Infinity;
+    let bestPosition = Infinity;
+    const owner = candidates.indexOf(swatch);
+    const cx = swatch.pinX * w, cy = swatch.pinY * h;
+    const interior = region.filter((i) => i % w > 0 && i % w < w - 1 && i >= w && i < pixels - w &&
+      owners[i - 1] === owner && owners[i + 1] === owner && owners[i - w] === owner && owners[i + w] === owner);
+    for (const index of interior.length ? interior : region) {
+      const distance = rgbs[index]!.reduce((sum, value, channel) => sum + (value - mean[channel]!) ** 2, 0);
+      const position = (index % w - cx) ** 2 + (Math.floor(index / w) - cy) ** 2;
+      if (distance < bestColor || (distance === bestColor && position < bestPosition)) {
+        sample = index;
+        bestColor = distance;
+        bestPosition = position;
+      }
+    }
+    swatch.pinX = (sample % w + 0.5) / w;
+    swatch.pinY = (Math.floor(sample / w) + 0.5) / h;
     roles[swatch.role!] = swatch.hex;
     auditRegion?.(swatch, region, w, h);
   }

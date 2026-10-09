@@ -28,7 +28,7 @@ export function PrimaryArrow({ width, height, end, hue, progress, reducedMotion 
         end={draw} color={INK} style="stroke" strokeWidth={2.9} strokeCap="round" />
     </Canvas>
     <View testID="primary-caption" onLayout={(event) => setCaptionWidth(event.nativeEvent.layout.width)}
-      style={{ position: 'absolute', left: 16, top: captionTop, maxWidth: Math.max(75, end.x - 20) }}>
+      style={{ position: 'absolute', left: 16, top: captionTop, maxWidth: width - 32 }}>
       <Text allowFontScaling style={{ fontFamily: fonts.hand, fontSize: 17, color: INK }}>{`This ${hue}.`}</Text>
     </View>
   </Animated.View>;
