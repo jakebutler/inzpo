@@ -159,3 +159,24 @@ test.each([{ width: 390, height: 844 }, { width: 375, height: 667 }])('Keep pins
   checkLayout();
   expect(view.getByLabelText('New collection name')).toHaveStyle({ height: 20, lineHeight: 20 });
 });
+
+test.each([{ width: 390, height: 844 }, { width: 375, height: 667 }])('the complete fan, selected collection and footer fit without scrolling at $width', async (screen) => {
+  jest.spyOn(Native.Dimensions, 'get').mockReturnValue({ ...screen, scale: 3, fontScale: 1 });
+  const scrollTo = jest.spyOn(Native.ScrollView.prototype, 'scrollTo');
+  const view = await render(<KeepScreen kitId="kit-1" kit={kitFixture} onClose={onClose} />);
+  const viewportHeight = screen.height - 120 - 84;
+  await fireEvent(view.getByTestId('keep-header'), 'layout', { nativeEvent: { layout: { height: 120 } } });
+  await fireEvent(view.getByTestId('keep-scroll'), 'layout', { nativeEvent: { layout: { height: viewportHeight } } });
+  await fireEvent(view.getByTestId('keep-form'), 'layout', { nativeEvent: { layout: { height: 180 } } });
+  await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
+  // The taller picker can scroll. Selecting a collection must restore the fan's top.
+  await fireEvent(view.getByTestId('keep-form'), 'layout', { nativeEvent: { layout: { height: 400 } } });
+  await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
+  await fireEvent(view.getByTestId('keep-form'), 'layout', { nativeEvent: { layout: { height: 180 } } });
+  const artHeight = Native.StyleSheet.flatten(view.getByTestId('keep-art').props.style).height;
+  expect(artHeight).toBeGreaterThan(0);
+  expect(artHeight + 180 + 16).toBeLessThanOrEqual(viewportHeight);
+  expect(scrollTo).toHaveBeenLastCalledWith({ y: 0, animated: false });
+  expect(view.getByTestId('keep-footer')).toHaveStyle({ flexShrink: 0 });
+  expect(view.getByRole('button', { name: 'Save kit' })).toBeEnabled();
+});

@@ -6,6 +6,8 @@ import { FOLD_BRIEFS } from '@/lib/fold-briefs';
 const mocks = vi.hoisted(() => ({ select: vi.fn(), update: vi.fn() }));
 vi.mock('@/lib/db', () => ({ db: mocks }));
 import { persistKitTitleFromBrief } from '@/lib/kit-title';
+import { requestBriefCompletion } from '@/lib/brief-request';
+import { BRIEF_PROMPT } from '@/lib/brief-prompt';
 
 let title: string | null;
 let primary: string;
@@ -30,6 +32,32 @@ it('names IMG_6505 once from extracted Primary and the brief subject, then keeps
   primary = '#426092';
   expect(await persistKitTitleFromBrief('IMG_6505', { ...brief, text: 'A blue house.' })).toBe('Yellow Victorian');
   expect(mocks.update).toHaveBeenCalledTimes(1);
+});
+
+it('gives repeated captures of the same image the style name with mocked generic subject responses', async () => {
+  const imageUrl = `data:image/jpeg;base64,${(await readFile('public/sample/IMG_6505.jpg')).toString('base64')}`;
+  primary = (await extractPalette(await readFile('public/sample/IMG_6505.jpg'))).roles.primary!;
+  const bodies: unknown[] = [];
+  for (const subject of ['House', 'Townhouse']) {
+    // Each upload starts with a new unnamed item, even though the image is identical.
+    title = null;
+    const completion = await requestBriefCompletion({ imageUrl, keptHexes: [primary], apiKey: 'test-key',
+      fetchImpl: (async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        bodies.push(body);
+        expect(body.temperature).toBe(0);
+        expect(body.messages[0]).toEqual({ role: 'system', content: BRIEF_PROMPT });
+        return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+          subject, text: 'Yellow Victorian siding and white trim feel dignified.', namedColors: [],
+        }) } }] }));
+      }) as typeof fetch,
+    });
+    expect(await persistKitTitleFromBrief(`capture-${subject}`, { ...brief, ...completion, namedColors: [] })).toBe('Yellow Victorian');
+    expect(title).toBe('Yellow Victorian');
+    expect(await persistKitTitleFromBrief(`capture-${subject}`, { ...brief, subject: 'House', text: 'A house.' })).toBe('Yellow Victorian');
+  }
+  expect(bodies[0]).toEqual(bodies[1]);
+  expect(mocks.update).toHaveBeenCalledTimes(2);
 });
 
 it('only uses the color kit fallback when the brief has no subject noun', async () => {

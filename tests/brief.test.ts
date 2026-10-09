@@ -49,6 +49,7 @@ describe("brief image payload", () => {
     expect(body.model).toBe("glm-5.3-flash");
     expect(body.reasoning_effort).toBe("low");
     expect(body.max_tokens).toBe(300);
+    expect(body.temperature).toBe(0);
     expect(body.response_format).toEqual({ type: "json_object" });
     const user = body.messages.find((m) => m.role === "user");
     expect(Array.isArray(user?.content)).toBe(true);
@@ -178,6 +179,12 @@ describe("brief prompt and v3 fixtures", () => {
   it("asks for one sentence of at most 12 words", () => {
     expect(BRIEF_PROMPT).toContain("Write one sentence of at most 12 words: cite photo details, then name the mood.");
     expect(BRIEF_PROMPT).not.toContain("Lead with cited photo details, then a few adjectives.");
+  });
+
+  it('uses a fixed prompt that prefers architectural styles independently of palette hexes', () => {
+    expect(BRIEF_PROMPT).toContain('Victorian, Craftsman, Colonial, Bungalow, Ranch, Tudor');
+    expect(BRIEF_PROMPT).toContain('Prefer that style over generic House, Home, Building or Townhouse');
+    expect(BRIEF_PROMPT).toContain('Choose the same noun for the same photo, regardless of the palette hexes');
   });
 
   it("loads the W12-r1 v3 captures", () => {

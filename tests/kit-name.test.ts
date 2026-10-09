@@ -53,6 +53,15 @@ describe("kitDisplayName", () => {
 
 describe('generated color + noun names', () => {
   const primary = '#d2d0a8';
+  it.each(['House', 'Home', 'Building', 'Townhouse'])('prefers the architectural style over vision subject %s', (subject) => {
+    const source = { subject, briefText: 'Yellow siding and white trim on a Victorian townhouse.' };
+    expect(primaryKitTitle(primary, source)).toBe('Yellow Victorian');
+    expect(primaryKitTitle(primary, source)).toBe(primaryKitTitle(primary, source));
+  });
+  it.each(['Victorian', 'Craftsman', 'Colonial', 'Bungalow', 'Ranch', 'Tudor'])('recognizes the style %s before generic building details', (style) => {
+    expect(primaryKitTitle(primary, { subject: 'House', briefText: `White trim on a ${style} house.` })).toBe(`Yellow ${style}`);
+    expect(primaryKitTitle(primary, { subject: `${style} townhouse` })).toBe(`Yellow ${style}`);
+  });
   it.each(['Warm and sunlit.', 'Soft buttery and lovely.', 'Yellow Sunlit', 'Yellow Study', '123', '123 Main Street', 'Garden Street', 'Stone Road', 'Garden St', 'Sunset Blvd', '123 Garden Ave', 'IMG_5859.jpg'])('falls back for %s', (text) => {
     expect(primaryKitTitle(primary, { title: text, briefText: text, namedColors: [{ hex: primary, label: text }] })).toBe('Yellow kit');
     expect(kitDisplayName({ title: 'Yellow Sunlit', briefText: text, primary: { hex: primary } })).toBe('Yellow kit');

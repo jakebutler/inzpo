@@ -27,9 +27,14 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
   const insets = useSafeAreaInsets();
   const { width, height, fontScale } = useWindowDimensions();
   const contentWidth = Math.min(350, width - 40);
-  const artScale = Math.min(1, contentWidth / 350, (height - insets.top - insets.bottom) / 844);
   const [headerHeight, setHeaderHeight] = useState(Math.max(40, insets.top) + 44 + 4 + 32 * fontScale);
-  const [footerHeight, setFooterHeight] = useState(48);
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+  const [formHeight, setFormHeight] = useState(180 * fontScale);
+  const availableHeight = viewportHeight ?? height - headerHeight - 60 - Math.max(insets.bottom, 24);
+  // Reserve the measured form and footer before scaling the entire fan/photo.
+  // Keep a readable minimum when the keyboard, picker or large type needs scrolling.
+  const artScale = Math.min(1, contentWidth / 350, Math.max(0.35, (availableHeight - formHeight - 16) / 480));
+  const scrollRef = useRef<ScrollView>(null);
   const [fieldHeight, setFieldHeight] = useState(40);
   const [underline, setUnderline] = useState({ left: 0, width: contentWidth });
   const [photoFailed, setPhotoFailed] = useState(false);
@@ -40,6 +45,9 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
   const [kitName, setKitName] = useState(defaultTitle);
   const defaultName = 'My collection';
   const [choosingCollection, setChoosingCollection] = useState(false);
+  useEffect(() => {
+    if (!choosingCollection) scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [choosingCollection]);
   const [newName, setNewName] = useState(defaultName);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -103,9 +111,10 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
         <BackButton onPress={onClose} disabled={saving} />
         <Text accessibilityRole="header" allowFontScaling style={[ui.heading, { fontSize: 30, lineHeight: 32 }]}>Keep this kit</Text>
       </View>
-      <ScrollView testID="keep-scroll" style={[styles.scroll, { marginTop: headerHeight }]} contentContainerStyle={{
-        paddingBottom: footerHeight + Math.max(insets.bottom, 24) + 32, alignItems: 'center' }} keyboardShouldPersistTaps="handled">
-        {kit && <View style={{ width: contentWidth, height: 480 * artScale }}>
+      <ScrollView ref={scrollRef} testID="keep-scroll" style={[styles.scroll, { marginTop: headerHeight }]}
+        onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
+        contentContainerStyle={{ paddingBottom: 16, alignItems: 'center' }} keyboardShouldPersistTaps="handled">
+        {kit && <View testID="keep-art" style={{ width: contentWidth, height: 480 * artScale }}>
           <View style={{ width: contentWidth, height: 480, transformOrigin: '50% 0%', transform: [{ scale: artScale }] }}>
           <View style={styles.sourcePrint}>
             <FilmPrint kit={kit} width={145} height={167} borderInset={7} foot={23} photoPosition={{ left: '50%', top: '34.7%' }}
@@ -115,7 +124,8 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
           <KitDeck kit={kit} />
           </View>
         </View>}
-        <View style={{ width: contentWidth, gap: 12 }}>
+        <View testID="keep-form" style={{ width: contentWidth, gap: 12 }}
+          onLayout={(event) => setFormHeight(event.nativeEvent.layout.height)}>
           {saved ? <Text allowFontScaling accessibilityLiveRegion="polite" style={ui.body}>Saved to your collection.</Text> : <>
             <View>
               <Text allowFontScaling style={styles.fieldLabel}>Kit name</Text>
@@ -186,7 +196,7 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
       </ScrollView>
       <View testID="keep-footer" style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 24) }]}>
         <PaperTexture />
-        <View style={styles.actions} onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}>
+        <View style={styles.actions}>
           <View style={{ width: 96 }}><ActionButton label={saved ? 'Done' : 'Not now'} disabled={saving} onPress={onClose} /></View>
           <View style={{ flex: 1 }}><SaveButton label="Save kit" saved={saved} saving={saving}
             disabled={saving} onPress={() => void save()} /></View>
@@ -216,6 +226,6 @@ const styles = StyleSheet.create({
   selected: { borderColor: '#426092', borderWidth: 1 },
   collectionName: { fontFamily: fonts.body, fontSize: 16, color: INK },
   choice: { width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: '#857B68' },
-  footer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 12, backgroundColor: PAPER },
+  footer: { flexShrink: 0, paddingTop: 12, backgroundColor: PAPER },
   actions: { marginLeft: 16, marginRight: 16, flexDirection: 'row', gap: 8 },
 });
