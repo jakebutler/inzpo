@@ -1,15 +1,17 @@
 import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
-import { Fraunces, Geist, Geist_Mono } from "next/font/google";
+import { Akaya_Kanadaka, Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { isClerkConfigured } from "@/lib/auth/clerk-configured";
 import { INK, PAPER, VERMILION } from "@/lib/brand";
 import "./globals.css";
 
-const fraunces = Fraunces({
+// Headline face (Jake's pick): kit names, screen titles and the brief only. Geist elsewhere.
+const headline = Akaya_Kanadaka({
+  weight: "400",
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-fraunces",
+  variable: "--font-headline",
   adjustFontFallback: true,
 });
 
@@ -31,7 +33,10 @@ export const metadata: Metadata = {
   title: "Inzpo",
   description: "Steal the colors off anything",
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/icon.svg" },
+  icons: {
+    icon: { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+    apple: { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+  },
 };
 
 export const viewport: Viewport = {
@@ -55,7 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   );
 
   return (
-    <html lang="en" className={`${fraunces.variable} ${geist.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${headline.variable} ${geist.variable} ${geistMono.variable}`}>
       <body className="min-h-screen bg-background font-sans text-foreground antialiased">
         {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
           <ClerkProvider

@@ -2,7 +2,6 @@ import { act, fireEvent, render } from '@testing-library/react-native';
 import * as Reanimated from 'react-native-reanimated';
 import * as RN from 'react-native';
 import { kitFixture } from '../../tests/fixtures';
-import { FALLBACK_PINS } from '@/lib/result-pins';
 import { ChipDetail } from './ChipDetail';
 
 const slot = { role: 'primary' as const, x: 0, y: 0, width: 132, height: 196, rotation: -1.2, zIndex: 12 };
@@ -65,11 +64,11 @@ test('reduced motion crossfades without lift, scale, delayed rotation or perspec
   await view.unmount();
 });
 
-test('a clipped 320px source crop centers the exact pin, with the shared fallback', async () => {
+test('manual colors have no source crop and measured colors center the exact sample', async () => {
   const view = await detail();
   await act(async () => jest.advanceTimersByTime(540));
-  expect(view.getByTestId('chip-photo-crop')).toHaveStyle({ width: 450, height: 600,
-    left: 48 - FALLBACK_PINS.primary.x * 450, top: 48 - FALLBACK_PINS.primary.y * 600 });
+  expect(view.queryByTestId('chip-photo-crop')).toBeNull();
+  expect(view.getByText('Chosen by you. No photo sample attached.')).toBeTruthy();
   const sampledKit = { ...kit, colors: [{ hex: '#D1CB9E', role: 'primary' as const, name: 'yellow', origin: 'sampled', pinX: 0.3, pinY: 0.4 }] };
   await view.rerender(<ChipDetail kit={sampledKit} role="primary" slot={slot} origin={{ x: 20, y: 370 }} onClose={onClose} onEdit={onEdit} />);
   expect(view.getByTestId('chip-photo-crop')).toHaveStyle({ left: -87, top: -192 });

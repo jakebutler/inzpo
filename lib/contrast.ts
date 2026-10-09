@@ -1,6 +1,8 @@
 import { COLOR_ROLES } from "@/lib/db/schema";
 import { INK, PAGE_BAND_HAIRLINE_RATIO, PAPER } from "@/lib/brand";
 import type { RoleColors } from "@/lib/tokens";
+import { FIX_ORIGIN, sampledColors, type ColorWithRole } from "@/lib/derived-roles";
+import { isHexColor } from "@/lib/colors";
 
 function srgbToLin(c: number): number {
   const x = c / 255;
@@ -106,6 +108,47 @@ export function gatedTextColor(
   return contrastRatio(INK, bg) >= contrastRatio(PAPER, bg) ? INK : PAPER;
 }
 
-export function aaPassLabel(ratio: number): "AA pass" | "fail" {
-  return ratio >= 4.5 ? "AA pass" : "fail";
+/** Prefer the strongest passing real kit colour before using the chrome fallback. */
+export function textContrastFix(background: string, colors: readonly ColorWithRole[]): ColorWithRole {
+  let best: ColorWithRole | undefined;
+  let bestRatio = 0;
+  for (const color of sampledColors(colors)) {
+    if (!isHexColor(color.hex)) continue;
+    if (color.origin === FIX_ORIGIN && (color.pinX == null || color.pinY == null)) continue;
+    const ratio = contrastRatio(color.hex, background);
+    if (ratio >= 4.5 && ratio > bestRatio) {
+      best = color;
+      bestRatio = ratio;
+    }
+  }
+  return best ?? { hex: gatedTextColor(null, background) };
+}
+
+/** Accessible page chrome only; the kit's measured colours stay untouched. */
+export function pageChromeColors(roles: RoleColors): { background: string; ink: string } {
+  const background = roles.background ?? PAPER;
+  const ink = gatedTextColor(roles.text, background);
+  if (contrastRatio(ink, background) >= 4.5) return { background, ink };
+  return { background: PAPER, ink: INK };
+}
+
+export function aaPassLabel(ratio: number): "AA" | "Below AA" {
+  return ratio >= 4.5 ? "AA" : "Below AA";
+}
+
+/** Solid secondary name ink, keeping AA contrast on the actual page chrome. */
+export function pendingTitleColor(background = PAPER, ink = INK): string {
+  const muted = "#66635c";
+  if (contrastRatio(muted, background) >= 4.5) return muted;
+  const text = gatedTextColor(ink, background);
+  // Mix toward the background only as far as the contrast gate permits.
+  for (let amount = 0.4; amount >= 0; amount -= 0.01) {
+    const channels = [1, 3, 5].map(offset => Math.round(
+      parseInt(text.slice(offset, offset + 2), 16) * (1 - amount) +
+      parseInt(background.slice(offset, offset + 2), 16) * amount,
+    ).toString(16).padStart(2, "0"));
+    const candidate = `#${channels.join("")}`;
+    if (contrastRatio(candidate, background) >= 4.5) return candidate;
+  }
+  return text;
 }

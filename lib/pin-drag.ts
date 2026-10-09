@@ -1,46 +1,62 @@
-/** Screen-space slack for a pin that was picked up and dropped on the same spot. */
-export const PIN_NOOP_TOLERANCE_PX = 8;
-/** Normalized-source slack, for when the pointer maps through a cover crop. */
-export const PIN_NOOP_TOLERANCE_NORM = 0.01;
+import { mapCoverPinRaw, type CoverWindow } from "@/lib/cover-pin";
 
-export type PinDragPoint = {
-  x: number;
-  y: number;
-  nx?: number;
-  ny?: number;
+/**
+ * A drop within this many CSS px of where the press began (or of the role's
+ * existing pin) is a no-op: finger/mouse jitter must never rewrite a colour.
+ * Anything farther is a real move and samples the exact source pixel.
+ */
+export const PIN_NOOP_TOLERANCE_PX = 4;
+
+export type PointerPoint = { clientX: number; clientY: number };
+export type PinDragPoint = { x: number; y: number; nx: number; ny: number };
+export type PinDragGeometry = {
+  width: number;
+  height: number;
+  boxWidth: number;
+  boxHeight: number;
+  crop: CoverWindow;
 };
 
-export function isNoopPinDrag(start: PinDragPoint | null | undefined, end: PinDragPoint | null | undefined): boolean {
-  if (!start || !end) return false;
-  if (![start.x, start.y, end.x, end.y].every((n) => typeof n === "number" && Number.isFinite(n))) {
-    return false;
-  }
-  const screen = Math.hypot(end.x - start.x, end.y - start.y);
-  if (screen <= PIN_NOOP_TOLERANCE_PX) return true;
-  if (
-    typeof start.nx === "number" &&
-    typeof start.ny === "number" &&
-    typeof end.nx === "number" &&
-    typeof end.ny === "number" &&
-    Number.isFinite(start.nx) &&
-    Number.isFinite(start.ny) &&
-    Number.isFinite(end.nx) &&
-    Number.isFinite(end.ny)
-  ) {
-    return Math.hypot(end.nx - start.nx, end.ny - start.ny) <= PIN_NOOP_TOLERANCE_NORM;
-  }
-  return false;
+/** Cancels revert. A coordinate-less up uses the last real down/move position. */
+export function resolvePinDropPoint(
+  event: PointerPoint & { type: string },
+  lastGood: PointerPoint | null,
+): PointerPoint | null {
+  if (event.type !== "pointerup") return null;
+  const valid = Number.isFinite(event.clientX) && Number.isFinite(event.clientY);
+  // Some browsers use (0, 0) as a missing-position sentinel. A real move to
+  // the viewport origin is still valid when it agrees with the last position.
+  const missing = event.clientX === 0 && event.clientY === 0 &&
+    lastGood !== null && (lastGood.clientX !== 0 || lastGood.clientY !== 0);
+  if (valid && !missing) return { clientX: event.clientX, clientY: event.clientY };
+  return lastGood && Number.isFinite(lastGood.clientX) && Number.isFinite(lastGood.clientY) ? lastGood : null;
 }
 
-/** True when the drop lands on the role's existing pin, so save must not rewrite the color. */
+export function isNoopPinDrag(
+  start: PinDragPoint | null | undefined,
+  end: PinDragPoint | null | undefined,
+  imageSize: { width: number; height: number },
+): boolean {
+  if (!start || !end) return false;
+  if (![start.x, start.y, start.nx, start.ny, end.x, end.y, end.nx, end.ny,
+    imageSize.width, imageSize.height].every(Number.isFinite)) return false;
+  if (imageSize.width <= 0 || imageSize.height <= 0) return false;
+  return Math.hypot(end.x - start.x, end.y - start.y) <= PIN_NOOP_TOLERANCE_PX;
+}
+
+/** Also preserve an existing pin when the press began elsewhere but returns to it. */
 export function isNoopPinSample(
   existing: { pinX: number; pinY: number } | null | undefined,
-  nextNx: number,
-  nextNy: number,
+  end: PinDragPoint,
+  geometry: PinDragGeometry,
 ): boolean {
   if (!existing) return false;
-  if (![existing.pinX, existing.pinY, nextNx, nextNy].every((n) => typeof n === "number" && Number.isFinite(n))) {
-    return false;
-  }
-  return Math.hypot(nextNx - existing.pinX, nextNy - existing.pinY) <= PIN_NOOP_TOLERANCE_NORM;
+  const mapped = mapCoverPinRaw(existing.pinX, existing.pinY, geometry.width, geometry.height,
+    geometry.boxWidth, geometry.boxHeight, geometry.crop);
+  return isNoopPinDrag(mapped ? {
+    x: mapped.left * geometry.boxWidth,
+    y: mapped.top * geometry.boxHeight,
+    nx: existing.pinX,
+    ny: existing.pinY,
+  } : null, end, geometry);
 }

@@ -4,8 +4,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { extractPalette } from "@/lib/palette-extract";
-import { HANDOFF_KITS, type MascotKit } from "@/lib/mascot";
-import { markDerivedRoles } from "@/lib/derived-roles";
+import { REGION_ORIGIN } from "@/lib/derived-roles";
 
 export type FoldPhoto = "IMG_6505" | "IMG_6208" | "IMG_5859";
 
@@ -15,7 +14,7 @@ export type FoldColor = {
   position: number;
   pinX: number;
   pinY: number;
-  derivedFrom: ColorRole | null;
+  origin: typeof REGION_ORIGIN;
 };
 
 export type FoldKit = {
@@ -26,44 +25,28 @@ export type FoldKit = {
   colors: FoldColor[];
 };
 
-function colorsFromKit(kit: MascotKit): FoldColor[] {
-  const rows = COLOR_ROLES.flatMap((role, position) => {
-    const hex = kit[role];
-    if (!hex) return [];
-    return [
-      {
-        hex,
-        role,
-        position,
-        pinX: 0.18 + (position % 3) * 0.28,
-        pinY: 0.22 + Math.floor(position / 3) * 0.38,
-      },
-    ];
-  });
-  return markDerivedRoles(rows);
-}
-
 export async function loadFoldKit(which: FoldPhoto = "IMG_6505"): Promise<FoldKit> {
   const imageSrc = `/sample/${which}.jpg`;
   const file = path.join(process.cwd(), "public/sample", `${which}.jpg`);
-  const fallbackKit = which === "IMG_6208" ? HANDOFF_KITS.IMG_6208 : HANDOFF_KITS.IMG_6505;
   try {
     const buffer = await readFile(file);
     const meta = await sharp(buffer).metadata();
     const palette = await extractPalette(buffer);
-    const colors: Array<Omit<FoldColor, "derivedFrom">> = [];
+    const colors: FoldColor[] = [];
     COLOR_ROLES.forEach((role, position) => {
       const hex = palette.roles[role];
       if (!hex) return;
       const swatch =
         palette.swatches.find((row) => row.role === role) ??
         palette.swatches.find((row) => row.hex.toLowerCase() === hex.toLowerCase());
+      if (!swatch) return;
       colors.push({
         hex,
         role,
         position,
-        pinX: swatch?.pinX ?? 0.5,
-        pinY: swatch?.pinY ?? 0.5,
+        pinX: swatch.pinX,
+        pinY: swatch.pinY,
+        origin: REGION_ORIGIN,
       });
     });
     return {
@@ -71,7 +54,7 @@ export async function loadFoldKit(which: FoldPhoto = "IMG_6505"): Promise<FoldKi
       imageSrc,
       width: meta.width ?? 1500,
       height: meta.height ?? 2000,
-      colors: markDerivedRoles(colors),
+      colors,
     };
   } catch {
     return {
@@ -79,7 +62,7 @@ export async function loadFoldKit(which: FoldPhoto = "IMG_6505"): Promise<FoldKi
       imageSrc,
       width: 1500,
       height: 2000,
-      colors: colorsFromKit(fallbackKit),
+      colors: [],
     };
   }
 }

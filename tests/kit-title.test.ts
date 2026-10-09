@@ -16,7 +16,7 @@ beforeEach(() => {
   primary = '#d6d3af';
   vi.clearAllMocks();
   mocks.select.mockImplementation((columns) => ({ from: () => ({ where: () => ({
-    limit: async () => 'title' in columns ? [{ title }] : [{ hex: primary }],
+    limit: async () => 'title' in columns ? [{ title }] : [{ hex: primary, role: 'primary', origin: 'region', pinX: .3, pinY: .4 }],
   }) }) }));
   mocks.update.mockImplementation(() => ({ set: (values: { title: string }) => ({ where: () => ({
     returning: async () => { title = values.title; return [{ title }]; },
@@ -86,4 +86,12 @@ it('keeps a concurrent explicit rename rather than overwriting it with the gener
 it.each([{ ...brief, stub: true, text: null }, { ...brief, status: 'failed', text: null }])('persists a Primary fallback after subjectless completion: $status / $stub', async (job) => {
   expect(await persistKitTitleFromBrief('kit', job)).toBe('Yellow kit');
   expect(title).toBe('Yellow kit');
+});
+
+ it('names a palette with no Primary from its first real role, skipping old padding', async () => {
+  mocks.select.mockImplementation((columns) => ({ from: () => ({ where: () => ({ limit: async () => 'title' in columns ? [{ title }] : [
+    { hex: '#ff0000', role: 'primary', origin: 'extracted', pinX: .5, pinY: .5 },
+    { hex: '#426092', role: 'secondary', origin: 'sampled', pinX: .2, pinY: .4 },
+  ] }) }) }));
+  expect(await persistKitTitleFromBrief('kit', { ...brief, subject: 'Bowl', text: 'Blue ceramic.' })).toBe('Blue Bowl');
 });

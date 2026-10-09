@@ -7,7 +7,13 @@ export const kitFixture: MobileKit = {
     primary: '#b35831', secondary: '#615343', accent: null,
     background: '#f3eee4', surface: '#ded5c5', text: '#1c1b19',
   },
-  colors: [], collectionIds: [],
+  colors: [
+    { role: 'primary', hex: '#b35831', name: null, origin: 'region', pinX: .22, pinY: .46 },
+    { role: 'secondary', hex: '#615343', name: null, origin: 'region', pinX: .68, pinY: .27 },
+    { role: 'background', hex: '#f3eee4', name: null, origin: 'region', pinX: .74, pinY: .58 },
+    { role: 'surface', hex: '#ded5c5', name: null, origin: 'region', pinX: .46, pinY: .60 },
+    { role: 'text', hex: '#1c1b19', name: null, origin: 'region', pinX: .32, pinY: .18 },
+  ], collectionIds: [],
   brief: { status: 'ready', text: 'Warm brick with a quiet, creamy trim.', namedHexes: [], namedColors: [], stub: false, updatedAt: 1 },
 };
 

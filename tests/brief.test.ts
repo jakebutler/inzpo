@@ -62,8 +62,23 @@ describe("brief image payload", () => {
 
 describe("brief model path", () => {
   it("parses fenced JSON from the model", () => {
-    const parsed = parseBriefModelContent('```json\n{"text":"Warm brick in shade.","namedColors":[]}\n```');
+    const parsed = parseBriefModelContent('```json\n{"text":"Warm brick in shade.","subject":" Victorian   houses ","namedColors":[]}\n```');
     expect(parsed.text).toBe("Warm brick in shade.");
+    expect(parsed.subject).toBe("victorian house");
+  });
+
+  it.each([undefined, null, 42, "dropped", "pale", "soft", "blue", "serene", "running house", "54 Main Street", "mural sign wall", "mural!"])(
+    "tolerates a missing or invalid subject (%s)", (subject) => {
+      const parsed = parseBriefModelContent(JSON.stringify({ text: "A painted mural.", subject, namedColors: [] }));
+      expect(parsed.text).toBe("A painted mural.");
+      expect(parsed.subject).toBeNull();
+    },
+  );
+
+  it("requests a noun subject under the same address and digit ban", () => {
+    expect(BRIEF_PROMPT).toContain('"subject": string');
+    expect(BRIEF_PROMPT).toContain("one common noun");
+    expect(BRIEF_PROMPT).toContain("Forbidden in the paragraph, subject, and every label");
   });
 
   it("calls the chat completions path with the real image", async () => {
@@ -76,13 +91,14 @@ describe("brief model path", () => {
         calls.push(String(url));
         expect(init?.headers).toMatchObject({ Authorization: "Bearer test-key" });
         return new Response(
-          JSON.stringify({ choices: [{ message: { content: '{"text":"Blue glass over shade.","namedColors":[]}' } }] }),
+          JSON.stringify({ choices: [{ message: { content: '{"text":"Blue glass over shade.","subject":"glass door","namedColors":[]}' } }] }),
           { status: 200 },
         );
       }) as typeof fetch,
     });
     expect(calls[0]).toContain("/chat/completions");
     expect(result.text).toBe("Blue glass over shade.");
+    expect(result.subject).toBe("glass door");
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
   });
 
@@ -179,12 +195,6 @@ describe("brief prompt and v3 fixtures", () => {
   it("asks for one sentence of at most 12 words", () => {
     expect(BRIEF_PROMPT).toContain("Write one sentence of at most 12 words: cite photo details, then name the mood.");
     expect(BRIEF_PROMPT).not.toContain("Lead with cited photo details, then a few adjectives.");
-  });
-
-  it('uses a fixed prompt that prefers architectural styles independently of palette hexes', () => {
-    expect(BRIEF_PROMPT).toContain('Victorian, Craftsman, Colonial, Bungalow, Ranch, Tudor');
-    expect(BRIEF_PROMPT).toContain('Prefer that style over generic House, Home, Building or Townhouse');
-    expect(BRIEF_PROMPT).toContain('Choose the same noun for the same photo, regardless of the palette hexes');
   });
 
   it("loads the W12-r1 v3 captures", () => {

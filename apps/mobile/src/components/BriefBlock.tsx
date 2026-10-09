@@ -25,7 +25,7 @@ export function BriefBlock({ brief, failed = false, showBaku = true, motionStyle
     );
   }
   if (brief.status === 'pending') {
-    if (!showBaku) return null;
+    if (!showBaku) return <View style={styles.status} accessibilityLiveRegion="polite"><Text allowFontScaling style={ui.body}>Your colors are ready. Baku is finding the words…</Text></View>;
     return (
       <View style={styles.status} accessibilityLiveRegion="polite">
         {showBaku && <Baku pose="chewing" />}

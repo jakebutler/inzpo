@@ -4,13 +4,15 @@ import { useEffect, useId, useState, type CSSProperties } from "react";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import {
   BAKU_CREAM,
+  emptyKit,
   kitForPose,
   kitHasPalette,
   stripeCssVars,
   type MascotKit,
   type MascotPose,
 } from "@/lib/mascot";
-import type { BakuSrcPose } from "@/lib/baku-v6";
+import { BAKU_TINT_ENABLED, type BakuSrcPose, type BakuAssetSize } from "@/lib/baku-v6";
+import { tintRoles } from "@/lib/baku-tint";
 import {
   BAKU_BODY_D,
   BAKU_SEAM_DS,
@@ -28,6 +30,7 @@ export type MascotProps = {
   pose: MascotPose | BakuSrcPose;
   kit?: MascotKit | null;
   size?: number;
+  assetSize?: BakuAssetSize;
   /** Set true once Snap can be tapped. Loads the Rive runtime then; SVG stays up until it arrives. */
   snapReady?: boolean;
   className?: string;
@@ -37,7 +40,7 @@ export type MascotProps = {
   faceText?: boolean;
   /** Band/page hex under the sprite, used to bake the ground-shadow multiply. */
   ground?: string;
-  /** Skip the cream-boxed color PNG and use the transparent pose asset. */
+  /** Skip tinting. Always uses the colour PNG when tinting is off. */
   forcePoseAsset?: boolean;
 };
 
@@ -45,6 +48,7 @@ export function Mascot({
   pose,
   kit,
   size = 48,
+  assetSize = 48,
   snapReady = false,
   className,
   revealedCount = null,
@@ -54,11 +58,11 @@ export function Mascot({
 }: MascotProps) {
   const rawId = useId().replace(/:/g, "");
   const clipId = `baku-clip-${rawId}`;
-  const colors = kitForPose(pose, kit);
+  const colors = BAKU_TINT_ENABLED ? kitForPose(pose, kit) : emptyKit();
   const [rive, setRive] = useState<MascotRiveRuntime | null>(null);
 
   useEffect(() => {
-    if (!snapReady) return;
+    if (!BAKU_TINT_ENABLED || !snapReady) return;
     let alive = true;
     void import("./load-mascot-rive").then(async ({ loadMascotRive }) => {
       const runtime = await loadMascotRive();
@@ -70,11 +74,14 @@ export function Mascot({
     };
   }, [snapReady]);
 
-  if (rive && pose !== "404" && pose !== "error-photo") {
-    return rive.render({ pose, kit: colors, size });
+  if (BAKU_TINT_ENABLED && rive && pose !== "404" && pose !== "error-photo") {
+    const inks = tintRoles(colors, null);
+    const riveKit = Object.fromEntries(COLOR_ROLES.map((role, i) => [role, inks[i]])) as MascotKit;
+    return rive.render({ pose, kit: riveKit, size });
   }
 
   const vars = stripeCssVars(colors);
+  const inks = tintRoles(colors, revealedCount);
   const style = {
     width: size,
     height: size,
@@ -94,9 +101,10 @@ export function Mascot({
             <g clipPath={`url(#${clipId})`}>
               {BAKU_STRIPE_DS.map((d, i) => {
                 const role = COLOR_ROLES[i];
-                if (!role || !colors[role]) return null;
-                if (revealedCount != null && i >= revealedCount) return null;
-                return <path key={STRIPE_CLASS[i]} className={STRIPE_CLASS[i]} d={d} />;
+                const hex = inks[i];
+                if (!role || !hex) return null;
+                return <path key={STRIPE_CLASS[i]} className={STRIPE_CLASS[i]} d={d}
+                  data-baku-empty={!colors[role] ? "true" : undefined} fill={hex} style={{ fill: hex }} />;
               })}
               {BAKU_SEAM_DS.map((d, i) => {
                 const above = COLOR_ROLES[i];
@@ -132,6 +140,7 @@ export function Mascot({
         pose={pose}
         kit={kit}
         size={size}
+        assetSize={assetSize}
         revealedCount={revealedCount}
         faceText={faceText}
         ground={ground}

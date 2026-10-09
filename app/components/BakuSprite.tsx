@@ -6,19 +6,18 @@ import { useGSAP } from "@gsap/react";
 import { COLOR_ROLES } from "@/lib/db/schema";
 import {
   BAKU_CROSSFADE_MS,
-  BAKU_SHADOW_CLIP_PCT,
   bakuCanTint,
   bakuDensity,
   bakuV6BandsSrc,
   bakuV6ColorSrc,
-  bakuV6PoseSrc,
+  bakuV6ShadeSrc,
   type BakuDensity,
+  type BakuAssetSize,
   type BakuSrcPose,
 } from "@/lib/baku-v6";
-import { defringePremulEdges, multiplyShadowPixels, tintRoles, tintSpriteWithBands } from "@/lib/baku-tint";
-import { kitForPose, kitHasPalette, type MascotKit } from "@/lib/mascot";
+import { tintRoles, tintSpriteWithBands } from "@/lib/baku-tint";
+import { kitForPose, type MascotKit } from "@/lib/mascot";
 import { prefersReducedMotion } from "@/lib/motion";
-import { PAPER } from "@/lib/brand";
 
 gsap.registerPlugin(useGSAP);
 
@@ -34,10 +33,17 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 async function composeTint(
   pose: BakuSrcPose,
   density: BakuDensity,
+  assetSize: BakuAssetSize,
   colors: Array<string | null>,
 ): Promise<string> {
-  const spriteImg = await loadImage(bakuV6PoseSrc(pose, density));
-  const bandImg = await loadImage(bakuV6BandsSrc(pose, density));
+  const [spriteImg, bandImg, shadeImg] = await Promise.all([
+    loadImage(bakuV6ColorSrc(pose, density, assetSize)),
+    loadImage(bakuV6BandsSrc(pose, density, assetSize)),
+    loadImage(bakuV6ShadeSrc(pose, density, assetSize)),
+  ]);
+  if ([bandImg, shadeImg].some((img) => img.naturalWidth !== spriteImg.naturalWidth || img.naturalHeight !== spriteImg.naturalHeight)) {
+    throw new Error("Baku tint assets must match the colour sprite dimensions");
+  }
   const canvas = document.createElement("canvas");
   canvas.width = spriteImg.naturalWidth;
   canvas.height = spriteImg.naturalHeight;
@@ -48,31 +54,11 @@ async function composeTint(
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(bandImg, 0, 0, canvas.width, canvas.height);
   const bands = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  tintSpriteWithBands(sprite.data, bands.data, canvas.width, canvas.height, 4, 4, colors);
-  defringePremulEdges(sprite.data, canvas.width, canvas.height, 4);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(shadeImg, 0, 0);
+  const shade = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  tintSpriteWithBands(sprite.data, bands.data, canvas.width, canvas.height, 4, 4, colors, shade.data, 4);
   ctx.putImageData(sprite, 0, 0);
-  return canvas.toDataURL("image/png");
-}
-
-async function bakeShadow(src: string, ground: string): Promise<string> {
-  const img = await loadImage(src);
-  const canvas = document.createElement("canvas");
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("No 2d context");
-  ctx.drawImage(img, 0, 0);
-  const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  defringePremulEdges(data.data, canvas.width, canvas.height, 4);
-  multiplyShadowPixels(
-    data.data,
-    canvas.width,
-    canvas.height,
-    4,
-    ground,
-    BAKU_SHADOW_CLIP_PCT,
-  );
-  ctx.putImageData(data, 0, 0);
   return canvas.toDataURL("image/png");
 }
 
@@ -91,15 +77,16 @@ export function BakuSprite({
   pose,
   kit,
   size,
+  assetSize = 48,
   revealedCount = null,
   faceText = false,
-  ground = PAPER,
   forcePoseAsset = false,
   fallback,
 }: {
   pose: BakuSrcPose;
   kit?: MascotKit | null;
   size: number;
+  assetSize?: BakuAssetSize;
   revealedCount?: number | null;
   faceText?: boolean;
   ground?: string;
@@ -107,24 +94,21 @@ export function BakuSprite({
   fallback: ReactNode;
 }) {
   const colors = kitForPose(pose as "idle" | "chewing" | "success" | "empty" | "error-brief" | "error-unreadable" | "404" | "error-photo", kit);
-  const density = useDensity();
-  const canTint = bakuCanTint(pose) && kitHasPalette(colors) && !forcePoseAsset;
+  const density = bakuDensity(useDensity() * Math.max(1, size / assetSize));
+  const canTint = bakuCanTint(pose) && !forcePoseAsset;
   const paletteKey = COLOR_ROLES.map((role) => colors[role] ?? "").join(",");
-  const baseSrc = canTint || forcePoseAsset || !bakuCanTint(pose)
-    ? bakuV6PoseSrc(pose, density)
-    : bakuV6ColorSrc(pose, density);
-  const squashRef = useRef<HTMLDivElement>(null);
+  const tintKey = `${pose}:${assetSize}:${density}:${canTint}:${paletteKey}`;
+  const baseSrc = bakuV6ColorSrc(pose, density, assetSize);
   const bodyRef = useRef<HTMLImageElement>(null);
   const [pngFailed, setPngFailed] = useState(false);
-  const [tinted, setTinted] = useState<string | null>(null);
-  const [tintFailed, setTintFailed] = useState(false);
-  const [shadowSrc, setShadowSrc] = useState<string | null>(null);
+  const [tinted, setTinted] = useState<{ key: string; src: string } | null>(null);
+  const [tintFailed, setTintFailed] = useState<string | null>(null);
 
   useEffect(() => {
     setPngFailed(false);
     setTinted(null);
-    setTintFailed(false);
-  }, [pose, density, canTint]);
+    setTintFailed(null);
+  }, [pose, assetSize, density, canTint]);
 
   useEffect(() => {
     if (!canTint || pngFailed) {
@@ -133,98 +117,65 @@ export function BakuSprite({
     }
     let alive = true;
     const roles = tintRoles(colors, revealedCount);
-    void composeTint(pose, density, roles)
+    void composeTint(pose, density, assetSize, roles)
       .then((url) => {
         if (!alive) return;
-        setTinted(url);
-        setTintFailed(false);
+        setTinted({ key: tintKey, src: url });
+        setTintFailed(null);
       })
       .catch(() => {
         if (!alive) return;
         setTinted(null);
-        setTintFailed(true);
+        setTintFailed(tintKey);
       });
     return () => {
       alive = false;
     };
     // paletteKey stands in for kit colors so we do not re-tint every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canTint, pngFailed, pose, density, paletteKey, revealedCount]);
+  }, [canTint, pngFailed, pose, assetSize, density, paletteKey, tintKey, revealedCount]);
 
   useGSAP(
     () => {
-      const el = bodyRef.current ?? squashRef.current;
+      // Keep first-frame oatmeal in the loading SVG fully visible.
+      const el = bodyRef.current;
       if (!el || prefersReducedMotion()) return;
       gsap.fromTo(el, { opacity: 0.35 }, { opacity: 1, duration: BAKU_CROSSFADE_MS / 1000, ease: "power2.out" });
     },
     { dependencies: [pose, density, baseSrc] },
   );
 
-  const src = tintFailed ? bakuV6ColorSrc(pose, density) : tinted ?? baseSrc;
-  const showPng = !pngFailed;
+  const tintedSrc = tinted?.key === tintKey ? tinted.src : null;
+  const failedTint = tintFailed === tintKey;
+  const src = failedTint ? baseSrc : tintedSrc ?? baseSrc;
+  // While tint assets load, the SVG already has oatmeal empties on its first frame.
+  const showPng = !pngFailed && (!canTint || tintedSrc != null || failedTint);
 
-  useEffect(() => {
-    if (!showPng) {
-      setShadowSrc(null);
-      return;
-    }
-    let alive = true;
-    void bakeShadow(src, ground)
-      .then((url) => {
-        if (alive) setShadowSrc(url);
-      })
-      .catch(() => {
-        if (alive) setShadowSrc(null);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [src, ground, showPng]);
   const failPng = () => {
-    if (canTint && src !== bakuV6ColorSrc(pose, density)) {
-      setTintFailed(true);
+    if (canTint && src !== bakuV6ColorSrc(pose, density, assetSize)) {
+      setTintFailed(tintKey);
       return;
     }
     setPngFailed(true);
   };
-  const shadowClip = `inset(${100 - BAKU_SHADOW_CLIP_PCT}% 0 0 0)`;
-  const bodyClip = `inset(0 0 ${BAKU_SHADOW_CLIP_PCT}% 0)`;
-  // Flip the imgs, not a wrapper: a transformed ancestor isolates mix-blend-mode
-  // and the pale oval then reads as a white smudge on navy bands.
+  // Flip the complete sprite, including its baked black-alpha ground shadow.
   const flip = faceText && showPng ? "scaleX(-1)" : undefined;
 
   return (
     <div
       data-baku-sprite={showPng ? "png" : "svg"}
       data-baku-v6={showPng ? "1" : "0"}
-      data-baku-tinted={tinted ? "1" : "0"}
-      data-baku-shadow-baked={shadowSrc ? "1" : "0"}
+      data-baku-tinted={tintedSrc && !failedTint ? "1" : "0"}
+      data-baku-shadow-baked={showPng ? "1" : "0"}
       data-baku-density={density}
       style={{
         width: size,
         height: size,
       }}
     >
-      <div ref={squashRef} className="relative h-full w-full">
+      <div className="relative h-full w-full">
         {showPng ? (
           <>
-            {/* Blend the wrapper, not the img: WebKit skips mix-blend-mode on transformed replaced elements. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={shadowSrc ?? src}
-              alt=""
-              width={size}
-              height={size}
-              data-baku-shadow
-              className="pointer-events-none absolute inset-0 block h-full w-full"
-              style={{
-                clipPath: shadowSrc ? undefined : shadowClip,
-                transform: flip,
-                transformOrigin: "50% 100%",
-              }}
-              draggable={false}
-              onError={failPng}
-            />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={bodyRef}
@@ -234,7 +185,7 @@ export function BakuSprite({
               height={size}
               data-baku-body
               className="relative block h-full w-full"
-              style={{ clipPath: bodyClip, transform: flip, transformOrigin: "50% 100%" }}
+              style={{ transform: flip, transformOrigin: "50% 100%" }}
               draggable={false}
               onError={failPng}
             />

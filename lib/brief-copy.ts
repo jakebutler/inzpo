@@ -1,3 +1,4 @@
+import { hexToLab, MIN_ROLE_DELTA_E, roleDeltaE } from "@/lib/color-distance";
 import { hexToFamily, isHexColor, normalizeHex } from "@/lib/colors";
 
 const STREET =
@@ -7,6 +8,9 @@ const PLATE = /\b(plate|license|number plate)\b/i;
 export interface NamedColor {
   hex: string;
   label: string | null;
+  source?: string;
+  pinX?: number;
+  pinY?: number;
 }
 
 /** Common noun phrase, 4 words or fewer. No addresses, street names, plates, or house numbers. */
@@ -84,7 +88,8 @@ export function namedColorHex(raw: unknown): string | null {
   return /^#[0-9a-f]{6}$/.test(hex) ? hex : null;
 }
 
-export function parseNamedColors(raw: unknown, fallbackHexes: string[] = []): NamedColor[] {
+/** Model suggestions are untrusted candidates until snapped to measured regions. */
+export function parseNamedColorCandidates(raw: unknown, fallbackHexes: string[] = []): NamedColor[] {
   const out: NamedColor[] = [];
   if (Array.isArray(raw)) {
     for (const entry of raw) {
@@ -96,8 +101,12 @@ export function parseNamedColors(raw: unknown, fallbackHexes: string[] = []): Na
       if (entry && typeof entry === "object" && "hex" in entry && typeof (entry as { hex: unknown }).hex === "string") {
         const hex = namedColorHex((entry as { hex: string }).hex);
         if (!hex) continue;
-        const row = entry as { hex: string; label?: unknown };
-        out.push({ hex, label: sanitizeChipLabel(row.label) });
+        const row = entry as { hex: string; label?: unknown; source?: unknown; pinX?: unknown; pinY?: unknown };
+        const pin = typeof row.pinX === "number" && Number.isFinite(row.pinX) && row.pinX >= 0 && row.pinX <= 1 &&
+          typeof row.pinY === "number" && Number.isFinite(row.pinY) && row.pinY >= 0 && row.pinY <= 1
+          ? { pinX: row.pinX, pinY: row.pinY } : {};
+        out.push({ hex, label: sanitizeChipLabel(row.label),
+          ...(typeof row.source === "string" ? { source: row.source } : row.source === undefined ? {} : { source: "unknown" }), ...pin });
       }
     }
   }
@@ -110,4 +119,19 @@ export function parseNamedColors(raw: unknown, fallbackHexes: string[] = []): Na
   return out;
 }
 
+/** Display only suggestions carrying the region marker written since r8.4. */
+export function parseNamedColors(raw: unknown, fallbackHexes: string[] = []): NamedColor[] {
+  return parseNamedColorCandidates(raw, fallbackHexes).filter((color) => color.source === "region");
+}
+
 export const EMPTY_ROLE_COPY = (role: string): string => `No ${role} in this one. Add a color.`;
+
+/**
+ * Client-side guard for chips after the kit changes (e.g. a pin dragged onto
+ * the suggested surface): hide a measured chip that is now within CIE76 ΔE 12
+ * of any filled role. Same-source hiding needs the region map and runs at snap time.
+ */
+export function chipsDistinctFromRoles(chips: readonly NamedColor[], filledHexes: Iterable<string>): NamedColor[] {
+  const filled = Array.from(filledHexes, (hex) => hexToLab(hex));
+  return chips.filter((chip) => filled.every((lab) => roleDeltaE(hexToLab(chip.hex), lab) >= MIN_ROLE_DELTA_E));
+}

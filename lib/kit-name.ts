@@ -1,39 +1,34 @@
-import { hexToFamily } from "@/lib/colors";
-import { colorHue } from "@inzpo/shared";
-import { type NamedColor } from "@/lib/brief-copy";
+import { hexToFamily, hexToHsl, isHexColor } from "@/lib/colors";
+import { sanitizeChipLabel, type NamedColor } from "@/lib/brief-copy";
+import { briefSubjectWord, subjectFromBrief } from "@/lib/brief-subject";
+import { isRecentPendingBrief, STALE_PENDING_MS, type BriefState } from "@/lib/brief-state";
 
 export const UNTITLED_KIT = "Untitled kit";
 
-/** Measured Primary supplies the color; only a recognized subject supplies the noun. */
-export function primaryKitTitle(primary: string | null | undefined, source: {
-  title?: string | null; briefText?: string | null; subject?: string | null; namedColors?: NamedColor[];
-} = {}): string {
-  if (!primary) return UNTITLED_KIT;
-  const visionSubject = source.subject?.trim().toLowerCase();
-  // An explicit vision noun is not limited to the legacy brief vocabulary.
-  const explicit = visionSubject && /^\p{L}{1,40}$/u.test(visionSubject) && !COLOR_WORDS.test(visionSubject) && visionSubject !== 'kit'
-    ? visionSubject : null;
-  // A generic vision response must not hide a style recognized in the brief.
-  const style = architecturalStyle(source.subject) ?? ((!explicit || GENERIC_BUILDINGS.has(explicit))
-    ? architecturalStyle(source.briefText) ?? architecturalStyle(source.title)
-      ?? source.namedColors?.map((color) => architecturalStyle(color.label)).find(Boolean)
-    : null);
-  const subject = style ?? explicit ?? subjectFromBrief(source.briefText) ?? subjectFromTitle(source.title) ?? subjectFromChips(source.namedColors);
-  return subject ? titleCase(`${colorHue(primary)} ${subject}`) : `${titleCase(colorHue(primary))} kit`;
-}
+const CAMERA_FILE = /^(img|dscn?|pxl|mvimg|screenshot)[\s._-]?\d/i;
+const COLOR_NAMES: Record<string, string[]> = {
+  red: ["red", "crimson", "scarlet", "ruby"],
+  orange: ["orange", "tangerine", "apricot", "amber", "rust"],
+  yellow: ["yellow", "mustard", "canary", "gold"],
+  blue: ["blue", "navy", "cobalt", "azure", "indigo"],
+  green: ["green", "sage", "olive", "emerald"],
+  teal: ["teal", "turquoise", "aqua", "cyan"],
+  purple: ["purple", "violet", "lavender", "lilac", "plum", "mauve", "amethyst"],
+  pink: ["pink", "rose", "blush", "coral", "fuchsia", "magenta"],
+  brown: ["brown", "chocolate", "chestnut", "sepia"],
+  cream: ["cream", "beige", "ivory", "ecru"],
+  gray: ["gray", "grey", "silver", "slate", "charcoal", "ash", "graphite"],
+  black: ["black", "ebony", "onyx", "jet"],
+  white: ["white", "alabaster"],
+};
+const COLOR_MODIFIERS = new Set((
+  "butter lemon honey sky ocean sea midnight mint forest moss leaf brick terracotta copper steel slate stone pearl sand snow eggshell " +
+  "soft pale deep light dark bright muted dusty warm cool rich"
+).split(" "));
 
-const CAMERA_FILE =
-  /^(img|dscn?|pxl|mvimg|screenshot)[\s._-]?\d/i;
-const STREET =
-  /\b(street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|highway|hwy|address)\b/i;
-const COLOR_WORDS =
-  /\b(red|orange|yellow|gold|green|teal|blue|purple|pink|brown|black|white|gray|grey|cream|beige)\b/i;
-// A conservative vocabulary avoids guessing that an adjective or proper name
-// is a noun. Unknown subjects deliberately fall back to "kit".
-const ARCHITECTURAL_STYLES = new Set('victorian craftsman colonial bungalow ranch tudor'.split(' '));
-const GENERIC_BUILDINGS = new Set('house home building townhouse'.split(' '));
-const SUBJECTS = new Set([...ARCHITECTURAL_STYLES, ...GENERIC_BUILDINGS, ...`cottage cabin facade wall door window trim siding roof brick stone garden flower leaf tree forest sky sea ocean beach mountain lake river boat car bike chair table lamp book fabric textile bowl cup vase mural painting poster sculpture dog cat bird fruit apple lemon orange cafe kitchen room courtyard balcony porch arch tower barn bridge sunset sunrise`.split(' ')]);
-const ADDRESS = /\b(?:\d+\s+[\p{L}'-]+(?:\s+[\p{L}'-]+){0,3}\s+(?:street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|highway|hwy)|[\p{L}'-]+(?:\s+[\p{L}'-]+){0,2}\s+(?:street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|highway|hwy))\b/giu;
+function colorFamily(word: string): string | undefined {
+  return Object.keys(COLOR_NAMES).find((family) => COLOR_NAMES[family].includes(word));
+}
 
 export function isCameraFilename(filename: string | null | undefined): boolean {
   if (!filename) return false;
@@ -41,100 +36,83 @@ export function isCameraFilename(filename: string | null | undefined): boolean {
   return CAMERA_FILE.test(base);
 }
 
-function looksLikeDeviceTitle(title: string): boolean {
-  const trimmed = title.trim();
-  if (CAMERA_FILE.test(trimmed)) return true;
-  if (/^img[\s_-]*\d+/i.test(trimmed)) return true;
-  return false;
-}
-
 function titleCase(value: string): string {
-  return value
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
+  return value.split(/\s+/).filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(" ");
 }
 
-function colorWordFrom(namedColors: NamedColor[] | undefined): string | null {
-  const first = namedColors?.find((c) => c.label || c.hex);
-  if (!first) return null;
-  const fromLabel = first.label?.match(COLOR_WORDS)?.[1];
-  if (fromLabel) return fromLabel.toLowerCase();
-  const family = hexToFamily(first.hex);
+function primaryFamily(hex: string | null | undefined): string | null {
+  if (!hex || !isHexColor(hex)) return null;
+  const family = hexToFamily(hex.trim());
+  // RGB chroma below 0.12 (~31/255) reads neutral in muted blues, including #a0adbb.
+  // Keep this naming threshold local so palette taxonomy/extraction is unchanged.
+  const { h, chroma } = hexToHsl(hex.trim());
+  if (h >= 160 && h < 255 && chroma < 0.12 && family !== "black" && family !== "white") return "gray";
   if (family === "cream/beige") return "cream";
+  if (family === "gold") return "yellow";
   return family;
 }
 
-function subjectFromTitle(title: string | null | undefined): string | null {
-  if (!title || looksLikeDeviceTitle(title) || /\d/.test(title) || STREET.test(title)) return null;
-  const prefixed = title.trim().match(/^(red|orange|yellow|gold|green|teal|blue|purple|pink|brown|black|white|gray|grey|cream|beige)\s+(\p{L}+)$/iu);
-  const noun = prefixed?.[2].toLowerCase();
-  return noun && SUBJECTS.has(noun) ? noun : subjectFromBrief(title);
-}
-
-function subjectFromBrief(briefText: string | null | undefined): string | null {
-  if (!briefText || looksLikeDeviceTitle(briefText)) return null;
-  // Remove the complete address phrase before scanning, so "Garden Street"
-  // cannot masquerade as a garden. Prefer a fallback over guessing an address.
-  const cleaned = briefText.replace(ADDRESS, ' ');
-  const words: string[] = cleaned.toLowerCase().match(/\p{L}+/gu) ?? [];
-  // Architectural style is the subject even if prose mentions siding/trim first.
-  const style = words.find((word) => ARCHITECTURAL_STYLES.has(word));
-  if (style) return style;
-  return words.find((word) => SUBJECTS.has(word) && !COLOR_WORDS.test(word)) ?? null;
-}
-
-function architecturalStyle(text: string | null | undefined): string | null {
-  if (!text || looksLikeDeviceTitle(text)) return null;
-  const words = text.replace(ADDRESS, ' ').toLowerCase().match(/\p{L}+/gu) ?? [];
-  return words.find((word) => ARCHITECTURAL_STYLES.has(word)) ?? null;
-}
-
-function subjectFromChips(namedColors: NamedColor[] | undefined): string | null {
-  for (const color of namedColors ?? []) {
-    const noun = subjectFromBrief(color.label);
-    if (noun) return noun;
+function colorPart(input: KitNameInput, family: string): string {
+  const sources = [input.briefText, ...(input.namedColors ?? []).map((chip) => sanitizeChipLabel(chip.label))];
+  for (const source of sources) {
+    // Only adjacent modifier + colour pairs; punctuation cannot join unrelated phrases.
+    const pairs = source?.toLowerCase().matchAll(/(?=\b(([a-z]+)[ -]+([a-z]+))\b)/g) ?? [];
+    for (const pair of pairs) {
+      const [, phrase, modifier, color] = pair;
+      if (colorFamily(color) !== family || !COLOR_MODIFIERS.has(modifier)) continue;
+      const modifierFamily = colorFamily(modifier);
+      if (modifierFamily && modifierFamily !== family) continue;
+      const next = source?.slice(pair.index! + phrase.length).match(/^[- ]+([a-z]+)\b/i)?.[1].toLowerCase();
+      if (next && colorFamily(next) && colorFamily(next) !== family) continue;
+      return modifier + " " + family;
+    }
   }
-  return null;
+  return family;
 }
 
-export function kitDisplayName(input: {
+export type KitNameInput = {
   title?: string | null;
   briefText?: string | null;
+  subject?: string | null;
+  primaryHex?: string | null;
   namedColors?: NamedColor[];
   pending?: boolean;
-  primary?: { hex: string; name?: string | null } | null;
-}): string {
-  if (input.pending) return UNTITLED_KIT;
-  const title = input.title?.trim() ?? "";
-  const prefixedColor = title.match(COLOR_WORDS)?.[1]?.toLowerCase();
-  const color = input.primary ? colorHue(input.primary.hex, input.primary.name) : colorWordFrom(input.namedColors) ?? prefixedColor;
-  const subject = subjectFromTitle(title) ?? subjectFromBrief(input.briefText) ?? subjectFromChips(input.namedColors);
-  if (color && subject) return titleCase(`${color} ${subject}`);
-  if (color) return `${titleCase(color)} kit`;
-  return UNTITLED_KIT;
+  brief?: BriefState | null;
+  createdAt?: Date | string;
+};
+
+/** Stable colour-only name, also used to recognise a fallback on a later retry. */
+export function fallbackKitName(primaryHex: string | null | undefined): string {
+  const family = primaryFamily(primaryHex);
+  return family ? titleCase(family) : UNTITLED_KIT;
 }
 
-export function generatedKitTitle(input: {
-  title?: string | null;
-  briefText?: string | null;
-  namedColors?: NamedColor[];
-}): string | null {
-  const name = kitDisplayName({ ...input, pending: false });
-  if (!name || name === UNTITLED_KIT) return null;
-  return name;
+export function kitDisplayName(input: KitNameInput, now = Date.now()): string {
+  const existing = generatedKitTitle({ title: input.title });
+  if (existing) return existing;
+  if (input.brief === undefined && input.createdAt != null) {
+    const createdAt = new Date(input.createdAt).getTime();
+    return now - createdAt < STALE_PENDING_MS ? "" : fallbackKitName(input.primaryHex);
+  }
+  if (isRecentPendingBrief(input.brief, now)) return "";
+  if (input.brief && (input.brief.status !== "ready" || input.brief.stub)) return fallbackKitName(input.primaryHex);
+  return generatedKitTitle(input) ?? fallbackKitName(input.primaryHex);
 }
 
-/** Short photo alt from the kit name; never a camera filename or Untitled kit. */
-export function kitAltText(input: {
-  title?: string | null;
-  briefText?: string | null;
-  namedColors?: NamedColor[];
-  pending?: boolean;
-}): string {
-  if (input.pending) return "Photo";
-  const name = kitDisplayName({ ...input, pending: false });
-  if (name === UNTITLED_KIT) return "Photo";
-  return name;
+export function generatedKitTitle(input: KitNameInput): string | null {
+  const existing = input.title?.trim() ?? "";
+  if (existing && existing !== UNTITLED_KIT && !isCameraFilename(existing)) return existing;
+  const subject = briefSubjectWord(input.subject) ?? subjectFromBrief(input.briefText);
+  const family = primaryFamily(input.primaryHex);
+  if (!family) return null;
+  // A subject gets one colour-family word; colour-only names may keep a two-word pair.
+  return titleCase(subject ? `${family} ${subject}` : colorPart(input, family));
 }
+
+/** Photo alt uses the same name as the visible kit name. */
+export function kitAltText(input: KitNameInput): string {
+  return kitDisplayName(input);
+}
+
+export { primaryKitTitle } from "@/lib/primary-kit-title";

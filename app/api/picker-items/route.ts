@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       kind: r.kind,
       thumb: r.thumbKey,
       aspect: r.aspect,
-      colors: r.hexColors,
+      colors: r.hexColors.filter((hex): hex is string => hex != null),
     }));
   return NextResponse.json({ items, count: total });
 }

@@ -1,14 +1,6 @@
 import { colorHue, COLOR_ROLES, type ColorRole, type MobileKit } from '@inzpo/shared';
 
 export type SamplePoint = { x: number; y: number };
-// Older MobileKits lack coordinates. Deterministic normalized points from the
-// five actual VISUAL-V2 reference samples, plus a center point for a filled
-// Surface. These are visual fallbacks, not claims of sampling a new photo.
-export const FALLBACK_PINS: Record<ColorRole, SamplePoint> = {
-  primary: { x: 307 / 1500, y: 889 / 2000 }, secondary: { x: 1288 / 1500, y: 358 / 2000 },
-  accent: { x: 120 / 1500, y: 81 / 2000 }, background: { x: 1315 / 1500, y: 585 / 2000 },
-  surface: { x: 0.5, y: 0.6 }, text: { x: 169 / 1500, y: 129 / 2000 },
-};
 const valid = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
 
 export function roleSample(kit: Pick<MobileKit, 'roles' | 'colors'>, role: ColorRole): SamplePoint | null {
@@ -17,7 +9,7 @@ export function roleSample(kit: Pick<MobileKit, 'roles' | 'colors'>, role: Color
   // Ignore stale coordinates after a role edit, and never steal another role's pin.
   const color = kit.colors.find((color) => color.role === role && color.hex.toLowerCase() === hex.toLowerCase()
     && valid(color.pinX) && valid(color.pinY));
-  return color ? { x: color.pinX!, y: color.pinY! } : FALLBACK_PINS[role];
+  return color ? { x: color.pinX!, y: color.pinY! } : null;
 }
 
 /** Map normalized source points through the same top/center cover as expo-image. */

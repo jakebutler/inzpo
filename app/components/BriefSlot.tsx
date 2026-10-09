@@ -40,21 +40,22 @@ export function BriefSlot({
   const ink = gatedTextColor(pageInk, pageBackground, 4.5);
   const pose: MascotPose = saved ? "success" : status === "failed" ? "error-brief" : status === "pending" ? "chewing" : "idle";
   const display = status === "pending" && !saved ? MASCOT_COPY.chewing : status === "failed" && !saved ? MASCOT_COPY["error-brief-retry"] : displayBriefSlot(note);
-  const [shown, setShown] = useState(display);
+  const isBrief = saved || status === "ready";
+  const [shown, setShown] = useState({ text: display, isBrief });
   const [opacity, setOpacity] = useState(1);
 
   useEffect(() => {
-    if (display === shown) {
+    if (display === shown.text && isBrief === shown.isBrief) {
       setOpacity(1);
       return;
     }
     setOpacity(0);
     const swap = window.setTimeout(() => {
-      setShown(display);
+      setShown({ text: display, isBrief });
       setOpacity(1);
     }, MOTION_CSS.smallMs);
     return () => window.clearTimeout(swap);
-  }, [display, shown]);
+  }, [display, isBrief, shown]);
 
   if (hidden && !saved) {
     return (
@@ -64,7 +65,7 @@ export function BriefSlot({
         data-brief-slot
         style={{ minHeight: BRIEF_SLOT_MIN_PX }}
       >
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
           <div
             data-baku-slot
             style={{
@@ -72,11 +73,11 @@ export function BriefSlot({
               height: MASCOT_SIZE_BRIEF_PX,
               flex: "0 0 auto",
               display: "flex",
-              alignItems: "flex-end",
+              alignItems: "center",
               justifyContent: "flex-start",
             }}
           >
-            <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText ground={pageBackground} />
+            <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} assetSize={72} revealedCount={stripeReveal} faceText ground={pageBackground} />
           </div>
         </div>
       </section>
@@ -84,7 +85,7 @@ export function BriefSlot({
   }
 
   const body = (
-    <div className="flex items-start gap-3">
+    <div className="flex items-center gap-3">
       <div
         data-baku-slot
         style={{
@@ -92,16 +93,18 @@ export function BriefSlot({
           height: MASCOT_SIZE_BRIEF_PX,
           flex: "0 0 auto",
           display: "flex",
-          alignItems: "flex-end",
+          alignItems: "center",
           justifyContent: "flex-start",
         }}
       >
-        <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} revealedCount={stripeReveal} faceText ground={pageBackground} />
+        <Mascot pose={pose} kit={kit} size={MASCOT_SIZE_BRIEF_PX} assetSize={72} revealedCount={stripeReveal} faceText ground={pageBackground} />
       </div>
-      <div className="min-w-0 flex-1 pt-0.5">
-        {shown ? (
+      <div className="min-w-0 flex-1">
+        {status === "pending" && !saved ? (
+          <span data-brief-skeleton aria-hidden="true" className="mt-2 block h-2 w-32 rounded" style={{ backgroundColor: ink, opacity: 0.12 }} />
+        ) : shown.text ? (
           <p
-            className="font-heading text-[18px] leading-6"
+            className={`${shown.isBrief ? "font-heading font-normal" : "font-sans"} text-[18px] leading-6`}
             data-brief-text
             style={{
               color: ink,
@@ -109,7 +112,7 @@ export function BriefSlot({
               transition: `opacity ${MOTION_CSS.smallMs}ms ${MOTION_CSS.easeMove}`,
             }}
           >
-            {shown}
+            {shown.text}
           </p>
         ) : null}
         {saved ? <SavedCaption ink={ink} /> : null}

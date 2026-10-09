@@ -1,3 +1,6 @@
+import { ColorInhale } from '@/baku/ColorInhale';
+import { KnitBaku } from '@/baku/KnitBaku';
+import { usePalettePerformance } from '@/baku/usePalettePerformance';
 import { emptyRoles, type ColorRole } from '@inzpo/shared';
 import { Canvas, LinearGradient, Rect } from '@shopify/react-native-skia';
 import { router, Stack, useIsFocused, useLocalSearchParams } from 'expo-router';
@@ -7,9 +10,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ActionButton } from '@/components/ActionButton';
 import { Baku } from '@/components/Baku';
 import { BackButton } from '@/components/BackButton';
+import { KitTools } from '@/components/KitTools';
 import { BriefBlock } from '@/components/BriefBlock';
 import { ChipPile } from '@/components/ChipPile';
-import { ChewingCaption } from '@/components/ChewingCaption';
 import { ChipDetail } from '@/components/ChipDetail';
 import { CornerBaku } from '@/components/CornerBaku';
 import { EditSheet, type EditSheetHandle } from '@/components/EditSheet';
@@ -27,12 +30,15 @@ import { capturePhoto } from '@/lib/photo-handoff';
 import { useResultSequence } from '@/lib/useResultSequence';
 import { useBakuPupils } from '@/lib/useBakuPupils';
 import { useBakuHop } from '@/lib/useBakuHop';
-import { MunchPlayer } from '@/munch/MunchPlayer';
 import { PAPER } from '@/theme/tokens';
 import { ui } from '@/theme/styles';
 
 export default function ResultScreen() {
   const params = useLocalSearchParams<{ id: string; saved?: string; c?: string }>();
+  return <ResultContent key={params.id} params={params} />;
+}
+
+function ResultContent({ params }: { params: { id: string; saved?: string; c?: string } }) {
   const id = typeof params.id === 'string' ? params.id : '';
   const { kit, loading, error, briefFailed, retry, replaceKit } = useKit(id);
   const client = useInzpoClient();
@@ -72,10 +78,12 @@ export default function ResultScreen() {
   // A painted local preview cannot authorize playback for a new remote source.
   const photoVisible = !!renderedPhoto && !photoFailed && displayedPhoto?.id === id &&
     displayedPhoto.url === renderedPhoto.url;
-  const ready = !!kit && (briefFailed || kit.brief.status !== 'pending');
+  const ready = !!kit;
   const failedBrief = briefFailed || kit?.brief.status === 'failed' || (kit?.brief.status === 'ready' && !kit.brief.text);
+  const performance = usePalettePerformance({ kitId: id, ready, enabled: !!localPhoto && !isSaved, photoVisible, focused });
+  const revealing = ready && !performance.finished;
   const pupils = useBakuPupils(96);
-  const sequence = useResultSequence({ kitId: id, ready, roles: kit?.roles, jiggle: pupils.jiggle });
+  const sequence = useResultSequence({ kitId: id, ready: ready && performance.finished, roles: kit?.roles, jiggle: pupils.jiggle });
   const hop = useBakuHop({ kitId: id, base: sequence.values, jiggle: pupils.jiggle });
   const celebratedKit = useRef<string | null>(null);
   const onSaved = hop.onSaved;
@@ -87,14 +95,15 @@ export default function ResultScreen() {
   const primaryPin = kit && kit.photo && !photoFailed ? photoPins(kit, layout.printWidth - 26, layout.photoHeight, layout.pinHeight)
     .find((pin) => pin.role === 'primary') : undefined;
   const heroWidth = layout.contentWidth + 40;
-  const munchWidth = layout.waitingMunchWidth;
+  const bakuWidth = Math.min(280, heroWidth * .76);
+  const bakuLeft = heroWidth - bakuWidth + 8;
   const printLeft = (heroWidth - layout.printWidth) / 2;
   const openRole = (role: ColorRole) => {
-    if (sequence.interactive) setSheet({ kitId: id, type: 'edit', role });
+    if (sequence.interactive && performance.finished) setSheet({ kitId: id, type: 'edit', role });
   };
 
   return (
-    <SafeAreaView style={ui.screen} edges={['left', 'right']} onTouchStart={sequence.skipToEnd}>
+    <SafeAreaView style={ui.screen} edges={['left', 'right']} >
       <Stack.Screen options={{ headerShown: false, title: isSaved && kit ? kit.title : 'Your colors' }} />
       <PaperTexture />
       <ScrollView testID="result-content" contentContainerStyle={{ paddingTop: Math.max(isSaved ? 40 : 20, insets.top),
@@ -113,7 +122,7 @@ export default function ResultScreen() {
           <FilmPrint kit={{ photo: localPhoto, roles: emptyRoles(), colors: [] }} width={layout.waitingPrintWidth} height={layout.waitingPrintHeight}
             failed={false} onError={() => setDisplayedPhoto(null)} onPhotoDisplay={() => setDisplayedPhoto({ id, url: localPhoto.url })}
             showPins={false} onPinPress={() => {}} placeholder={null} />
-          {photoVisible && <View style={{ marginTop: -72, paddingBottom: 24 }}><MunchPlayer key={id} width={munchWidth} active={focused} /></View>}
+          <Text accessibilityLiveRegion="polite" style={[ui.body, { textAlign: 'center', marginTop: 16 }]}>Finding your colors…</Text>
         </View> : <View style={ui.center}><Text style={ui.body}>Loading your photo…</Text></View> : error ? <View style={ui.center}>
           <Baku pose={error === 'notFound' ? 'notFound' : 'errorPhoto'} />
           <Text style={ui.message}>{error === 'notFound' ? 'This kit couldn’t be found.' : 'Couldn’t load this kit. Please try again.'}</Text>
@@ -122,7 +131,7 @@ export default function ResultScreen() {
           {isSaved ? <>
             <Text allowFontScaling accessibilityLabel={`Saved to ${collectionName}`} accessibilityLiveRegion="polite" style={[ui.body, styles.savedCopy]}>Saved to your collection.</Text>
             <View accessibilityLabel={kit.title}>
-              <SavedKit kit={kit} failed={photoFailed} disabled={!sequence.interactive}
+              <SavedKit kit={kit} failed={photoFailed} disabled={!sequence.interactive || revealing}
                 maxHeight={height - Math.max(40, insets.top) - (headerHeight ?? 89) - 48 * fontScale - Math.max(108, actionHeight) - footerBottom - 40}
                 onError={() => setFailedPhotoUrl(kit.photo!.url)} onEdit={() => setSheet({ kitId: id, type: 'edit' })}
                 placeholder={<View style={styles.placeholder}><Baku pose={photoFailed ? 'errorPhoto' : 'empty'} />
@@ -135,17 +144,21 @@ export default function ResultScreen() {
             <FilmPrint kit={kit} width={ready ? layout.printWidth : layout.waitingPrintWidth} height={ready ? layout.printHeight : layout.waitingPrintHeight} pinHeight={layout.pinHeight} failed={photoFailed}
               preview={localPhoto?.url} onPhotoDisplay={() => setDisplayedPhoto({ id, url: kit.photo!.url })}
               onError={() => { setDisplayedPhoto(null); setFailedPhotoUrl(kit.photo!.url); }} selectedRole={editing ? selectedRole : null}
-              markerStyle={sequence.markerStyle} onPinPress={openRole} interactive={sequence.interactive} placeholder={<View style={styles.placeholder}>
+              markerStyle={sequence.markerStyle} onPinPress={openRole} interactive={sequence.interactive && !revealing} showPins={!revealing} placeholder={<View style={styles.placeholder}>
                 <Baku pose={photoFailed ? 'errorPhoto' : 'empty'} roles={kit.roles} stripeProgress={sequence.stripeProgress} wipeMode={sequence.wipeMode} />
                 <Text style={ui.message}>{photoFailed ? 'Couldn’t load the photo.' : 'No photo in this kit.'}</Text>
                 {photoFailed && <ActionButton label="Reload photo" onPress={() => { setFailedPhotoUrl(null); retry(); }} />}
               </View>} />
-            {!ready && photoVisible && <View style={{ marginTop: -72, paddingBottom: 24 }}>
-              <MunchPlayer key={id} width={munchWidth} active={focused} />
+            {revealing && photoPins(kit, layout.printWidth - 26, layout.photoHeight, layout.pinHeight).map((pin, index) =>
+              <ColorInhale key={pin.role} color={pin.color} index={index} performance={performance}
+                source={{ x: printLeft + 13 + pin.target.x, y: 13 + pin.target.y }}
+                baku={{ x: bakuLeft, y: layout.printHeight - 100, width: bakuWidth }} />)}
+            {revealing && <View pointerEvents="none" style={{ position: 'absolute', left: bakuLeft, top: layout.printHeight - 100, zIndex: 10 }}>
+              <KnitBaku width={bakuWidth} elapsed={performance.elapsed} readyAt={performance.readyAt} roles={kit.roles} onLoaded={performance.onLoaded} />
             </View>}
             {ready && <View style={{ marginTop: -113, marginHorizontal: 20 }}>
               <ChipPile roles={kit.roles} slots={layout.slots} height={layout.pileHeight} typeSize={layout.typeSize}
-                expandedRole={detail?.kitId === id ? detail.role : null} motion={sequence.bands} disabled={!sequence.interactive} selectedRole={editing ? selectedRole : null}
+                expandedRole={detail?.kitId === id ? detail.role : null} motion={sequence.bands} performance={performance} emitter={{ x: bakuLeft - 20, y: 13, width: bakuWidth }} disabled={!sequence.interactive || revealing} selectedRole={editing ? selectedRole : null}
                 onPress={(role) => {
                   if (!kit.roles[role]) openRole(role);
                   else setDetail((current) => {
@@ -154,7 +167,7 @@ export default function ResultScreen() {
                   });
                 }} />
             </View>}
-            {ready && primaryPin && <PrimaryArrow width={heroWidth} height={layout.heroHeight}
+            {ready && !revealing && primaryPin && <PrimaryArrow width={heroWidth} height={layout.heroHeight}
               photoLeft={printLeft + 13}
               start={{ x: 20 + layout.slots[0].x + 12, y: layout.printHeight - 113 + layout.slots[0].height * 0.25 }}
               end={{ x: printLeft + 13 + primaryPin.marker.x, y: 13 + primaryPin.marker.y }}
@@ -176,6 +189,7 @@ export default function ResultScreen() {
         {kit && ready && <View style={[styles.brief, { width: layout.contentWidth, marginTop: isSaved ? 32 : 100 }]}>
           <BriefBlock brief={kit.brief} failed={briefFailed} showBaku={false} motionStyle={ready ? sequence.briefStyle : undefined} />
           {(briefFailed || kit.brief.status === 'failed') && <ActionButton label="Check brief again" onPress={retry} />}
+          <KitTools kit={kit} />
         </View>}
       </ScrollView>
       {!isSaved && <View testID="result-actions" pointerEvents="box-none" style={[styles.footer, { bottom: footerBottom, maxWidth: 390 }]}>
@@ -184,15 +198,17 @@ export default function ResultScreen() {
             <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 0, y: 40 }} colors={['#F3EEE400', PAPER]} />
           </Rect>
         </Canvas>
-        {photoVisible && (loading || (!!kit && !ready)) && <ChewingCaption key={id}
-          style={{ position: 'absolute', left: 82, right: 16, bottom: actionHeight + 16 }} />}
-        {ready && <View style={styles.host}>
+        {revealing && <View style={{ marginHorizontal: 32, gap: 8 }}>
+          <Text style={[ui.body, { textAlign: 'center' }]}>A little color. A big ah-choo.</Text>
+          <ActionButton label="Show my colors" onPress={() => { performance.skip(); sequence.skipToEnd(); }} />
+        </View>}
+        {ready && !revealing && <View style={styles.host}>
           <CornerBaku size={62} focused={focused && sheet?.kitId !== id && detail?.kitId !== id} pose={hop.pose && hop.pose !== 'idle' ? hop.pose : failedBrief ? 'errorBrief' : 'idle'}
             motionStyle={hop.bakuStyle} shadowStyle={hop.shadowStyle} />
         </View>}
-        {ready && <View style={styles.actions} onLayout={(event) => setActionHeight(Math.max(48, event.nativeEvent.layout.height))}>
-          <View style={styles.edit}><ActionButton label="Edit" disabled={!sequence.interactive} onPress={() => setSheet({ kitId: id, type: 'edit' })} /></View>
-          <View style={styles.save}><ActionButton label="Save" primary disabled={!sequence.interactive}
+        {ready && !revealing && <View style={styles.actions} onLayout={(event) => setActionHeight(Math.max(48, event.nativeEvent.layout.height))}>
+          <View style={styles.edit}><ActionButton label="Edit" disabled={!sequence.interactive || revealing} onPress={() => setSheet({ kitId: id, type: 'edit' })} /></View>
+          <View style={styles.save}><ActionButton label="Save" primary disabled={!sequence.interactive || revealing}
             onPress={() => router.push({ pathname: '/keep/[id]', params: { id } })} /></View>
         </View>}
       </View>}

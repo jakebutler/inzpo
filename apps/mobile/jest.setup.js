@@ -1,3 +1,4 @@
+process.env.EXPO_PUBLIC_API_BASE_URL = 'https://api.example';
 require('react-native-gesture-handler/jestSetup');
 
 // Use the mocks shipped by the installed Reanimated/Worklets versions.

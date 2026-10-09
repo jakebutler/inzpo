@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { BAKU_MET_STORAGE_KEY, MASCOT_SIZE_INTRO_PX } from "@/lib/mascot";
+import { BAKU_MET_STORAGE_KEY, MASCOT_SIZE_INTRO_PX, MASCOT_SIZE_UPLOAD_PX } from "@/lib/mascot";
 import { gatedTextColor } from "@/lib/contrast";
 import { INK, PAPER } from "@/lib/brand";
 import { MascotStage } from "./MascotStage";
@@ -35,7 +35,7 @@ export function CaptureMascotLayer({
   }, [waiting, hasSubstance]);
 
   if (waiting) {
-    return <MascotStage moment="upload" snapReady immediate className="mt-4" progress={progress} />;
+    return <MascotStage moment="upload" size={MASCOT_SIZE_UPLOAD_PX} align="center" snapReady immediate className="mt-4" progress={progress} />;
   }
 
   if (firstOpen && !met && !hasSubstance) {

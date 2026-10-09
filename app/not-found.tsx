@@ -5,7 +5,7 @@ export default function NotFound() {
   return (
     <main className="flex min-h-[100dvh] flex-col bg-background px-6 pt-[max(1.5rem,env(safe-area-inset-top))] text-foreground">
       <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Inzpo</p>
-      <h1 className="mt-2 font-heading text-[28px] font-semibold tracking-tight">This page isn't here.</h1>
+      <h1 className="mt-2 font-heading text-[28px] tracking-tight">This page isn't here.</h1>
       <p className="mt-2 text-base text-muted-foreground">Baku looked. Nothing to chew on.</p>
       <NotFoundMark />
       <div className="mt-auto pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-8">

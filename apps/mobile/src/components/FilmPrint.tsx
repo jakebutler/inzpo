@@ -28,7 +28,7 @@ export function FilmPrint({ kit, width, height, failed, onError, placeholder, ma
         {kit.photo && !failed ? <>
           <Image key={kit.photo.url} source={{ uri: kit.photo.url }} placeholder={preview ? { uri: preview } : kit.photo.placeholder ?? undefined}
             placeholderContentFit="cover" onDisplay={onPhotoDisplay}
-            contentFit="cover" contentPosition={photoPosition} accessibilityLabel="House photo" onError={onError} style={StyleSheet.absoluteFill} />
+            contentFit="cover" contentPosition={photoPosition} accessibilityLabel="Source photo" onError={onError} style={StyleSheet.absoluteFill} />
           <Canvas testID="film-sheen" accessible={false} pointerEvents="none" style={StyleSheet.absoluteFill}>
             {/* A single fixed, broad, feathered ellipse bowed across the top-left.
                 Peak white is 10%; the glint fades along the top edge. */}

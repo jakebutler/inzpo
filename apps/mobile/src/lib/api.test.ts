@@ -4,7 +4,7 @@ import { Text } from 'react-native';
 import { createElement, useEffect } from 'react';
 import { render, renderHook } from '@testing-library/react-native';
 import { useAuth } from '@clerk/expo';
-import { createMobileClient, DEFAULT_API_BASE_URL, InzpoClientProvider, useInzpoClient } from './api';
+import { createMobileClient, InzpoClientProvider, useInzpoClient } from './api';
 
 const originalFetch = global.fetch;
 const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -34,10 +34,10 @@ test('uses the configured origin and a fresh Clerk Bearer token on every request
   });
 });
 
-test('uses the default origin when the environment variable is absent', async () => {
+test('missing configuration cannot silently target the wrong deployment', () => {
   delete process.env.EXPO_PUBLIC_API_BASE_URL;
-  await createMobileClient(async () => 'token').listCollections();
-  expect(fetchMock).toHaveBeenCalledWith(`${DEFAULT_API_BASE_URL}/api/mobile/collections`, expect.anything());
+  expect(() => createMobileClient(async () => 'token')).toThrow('Missing mobile API configuration');
+  expect(fetchMock).not.toHaveBeenCalled();
 });
 
 test('does not make an unauthenticated request', async () => {

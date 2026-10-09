@@ -3,12 +3,12 @@
 .baku {
   --baku-cream: #f3ead8;
   --baku-seam: #b7a88a;
-  --baku-primary: var(--baku-cream);
-  --baku-secondary: var(--baku-cream);
-  --baku-accent: var(--baku-cream);
-  --baku-background: var(--baku-cream);
-  --baku-surface: var(--baku-cream);
-  --baku-text: var(--baku-cream);
+  --baku-primary: #E4D9C6;
+  --baku-secondary: #E4D9C6;
+  --baku-accent: #E4D9C6;
+  --baku-background: #E4D9C6;
+  --baku-surface: #E4D9C6;
+  --baku-text: #E4D9C6;
   display: block;
   flex: 0 0 auto;
   overflow: visible;

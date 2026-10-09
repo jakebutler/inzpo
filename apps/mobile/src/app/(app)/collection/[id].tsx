@@ -2,7 +2,7 @@ import { COLOR_ROLES, InzpoApiError, type MobileCollection } from '@inzpo/shared
 import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from 'react-native-reanimated';
 import { ActionButton } from '@/components/ActionButton';
@@ -46,7 +46,7 @@ export default function CollectionScreen() {
       </>}
       {current?.collection?.kits.length === 0 && <Text style={ui.body}>No kits in this collection yet.</Text>}
       </View>}
-      renderItem={({ item: kit }) => <View testID={`collection-kit-${kit.id}`} style={[stockSurface, styles.kit]}>
+      renderItem={({ item: kit }) => <Pressable accessibilityRole="button" accessibilityLabel={`Open ${kit.title}`} onPress={() => router.push({ pathname: "/kit/[id]", params: { id: kit.id } })} testID={`collection-kit-${kit.id}`} style={[stockSurface, styles.kit]}>
         <PaperTexture />
         {kit.photo ? <Image source={{ uri: kit.photo.url }} contentFit="cover" style={styles.photo}
           accessibilityLabel={`Photo for ${kit.title}`} /> : <Text style={ui.body}>No photo in this kit.</Text>}
@@ -54,7 +54,7 @@ export default function CollectionScreen() {
         <View style={styles.colors} accessible accessibilityLabel={COLOR_ROLES.map((role) => `${role}: ${kit.roles[role] ?? 'No color yet'}`).join(', ')}>
           {COLOR_ROLES.map((role) => <View key={role} style={[styles.color, { backgroundColor: kit.roles[role] ?? '#E4D9C6' }]} />)}
         </View>
-      </View>} />
+      </Pressable>} />
   </SafeAreaView>;
 }
 

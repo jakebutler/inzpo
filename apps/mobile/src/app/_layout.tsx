@@ -58,6 +58,8 @@ export default function RootLayout() {
         <StatusBar style="dark" />
         {fontError ? (
           <StartupError message="The fonts couldn’t load. Please restart Inzpo." />
+        ) : !process.env.EXPO_PUBLIC_API_BASE_URL ? (
+          <StartupError message="This preview isn’t connected yet. Please ask Jake for an updated link." />
         ) : !publishableKey ? (
           <StartupError message="Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY. Add it to apps/mobile/.env.local, then restart Expo." />
         ) : (

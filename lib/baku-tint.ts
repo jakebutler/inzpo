@@ -3,6 +3,15 @@ import { hexToRgb, isHexColor } from "@/lib/colors";
 import { BAKU_BAND_GRAYS } from "@/lib/baku-v6";
 import type { MascotKit } from "@/lib/mascot";
 
+export const BAKU_UNDYED_KNIT = "#E4D9C6";
+
+/** Designer shade: 128 is neutral; preserve the role colour rather than multiply by the coat. */
+export function shadeRoleColor(hex: string, shade: number): [number, number, number] {
+  const { r, g, b } = hexToRgb(hex);
+  const channel = (value: number) => Math.max(0, Math.min(255, Math.round(value * shade / 128)));
+  return [channel(r), channel(g), channel(b)];
+}
+
 export function grayToBandIndex(gray: number): number | null {
   if (!Number.isFinite(gray)) return null;
   const i = (BAKU_BAND_GRAYS as readonly number[]).indexOf(gray);
@@ -51,9 +60,10 @@ export function multiplyShadowPixels(
 
 export function tintRoles(kit: MascotKit, revealedCount: number | null): Array<string | null> {
   return COLOR_ROLES.map((role, i) => {
-    if (revealedCount != null && i >= revealedCount) return null;
     const hex = kit[role];
-    if (!hex || !isHexColor(hex)) return null;
+    // Empty knit is present from the first frame, independent of stripe reveal.
+    if (!hex || !isHexColor(hex)) return BAKU_UNDYED_KNIT;
+    if (revealedCount != null && i >= revealedCount) return null;
     return hex;
   });
 }
@@ -63,7 +73,6 @@ function readGray(data: Uint8ClampedArray, i: number, channels: number): number 
   return data[i] ?? 0;
 }
 
-/** Tint sprite pixels in place using a same-size grayscale index mask. */
 /**
  * Replace pale fringe on semi-transparent edges with the nearest opaque body's RGB.
  * Cheap premultiply-edge fix for cream halos over navy bands.
@@ -109,6 +118,7 @@ export function defringePremulEdges(
   }
 }
 
+/** Tint indexed bands with Designer's same-size shade sprite; leave other pixels unchanged. */
 export function tintSpriteWithBands(
   sprite: Uint8ClampedArray,
   bands: Uint8ClampedArray,
@@ -117,6 +127,8 @@ export function tintSpriteWithBands(
   spriteChannels: number,
   bandChannels: number,
   colors: Array<string | null>,
+  shade: Uint8ClampedArray,
+  shadeChannels: number,
 ): void {
   const pixels = width * height;
   for (let p = 0; p < pixels; p++) {
@@ -125,12 +137,10 @@ export function tintSpriteWithBands(
     const gray = readGray(bands, bi, bandChannels);
     const index = grayToBandIndex(gray);
     if (index == null) continue;
+    if (bandChannels >= 4 && bands[bi + 3] === 0) continue;
     const hex = colors[index];
     if (!hex) continue;
-    const sr = sprite[si] ?? 0;
-    const sg = sprite[si + 1] ?? 0;
-    const sb = sprite[si + 2] ?? 0;
-    const [r, g, b] = multiplyGrayByHex(sr, sg, sb, hex);
+    const [r, g, b] = shadeRoleColor(hex, readGray(shade, p * shadeChannels, shadeChannels));
     sprite[si] = r;
     if (spriteChannels > 1) sprite[si + 1] = g;
     if (spriteChannels > 2) sprite[si + 2] = b;

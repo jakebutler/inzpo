@@ -3,9 +3,10 @@ import { getWallItems } from "@/lib/items";
 import { MascotStage } from "@/app/components/MascotStage";
 import { KitCard } from "@/app/components/KitCard";
 import { SAMPLE_KIT } from "@/lib/sample-kit";
+import { loadFoldKit } from "@/lib/fold-kit";
+import { rolesFromColors } from "@/lib/tokens";
 import { requireOwnerId } from "@/lib/auth/owner";
 import { EMPTY_FILTER } from "@/lib/filter";
-import { kitDisplayName } from "@/lib/kit-name";
 import { LINKS_UNSUPPORTED_ERROR, LINKS_UNSUPPORTED_MESSAGE, isLinksUnsupportedRequest } from "@/lib/links";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ export default async function CapturePage({
   const unreadable = params.error === "bad-image";
   const linksBlocked = isLinksUnsupportedRequest(params);
   const recent = (await getWallItems(ownerId, EMPTY_FILTER, null)).slice(0, 3);
+  const sample = recent.length === 0 ? await loadFoldKit("IMG_6505") : null;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -61,16 +63,17 @@ export default async function CapturePage({
                       key="sample"
                       title={SAMPLE_KIT.title}
                       imageSrc={SAMPLE_KIT.imageSrc}
-                      hexes={[...SAMPLE_KIT.hexes]}
+                      roles={rolesFromColors(sample?.colors ?? [])}
                     />
                   );
                 }
                 return (
                   <KitCard
                     key={item.id}
-                    title={kitDisplayName({ title: item.title, briefText: item.note })}
+                    title={item.title}
+                    createdAt={item.createdAt}
                     imageSrc={item.displayKey ? `/media/${item.displayKey}` : null}
-                    hexes={item.hexColors}
+                    roles={item.roles}
                   />
                 );
               })}

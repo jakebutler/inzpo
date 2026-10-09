@@ -13,6 +13,7 @@ import { ActionForm } from "@/app/components/ActionForm";
 import { MascotStage } from "@/app/components/MascotStage";
 import { KitCard } from "@/app/components/KitCard";
 import { kitDisplayName } from "@/lib/kit-name";
+import type { RoleColors } from "@/lib/tokens";
 
 export interface WallCard {
   id: string;
@@ -21,7 +22,9 @@ export interface WallCard {
   note?: string | null;
   displayKey: string | null;
   aspect: number | null;
-  hexColors: string[];
+  hexColors: Array<string | null>;
+  roles?: RoleColors;
+  createdAt?: Date | string;
   facetTags: Array<{ facet: string; value: string }>;
   freeTags: string[];
   sourceUrl: string | null;
@@ -309,7 +312,7 @@ export function WallGrid({
                 role="checkbox"
                 tabIndex={0}
                 aria-checked={on}
-                aria-label={kitDisplayName({ title: item.title, briefText: item.note })}
+                aria-label={kitDisplayName({ title: item.title, primaryHex: item.roles?.primary ?? item.hexColors.find(Boolean), createdAt: item.createdAt })}
                 onPointerDown={() => startLongPress(item.id)}
                 onPointerUp={cancelLongPress}
                 onPointerLeave={cancelLongPress}
@@ -325,9 +328,11 @@ export function WallGrid({
                 className={`relative cursor-pointer break-inside-avoid ${on ? "outline outline-2 outline-offset-2 outline-primary" : ""}`}
               >
                 <KitCard
-                  title={kitDisplayName({ title: item.title, briefText: item.note })}
+                  title={item.title}
+                  createdAt={item.createdAt}
                   imageSrc={item.displayKey ? `/media/${item.displayKey}` : null}
                   hexes={item.hexColors}
+                  roles={item.roles}
                 />
                 <span
                   aria-hidden
@@ -382,15 +387,17 @@ export function WallGrid({
             className="block"
           >
             <KitCard
-              title={kitDisplayName({ title: item.title, briefText: item.note })}
+              title={item.title}
+              createdAt={item.createdAt}
               imageSrc={item.displayKey ? `/media/${item.displayKey}` : null}
               hexes={item.hexColors}
+              roles={item.roles}
             />
           </Link>
           <div className="pointer-events-none absolute right-0 top-0 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
             <button
               type="button"
-              aria-label={`Select ${kitDisplayName({ title: item.title, briefText: item.note })}`}
+              aria-label={`Select ${kitDisplayName({ title: item.title, primaryHex: item.roles?.primary ?? item.hexColors.find(Boolean), createdAt: item.createdAt })}`}
               onClick={() => {
                 setSelectMode(true);
                 setSelected((prev) => new Set(prev).add(item.id));

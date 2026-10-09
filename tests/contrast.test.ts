@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { contrastLineCopy, contrastRatio, swatchHairline, swatchInk, textOnBackgroundContrast } from "@/lib/contrast";
+import { contrastLineCopy, contrastRatio, gatedTextColor, swatchHairline, swatchInk, textContrastFix, textOnBackgroundContrast } from "@/lib/contrast";
+import { INK, PAPER } from "@/lib/brand";
 import { emptyRoles } from "@/lib/tokens";
 
 describe("swatchInk", () => {
@@ -25,6 +26,20 @@ describe("contrastLineCopy", () => {
 });
 
 describe("gated kit text", () => {
+  it("gates the normal-sized 18px IMG_6208 brief to ink at 7.1:1", () => {
+    const background = "#79acd3";
+    expect(contrastRatio("#384a5d", background)).toBeCloseTo(3.75, 2);
+    expect(gatedTextColor("#384a5d", background)).toBe(INK);
+    expect(contrastRatio(INK, background)).toBeCloseTo(7.1, 1);
+    expect(gatedTextColor("#384a5d", background, 3)).toBe("#384a5d");
+  });
+
+  it("chooses paper on dark backgrounds and preserves passing kit text even when ink is stronger", () => {
+    expect(gatedTextColor("#384a5d", "#202020")).toBe(PAPER);
+    expect(gatedTextColor("#384a5d", PAPER)).toBe("#384a5d");
+    expect(contrastRatio(INK, PAPER)).toBeGreaterThan(contrastRatio("#384a5d", PAPER));
+  });
+
   it("uses the kit text token at 4.5:1 and falls back to ink or paper", async () => {
     const { gatedTextColor, contrastRatio } = await import("@/lib/contrast");
     const { INK, PAPER } = await import("@/lib/brand");
@@ -36,10 +51,36 @@ describe("gated kit text", () => {
     expect(gatedTextColor("#bec6cd", darkBg, 4.5)).toBe("#bec6cd");
   });
 
-  it("labels AA pass or fail", async () => {
+  it("labels AA or Below AA", async () => {
     const { aaPassLabel } = await import("@/lib/contrast");
-    expect(aaPassLabel(4.5)).toBe("AA pass");
-    expect(aaPassLabel(4.49)).toBe("fail");
+    expect(aaPassLabel(4.5)).toBe("AA");
+    expect(aaPassLabel(4.49)).toBe("Below AA");
+  });
+});
+
+describe("text contrast correction", () => {
+  it("prefers the strongest passing real kit role over neutral ink", () => {
+    const best = { role: "primary" as const, hex: "#252525", origin: "region", pinX: 0.3, pinY: 0.7 };
+    const colors = [
+      { role: "text" as const, hex: "#384a5d", origin: "region", pinX: 0.8, pinY: 0.1 },
+      { role: "surface" as const, hex: "#303030", origin: "region", pinX: 0.6, pinY: 0.2 },
+      best,
+      { role: "accent" as const, hex: "#000000", derivedFrom: "primary" as const },
+    ];
+    expect(textContrastFix("#79acd3", colors)).toMatchObject(best);
+    expect(contrastRatio(INK, "#79acd3")).toBeGreaterThan(contrastRatio(best.hex, "#79acd3"));
+  });
+
+  it.each([
+    { background: "#79acd3", expected: INK },
+    { background: "#202020", expected: PAPER },
+  ])("falls back to $expected on $background without inventing a pin", ({ background, expected }) => {
+    const best = textContrastFix(background, [
+      { role: "text", hex: "#384a5d", origin: "region", pinX: 0.2, pinY: 0.3 },
+      { role: "accent", hex: "#000000", derivedFrom: "text" },
+    ]);
+    expect(best).toEqual({ hex: expected });
+    expect(contrastRatio(best.hex, background)).toBeGreaterThanOrEqual(4.5);
   });
 });
 

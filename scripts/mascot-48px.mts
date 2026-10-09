@@ -36,7 +36,7 @@ function swatches(kit: MascotKit): string {
 function card(id: string, label: string, kit: MascotKit): string {
   return `<article class="card">
     <div class="row">
-      <div class="baku" id="${id}" data-pose="chewing" data-seams="on" style="width:48px;height:48px;${kitStyle(kit)}">${bakuSvgMarkup(id + "-clip")}</div>
+      <div class="baku" id="${id}" data-pose="chewing" data-seams="on" style="width:48px;height:48px;${kitStyle(kit)}">${bakuSvgMarkup(id + "-clip", kit)}</div>
       <div>
         <h1>${label}</h1>
         <p>48px · token order · darker seams</p>
@@ -68,7 +68,7 @@ async function main(): Promise<void> {
 </style>
 <body>
   ${card("baku-6505", "IMG_6505", HANDOFF_KITS.IMG_6505)}
-  ${card("baku-6208", "IMG_6208 (cream-padded)", HANDOFF_KITS.IMG_6208)}
+  ${card("baku-6208", "IMG_6208", HANDOFF_KITS.IMG_6208)}
   <p style="color:#737373;font-size:12px">Cream coat ${BAKU_CREAM} · seam ${BAKU_SEAM}. Near-black #0a0c0b (6505 text) and near-white #bec6cd (6208 text) must keep a hairline on the cream body.</p>
 </body>
 </html>`;

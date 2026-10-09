@@ -34,7 +34,7 @@ describe("r7 upload wait", () => {
     expect(form).toContain("data-upload-wait");
     expect(form).toContain('align="center"');
     expect(form).toContain("disabled={uploading}");
-    expect(form).toContain("MASCOT_SIZE_INTRO_PX");
+    expect(form).toContain("MASCOT_SIZE_UPLOAD_PX");
     expect(src("lib/media.ts")).toContain("Promise.all");
     expect(BRIEF_REQUEST.visionEdgePx).toBe(384);
   });
@@ -53,7 +53,7 @@ describe("r7 recapture script", () => {
 });
 
 describe("r7 login polish", () => {
-  it("uses Fraunces, pose PNG, and six real kit colors", () => {
+  it("uses the headline font, pose PNG, and six real kit colors", () => {
     const login = src("app/login/SignInForm.tsx");
     expect(login).toContain("font-heading");
     expect(login).toContain("Enter your email and we'll send you a code.");

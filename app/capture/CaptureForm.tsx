@@ -7,7 +7,7 @@ import { CaptureMascotLayer } from "@/app/components/CaptureMascotLayer";
 import { MascotStage } from "@/app/components/MascotStage";
 import { prepareUploadFile } from "@/lib/client-image";
 import { buildCaptureFormData } from "@/lib/capture-form-data";
-import { MASCOT_SIZE_INTRO_PX } from "@/lib/mascot";
+import { MASCOT_SIZE_UPLOAD_PX } from "@/lib/mascot";
 import { MOTION, MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { BAR_FADE, SNAP_SCROLL_PAD } from "@/lib/layout";
 import { unstable_rethrow } from "next/navigation";
@@ -130,7 +130,7 @@ export function CaptureForm({
             moment="upload"
             snapReady
             immediate
-            size={MASCOT_SIZE_INTRO_PX}
+            size={MASCOT_SIZE_UPLOAD_PX}
             align="center"
             progress={progressCopy}
           />

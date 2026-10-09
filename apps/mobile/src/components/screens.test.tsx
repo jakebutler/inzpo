@@ -4,7 +4,7 @@ import { act, fireEvent, render, waitFor, within } from '@testing-library/react-
 import * as ImagePicker from 'expo-image-picker';
 import * as ExpoHaptics from 'expo-haptics';
 import * as Reanimated from 'react-native-reanimated';
-import { Keyboard, Platform, StyleSheet } from 'react-native';
+import { Keyboard, Platform } from 'react-native';
 import { fonts, INK } from '@/theme/tokens';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import SignInScreen from '@/app/(auth)/sign-in';
@@ -18,8 +18,6 @@ import { useInzpoClient } from '@/lib/api';
 import { createHaptics, haptics } from '@/lib/haptics';
 import { uploadPhoto } from '@/lib/upload';
 import { capturePhoto, handoffPhoto } from '@/lib/photo-handoff';
-import { PrimaryArrow } from './PrimaryArrow';
-import { photoPins } from '@/lib/result-pins';
 import { resultSequenceBeats, SHUTTER_PRESS_SCALE, TAP_TIMING, BUTTON_PRESS_SCALE } from '@/theme/motion';
 import { kitFixture, mockClient } from '../../tests/fixtures';
 import { mockReanimatedMotion } from '../../tests/reanimated-motion';
@@ -113,33 +111,33 @@ test('snap renders both actions and uploads a library image before navigating', 
   const photo = { uri: 'file:///house.jpg', width: 4000, height: 3000 };
   jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({ canceled: false, assets: [photo] });
   const view = await render(<SnapScreen />);
-  expect(view.getByRole('button', { name: 'Snap a house' })).toBeTruthy();
-  await fireEvent.press(view.getByRole('button', { name: 'Pick from library' }));
+  expect(view.getByRole('button', { name: 'Take a photo' })).toBeTruthy();
+  await fireEvent.press(view.getByRole('button', { name: 'Choose from library' }));
   expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith(expect.objectContaining({ mediaTypes: ['images'] }));
   expect(uploadPhoto).toHaveBeenCalledWith(client, photo);
   expect(router.push).toHaveBeenCalledWith({ pathname: '/kit/[id]', params: { id: 'kit-1' } });
 });
 
-test.each(['camera', 'library'] as const)('%s shows the local photo before upload finishes and starts munching only after it paints', async (source) => {
+test.each(['camera', 'library'] as const)('%s keeps the local photo visible throughout upload', async (source) => {
   const photo = { uri: 'file:///snapped.jpg', width: 1500, height: 2000 };
   const picker = source === 'camera' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
   jest.mocked(picker).mockResolvedValue({ canceled: false, assets: [photo] });
   let resolveUpload!: (id: string) => void;
   jest.mocked(uploadPhoto).mockReturnValue(new Promise((resolve) => { resolveUpload = resolve; }));
   const view = await render(<SnapScreen />);
-  await fireEvent.press(view.getByRole('button', { name: source === 'camera' ? 'Snap a house' : 'Pick from library' }));
+  await fireEvent.press(view.getByRole('button', { name: source === 'camera' ? 'Take a photo' : 'Choose from library' }));
 
   expect(uploadPhoto).toHaveBeenCalledWith(client, photo);
-  expect(view.getByLabelText('House photo').props.source).toEqual({ uri: photo.uri });
+  expect(view.getByLabelText('Source photo').props.source).toEqual({ uri: photo.uri });
   expect(router.push).not.toHaveBeenCalled();
   expect(view.queryByTestId('munch-player')).toBeNull();
-  await fireEvent(view.getByLabelText('House photo'), 'loadEnd');
+  await fireEvent(view.getByLabelText('Source photo'), 'loadEnd');
   expect(view.queryByTestId('munch-player')).toBeNull();
-  await fireEvent(view.getByLabelText('House photo'), 'display');
-  expect(view.getByTestId('munch-player')).toBeTruthy();
+  await fireEvent(view.getByLabelText('Source photo'), 'display');
+  expect(view.getByText('Keeping your photo…')).toBeTruthy();
   expect(router.push).not.toHaveBeenCalled();
 
-  await fireEvent(view.getByLabelText('House photo'), 'error');
+  await fireEvent(view.getByLabelText('Source photo'), 'error');
   expect(view.queryByTestId('munch-player')).toBeNull();
   await act(async () => resolveUpload('kit-1'));
   expect(router.push).toHaveBeenCalledWith({ pathname: '/kit/[id]', params: { id: 'kit-1' } });
@@ -147,19 +145,19 @@ test.each(['camera', 'library'] as const)('%s shows the local photo before uploa
   expect(view.queryByTestId('munch-player')).toBeNull();
 });
 
-test('camera permission denial shows photo-error Baku without launching the camera', async () => {
+test('camera denial offers Settings and library without launching the camera', async () => {
   jest.mocked(ImagePicker.requestCameraPermissionsAsync).mockResolvedValue({ granted: false } as ImagePicker.CameraPermissionResponse);
   const view = await render(<SnapScreen />);
-  await fireEvent.press(view.getByRole('button', { name: 'Snap a house' }));
-  expect(view.getByText('Allow camera access in Settings to snap a house.')).toBeTruthy();
-  expect(view.getByTestId('baku-errorPhoto')).toBeTruthy();
+  await fireEvent.press(view.getByRole('button', { name: 'Take a photo' }));
+  expect(view.getByRole('button', { name: 'Open Settings' })).toBeTruthy();
+  expect(view.getByRole('button', { name: 'Choose from library' })).toBeEnabled();
   expect(ImagePicker.launchCameraAsync).not.toHaveBeenCalled();
 });
 
 test('canceling the picker neither uploads nor navigates', async () => {
   jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({ canceled: true, assets: null });
   const view = await render(<SnapScreen />);
-  await fireEvent.press(view.getByRole('button', { name: 'Pick from library' }));
+  await fireEvent.press(view.getByRole('button', { name: 'Choose from library' }));
   expect(uploadPhoto).not.toHaveBeenCalled();
   expect(router.push).not.toHaveBeenCalled();
 });
@@ -169,14 +167,18 @@ test('upload pending disables both actions; failure restores them and shows one 
   let rejectUpload!: (reason: Error) => void;
   jest.mocked(uploadPhoto).mockReturnValue(new Promise((_resolve, reject) => { rejectUpload = reject; }));
   const view = await render(<SnapScreen />);
-  await fireEvent.press(view.getByRole('button', { name: 'Pick from library' }));
+  await fireEvent.press(view.getByRole('button', { name: 'Choose from library' }));
   expect(view.queryByText('Chewing on it.')).toBeNull();
-  expect(view.getByRole('button', { name: 'Snap a house' })).toBeDisabled();
-  expect(view.getByRole('button', { name: 'Pick from library' })).toBeDisabled();
+  expect(view.getByRole('button', { name: 'Take a photo' })).toBeDisabled();
+  expect(view.getByRole('button', { name: 'Choose from library' })).toBeDisabled();
   await act(async () => { rejectUpload(new Error('offline')); });
-  expect(view.getByText('Couldn’t keep this photo. Please try again.')).toBeTruthy();
-  expect(view.getByTestId('baku-errorPhoto')).toBeTruthy();
-  expect(view.getByRole('button', { name: 'Snap a house' })).toBeEnabled();
+  expect(view.getByText(/Couldn’t keep this photo/)).toBeTruthy();
+  expect(view.getByRole('button', { name: 'Retry this photo' })).toBeEnabled();
+  jest.mocked(uploadPhoto).mockResolvedValue('kit-1');
+  await fireEvent.press(view.getByRole('button', { name: 'Retry this photo' }));
+  expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledTimes(1);
+  expect(uploadPhoto).toHaveBeenCalledTimes(2);
+  expect(view.getByRole('button', { name: 'Take a photo' })).toBeEnabled();
 });
 
 test('result renders filled bands and preserves an empty accent without a swatch', async () => {
@@ -193,7 +195,7 @@ test('result renders filled bands and preserves an empty accent without a swatch
   expect(client.getBrief).not.toHaveBeenCalled();
 });
 
-test('result actions sit outside the scroll content, film stays upright, and filled roles have fallback pins', async () => {
+test('result actions sit outside the scroll content, film stays upright, and filled roles have measured pins', async () => {
   completedResultKits.add('kit-1');
   const view = await render(<ResultScreen />);
   expect(within(view.getByTestId('result-content')).queryByRole('button', { name: 'Save' })).toBeNull();
@@ -229,35 +231,25 @@ test('a pending brief polls and refetches the kit title after resolving', async 
   const view = await render(<ResultScreen />);
   expect(view.queryByText('Chewing on it.')).toBeNull();
   expect(view.queryByTestId('munch-player')).toBeNull();
-  await fireEvent(view.getByLabelText('House photo'), 'display');
-  expect(view.getByTestId('baku-chewing')).toBeTruthy();
-  expect(view.getByTestId('result-hero')).toHaveStyle({ justifyContent: 'center' });
-  expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
-  expect(view.queryByRole('button', { name: 'Edit' })).toBeNull();
+  await fireEvent(view.getByLabelText('Source photo'), 'display');
+  expect(view.getByText('Your colors are ready. Baku is finding the words…')).toBeTruthy();
+  await fireEvent(view.getByTestId('result-content'), 'scrollBeginDrag');
+  expect(view.getByRole('button', { name: 'Save' })).toBeEnabled();
+  expect(view.getByRole('button', { name: 'Edit' })).toBeEnabled();
   await act(async () => { resolveBrief(kitFixture.brief); });
   expect(await view.findByLabelText('The brick house')).toBeTruthy();
   expect(client.getKit).toHaveBeenCalledTimes(2);
   expect(client.getBrief).toHaveBeenCalledWith('kit-1', expect.objectContaining({ signal: expect.anything() }));
 });
 
-test('waiting shows the delayed caption above fixed Result actions, then removes it when ready', async () => {
-  jest.useFakeTimers();
-  client.getKit.mockResolvedValueOnce({ ...kitFixture, brief: { ...kitFixture.brief, status: 'pending', text: null } })
-    .mockResolvedValueOnce(kitFixture);
-  let resolveBrief!: (brief: typeof kitFixture.brief) => void;
-  client.getBrief.mockReturnValue(new Promise((resolve) => { resolveBrief = resolve; }));
+test('pending prose leaves the colors, Save and exports available', async () => {
+  completedResultKits.add('kit-1');
+  client.getKit.mockResolvedValue({ ...kitFixture, brief: { ...kitFixture.brief, status: 'pending', text: null } });
+  client.getBrief.mockReturnValue(new Promise(() => {}));
   const view = await render(<ResultScreen />);
-  await fireEvent(view.getByLabelText('House photo'), 'display');
-  await act(async () => jest.advanceTimersByTime(1999));
-  expect(view.queryByText('Chewing on it.')).toBeNull();
-  await act(async () => jest.advanceTimersByTime(1));
-  const actions = within(view.getByTestId('result-actions'));
-  expect(view.getByTestId('munch-player')).toHaveStyle({ width: 280 });
-  expect(actions.getByText('Chewing on it.')).toHaveStyle({ bottom: 64, position: 'absolute' });
-  expect(within(view.getByTestId('result-content')).queryByText('Chewing on it.')).toBeNull();
-  expect(actions.queryByRole('button', { name: 'Save' })).toBeNull();
-  await act(async () => { resolveBrief(kitFixture.brief); });
-  expect(view.queryByText('Chewing on it.')).toBeNull();
+  expect(view.getByText('Your colors are ready. Baku is finding the words…')).toBeTruthy();
+  expect(view.getByRole('button', { name: 'Save' })).toBeEnabled();
+  expect(view.getByRole('button', { name: 'Copy kit' })).toBeEnabled();
   expect(view.queryByTestId('munch-player')).toBeNull();
 });
 
@@ -324,7 +316,7 @@ test('scrolling without a touch event still skips the active result sequence', a
   expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
 });
 
-test('tapping during pending preserves the hero and keeps buttons gated until it finishes', async () => {
+test('pending prose does not restart the palette entrance when it resolves', async () => {
   jest.useFakeTimers();
   const pending = { ...kitFixture, brief: { ...kitFixture.brief, status: 'pending' as const, text: null } };
   client.getKit.mockResolvedValueOnce(pending).mockResolvedValueOnce(kitFixture);
@@ -332,8 +324,8 @@ test('tapping during pending preserves the hero and keeps buttons gated until it
   client.getBrief.mockReturnValue(new Promise((resolve) => { resolveBrief = resolve; }));
   const view = await render(<ResultScreen />);
   await fireEvent(view.getByTestId('result-content'), 'touchStart');
-  expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
-  expect(view.queryByRole('button', { name: 'Edit' })).toBeNull();
+  expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
+  expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
   await act(async () => { resolveBrief(kitFixture.brief); });
   expect(view.getByRole('button', { name: 'Save' })).toBeDisabled();
   expect(view.getByRole('button', { name: 'Edit' })).toBeDisabled();
@@ -372,8 +364,8 @@ test('an empty Accent opens its picker and can be filled without changing other 
 });
 
 test.each([
-  ['Snap a house', SHUTTER_PRESS_SCALE],
-  ['Pick from library', BUTTON_PRESS_SCALE],
+  ['Take a photo', SHUTTER_PRESS_SCALE],
+  ['Choose from library', BUTTON_PRESS_SCALE],
 ] as const)('%s scales and fires Light on press-in, with spring release and no release haptic', async (label, scale) => {
   const timing = jest.spyOn(Reanimated, 'withTiming');
   const spring = jest.spyOn(Reanimated, 'withSpring');
@@ -394,7 +386,7 @@ test('reduced motion Snap fades on press and keeps Light feedback', async () => 
   const timing = jest.spyOn(Reanimated, 'withTiming');
   const spring = jest.spyOn(Reanimated, 'withSpring');
   const view = await render(<SnapScreen />);
-  await fireEvent(view.getByRole('button', { name: 'Snap a house' }), 'pressIn');
+  await fireEvent(view.getByRole('button', { name: 'Take a photo' }), 'pressIn');
   expect(timing).toHaveBeenCalledWith(0.72, expect.objectContaining({ duration: 150 }));
   expect(spring).not.toHaveBeenCalled();
   expect(ExpoHaptics.impactAsync).toHaveBeenCalledWith(ExpoHaptics.ImpactFeedbackStyle.Light);
@@ -745,60 +737,25 @@ test('Your colors renders exactly four photo pins for four filled roles, even wh
 });
 
 
-test('the capture photo is present during the initial kit request and chew waits for display', async () => {
+test('the capture photo stays present while its colors load', async () => {
   handoffPhoto('kit-1', { uri: 'file:///picked.jpg', width: 1500, height: 2000 });
   client.getKit.mockReturnValue(new Promise(() => {}));
   const view = await render(<ResultScreen />);
-  expect(view.getByLabelText('House photo').props.source).toEqual({ uri: 'file:///picked.jpg' });
+  expect(view.getByLabelText('Source photo').props.source).toEqual({ uri: 'file:///picked.jpg' });
   expect(view.queryByTestId('munch-player')).toBeNull();
-  await fireEvent(view.getByLabelText('House photo'), 'display');
-  expect(view.getByTestId('munch-player')).toBeTruthy();
+  await fireEvent(view.getByLabelText('Source photo'), 'display');
+  expect(view.getByText('Finding your colors…')).toBeTruthy();
   expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
-  await fireEvent(view.getByLabelText('House photo'), 'error');
+  await fireEvent(view.getByLabelText('Source photo'), 'error');
   expect(view.queryByTestId('munch-player')).toBeNull();
 });
 
-test('a painted capture does not start munching on the result image until that new source paints', async () => {
+test('a captured kit offers an explicit reveal skip even while its remote photo is loading', async () => {
   handoffPhoto('kit-1', { uri: 'file:///picked.jpg', width: 1500, height: 2000 });
-  let resolveKit!: (kit: typeof kitFixture) => void;
-  client.getKit.mockReturnValue(new Promise((resolve) => { resolveKit = resolve; }));
-  client.getBrief.mockReturnValue(new Promise(() => {}));
   const view = await render(<ResultScreen />);
-  await fireEvent(view.getByLabelText('House photo'), 'display');
-  expect(view.getByTestId('munch-player')).toBeTruthy();
-
-  await act(async () => resolveKit({ ...kitFixture, brief: { ...kitFixture.brief, status: 'pending', text: null } }));
-  expect(view.getByLabelText('House photo').props.source).toEqual({ uri: kitFixture.photo!.url });
-  expect(view.queryByTestId('munch-player')).toBeNull();
-  await fireEvent(view.getByLabelText('House photo'), 'display');
-  expect(view.getByTestId('munch-player')).toBeTruthy();
-
-  await fireEvent(view.getByLabelText('House photo'), 'error');
-  expect(view.queryByTestId('munch-player')).toBeNull();
-  await fireEvent.press(view.getByRole('button', { name: 'Reload photo' }));
-  expect(view.queryByTestId('munch-player')).toBeNull();
-  await fireEvent(view.getByLabelText('House photo'), 'display');
-  expect(view.getByTestId('munch-player')).toBeTruthy();
-});
-
-test.each([null, kitFixture.photo])('without a displayed photo chewing never plays (%s)', async (photo) => {
-  client.getKit.mockResolvedValue({ ...kitFixture, photo, brief: { ...kitFixture.brief, status: 'pending', text: null } });
-  client.getBrief.mockReturnValue(new Promise(() => {}));
-  const view = await render(<ResultScreen />);
-  expect(view.queryByTestId('munch-player')).toBeNull();
-});
-
-test('the signature ends on Primary even when a window pin comes first in the color array', async () => {
-  const kit = { ...kitFixture, photo: { ...kitFixture.photo!, width: 1500, height: 2000 }, colors: [
-    { role: 'secondary' as const, hex: kitFixture.roles.secondary!, origin: 'sampled', name: 'window', pinX: 0.7, pinY: 0.3 },
-    { role: 'primary' as const, hex: kitFixture.roles.primary!, origin: 'sampled', name: 'siding', pinX: 307 / 1500, pinY: 889 / 2000 },
-  ] };
-  client.getKit.mockResolvedValue(kit);
-  const view = await render(<ResultScreen />);
-  const print = view.getByTestId('film-print');
-  const { width, height } = StyleSheet.flatten(print.props.style);
-  const primary = photoPins(kit, width - 26, height - 50).find((pin) => pin.role === 'primary')!;
-  const arrow = jest.mocked(PrimaryArrow).mock.calls.at(-1)![0];
-  expect(arrow.end.x).toBeCloseTo((arrow.width - width) / 2 + 13 + primary.marker.x);
-  expect(arrow.end.y).toBeCloseTo(13 + primary.marker.y);
+  expect(view.getByRole('button', { name: 'Show my colors' })).toBeEnabled();
+  expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
+  await fireEvent.press(view.getByRole('button', { name: 'Show my colors' }));
+  expect(view.getByRole('button', { name: 'Save' })).toBeEnabled();
+  expect(view.getByRole('button', { name: 'Edit' })).toBeEnabled();
 });

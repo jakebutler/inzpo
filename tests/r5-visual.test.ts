@@ -9,16 +9,16 @@ import {
   PHOTO_FOLD_FLOOR_VH,
   PHOTO_FOLD_RESERVE_PX,
   PAPER,
-  PIN_LEADER_X,
   photoFoldHeight,
 } from "@/lib/brand";
 import { contrastRatio, matchesPageBackground } from "@/lib/contrast";
 import { displayBriefSlot } from "@/lib/brief-display";
-import { AUTO_TAG, markDerivedRoles } from "@/lib/derived-roles";
-import { clampPinCenter, mapCoverPinRaw, PIN_EDGE_MARGIN_PX } from "@/lib/cover-pin";
+import { markDerivedRoles, sampledColors } from "@/lib/derived-roles";
+import { clampPinCenter, mapCoverPinRaw, PIN_EDGE_MARGIN_PX, PIN_DISC_RADIUS_PX } from "@/lib/cover-pin";
 import { preferredHairline, segmentsCross, uncrossHairlines } from "@/lib/hairlines";
 import { MOTION } from "@/lib/motion";
 import { COLOR_ROLES } from "@/lib/db/schema";
+import { MIN_ROLE_DELTA_E, pairwiseRoleDeltaE } from "@/lib/color-distance";
 import { HANDOFF_KITS, MASCOT_COPY, MASCOT_SIZE_BRIEF_PX, MASCOT_SIZE_PX } from "@/lib/mascot";
 import { loadFoldKit } from "@/lib/fold-kit";
 import { FOLD_BRIEFS } from "@/lib/fold-briefs";
@@ -98,8 +98,8 @@ describe("r5 photo clamp", () => {
   });
 });
 
-describe("r5 derived auto tags", () => {
-  it("marks tints and shared pins as auto, not sampled", () => {
+describe("legacy padded roles", () => {
+  it("leaves legacy tints and shared pins out of display colours", () => {
     const rows = markDerivedRoles([
       { hex: HANDOFF_KITS.IMG_6505.background!, role: "background", pinX: 0.5, pinY: 0.4, position: 3 },
       { hex: HANDOFF_KITS.IMG_6505.accent!, role: "accent", pinX: 0.52, pinY: 0.41, position: 2 },
@@ -113,47 +113,51 @@ describe("r5 derived auto tags", () => {
     expect(sampled).toContain("background");
     expect(sampled).toContain("text");
     expect(auto.length).toBeGreaterThanOrEqual(2);
-    expect(AUTO_TAG).toBe("auto");
-    expect(src("app/components/PaletteBands.tsx")).toContain("inzpo-band-auto");
-    expect(src("app/globals.css")).toMatch(/\.inzpo-band-auto[\s\S]*font-size:\s*11px/);
-    expect(src("app/globals.css")).toMatch(/\.inzpo-band-auto[\s\S]*opacity:\s*0\.6/);
-    expect(src("app/components/TokenEditor.tsx")).toContain("onPromoteRole");
-    expect(src("app/components/TokenEditor.tsx")).toContain("photoBox.w / 2");
+    const display = sampledColors(rows);
+    expect(display.every((row) => !row.derivedFrom)).toBe(true);
+    expect(src("app/components/PaletteBands.tsx")).not.toContain("data-auto");
+    expect(src("app/components/PaletteBands.tsx")).toContain("EMPTY_ROLE_COPY(role)");
+    expect(src("app/globals.css")).toMatch(/\.inzpo-band-empty[\s\S]*border:\s*1px dashed currentColor/);
+    expect(src("app/components/TokenEditor.tsx")).not.toContain("autoRoles");
   });
 
-  it("keeps real fold palette gaps rather than padding every role", async () => {
+  it("keeps fold fixtures real and does not refill empty slots", async () => {
     for (const id of ["IMG_6505", "IMG_6208", "IMG_5859"] as const) {
       const kit = await loadFoldKit(id);
-      const roles = kit.colors.map((c) => c.role);
-      expect(roles.length).toBeGreaterThan(0);
-      expect(new Set(roles).size).toBe(roles.length);
-      expect(roles.every((role) => COLOR_ROLES.includes(role))).toBe(true);
-      if (id === "IMG_6505") {
-        expect(roles).not.toContain('accent');
-        expect(roles).not.toContain('surface');
+      expect(kit.colors.every((c) => c.origin === "region")).toBe(true);
+      expect(sampledColors(kit.colors)).toHaveLength(kit.colors.length);
+      expect(kit.colors.length).toBeGreaterThan(0);
+      for (const pair of pairwiseRoleDeltaE(Object.fromEntries(kit.colors.map((c) => [c.role, c.hex])))) {
+        expect(pair.deltaE).toBeGreaterThanOrEqual(MIN_ROLE_DELTA_E);
+      }
+      if (id === "IMG_6208") {
+        expect(kit.colors).toHaveLength(4);
+        expect(kit.colors.some((c) => c.role === "accent")).toBe(false);
+        expect(kit.colors.map((c) => c.role).sort()).toEqual(["background", "primary", "secondary", "text"]);
       }
     }
-  });
+  }, 30_000);
 });
 
-describe("r5 pin edge clamp", () => {
-  it("keeps disc centers 16px from edges plus safe-area top", () => {
-    expect(PIN_EDGE_MARGIN_PX).toBe(16);
+describe("pin edge displacement", () => {
+  it("keeps displaced discs inside the edge inset without moving the source mapping", () => {
+    expect(PIN_EDGE_MARGIN_PX).toBe(11);
     const raw = mapCoverPinRaw(0.5, 0.0, 100, 100, 390, 337);
     expect(raw).not.toBeNull();
-    const clamped = clampPinCenter(raw!.left * 390, raw!.top * 337, 390, 337, 47);
-    expect(clamped.y).toBeGreaterThanOrEqual(16 + 47);
-    expect(clamped.x).toBeGreaterThanOrEqual(16);
-    expect(clamped.x).toBeLessThanOrEqual(390 - 16);
+    const clamped = clampPinCenter(raw!.left * 390, raw!.top * 337, 390, 337);
+    expect(clamped.y).toBeGreaterThanOrEqual(11 + PIN_DISC_RADIUS_PX);
+    expect(clamped.x).toBeGreaterThanOrEqual(11);
+    expect(clamped.x).toBeLessThanOrEqual(390 - 11);
+    expect(raw!.top * 337).toBeLessThan(0); // raw source mapping stays unchanged
   });
 });
 
 describe("r5 hairlines and back", () => {
-  it("tracks the live band left inset and stays off until the band is on screen", () => {
+  it("stops at the photo edge and stays off until the band is on screen", () => {
     const onScreen = { left: 4, top: 70, right: 390, bottom: 110, visible: true };
-    const line = preferredHairline(80, 10, onScreen, PIN_LEADER_X);
-    expect(line).toEqual({ x1: 80, y1: 10, x2: 4 + PIN_LEADER_X, y2: 90 });
-    expect(preferredHairline(80, 10, { ...onScreen, visible: false })).toBeNull();
+    const line = preferredHairline(80, 10, onScreen, 70);
+    expect(line).toEqual({ x1: 80, y1: 10, x2: 80, y2: 70 });
+    expect(preferredHairline(80, 10, { ...onScreen, visible: false }, 70)).toBeNull();
   });
 
   it("uncrosses overlapping leaders by landing on the nearest band point", () => {
@@ -173,7 +177,7 @@ describe("r5 hairlines and back", () => {
   });
 
   it("places the back button below the safe area and on the collection page", () => {
-    expect(src("app/components/PhotoBackButton.tsx")).toContain("env(safe-area-inset-top, 0px) + 8px");
+    expect(src("app/components/PhotoBackButton.tsx")).toContain("env(safe-area-inset-top, 0px) + ${PHOTO_BACK_TOP_PX}px");
     expect(src("app/dev/fold/page.tsx")).toContain('placement="header"');
     expect(src("app/page.tsx")).toContain('<PhotoBackButton href="/" placement="header" />');
     expect(src("app/page.tsx")).toContain('href="/capture"');
@@ -220,7 +224,7 @@ describe("r5 shots", () => {
 });
 
 describe("r5 baku v6 art", () => {
-  it("keeps v6 paths, maps error-unreadable to error-photo, and tints knit poses only", () => {
+  it("keeps v6 paths, maps error-unreadable to error-photo, and enables tint by default", () => {
     expect(bakuArtPose("error-unreadable")).toBe("error-photo");
     expect(bakuCanTint("idle")).toBe(true);
     expect(bakuCanTint("empty")).toBe(false);
@@ -238,26 +242,26 @@ describe("r5 baku v6 art", () => {
     expect(multiplyGrayByHex(255, 255, 255, "#664422")).toEqual([0x66, 0x44, 0x22]);
     expect(tintRoles(HAND_OFF(), 2).filter(Boolean)).toHaveLength(2);
     expect(MASCOT_SIZE_PX).toBe(48);
-    expect(MASCOT_SIZE_BRIEF_PX).toBe(56);
+    expect(MASCOT_SIZE_BRIEF_PX).toBe(72);
     expect(BAKU_SHADOW_CLIP_PCT).toBe(10.5);
     const brief = src("app/components/BriefSlot.tsx");
     expect(brief).toMatch(/size=\{MASCOT_SIZE_BRIEF_PX\}/);
     expect(brief).not.toMatch(/size=\{MASCOT_SIZE_PX\}/);
-    expect(brief).toContain("alignItems: \"flex-end\"");
+    expect(brief).toContain("alignItems: \"center\"");
     const sprite = src("app/components/BakuSprite.tsx");
     expect(sprite).toContain("onError");
     expect(sprite).toContain("bakuDensity");
     expect(sprite).toContain("scaleX(-1)");
     expect(sprite).toContain("50% 100%");
-    expect(sprite).toContain("multiplyShadowPixels");
-    expect(sprite).toContain("bakeShadow");
-    expect(sprite).toContain("data-baku-shadow");
+    expect(sprite).not.toContain("multiplyShadowPixels");
+    expect(sprite).not.toContain("bakeShadow");
+    expect(sprite).not.toMatch(/data-baku-shadow[\s>]/);
     expect(sprite).toContain("data-baku-shadow-baked");
-    expect(sprite).toContain("BAKU_SHADOW_CLIP_PCT");
+    expect(sprite).not.toContain("clipPath");
     expect(sprite).toContain('const flip = faceText && showPng ? "scaleX(-1)" : undefined');
     expect(sprite).not.toMatch(/data-baku-sprite[\s\S]{0,400}transform: faceText && showPng/);
     expect(sprite).not.toContain("mixBlendMode");
-    expect(sprite).toContain("defringePremulEdges");
+    expect(sprite).not.toContain("defringePremulEdges");
     const fringe = new Uint8ClampedArray([243, 234, 216, 80, 56, 75, 95, 255]);
     defringePremulEdges(fringe, 2, 1, 4);
     expect(fringe[0]).toBe(56);
@@ -285,11 +289,11 @@ describe("r5 baku v6 art", () => {
     }
     expect(existsSync(path.join(dir, "baku-idle-bands@3x.png"))).toBe(true);
     expect(existsSync(path.join(dir, "baku-idle-band1@1x.png"))).toBe(true);
-    expect(existsSync(path.join(dir, "baku-empty-bands@1x.png"))).toBe(false);
+    expect(existsSync(path.join(dir, "baku-empty-bands@1x.png"))).toBe(true);
     expect(src("app/components/Mascot.tsx") + src("app/components/BakuSprite.tsx")).not.toMatch(/baku\/v5/);
   });
 
-  it("multiplies knit pixels from the index mask", async () => {
+  it("shades knit pixels from the index mask", async () => {
     const sharp = (await import("sharp")).default;
     const sprite = await sharp(path.join(process.cwd(), "public/baku/v6/baku-idle@1x.png"))
       .ensureAlpha()
@@ -302,11 +306,13 @@ describe("r5 baku v6 art", () => {
     const pixels = new Uint8ClampedArray(sprite.data);
     const mask = new Uint8ClampedArray(bands.data);
     const { tintSpriteWithBands } = await import("@/lib/baku-tint");
-    tintSpriteWithBands(pixels, mask, 48, 48, 4, bands.info.channels, ["#ff0000", null, null, null, null, null]);
+    const shade = new Uint8ClampedArray(48 * 48).fill(128);
+    tintSpriteWithBands(pixels, mask, 48, 48, 4, bands.info.channels, ["#ff0000", null, null, null, null, null], shade, 1);
     let tinted = 0;
     for (let i = 0; i < mask.length; i += bands.info.channels) {
       if (mask[i] !== 40) continue;
       const p = (i / bands.info.channels) * 4;
+      expect(pixels[p]).toBe(255);
       expect(pixels[p + 1]).toBe(0);
       expect(pixels[p + 2]).toBe(0);
       tinted += 1;
@@ -332,7 +338,7 @@ describe("r5 capture guard", () => {
         ruleCount: 0,
         backgroundHex: "#ffffff",
         kitWear: true,
-        fraunces: false,
+        headlineFont: false,
         geist: false,
       }).length,
     ).toBeGreaterThan(3);
@@ -343,7 +349,7 @@ describe("r5 capture guard", () => {
         ruleCount: 40,
         backgroundHex: "#384b5f",
         kitWear: true,
-        fraunces: true,
+        headlineFont: true,
         geist: true,
       }),
     ).toEqual([]);
@@ -354,7 +360,7 @@ describe("r5 capture guard", () => {
         ruleCount: 40,
         backgroundHex: "#f3eee4",
         kitWear: false,
-        fraunces: true,
+        headlineFont: true,
         geist: true,
         documentStatus: 500,
         errorDocument: true,

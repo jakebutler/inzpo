@@ -5,6 +5,7 @@ import { hexToFamily, isHexColor, normalizeHex } from "@/lib/colors";
 import { newId } from "@/lib/ids";
 import { assertItemOwned } from "@/lib/auth/owner";
 import { filledRoles, type RoleColors } from "@/lib/tokens";
+import { FIX_ORIGIN, REGION_ORIGIN } from "@/lib/derived-roles";
 
 export interface TokenWrite {
   hex: string;
@@ -42,7 +43,7 @@ export async function replaceItemTokens(
       itemId,
       hex: c.hex,
       family: hexToFamily(c.hex),
-      origin: origins[c.role] === "sampled" ? "sampled" : origins[c.role] === "region" ? "region" : "extracted",
+      origin: origins[c.role] === FIX_ORIGIN ? FIX_ORIGIN : origins[c.role] === REGION_ORIGIN ? REGION_ORIGIN : origins[c.role] === "sampled" ? "sampled" : "extracted",
       position,
       name: c.name ?? hexToFamily(c.hex),
       role: c.role,

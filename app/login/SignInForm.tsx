@@ -192,7 +192,7 @@ export function SignInForm({
     <div className="flex min-h-[100dvh] flex-col bg-background text-foreground">
       <header className="px-6 pt-[max(1.5rem,env(safe-area-inset-top))]">
         <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Inzpo</p>
-        <h1 className="mt-2 font-heading text-[28px] font-semibold tracking-tight">Steal the colors off anything</h1>
+        <h1 className="mt-2 font-heading text-[28px] tracking-tight">Steal the colors off anything</h1>
         <p className="mt-2 text-base text-muted-foreground">
           {step === "email" ? "Enter your email and we'll send you a code." : `Enter the code sent to your email.`}
         </p>
@@ -308,7 +308,7 @@ export function SignInUnavailable() {
   return (
     <main className="flex min-h-[100dvh] flex-col bg-background px-6 pt-[max(1.5rem,env(safe-area-inset-top))] text-foreground">
       <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Inzpo</p>
-      <h1 className="mt-2 font-heading text-[28px] font-semibold tracking-tight">Sign-in isn't available right now.</h1>
+      <h1 className="mt-2 font-heading text-[28px] tracking-tight">Sign-in isn't available right now.</h1>
     </main>
   );
 }
@@ -317,7 +317,7 @@ export function ClerkMissing({ next }: { next: string }) {
   return (
     <main className="flex min-h-[100dvh] flex-col bg-background px-6 pt-[max(1.5rem,env(safe-area-inset-top))] text-foreground">
       <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Inzpo</p>
-      <h1 className="mt-2 font-heading text-[28px] font-semibold tracking-tight">Clerk isn't configured yet</h1>
+      <h1 className="mt-2 font-heading text-[28px] tracking-tight">Clerk isn't configured yet</h1>
       <p className="mt-3 text-base text-muted-foreground">
         Preview sign-in needs Jake's Clerk development instance. Set the keys on the Vercel Preview environment, then
         invite friends from the Clerk dashboard.

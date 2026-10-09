@@ -5,6 +5,7 @@ import { COLOR_ROLES, type ColorRole } from "@/lib/db/schema";
 import { requireOwnerId } from "@/lib/auth/owner";
 import { replaceItemTokens } from "@/lib/item-tokens";
 import { emptyRoles, type RoleColors } from "@/lib/tokens";
+import { FIX_ORIGIN, REGION_ORIGIN } from "@/lib/derived-roles";
 
 function parseRoles(raw: unknown): RoleColors | null {
   if (!raw || typeof raw !== "object") return null;
@@ -54,6 +55,8 @@ export async function saveItemTokensAction(formData: FormData): Promise<void> {
       const obj = JSON.parse(originsRaw) as Record<string, unknown>;
       for (const role of COLOR_ROLES) {
         if (obj[role] === "sampled") origins[role] = "sampled";
+        else if (obj[role] === FIX_ORIGIN) origins[role] = FIX_ORIGIN;
+        else if (obj[role] === REGION_ORIGIN && pins[role]) origins[role] = REGION_ORIGIN;
       }
     } catch {
       // ignore malformed origins; colors still save

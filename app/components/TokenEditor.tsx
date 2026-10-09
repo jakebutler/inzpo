@@ -14,13 +14,16 @@ import { hexWithoutHash, isHexColor, normalizeHex } from "@/lib/colors";
 import { MOTION_CSS, prefersReducedMotion } from "@/lib/motion";
 import { filledRoles, moveRole, rolesFromColors, setRoleColor } from "@/lib/tokens";
 import { sampleImageAverage, sampleImagePixel } from "@/lib/client-eyedropper";
-import { isNoopPinSample } from "@/lib/pin-drag";
-import { SAMPLED_ORIGIN } from "@/lib/derived-roles";
-import { pointerOnCoverBox, type CoverWindow } from "@/lib/cover-pin";
+import { isNoopPinDrag, isNoopPinSample, resolvePinDropPoint, type PinDragPoint, type PointerPoint } from "@/lib/pin-drag";
+import { FIX_ORIGIN, REGION_ORIGIN, sampledColors, SAMPLED_ORIGIN } from "@/lib/derived-roles";
+import { pageChromeColors, textContrastFix, textOnBackgroundContrast } from "@/lib/contrast";
+import { kitWearStyle } from "@/lib/kit-wear";
+import { layoutPins, mapCoverPinRaw, photoBackZone, pointerOnCoverBox, type CoverWindow } from "@/lib/cover-pin";
 import { saveItemTokensAction } from "@/app/actions/tokens";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { chipCopy, chipNoun, EMPTY_ROLE_COPY, type NamedColor } from "@/lib/brief-copy";
+import { chipCopy, chipNoun, chipsDistinctFromRoles, EMPTY_ROLE_COPY, parseNamedColors, type NamedColor } from "@/lib/brief-copy";
 import { PaletteBands } from "@/app/components/PaletteBands";
+import { ContrastAa } from "./ContrastAa";
 import { CHIP_SWATCH_PX, INK, PAPER } from "@/lib/brand";
 
 export type LoupeView = { x: number; y: number; hex: string };
@@ -53,7 +56,11 @@ export function TokenEditor({
   imageSize,
   simulateLoupe = false,
   onLoupe,
+  onPinDrag,
+  onPinDrop,
   onPromoteRole,
+  onColorsChange,
+  showContrast = false,
   bandsRevealed = true,
   children,
 }: {
@@ -74,179 +81,267 @@ export function TokenEditor({
   imageSize?: { width: number; height: number };
   simulateLoupe?: boolean;
   onLoupe?: (loupe: LoupeView | null) => void;
+  onPinDrag?: (pin: { role: ColorRole; x: number; y: number } | null) => void;
+  onPinDrop?: (role: ColorRole) => void;
   onPromoteRole?: (role: ColorRole, pin: { pinX: number; pinY: number; hex: string }) => void;
+  onColorsChange?: (colors: ColorRow[]) => void;
+  showContrast?: boolean;
   bandsRevealed?: boolean;
   children?: ReactNode;
 }) {
   const [roles, setRoles] = useState(() => rolesFromColors(colors));
   const [pins, setPins] = useState<Partial<Record<ColorRole, { pinX: number; pinY: number }>>>(() => {
     const next: Partial<Record<ColorRole, { pinX: number; pinY: number }>> = {};
-    for (const c of colors) {
+    for (const c of sampledColors(colors)) {
       if (c.role && c.pinX != null && c.pinY != null) next[c.role] = { pinX: c.pinX, pinY: c.pinY };
     }
     return next;
   });
-  const [autoRoles, setAutoRoles] = useState<Set<ColorRole>>(
-    () => new Set(colors.filter((c) => c.role && c.derivedFrom).map((c) => c.role!)),
-  );
-  const [userSetRoles, setUserSetRoles] = useState<Set<ColorRole>>(
-    () => new Set(colors.filter((c) => c.role && c.origin === SAMPLED_ORIGIN).map((c) => c.role!)),
-  );
+  const [origins, setOrigins] = useState<Partial<Record<ColorRole, string>>>(() => Object.fromEntries(
+    sampledColors(colors).filter((c) => c.role).map((c) => [c.role!,
+      c.origin === FIX_ORIGIN || c.origin === SAMPLED_ORIGIN ? c.origin :
+        c.pinX != null && c.pinY != null ? REGION_ORIGIN : SAMPLED_ORIGIN,
+    ]),
+  ));
+  const [history, setHistory] = useState<Array<{ roles: typeof roles; pins: typeof pins; origins: typeof origins }>>([]);
   const [open, setOpen] = useState<ColorRole | null>(initialOpen);
   const [hexDraft, setHexDraft] = useState(() => (initialOpen ? rolesFromColors(colors)[initialOpen] ?? "" : ""));
   const [pendingHex, setPendingHex] = useState<string | null>(null);
+  const [priorityRole, setPriorityRole] = useState<ColorRole | null>(null);
   function setLoupe(next: LoupeView | null) {
     onLoupe?.(next);
   }
   const [pending, startTransition] = useTransition();
-  const sampling = useRef(false);
   const filledHex = new Set(
     Object.values(roles)
       .filter((hex): hex is string => typeof hex === "string")
       .map((hex) => hex.toLowerCase()),
   );
-  const chips = namedColors.filter((c) => !filledHex.has(c.hex.toLowerCase()));
+  const chips = COLOR_ROLES.some((role) => !roles[role])
+    ? chipsDistinctFromRoles(parseNamedColors(namedColors), filledHex)
+    : [];
 
   function setOpenRole(role: ColorRole | null) {
     setOpen(role);
     onOpenChange?.(role);
-    if (!role) setLoupe(null);
+    if (!role) {
+      setLoupe(null);
+      onPinDrag?.(null);
+    }
   }
 
   function openRole(role: ColorRole) {
     setOpenRole(role);
     setHexDraft(pendingHex ?? roles[role] ?? "");
-    if (autoRoles.has(role) && photoBox) {
-      setLoupe({ x: photoBox.w / 2, y: photoBox.h / 2, hex: roles[role] ?? "#000000" });
-    }
   }
 
-  function commit(nextRoles: typeof roles, nextPins = pins, nextUserSet = userSetRoles) {
+  function commit(nextRoles: typeof roles, nextPins = pins, nextOrigins = origins, remember = true) {
+    if (remember) setHistory((prev) => [...prev, { roles, pins, origins }]);
     setRoles(nextRoles);
     setPins(nextPins);
-    setUserSetRoles(nextUserSet);
-    const origins: Partial<Record<ColorRole, string>> = {};
-    for (const role of COLOR_ROLES) {
-      if (nextUserSet.has(role)) origins[role] = SAMPLED_ORIGIN;
-    }
+    setOrigins(nextOrigins);
+    onColorsChange?.(COLOR_ROLES.flatMap((role, position) => nextRoles[role] ? [{
+      role, position, hex: nextRoles[role]!, origin: nextOrigins[role], ...nextPins[role],
+    }] : []));
     const fd = new FormData();
     fd.set("itemId", itemId);
     fd.set("roles", JSON.stringify(nextRoles));
     fd.set("pins", JSON.stringify(nextPins));
-    fd.set("origins", JSON.stringify(origins));
-    startTransition(() => {
-      void saveItemTokensAction(fd);
+    fd.set("origins", JSON.stringify(nextOrigins));
+    startTransition(async () => {
+      await saveItemTokensAction(fd);
     });
   }
 
   function applyHex(role: ColorRole, value: string, nextPins = pins, markUserSet = true) {
     if (!isHexColor(value)) return;
-    const nextUserSet = new Set(userSetRoles);
-    if (markUserSet) nextUserSet.add(role);
-    commit(setRoleColor(roles, role, normalizeHex(value)), nextPins, nextUserSet);
+    if (normalizeHex(value) === roles[role] && nextPins === pins) {
+      setHexDraft(normalizeHex(value));
+      return;
+    }
+    const nextOrigins = markUserSet ? { ...origins, [role]: SAMPLED_ORIGIN } : origins;
+    commit(setRoleColor(roles, role, normalizeHex(value)), nextPins, nextOrigins);
     setHexDraft(normalizeHex(value));
     setPendingHex(null);
   }
 
+  function fixTextContrast() {
+    const ratio = textOnBackgroundContrast(roles);
+    if (pending || ratio == null || ratio >= 4.5) return;
+    const rows = COLOR_ROLES.flatMap((role) => roles[role] ? [{
+      role, hex: roles[role]!, origin: origins[role], ...pins[role],
+    }] : []);
+    const best = textContrastFix(roles.background!, rows);
+    const nextPins = { ...pins };
+    delete nextPins.text;
+    if (best.pinX != null && best.pinY != null) nextPins.text = { pinX: best.pinX, pinY: best.pinY };
+    commit(setRoleColor(roles, "text", normalizeHex(best.hex)), nextPins, { ...origins, text: FIX_ORIGIN });
+    if (open === "text") setHexDraft(normalizeHex(best.hex));
+  }
+
   function onChip(color: NamedColor) {
     const empty = COLOR_ROLES.find((role) => !roles[role]);
-    if (empty) {
-      const nextUserSet = new Set(userSetRoles);
-      nextUserSet.add(empty);
-      commit(setRoleColor(roles, empty, color.hex), pins, nextUserSet);
-      return;
-    }
     setPendingHex(color.hex);
-    openRole(open ?? "primary");
+    openRole(empty ?? open ?? "primary");
     setHexDraft(color.hex);
   }
 
-  function samplePointer(clientX: number, clientY: number, commitSample: boolean) {
+  function resetSamplePreview(role = open) {
+    setLoupe(null);
+    onPinDrag?.(null);
+    if (role) setHexDraft(roles[role] ?? "");
+  }
+
+  function samplePointer(clientX: number, clientY: number, commitSample: boolean, start?: PinDragPoint | null, role = open) {
     const img = photoRef?.current;
-    if (!open || !img || !crop || !photoBox || !imageSize) return;
-    const mapped = pointerOnCoverBox(
-      clientX,
-      clientY,
-      { left: img.getBoundingClientRect().left, top: img.getBoundingClientRect().top, width: photoBox.w, height: photoBox.h },
-      crop,
-    );
-    if (!mapped) return;
+    if (!role || !img || !crop) return null;
+    const rect = img.getBoundingClientRect();
+    const mapped = pointerOnCoverBox(clientX, clientY, rect, crop);
+    if (!mapped) {
+      if (commitSample) resetSamplePreview(role);
+      return null;
+    }
+    const geometry = {
+      width: img.naturalWidth, height: img.naturalHeight,
+      boxWidth: rect.width, boxHeight: rect.height, crop,
+    };
+    if (commitSample) onPinDrag?.(null);
     try {
-      if (commitSample && isNoopPinSample(pins[open], mapped.nx, mapped.ny)) {
-        return;
+      if (commitSample && (isNoopPinDrag(start, mapped, geometry) || isNoopPinSample(pins[role], mapped, geometry))) {
+        resetSamplePreview(role);
+        return mapped;
       }
       const sample = commitSample
         ? sampleImagePixel(img, mapped.nx, mapped.ny)
         : sampleImageAverage(img, mapped.nx, mapped.ny, 8);
       setLoupe({ x: mapped.x, y: mapped.y, hex: sample.hex });
       if (commitSample) {
-        const nextPins = { ...pins, [open]: { pinX: sample.pinX, pinY: sample.pinY } };
-        setAutoRoles((prev) => {
-          const next = new Set(prev);
-          next.delete(open);
-          return next;
-        });
-        onPromoteRole?.(open, { pinX: sample.pinX, pinY: sample.pinY, hex: sample.hex });
-        applyHex(open, sample.hex, nextPins, true);
+        const nextPins = { ...pins, [role]: { pinX: sample.pinX, pinY: sample.pinY } };
+        setPriorityRole(role);
+        onPinDrop?.(role);
+        onPromoteRole?.(role, { pinX: sample.pinX, pinY: sample.pinY, hex: sample.hex });
+        applyHex(role, sample.hex, nextPins, true);
       } else {
+        onPinDrag?.({ role, x: mapped.x, y: mapped.y });
         setHexDraft(sample.hex);
       }
     } catch {
       // keep the previous color if the image cannot be sampled
+      if (commitSample) resetSamplePreview(role);
     }
+    return mapped;
   }
+
+  // Loupe updates render the parent on every move. Keep the native listeners and
+  // their active pointer intact, while sampling with the latest role/crop/state.
+  const pointerHandlers = useRef({ samplePointer, resetSamplePreview, openRole, open });
+  useEffect(() => {
+    pointerHandlers.current = { samplePointer, resetSamplePreview, openRole, open };
+  });
 
   useEffect(() => {
     const img = photoRef?.current;
     if (!open || !img) return;
+    const previousPointerEvents = img.style.pointerEvents;
+    const previousTouchAction = img.style.touchAction;
     img.style.pointerEvents = "auto";
+    img.style.touchAction = "none";
+    return () => {
+      img.style.pointerEvents = previousPointerEvents;
+      img.style.touchAction = previousTouchAction;
+    };
+  }, [open, photoRef]);
+
+  useEffect(() => {
+    const img = photoRef?.current;
+    if (!img) return;
+    // Disc-centered hit areas are siblings of the image. Delegate on the photo but
+    // capture on the image, preserving the same release-point sampling stream.
+    const surface = img.closest<HTMLElement>("[data-photo-fold]") ?? img;
+    let active: { pointerId: number; role: ColorRole; start: PinDragPoint; lastGood: PointerPoint } | null = null;
+    const preventNativeDrag = (e: DragEvent) => e.preventDefault();
     const onDown = (e: PointerEvent) => {
-      sampling.current = true;
+      if (active || !e.isPrimary || e.button !== 0) return;
+      const target = e.target as HTMLElement | null;
+      const hitRole = target?.closest?.<HTMLElement>("[data-pin-hit]")?.dataset.pinHit;
+      const role = COLOR_ROLES.find((r) => r === hitRole) ??
+        (target === img ? pointerHandlers.current.open : null);
+      if (!role) return; // Back and other photo controls retain their events.
+      if (role !== pointerHandlers.current.open) pointerHandlers.current.openRole(role);
+      const start = pointerHandlers.current.samplePointer(e.clientX, e.clientY, false, null, role);
+      if (!start) return;
+      // Images are natively draggable in Chromium: without this, dragstart
+      // cancels our pointer stream and reports (0, 0) instead of a drop.
+      e.preventDefault();
+      active = { pointerId: e.pointerId, role, start, lastGood: { clientX: e.clientX, clientY: e.clientY } };
       img.setPointerCapture(e.pointerId);
-      samplePointer(e.clientX, e.clientY, false);
     };
     const onMove = (e: PointerEvent) => {
-      if (!sampling.current && e.buttons === 0) return;
-      samplePointer(e.clientX, e.clientY, false);
+      if (!active || active.pointerId !== e.pointerId) return;
+      if (!Number.isFinite(e.clientX) || !Number.isFinite(e.clientY)) return;
+      active.lastGood = { clientX: e.clientX, clientY: e.clientY };
+      pointerHandlers.current.samplePointer(e.clientX, e.clientY, false, null, active.role);
     };
     const onUp = (e: PointerEvent) => {
-      if (!sampling.current) return;
-      sampling.current = false;
-      samplePointer(e.clientX, e.clientY, true);
+      if (!active || active.pointerId !== e.pointerId) return;
+      const drag = active;
+      active = null;
+      const point = resolvePinDropPoint(e, drag.lastGood);
+      if (point) pointerHandlers.current.samplePointer(point.clientX, point.clientY, true, drag.start, drag.role);
+      else pointerHandlers.current.resetSamplePreview(drag.role);
+      if (img.hasPointerCapture(e.pointerId)) img.releasePointerCapture(e.pointerId);
     };
-    img.addEventListener("pointerdown", onDown);
-    img.addEventListener("pointermove", onMove);
-    img.addEventListener("pointerup", onUp);
-    img.addEventListener("pointercancel", onUp);
+    const onLostCapture = (e: PointerEvent) => {
+      if (!active || active.pointerId !== e.pointerId) return;
+      const role = active.role;
+      active = null;
+      pointerHandlers.current.resetSamplePreview(role);
+    };
+    img.addEventListener("dragstart", preventNativeDrag);
+    surface.addEventListener("pointerdown", onDown);
+    surface.addEventListener("pointermove", onMove);
+    surface.addEventListener("pointerup", onUp);
+    surface.addEventListener("pointercancel", onUp);
+    surface.addEventListener("lostpointercapture", onLostCapture);
     return () => {
-      img.style.pointerEvents = "";
-      img.removeEventListener("pointerdown", onDown);
-      img.removeEventListener("pointermove", onMove);
-      img.removeEventListener("pointerup", onUp);
-      img.removeEventListener("pointercancel", onUp);
+      if (active && img.hasPointerCapture(active.pointerId)) img.releasePointerCapture(active.pointerId);
+      active = null;
+      img.removeEventListener("dragstart", preventNativeDrag);
+      surface.removeEventListener("pointerdown", onDown);
+      surface.removeEventListener("pointermove", onMove);
+      surface.removeEventListener("pointerup", onUp);
+      surface.removeEventListener("pointercancel", onUp);
+      surface.removeEventListener("lostpointercapture", onLostCapture);
     };
-    // samplePointer closes over open/crop; rebind when the role changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, photoRef, crop, photoBox, imageSize, pins, roles]);
+  }, [photoRef]);
 
   useEffect(() => {
     if (!simulateLoupe || !open || !crop || !photoBox || !imageSize) return;
     const hex = roles[open] ?? "#000000";
-    if (autoRoles.has(open)) {
-      setLoupe({ x: photoBox.w / 2, y: photoBox.h / 2, hex });
-      return;
-    }
     const pin = pins[open];
     if (!pin) {
       setLoupe({ x: photoBox.w / 2, y: photoBox.h / 2, hex });
       return;
     }
-    const left = ((pin.pinX - crop.vx) / crop.vw) * photoBox.w;
-    const top = ((pin.pinY - crop.vy) / crop.vh) * photoBox.h;
-    setLoupe({ x: left, y: top, hex });
-  }, [simulateLoupe, open, crop, photoBox, imageSize, pins, roles, autoRoles]);
+    const surface = photoRef?.current?.closest<HTMLElement>("[data-photo-fold]");
+    const safeTop = surface?.querySelector<HTMLElement>("[data-safe-top]");
+    const safeTopPx = safeTop ? Number.parseFloat(getComputedStyle(safeTop).paddingTop) || 0 : 0;
+    const avoid = surface?.querySelector("[data-photo-back]") ? photoBackZone(safeTopPx) : null;
+    const mappedPins = COLOR_ROLES.flatMap(role => {
+      const sample = pins[role];
+      if (!roles[role] || !sample) return [];
+      const mapped = mapCoverPinRaw(sample.pinX, sample.pinY, imageSize.width, imageSize.height,
+        photoBox.w, photoBox.h, crop);
+      return mapped ? [{ role, x: mapped.left * photoBox.w, y: mapped.top * photoBox.h }] : [];
+    });
+    const placement = layoutPins(mappedPins, photoBox, avoid, priorityRole)[mappedPins.findIndex(p => p.role === open)];
+    if (placement) setLoupe({ ...placement.disc, hex });
+  }, [simulateLoupe, open, crop, photoBox?.w, photoBox?.h, imageSize?.width, imageSize?.height, photoRef, pins, roles, priorityRole]);
 
   const reduced = prefersReducedMotion();
+  const { background: editorBackground, ink: editorInk } = showContrast
+    ? pageChromeColors(roles)
+    : { background: pageBackground, ink: pageInk };
   const chipAnim = reduced
     ? `${MOTION_CSS.reducedMs}ms ${MOTION_CSS.easeEnter}`
     : `${MOTION_CSS.enterMs}ms ${MOTION_CSS.easeEnter}`;
@@ -257,14 +352,15 @@ export function TokenEditor({
         <PaletteBands
           roles={roles}
           size={size}
-          pageBackground={pageBackground}
+          pageBackground={editorBackground}
+          pageInk={editorInk}
           onPick={openRole}
           onFocusRole={onFocusRole}
           bandRefs={bandRefs}
-          autoRoles={autoRoles}
         />
       </div>
       {children}
+      {showContrast ? <ContrastAa roles={roles} onFix={fixTextContrast} pending={pending} /> : null}
       {chips.length > 0 ? (
         <div className="mt-3 flex flex-col gap-2 px-5">
           {chips.map((color) => {
@@ -273,6 +369,7 @@ export function TokenEditor({
               <div
                 key={color.hex}
                 data-named-chip
+                data-chip-source={color.source ?? "region"}
                 className="flex min-h-11 items-center gap-3 border border-solid px-3"
                 style={{
                   borderWidth: 1,
@@ -307,7 +404,7 @@ export function TokenEditor({
           })}
         </div>
       ) : null}
-      {pending ? <p className="mt-1 px-5 text-base">Saving…</p> : null}
+      {pending ? <p data-token-saving className="mt-1 px-5 text-base">Saving…</p> : null}
 
       <Sheet
         open={open !== null}
@@ -322,7 +419,13 @@ export function TokenEditor({
           side="bottom"
           overlayClassName="inzpo-photo-clear"
           className="max-h-[calc(100dvh-var(--photo-fold-h,337px))] bg-background pb-[max(1rem,env(safe-area-inset-bottom))] text-foreground shadow-none"
+          style={showContrast ? kitWearStyle(roles) : undefined}
           onOpenAutoFocus={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => {
+            // The sticky photo is an editing surface outside the sheet portal.
+            const target = event.detail.originalEvent.target as HTMLElement | null;
+            if (target === photoRef?.current || target?.closest?.("[data-pin-hit], [data-photo-back]")) event.preventDefault();
+          }}
         >
           <SheetHeader>
             <SheetTitle className="font-heading text-2xl">{open ? `Edit ${open}` : "Edit color"}</SheetTitle>
@@ -343,7 +446,7 @@ export function TokenEditor({
               spellCheck={false}
               autoCapitalize="off"
               className="min-h-11 w-full border border-current bg-background px-3 font-mono text-base tabular-nums outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-              style={{ outlineColor: pageInk }}
+              style={{ outlineColor: editorInk }}
             />
             <p className="text-base">Role</p>
             <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Role">
@@ -358,10 +461,10 @@ export function TokenEditor({
                     className="min-h-11 border px-2 text-base outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                     style={{
                       transitionDuration: `${MOTION_CSS.tapMs}ms`,
-                      borderColor: pageInk,
-                      backgroundColor: selected ? pageInk : "transparent",
-                      color: selected ? pageBackground : pageInk,
-                      outlineColor: pageInk,
+                      borderColor: editorInk,
+                      backgroundColor: selected ? editorInk : "transparent",
+                      color: selected ? editorBackground : editorInk,
+                      outlineColor: editorInk,
                     }}
                     onClick={() => {
                       if (!open || role === open) {
@@ -373,7 +476,9 @@ export function TokenEditor({
                         setOpenRole(role);
                         return;
                       }
-                      commit(moveRole(roles, open, role));
+                      commit(moveRole(roles, open, role), { ...pins, [open]: pins[role], [role]: pins[open] }, {
+                        ...origins, [open]: origins[role], [role]: origins[open],
+                      });
                       setOpenRole(role);
                     }}
                   >
@@ -387,11 +492,29 @@ export function TokenEditor({
                 type="button"
                 className="min-h-11 text-base"
                 onClick={() => {
-                  commit(setRoleColor(roles, open, null));
+                  const nextPins = { ...pins };
+                  delete nextPins[open];
+                  commit(setRoleColor(roles, open, null), nextPins);
                   setOpenRole(null);
                 }}
               >
                 Clear this role
+              </button>
+            ) : null}
+            {history.length > 0 ? (
+              <button
+                type="button"
+                className="min-h-11 text-base"
+                disabled={pending}
+                onClick={() => {
+                  const previous = history[history.length - 1]!;
+                  setHistory((prev) => prev.slice(0, -1));
+                  commit(previous.roles, previous.pins, previous.origins, false);
+                  if (open) setHexDraft(previous.roles[open] ?? "");
+                  setPendingHex(null);
+                }}
+              >
+                Undo
               </button>
             ) : null}
           </div>

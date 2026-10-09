@@ -74,8 +74,8 @@ describe("real-only extraction", () => {
 
 });
 
-describe("design tokens fallback", () => {
-  it("marks empty roles as fallback of the nearest real color", () => {
+describe("design tokens empty roles", () => {
+  it("leaves empty roles absent instead of inventing colors", () => {
     const roles = rolesFromColors([
       { hex: "#7fafd4", role: "primary" },
       { hex: "#a2afbd", role: "secondary" },
@@ -84,11 +84,9 @@ describe("design tokens fallback", () => {
     ]);
     const tokens = designTokenColors(roles);
     expect(tokens).not.toBeNull();
-    expect(tokens!.primary.fallback).toBeUndefined();
-    expect(tokens!.accent.fallback).toBe(true);
-    expect(tokens!.surface.fallback).toBe(true);
-    expect(tokens!.accent.$value).toBe("#a2afbd");
-    expect(tokens!.surface.$value).toBe("#384b5f");
+    expect(tokens!.primary?.$value).toBe("#7fafd4");
+    expect(tokens!.accent).toBeUndefined();
+    expect(tokens!.surface).toBeUndefined();
   });
 });
 

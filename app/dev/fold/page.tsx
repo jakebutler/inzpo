@@ -8,10 +8,8 @@ import { MascotStage } from "@/app/components/MascotStage";
 import { ExportKitButton } from "@/app/components/ExportKitButton";
 import { PhotoBackButton } from "@/app/components/PhotoBackButton";
 import { KitChrome } from "@/app/components/KitChrome";
-import { SavedKitHeader } from "@/app/components/SavedKitHeader";
 import { dropRoles, loadFoldKit, type FoldPhoto } from "@/lib/fold-kit";
 import { FOLD_BRIEFS } from "@/lib/fold-briefs";
-import { HANDOFF_KITS } from "@/lib/mascot";
 import { rolesFromColors } from "@/lib/tokens";
 import { kitDisplayName } from "@/lib/kit-name";
 import type { ColorRole } from "@/lib/db/schema";
@@ -56,6 +54,7 @@ export default async function FoldPage({
       ? "IMG_6208"
       : "IMG_6505") as FoldPhoto;
   const extracted = await loadFoldKit(photo);
+  const secondKit = state === "first" || state === "collection" ? await loadFoldKit("IMG_6208") : null;
   let colors = extracted.colors;
   if (state === "empty-roles") colors = dropRoles(colors, ["accent", "surface"] as ColorRole[]);
   const chips = state === "chips";
@@ -104,7 +103,7 @@ export default async function FoldPage({
                 <KitCard
                   title="Blue storefront"
                   imageSrc="/sample/IMG_6208.jpg"
-                  roles={{ ...HANDOFF_KITS.IMG_6208 }}
+                  roles={rolesFromColors(secondKit?.colors ?? [])}
                 />
               </div>
             </CaptureForm>
@@ -140,7 +139,7 @@ export default async function FoldPage({
         </header>
         <div className="flex flex-col">
           <KitCard title={displayTitle} imageSrc={extracted.imageSrc} roles={rolesFromColors(colors)} />
-          <KitCard title="Blue storefront" imageSrc="/sample/IMG_6208.jpg" roles={{ ...HANDOFF_KITS.IMG_6208 }} />
+          <KitCard title="Blue storefront" imageSrc="/sample/IMG_6208.jpg" roles={rolesFromColors(secondKit?.colors ?? [])} />
         </div>
       </main>
     );
@@ -149,9 +148,6 @@ export default async function FoldPage({
   return (
     <main className="min-h-screen bg-background text-foreground">
       <KitChrome roles={roles}>
-        {saved ? (
-          <SavedKitHeader title={displayTitle} backHref={collectionHref} itemId="fold" />
-        ) : null}
         <KitResult
           itemId={`fold-${photo}`}
           title={displayTitle}

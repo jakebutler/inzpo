@@ -57,8 +57,22 @@ async function rasterForStore(input: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
-export async function processImage(input: Buffer, itemId: string): Promise<ProcessedImage> {
+async function encodeVariant(original: Buffer, width: number) {
+  const { data, info } = await sharp(original, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
+    .resize({ width, withoutEnlargement: true })
+    .webp({ quality: 82 })
+    .toBuffer({ resolveWithObject: true });
+  return { buffer: data, width: info.width, height: info.height };
+}
+
+/** The server extracts from the w640 WebP of the stored sRGB JPEG. */
+export async function preparePaletteSource(input: Buffer) {
   const original = await rasterForStore(input);
+  return { original, w640: await encodeVariant(original, 640) };
+}
+
+export async function processImage(input: Buffer, itemId: string): Promise<ProcessedImage> {
+  const { original, w640 } = await preparePaletteSource(input);
   const meta = await sharp(original, { failOn: "error" }).metadata();
   if (!meta.width || !meta.height) {
     throw new Error("Processed image has no dimensions");
@@ -69,11 +83,8 @@ export async function processImage(input: Buffer, itemId: string): Promise<Proce
     Promise.all(
       MEDIA_VARIANTS.map(async (v) => {
         const width = parseInt(v.slice(1), 10);
-        const { data, info } = await sharp(original, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
-          .resize({ width, withoutEnlargement: true })
-          .webp({ quality: 82 })
-          .toBuffer({ resolveWithObject: true });
-        return [v, { key: variantKey(itemId, v), buffer: data, width: info.width, height: info.height }] as const;
+        const encoded = v === "w640" ? w640 : await encodeVariant(original, width);
+        return [v, { key: variantKey(itemId, v), ...encoded }] as const;
       }),
     ),
     sharp(original, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })

@@ -2,12 +2,11 @@ import { useAuth } from '@clerk/expo';
 import { createInzpoClient, type InzpoClient } from '@inzpo/shared';
 import { createContext, createElement, useContext, useLayoutEffect, useRef, useState, type PropsWithChildren } from 'react';
 
-export const DEFAULT_API_BASE_URL =
-  'https://inzpo-git-cursor-inzpo-piv-431588-butlerjake-gmailcoms-projects.vercel.app';
-
 export function createMobileClient(getToken: () => Promise<string | null>): InzpoClient {
+  const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  if (!baseUrl) throw new Error('Missing mobile API configuration');
   return createInzpoClient({
-    baseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL,
+    baseUrl,
     getToken,
   });
 }

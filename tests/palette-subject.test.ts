@@ -5,7 +5,7 @@ import { colorHue } from '@inzpo/shared';
 import { hexToLab } from '@/lib/color-distance';
 import { hexToFamily } from '@/lib/colors';
 import { areaAverage, assignRoles, extractPalette, type PaletteSwatch } from '@/lib/palette-extract';
-import { kitDisplayName } from '@/lib/kit-name';
+import { primaryKitTitle } from '@/lib/kit-name';
 import { ciede2000 } from './helpers/ciede2000';
 
 function region(hex: string, patch: number, spatial?: PaletteSwatch['spatial']): PaletteSwatch {
@@ -61,8 +61,7 @@ describe('subject palette', () => {
       expect(palette.regionAtPin(swatch.pinX, swatch.pinY)).toBe(swatch);
     }
     // The old brief name and new caption both use this exact result's Primary.
-    const title = kitDisplayName({ title: 'White Victorian', briefText: 'A white Victorian with a black door.',
-      namedColors: [{ hex: '#ffffff', label: 'white trim' }], primary });
+    const title = primaryKitTitle(primary.hex, { briefText: 'A white Victorian with a black door.' });
     expect(title).toBe('Yellow Victorian');
     expect(colorHue(primary.hex, primary.name)).toBe('yellow');
   });

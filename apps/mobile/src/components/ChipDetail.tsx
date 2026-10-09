@@ -38,9 +38,10 @@ export function ChipDetail({ kit, role, slot, origin, onClose, onEdit }: {
   const centerX = origin.x + slot.width / 2;
   const centerY = origin.y + slot.height / 2;
   const color = kit.roles[role]!;
-  const sample = roleSample(kit, role)!;
+  const sample = roleSample(kit, role);
   const { copy } = chipReadability(kit, role);
-  const backLabel = `${role}: ${color.toLowerCase()}. ${copy} ${kit.photo && !photoFailed ? 'From this spot.' : 'No photo in this kit.'}`;
+  const sourceCopy = photoFailed ? 'Couldn’t load the photo.' : !kit.photo ? 'No photo in this kit.' : sample ? 'From this spot.' : 'Chosen by you. No photo sample attached.';
+  const backLabel = `${role}: ${color.toLowerCase()}. ${copy} ${sourceCopy}`;
   const photoScale = 96 / 320;
   useEffect(() => {
     if (closing.current) return;
@@ -131,7 +132,7 @@ export function ChipDetail({ kit, role, slot, origin, onClose, onEdit }: {
               onPress={close} onLongPress={onEdit} style={{ gap: 20 }}>
               <Text allowFontScaling style={styles.hex}>{color.toLowerCase()}</Text>
               <Text allowFontScaling style={styles.copy}>{copy}</Text>
-              {kit.photo && !photoFailed && <View style={styles.crop}>
+              {kit.photo && sample && !photoFailed && <View style={styles.crop}>
                 <Image testID="chip-photo-crop" source={{ uri: kit.photo.url }} contentFit="fill" accessible={false}
                   onError={() => setPhotoFailed(true)}
                   style={{ position: 'absolute', width: kit.photo.width * photoScale, height: kit.photo.height * photoScale,
@@ -145,7 +146,7 @@ export function ChipDetail({ kit, role, slot, origin, onClose, onEdit }: {
                   <Circle cx={48} cy={48} r={3} color={color} />
                 </Canvas>
               </View>}
-              <Text allowFontScaling style={styles.copy}>{photoFailed ? 'Couldn’t load the photo.' : kit.photo ? 'From this spot.' : 'No photo in this kit.'}</Text>
+              <Text allowFontScaling style={styles.copy}>{sourceCopy}</Text>
             </Pressable>
           </ScrollView>
         </Animated.View>

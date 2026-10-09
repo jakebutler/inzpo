@@ -53,3 +53,114 @@ Judged at 390x844, iOS Safari installed to the home screen. Sign-off = zero bloc
 
 ## What I need per screen
 390px stills of every state, a screen recording from an iPhone for each transition, and the actual duration and easing values from the code.
+
+## Phone
+
+### Phone app (Expo) — additions
+
+Every item below is checked on a real iPhone and a real Android phone, not only the simulator. The web checklist above still applies, except where this section overrides it.
+
+#### Safe areas
+- No tappable element sits in the status bar, Dynamic Island, notch, or home-indicator area. The bottom actions sit at least 8pt above the home indicator inset.
+- The photo can bleed under the status bar, but the back button and pins stay inside the top inset.
+- Bottom sheets add the bottom inset to their content padding, so the last row isn't hidden behind the home indicator.
+- Landscape is locked to portrait, or the side insets are respected.
+
+#### Gestures and touch
+- Every touch target is at least 44×44pt, and adjacent targets have at least 8pt between them.
+- Edge swipe back works on every pushed screen (iOS), and the Android system back closes a sheet before leaving the screen.
+- A sheet closes on a pan down, a backdrop tap, and the system back. The 36×4 grabber is visible.
+- A pin drag never fights the sheet's pan or the edge-back swipe. A drag that starts on a pin moves only the pin.
+- Press feedback shows within 1 frame of touch-down. Nothing waits for touch-up to respond.
+
+#### Haptics
+- They follow the budget in `MOTION-NATIVE.md`: shutter press-in (Light), the last band landing (Soft, once), save success or failure, and loupe ticks only when the sampled color changes.
+- Never on navigation, opening a sheet, or per band. At most one per 300ms, except loupe ticks.
+- Nothing depends on haptics alone. Every haptic event also has a visible change.
+
+#### Reduced motion (`useReducedMotion()`)
+- It follows `MOTION-NATIVE.md`: every translate, scale, or squash becomes a 150ms opacity fade. Bands and stripes appear together, with no hop, flash, breathing, or pupil jiggle. Sheets use the stiffer spring.
+- Haptics stay on, except loupe ticks.
+- Check it with the OS setting on, not a dev flag.
+
+#### Dynamic Type and font scaling
+- At the largest standard size (iOS AX1 or Android 200%), no label is clipped, overlaps, or is truncated without a way to read it in full. Kit names wrap to 2 lines.
+- The hex values and band rows can cap their scaling at 1.3× (`maxFontSizeMultiplier`) to protect the layout. Body copy, buttons, and errors are never capped.
+- Buttons grow taller instead of truncating their labels.
+- VoiceOver and TalkBack read each band as its role name, color name, and hex, and read Baku as decorative.
+
+#### States on the phone
+- Offline or a failed upload shows one line of copy and a retry, with no spinner left running.
+- If camera or photo permission is denied, the screen explains why it's needed and links to Settings. It is never a blank screen.
+- After the app is backgrounded mid-upload and reopened, the result still arrives or a retry shows.
+
+## Craft gates (craft bar v2)
+
+From /workspace/critiques/inzpo/craft-bar.md (v2, Oct 8 2026). This layer sits on top of the correctness checks above (including the earlier Craft section and the phone section), which still apply. Every screen must pass all of these gates.
+
+### 1. Objects, not rectangles
+The key content on each screen is a physical object:
+- The photo is an instant-film print.
+- The colors are paint chips on card stock.
+- The kit is a fan deck.
+- The brief is its own printed card.
+
+It fails if a crafted object is expected and the screen shows a flat fill, a 1px gray border, or a default shadow instead.
+- **Materials:** paper grain is visible at 100% zoom, and every label printed on it still reads at 4.5:1 or better.
+- **Shadows:** two layers, a tight contact shadow plus a soft ambient one. One light direction (top-left) is used across the whole app, on web and phone.
+- **Buttons:**
+  - A 1px stroke about 2 shades lighter than the fill, and a shadow about 2 shades darker.
+  - On press, the button sinks: scale 0.97, and the shadow shrinks within one frame.
+  - Never a flat slab.
+- **Edges:** no cutout has a hard alpha fringe or a halo. Baku gets a soft, fibrous edge that matches felt; a "green screen" outline is a fail.
+
+### 2. Light and tilt
+- Objects tilt with the phone by 3° or less. A light sweep moves across the gloss on the photo, with a softer sheen on card stock.
+- The result screen, where pins get dragged, stays upright and still.
+- With reduced motion on, tilt is off and the light stays fixed.
+
+### 3. Baku as host
+- **Where he appears:** at login and first open, during the munch, at the reveal, after saving, and on empty and error states. Nowhere else.
+- **Login:** with the keyboard hidden, Baku is the hero, at least 40% of the viewport width. With the keyboard up, he shrinks to fit, as he does today.
+- **Reveal and after saving:** he presents the colors or reacts, then retreats to a lower corner at 64pt or less within about 600ms. Once the objects are showing, he never takes their space again.
+- **Empty and error states:** he softens the moment with a pose and a line. He is never a decoration stuck onto a page.
+
+### 4. The munch is the showpiece
+- **The model:** a true 3D Baku that keeps the v7 look: felt fiber texture, fuzz on the silhouette, and the knit stripe. It should read as the same character as the sprite, not a glossy 3D toy.
+- **The chew:** an exaggerated cow or camel chew. The jaw drops, grinds side to side, and closes, while the snout bobs behind it. The photo visibly gets pulled in and bitten, and the colors come out of the chew and become the chips.
+- **Timing:**
+  - The chew loops seamlessly for as long as the upload takes. When the result is ready, it ends on a satisfying swallow, which hands off into the reveal.
+  - It never restarts, flashes, or reloads.
+- **Performance:** 60fps on a mid-range phone, with no first-frame hitch.
+- **Reduced motion:** a single still pose with a 150ms fade, per MOTION-NATIVE.md.
+- **Haptics:** a soft tick on each bite (at most one every 300ms), plus one on the swallow.
+- **Interim:** Designer's 2D jaw-layer plan can ship only as a stopgap. The bar isn't met until the 3D munch lands.
+
+### 5. Type with a voice
+- The headline font has real character (Jake picks from the top three). It is used for kit names, screen titles and the brief card label. Geist is used for everything else.
+- At least three purposeful treatments sit on top of Geist:
+  - names and emphasis (the email on the code step in medium or italic)
+  - hex values in mono
+  - chip labels set like printed paint-store labels
+- No screen reads as a default hierarchy of the same font in different sizes.
+
+### 6. Words
+- Copy is warm, short, and a little witty, and it changes with state. For example, after a code is sent, the helper says so.
+- Errors say what happened and what to do next, with no jokes.
+- Baku's lines are kept to his moments: greeting, munch, reveal, save, and empty or error states.
+
+### 7. The flow always moves forward
+- Every tap shows a visible response within 100ms.
+- Save advances to the next step.
+- No button is dead, and no screen reloads in a loop.
+- Each of these is a blocker.
+
+### 8. One signature detail per screen
+Every screen gets one detail you'd notice the second time, never more than one. Examples:
+- a printed registration mark on a chip label
+- the rivet on the fan deck
+- a handwritten date on the film border
+- Baku's crumbs after the munch
+
+### 9. The screenshot test
+Would Jake send a screenshot of this screen to a friend without being asked? If not, the screen is worth fixing, and on a key screen it is a blocker.

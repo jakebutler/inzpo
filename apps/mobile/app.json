@@ -45,12 +45,13 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Inzpo uses the camera to snap a house and keep its colors.",
+          "cameraPermission": "Inzpo uses the camera to capture inspiration and keep its colors.",
           "photosPermission": "Inzpo reads the photo you pick to pull its colors.",
           "microphonePermission": false
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-sharing"
     ],
     "scheme": "inzpo",
     "backgroundColor": "#F3EEE4",

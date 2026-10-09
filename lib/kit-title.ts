@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { itemColors, items } from "@/lib/db/schema";
+import { COLOR_ROLES, itemColors, items } from "@/lib/db/schema";
+import { sampledColors } from "@/lib/derived-roles";
 import type { NamedColor } from "@/lib/brief-copy";
 import { generatedKitTitle, isCameraFilename, primaryKitTitle } from "@/lib/kit-name";
 
@@ -22,9 +23,11 @@ export async function persistKitTitleFromBrief(itemId: string, job: BriefTitleSo
   if (!rows.length) return null;
   const current = rows[0]?.title ?? null;
   if (current?.trim() && !isCameraFilename(current)) return current.trim();
-  const colors = await db.select({ hex: itemColors.hex }).from(itemColors)
-    .where(and(eq(itemColors.itemId, itemId), eq(itemColors.role, "primary"))).limit(1);
-  const primary = colors[0]?.hex;
+  const colors = await db.select({ hex: itemColors.hex, role: itemColors.role, origin: itemColors.origin,
+    pinX: itemColors.pinX, pinY: itemColors.pinY }).from(itemColors)
+    .where(eq(itemColors.itemId, itemId)).limit(12);
+  const real = sampledColors(colors);
+  const primary = COLOR_ROLES.map(role => real.find(color => color.role === role)?.hex).find(Boolean);
   if (!primary) return null;
   const name = primaryKitTitle(primary, { briefText: job.stub ? null : job.text, subject: job.stub ? null : job.subject });
   // Competing completions and explicit renames must not overwrite each other.
