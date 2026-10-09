@@ -5,6 +5,7 @@
   "dependencies": {
     "@clerk/expo": "^4.9.0",
     "@clerk/react": "^6.17.7",
+    "@expo-google-fonts/akaya-kanadaka": "^0.4.1",
     "@expo-google-fonts/fraunces": "^0.4.1",
     "@expo-google-fonts/geist": "^0.4.2",
     "@expo-google-fonts/geist-mono": "^0.4.3",

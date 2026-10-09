@@ -1,5 +1,5 @@
 import type { RoleColors } from '@inzpo/shared';
-import type { SkRuntimeEffect, Uniforms } from '@shopify/react-native-skia';
+import type { SamplingOptions, SkRuntimeEffect, Uniforms } from '@shopify/react-native-skia';
 import { Component, useMemo, type ReactNode } from 'react';
 import { useDerivedValue } from 'react-native-reanimated';
 import { bakuTintAssets } from '@/lib/baku-assets';
@@ -8,6 +8,10 @@ import { bakuStripeBounds } from '@/lib/baku-stripe-bounds';
 import { BAKU_SPRITE_PIXELS, bakuEyes } from '@/lib/baku-eyes';
 import { PUPIL_FEATHER_PX, type PupilOffset } from '@/lib/baku-pupils';
 import type { BakuPose } from './Baku';
+
+// Skia 2.6.2 ImageShader accepts sampling: { B, C }. Mitchell smooths the
+// fixed 48/96/144px sprites when displayed at 96–160pt on dense screens.
+export const BAKU_IMAGE_SAMPLING: SamplingOptions = { B: 1 / 3, C: 1 / 3 };
 
 export const BAKU_TINT_SKSL = `
 uniform shader base;
@@ -156,7 +160,7 @@ function TintedSprite({ pose, size, roles, stripeProgress, wipeMode = 0, pupilOf
       <Fill>
         <Shader source={effect!} uniforms={uniforms}>
           {images.map((image, index) => (
-            <ImageShader key={index} image={image} fit="fill" rect={{ x: 0, y: 0, width: size, height: size }} tx="clamp" ty="clamp" />
+            <ImageShader key={index} image={image} sampling={BAKU_IMAGE_SAMPLING} fit="fill" rect={{ x: 0, y: 0, width: size, height: size }} tx="clamp" ty="clamp" />
           ))}
         </Shader>
       </Fill>

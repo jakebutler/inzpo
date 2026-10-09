@@ -1,11 +1,14 @@
 import { useAuth, useClerk, useSignIn } from '@clerk/expo';
-import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useRef, useState } from 'react';
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionButton } from '@/components/ActionButton';
 import { Baku } from '@/components/Baku';
 import { AUTH_RETRY_MESSAGE, authErrorMessage } from '@/lib/auth-errors';
 import { ui } from '@/theme/styles';
+import { shade } from '@/theme/buttons';
+import { restingBakuSize } from '@/theme/sign-in';
 import { INK, fonts } from '@/theme/tokens';
 
 export default function SignInScreen() {
@@ -18,6 +21,49 @@ export default function SignInScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const [resent, setResent] = useState(false);
+  const [keyboardShown, setKeyboardShown] = useState(Keyboard.isVisible());
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
+  // Android may resize the window for the keyboard; retain the resting height.
+  const [restingWindow, setRestingWindow] = useState({ width, height });
+  if (width !== restingWindow.width || height > restingWindow.height) {
+    setRestingWindow({ width, height });
+  }
+  const restingSize = restingBakuSize(width, restingWindow.height - insets.top - insets.bottom);
+  const bakuSize = useSharedValue(restingSize);
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardShown(true));
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardShown(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+  useEffect(() => {
+    bakuSize.set(withTiming(keyboardShown ? 96 : restingSize, { duration: reducedMotion ? 0 : 220 }));
+    return () => cancelAnimation(bakuSize);
+  }, [keyboardShown, restingSize, reducedMotion, bakuSize]);
+  const bakuSlotStyle = useAnimatedStyle(() => ({ width: bakuSize.value, height: bakuSize.value }));
+  const bakuSpriteStyle = useAnimatedStyle(() => ({ transform: [{ scale: bakuSize.value / 160 }] }));
+  useEffect(() => {
+    if (!resent) return;
+    const timer = setTimeout(() => setResent(false), 4000);
+    return () => clearTimeout(timer);
+  }, [resent]);
+
+  async function resend() {
+    if (!isLoaded || inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      // No identifier: Core 3 reuses the address on the existing sign-in.
+      const result = await signIn.emailCode.sendCode();
+      if (result.error) throw result.error;
+      setCode('');
+      setResent(true);
+    } catch (failure) { setError(authErrorMessage(failure)); }
+    finally { inFlight.current = false; setBusy(false); }
+  }
 
   // Invite-only sign-in. Deliberately do not transfer unknown emails to sign-up.
   // Core 3 exposes emailCode.sendCode/verifyCode; methods return { error }.
@@ -57,6 +103,7 @@ export default function SignInScreen() {
       const result = await signIn.reset();
       if (result.error) throw result.error;
       setCodeSent(false);
+      setResent(false);
       setCode('');
       setError(null);
     } catch (failure) { setError(authErrorMessage(failure)); }
@@ -68,12 +115,17 @@ export default function SignInScreen() {
     <SafeAreaView style={ui.screen}>
       <KeyboardAvoidingView style={ui.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={[ui.content, { flexGrow: 1, justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
-          <Baku pose="idle" />
+          <Animated.View testID="sign-in-baku-slot" style={bakuSlotStyle}>
+            <Animated.View style={[{ position: 'absolute', width: 160, height: 160, transformOrigin: 'top left' }, bakuSpriteStyle]}>
+              <Baku pose="idle" size={160} />
+            </Animated.View>
+          </Animated.View>
           <Text style={ui.heading}>Snap a house. Keep its colors.</Text>
-          <Text style={ui.body}>Enter your email and we&apos;ll send you a code.</Text>
+          <Text style={[ui.body, { color: shade(INK, 0.28) }]}>
+            {codeSent ? <>We sent a 6-digit code to <Text style={{ fontFamily: fonts.bodyMedium, color: INK }}>{email.trim()}</Text>.</> : "Enter your email and we'll send you a code."}
+          </Text>
           {codeSent ? (
             <View style={{ gap: 12 }}>
-              <Text style={ui.body}>{`Code sent to ${email.trim()}.`}</Text>
               <TextInput
                 key="code"
                 accessibilityLabel="6-digit code"
@@ -88,6 +140,13 @@ export default function SignInScreen() {
                 editable={!busy}
                 style={[ui.input, { fontFamily: fonts.mono, letterSpacing: 6 }]}
               />
+              {resent ? (
+                <Text accessibilityLiveRegion="polite" role="status" style={[ui.body, { minHeight: 44, paddingVertical: 10 }]}>New code sent.</Text>
+              ) : (
+                <Pressable accessibilityRole="link" accessibilityState={{ disabled: busy }} disabled={busy} onPress={() => void resend()} style={{ minHeight: 44, justifyContent: 'center', opacity: busy ? 0.4 : 1 }}>
+                  <Text style={[ui.body, { textDecorationLine: 'underline' }]}>Didn’t get it? Send a new code.</Text>
+                </Pressable>
+              )}
             </View>
           ) : (
             <TextInput

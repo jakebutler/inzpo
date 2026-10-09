@@ -23,7 +23,12 @@ export function BriefBlock({ brief, failed = false, showBaku = true, motionStyle
       </View>
     );
   }
-  return <Animated.View style={motionStyle}><Text allowFontScaling style={ui.body}>{brief.text}</Text></Animated.View>;
+  return (
+    <Animated.View style={motionStyle}>
+      <Text allowFontScaling style={ui.briefLabel}>Description</Text>
+      <Text allowFontScaling style={ui.body}>{brief.text}</Text>
+    </Animated.View>
+  );
 }
 
 const styles = StyleSheet.create({ status: { alignItems: 'center', gap: 12, paddingVertical: 12 } });

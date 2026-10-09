@@ -23,7 +23,7 @@ export function SaveButton({ saved, saving, disabled, onPress }: { saved: boolea
     : { width: 24 * checkProgress.value, opacity: 1 });
 
   return (
-    <ActionButton label={saved ? 'Saved' : saving ? 'Saving…' : 'Save'} primary disabled={disabled || saved} disabledOpacity={saved ? 1 : 0.4} onPress={onPress}>
+    <ActionButton label={saved ? 'Saved' : saving ? 'Saving…' : 'Save'} primary disabled={disabled || saved} onPress={onPress}>
       <View style={styles.row}>
         {saved && (
           <View style={styles.checkSlot} accessible={false}>

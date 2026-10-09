@@ -4,6 +4,8 @@ import { act, fireEvent, render, waitFor, within } from '@testing-library/react-
 import * as ImagePicker from 'expo-image-picker';
 import * as ExpoHaptics from 'expo-haptics';
 import * as Reanimated from 'react-native-reanimated';
+import { Keyboard, Platform } from 'react-native';
+import { fonts, INK } from '@/theme/tokens';
 import { router, Stack } from 'expo-router';
 import { BottomSheetModal, type BottomSheetModalProps } from '@gorhom/bottom-sheet';
 import SignInScreen from '@/app/(auth)/sign-in';
@@ -60,11 +62,15 @@ test('sign-in renders, sends an email code, verifies six digits, and activates t
   await fireEvent.changeText(view.getByLabelText('Email'), ' invited@example.com ');
   await fireEvent.press(view.getByRole('button', { name: 'Send code' }));
   expect(signIn.emailCode.sendCode).toHaveBeenCalledWith({ emailAddress: 'invited@example.com' });
+  expect(view.queryByText("Enter your email and we'll send you a code.")).toBeNull();
+  expect(view.getByText('We sent a 6-digit code to invited@example.com.')).toBeTruthy();
+  expect(view.queryByText(/Code sent to/)).toBeNull();
+  expect(view.getByText('invited@example.com')).toHaveStyle({ fontFamily: fonts.bodyMedium, color: INK });
   await fireEvent.changeText(view.getByLabelText('6-digit code'), '123');
   expect(view.getByRole('button', { name: 'Verify code' })).toBeDisabled();
-  await fireEvent.changeText(view.getByLabelText('6-digit code'), '123456');
+  await fireEvent.changeText(view.getByLabelText('6-digit code'), '424242');
   await fireEvent.press(view.getByRole('button', { name: 'Verify code' }));
-  expect(signIn.emailCode.verifyCode).toHaveBeenCalledWith({ code: '123456' });
+  expect(signIn.emailCode.verifyCode).toHaveBeenCalledWith({ code: '424242' });
   expect(setActive).toHaveBeenCalledWith({ session: 'session-1' });
 });
 
@@ -440,4 +446,82 @@ test('a delayed Save dismissal cannot close the Edit sheet', async () => {
   await fireEvent.press(view.getByRole('button', { name: 'Edit' }));
   await act(async () => dismissSave?.());
   expect(view.getByTestId('edit-role-primary')).toBeTruthy();
+});
+
+
+test('resend reuses the existing sign-in, disables while busy, and announces success temporarily', async () => {
+  jest.useFakeTimers();
+  const view = await render(<SignInScreen />);
+  await fireEvent.changeText(view.getByLabelText('Email'), 'invited@example.com');
+  await fireEvent.press(view.getByRole('button', { name: 'Send code' }));
+  let resolve!: (result: { error: null }) => void;
+  signIn.emailCode.sendCode.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+  const link = view.getByRole('link', { name: 'Didn’t get it? Send a new code.' });
+  await fireEvent.press(link);
+  expect(signIn.emailCode.sendCode).toHaveBeenCalledTimes(2);
+  expect(signIn.emailCode.sendCode).toHaveBeenLastCalledWith();
+  expect(link).toBeDisabled();
+  expect(link).toHaveStyle({ minHeight: 44 });
+  await act(async () => resolve({ error: null }));
+  expect(view.getByText('New code sent.').props.accessibilityLiveRegion).toBe('polite');
+  expect(view.queryByRole('link')).toBeNull();
+  await act(async () => jest.advanceTimersByTime(4000));
+  expect(view.getByRole('link')).toBeEnabled();
+});
+
+test('resend failure uses the existing auth error copy and restores the link', async () => {
+  const view = await render(<SignInScreen />);
+  await fireEvent.changeText(view.getByLabelText('Email'), 'invited@example.com');
+  await fireEvent.press(view.getByRole('button', { name: 'Send code' }));
+  signIn.emailCode.sendCode.mockResolvedValueOnce({ error: { code: 'too_many_requests' } });
+  await fireEvent.press(view.getByRole('link'));
+  expect(view.getByText("Couldn't sign in. Please try again.")).toBeTruthy();
+  expect(view.queryByText('New code sent.')).toBeNull();
+  expect(view.getByRole('link')).toBeEnabled();
+});
+
+test('code input strips non-digits and limits to six digits', async () => {
+  const view = await render(<SignInScreen />);
+  await fireEvent.changeText(view.getByLabelText('Email'), 'invited@example.com');
+  await fireEvent.press(view.getByRole('button', { name: 'Send code' }));
+  await fireEvent.changeText(view.getByLabelText('6-digit code'), '42x424299');
+  expect(view.getByLabelText('6-digit code').props.value).toBe('424242');
+  expect(view.getByLabelText('6-digit code').props.maxLength).toBe(6);
+});
+
+test.each([
+  { reduced: false, platform: 'ios' }, { reduced: true, platform: 'ios' },
+  { reduced: false, platform: 'android' }, { reduced: true, platform: 'android' },
+])('Baku responds to keyboard show/hide on $platform with reduced motion=$reduced', async ({ reduced, platform }) => {
+  jest.replaceProperty(Platform, 'OS', platform as typeof Platform.OS);
+  jest.mocked(Reanimated.useReducedMotion).mockReturnValue(reduced);
+  const timing = jest.spyOn(Reanimated, 'withTiming');
+  const listeners: Record<string, () => void> = {};
+  const remove = jest.fn();
+  const subscriptions = jest.spyOn(Keyboard, 'addListener').mockImplementation((event, callback) => {
+    listeners[event] = callback as () => void;
+    return { remove } as unknown as ReturnType<typeof Keyboard.addListener>;
+  });
+  const view = await render(<SignInScreen />);
+  await act(async () => (listeners.keyboardWillShow ?? listeners.keyboardDidShow)());
+  expect(timing).toHaveBeenCalledWith(96, { duration: reduced ? 0 : 220 });
+  await act(async () => (listeners.keyboardWillHide ?? listeners.keyboardDidHide)());
+  expect(timing).toHaveBeenLastCalledWith(160, { duration: reduced ? 0 : 220 });
+  await view.unmount();
+  expect(remove).toHaveBeenCalledTimes(subscriptions.mock.calls.length);
+});
+
+
+test('long kit names wrap in Akaya while description and controls retain their intended fonts', async () => {
+  const title = 'The little house with the very tall windows and a long garden wall';
+  client.getKit.mockResolvedValue({ ...kitFixture, title });
+  const view = await render(<ResultScreen />);
+  const heading = await view.findByText(title);
+  expect(heading).toHaveStyle({ fontFamily: fonts.heading, fontSize: 32, lineHeight: 44 });
+  expect(heading.props.numberOfLines).toBeUndefined();
+  expect(heading.props.maxFontSizeMultiplier).toBeUndefined();
+  expect(heading.props.allowFontScaling).not.toBe(false);
+  expect(view.getByText('Description')).toHaveStyle({ fontFamily: fonts.heading, lineHeight: 30 });
+  expect(view.getByText(kitFixture.brief.text!)).toHaveStyle({ fontFamily: fonts.body });
+  expect(view.getByText('Edit')).toHaveStyle({ fontFamily: fonts.bodyMedium });
 });

@@ -53,7 +53,7 @@ jest.mock('expo-font', () => ({
   isLoading: jest.fn(() => false),
   getLoadedFonts: jest.fn(() => []),
 }));
-jest.mock('@expo-google-fonts/fraunces/useFonts', () => ({ useFonts: require('expo-font').useFonts }));
+jest.mock('@expo-google-fonts/akaya-kanadaka/useFonts', () => ({ useFonts: require('expo-font').useFonts }));
 jest.mock('expo-splash-screen', () => ({
   preventAutoHideAsync: jest.fn(async () => true),
   hide: jest.fn(),

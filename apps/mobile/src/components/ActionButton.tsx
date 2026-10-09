@@ -1,8 +1,9 @@
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { usePressFeedback } from '@/lib/usePressFeedback';
-import { fonts, INK, PAPER, VERMILION } from '@/theme/tokens';
+import { buttonSurface } from '@/theme/buttons';
+import { fonts, INK, PAPER } from '@/theme/tokens';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -18,6 +19,7 @@ type Props = {
 };
 
 export function ActionButton({ label, onPress, disabled = false, primary = false, pressScale, onPressIn, disabledOpacity, children }: Props) {
+  const [pressed, setPressed] = useState(false);
   const feedback = usePressFeedback({ pressScale, disabled, disabledOpacity, onPressIn });
   return (
     <AnimatedPressable
@@ -26,9 +28,9 @@ export function ActionButton({ label, onPress, disabled = false, primary = false
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      onPressIn={feedback.onPressIn}
-      onPressOut={feedback.onPressOut}
-      style={[styles.button, primary && styles.primary, feedback.animatedStyle]}
+      onPressIn={() => { setPressed(true); feedback.onPressIn(); }}
+      onPressOut={() => { setPressed(false); feedback.onPressOut(); }}
+      style={[styles.button, buttonSurface(primary, pressed, disabled), feedback.animatedStyle]}
     >
       {children ?? <Text allowFontScaling style={[styles.label, primary && styles.primaryLabel]}>{label}</Text>}
     </AnimatedPressable>
@@ -38,9 +40,8 @@ export function ActionButton({ label, onPress, disabled = false, primary = false
 const styles = StyleSheet.create({
   button: {
     minHeight: 52, paddingHorizontal: 20, paddingVertical: 14, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: INK,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1,
   },
-  primary: { backgroundColor: VERMILION, borderColor: VERMILION },
   label: { fontFamily: fonts.bodyMedium, fontSize: 16, color: INK, textAlign: 'center' },
   primaryLabel: { color: PAPER },
 });
