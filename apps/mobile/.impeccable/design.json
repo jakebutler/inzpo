@@ -1,0 +1,285 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-09T23:11:08.642995Z",
+  "title": "Design System: Inzpo Mobile",
+  "extensions": {
+    "colorMeta": {
+      "sky-enamel": {
+        "role": "primary",
+        "displayName": "Sky enamel"
+      },
+      "enamel-rim": {
+        "role": "primary",
+        "displayName": "Enamel rim"
+      },
+      "enamel-lip": {
+        "role": "primary",
+        "displayName": "Enamel lip"
+      },
+      "vermilion": {
+        "role": "secondary",
+        "displayName": "Vermilion"
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink"
+      },
+      "label-stock": {
+        "role": "neutral",
+        "displayName": "Label stock"
+      },
+      "oatmeal-stock": {
+        "role": "neutral",
+        "displayName": "Oatmeal stock"
+      },
+      "secondary-face": {
+        "role": "neutral",
+        "displayName": "Secondary face"
+      },
+      "secondary-edge": {
+        "role": "neutral",
+        "displayName": "Secondary edge"
+      },
+      "secondary-lip": {
+        "role": "neutral",
+        "displayName": "Secondary lip"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Akaya display",
+        "purpose": "Shared mobile heading; local compact route headings remain surface variants."
+      },
+      "title": {
+        "displayName": "Akaya title",
+        "purpose": "Navigation and description labels."
+      },
+      "body": {
+        "displayName": "Geist body",
+        "purpose": "Instructions, description, and recoverable-error text."
+      },
+      "label": {
+        "displayName": "Geist label",
+        "purpose": "Medium supporting labels."
+      },
+      "action": {
+        "displayName": "Geist action",
+        "purpose": "Medium action labels that scale with native text."
+      },
+      "field": {
+        "displayName": "Geist field",
+        "purpose": "Regular shared text input."
+      },
+      "hex": {
+        "displayName": "Geist Mono hex",
+        "purpose": "Actual color values; size follows each chip or detail layout."
+      }
+    },
+    "shadows": [
+      {
+        "name": "stock-rest",
+        "value": "1px 2px 1px #1C1B193B, 5px 9px 16px #1C1B191A",
+        "purpose": "Thin stock contact and ambient depth; FilmPrint, PaintChip, collection cards."
+      },
+      {
+        "name": "stock-lifted",
+        "value": "1px 2px 1px #1C1B193B, 3px 15px 25px #1C1B1945",
+        "purpose": "Selected PaintChip and ChipDetail."
+      },
+      {
+        "name": "enamel-rest",
+        "value": "0 4px 0 #2D4163, 4px 8px 12px #1C1B1928, inset 0 1px 1px #FFFFFF77, inset 0 -1px 1px #00000019",
+        "purpose": "Primary ActionButton lower lip, ambient depth, and inner highlights."
+      },
+      {
+        "name": "paper-action-rest",
+        "value": "0 4px 0 #C5BBAB, 3px 7px 11px #1C1B1928, inset 0 1px 1px #FFFFFF77, inset 0 -1px 1px #00000019",
+        "purpose": "Secondary ActionButton and paper BackButton face."
+      },
+      {
+        "name": "enamel-pressed",
+        "value": "0 1px 0 #2D4163, 1px 2px 4px #1C1B1928, inset 0 1px 2px #1C1B1933, inset 0 -1px 1px #00000019",
+        "purpose": "Primary press compression with 2-unit sink; Reduced Motion retains resting lip and no translation."
+      }
+    ],
+    "motion": [
+      {
+        "name": "tap",
+        "value": "120ms; out(cubic)",
+        "purpose": "Shared press feedback; transforms yield to fades under Reduced Motion."
+      },
+      {
+        "name": "fade",
+        "value": "150ms; linear",
+        "purpose": "Explicit fades remain available under Reduced Motion."
+      },
+      {
+        "name": "enter-spring",
+        "value": "damping 18; stiffness 220; mass 1",
+        "purpose": "Existing result and detail entry spring."
+      },
+      {
+        "name": "sheet-spring",
+        "value": "damping 30; stiffness 300",
+        "purpose": "Bottom-sheet source configuration; native gesture behavior remains unaccepted."
+      },
+      {
+        "name": "baku-inhale",
+        "value": "1.2s",
+        "purpose": "Source-sample ribbons accelerate into moving nostril; real coat colors fill actual stitched panels."
+      },
+      {
+        "name": "baku-chew",
+        "value": "initial 1.3s; loop 0.65s",
+        "purpose": "Wait for palette readiness and finish at a full chew boundary."
+      },
+      {
+        "name": "baku-anticipation",
+        "value": "0.62s",
+        "purpose": "Squeeze and prepare the sneeze."
+      },
+      {
+        "name": "baku-release",
+        "value": "0.22s",
+        "purpose": "Sneeze release before the landing beat."
+      },
+      {
+        "name": "baku-landing",
+        "value": "0.86s",
+        "purpose": "Swatches land in their usable controls."
+      },
+      {
+        "name": "chip-flight",
+        "value": "stagger 0.032s; exit 0.12s; flight 0.55s + index × 0.02s",
+        "purpose": "A short jet follows the moving nostril axis before fanning to chip targets; approved study bb16e1e."
+      },
+      {
+        "name": "performance-lifecycle",
+        "value": "pause when backgrounded, unfocused, source photo undisplayed, or art unloaded; skip when ready; bypass under Reduced Motion",
+        "purpose": "Code behavior, not native performance or gesture acceptance."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "accessible-chip-column",
+        "value": "fontScale > 1.25 (native text-scale threshold, not a CSS viewport breakpoint)"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Enamel action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Native ActionButton translated to CSS. Keyboard outline is a panel-only affordance; no native hover style is claimed.",
+      "html": "<button class=\"ds-enamel-action\">Save kit</button>",
+      "css": ".ds-enamel-action { min-height: 48px; padding: 12px; border: 1px solid #7E93B5; border-radius: 24px; background: #426092; color: #FBF8F2; font: 500 16px \"Geist\", sans-serif; box-shadow: 0 4px 0 #2D4163, 4px 8px 12px #1C1B1928, inset 0 1px 1px #FFFFFF77, inset 0 -1px 1px #00000019; cursor: pointer; transition: transform 120ms ease-out, background-color 120ms ease-out; } .ds-enamel-action:hover { background-color: #426092; } .ds-enamel-action:active { transform: translateY(2px); background-color: #3D5988; box-shadow: 0 1px 0 #2D4163, 1px 2px 4px #1C1B1928, inset 0 1px 2px #1C1B1933, inset 0 -1px 1px #00000019; } .ds-enamel-action:disabled { box-shadow: none; opacity: .5; cursor: default; } .ds-enamel-action:focus-visible { outline: 2px solid #1C1B19; outline-offset: 4px; } @media (prefers-reduced-motion: reduce) { .ds-enamel-action { transition: none; } .ds-enamel-action:active { transform: none; } }"
+    },
+    {
+      "name": "Paper action",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Native ActionButton translated to CSS. Keyboard outline is a panel-only affordance; no native hover style is claimed.",
+      "html": "<button class=\"ds-paper-action\">Copy kit</button>",
+      "css": ".ds-paper-action { min-height: 48px; padding: 12px; border: 1px solid #FFFDF8; border-radius: 5px; background: #F7F1E6; color: #1C1B19; font: 500 16px \"Geist\", sans-serif; box-shadow: 0 4px 0 #C5BBAB, 3px 7px 11px #1C1B1928, inset 0 1px 1px #FFFFFF77, inset 0 -1px 1px #00000019; cursor: pointer; transition: transform 120ms ease-out, background-color 120ms ease-out; } .ds-paper-action:hover { background-color: #F7F1E6; } .ds-paper-action:active { transform: translateY(2px); background-color: #EDE7DD; box-shadow: 0 1px 0 #C5BBAB, 1px 2px 4px #1C1B1928, inset 0 1px 2px #1C1B1933, inset 0 -1px 1px #00000019; } .ds-paper-action:disabled { box-shadow: none; opacity: .5; cursor: default; } .ds-paper-action:focus-visible { outline: 2px solid #1C1B19; outline-offset: 4px; } @media (prefers-reduced-motion: reduce) { .ds-paper-action { transition: none; } .ds-paper-action:active { transform: none; } }"
+    },
+    {
+      "name": "Hex field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Shared native field material; validation is textual. Focus outline exists only for the keyboard-operable documentation preview.",
+      "html": "<label class=\"ds-field-label\">Hex color<input class=\"ds-field\" value=\"#426092\" aria-label=\"Hex color\" spellcheck=\"false\"></label>",
+      "css": ".ds-field-label { display: grid; gap: 8px; color: #1C1B19; font: 500 14px/20px \"Geist\", sans-serif; } .ds-field { min-height: 52px; padding: 12px 16px; border: 1px solid #1C1B19; border-radius: 12px; background: #F3EEE4; color: #1C1B19; font: 400 17px \"Geist\", sans-serif; } .ds-field:hover { border-color: #1C1B19; } .ds-field:focus-visible { outline: 2px solid #1C1B19; outline-offset: 4px; }"
+    },
+    {
+      "name": "Paper back control",
+      "kind": "nav",
+      "description": "A 36-unit paper face inside a 44-unit native target, translated to a browser preview.",
+      "html": "<button class=\"ds-back\" aria-label=\"Back\"><span class=\"ds-back-face\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M15.0 3.7 C14.0 6.5 8.0 8.8 7.9 12.6 C9.0 15.5 13.7 16.8 15.9 20.0\" fill=\"none\" stroke=\"#28251e\" stroke-width=\"1.24\" opacity=\"0.32\"/><path d=\"M15.548 4.002 L15.354 4.084 L15.160 4.168 L14.968 4.254 L14.779 4.343 L14.593 4.437 L14.411 4.534 L14.233 4.637 L14.059 4.745 L13.890 4.857 L13.723 4.974 L13.560 5.094 L13.409 5.228 L13.265 5.371 L13.123 5.515 L12.981 5.659 L12.837 5.802 L12.693 5.944 L12.547 6.083 L12.398 6.219 L12.246 6.353 L12.093 6.484 L11.937 6.612 L11.779 6.738 L11.620 6.863 L11.460 6.987 L11.301 7.112 L11.143 7.238 L10.987 7.366 L10.833 7.497 L10.682 7.631 L10.535 7.769 L10.391 7.911 L10.250 8.056 L10.113 8.205 L9.978 8.357 L9.846 8.510 L9.714 8.665 L9.583 8.820 L9.451 8.974 L9.317 9.126 L9.181 9.275 L9.041 9.421 L8.897 9.562 L8.749 9.698 L8.596 9.829 L8.438 9.955 L8.276 10.077 L8.110 10.195 L7.941 10.310 L7.770 10.423 L7.598 10.534 L7.426 10.646 L7.254 10.759 L7.085 10.874 L6.918 10.992 L6.755 11.113 L6.596 11.239 L6.441 11.369 L6.382 12.990 L6.517 13.138 L6.655 13.283 L6.798 13.424 L6.943 13.563 L7.091 13.700 L7.239 13.835 L7.388 13.971 L7.537 14.107 L7.684 14.244 L7.830 14.382 L7.974 14.523 L8.117 14.665 L8.258 14.809 L8.398 14.954 L8.537 15.100 L8.677 15.246 L8.818 15.392 L8.961 15.535 L9.107 15.676 L9.256 15.813 L9.409 15.946 L9.567 16.074 L9.730 16.198 L9.897 16.316 L10.069 16.429 L10.244 16.538 L10.424 16.642 L10.605 16.744 L10.789 16.844 L10.972 16.942 L11.156 17.042 L11.338 17.142 L11.517 17.246 L11.694 17.353 L11.866 17.464 L12.035 17.580 L12.199 17.702 L12.359 17.828 L12.515 17.960 L12.668 18.096 L12.818 18.236 L12.966 18.379 L13.113 18.523 L13.266 18.661 L13.428 18.787 L13.592 18.912 L13.757 19.036 L13.925 19.156 L14.095 19.273 L14.268 19.387 L14.444 19.497 L14.623 19.605 L14.803 19.709 L14.985 19.812 L15.168 19.914 L15.632 19.286 L15.478 19.150 L15.326 19.011 L15.176 18.870 L15.030 18.727 L14.886 18.579 L14.746 18.428 L14.609 18.272 L14.477 18.113 L14.347 17.950 L14.221 17.784 L14.097 17.617 L13.966 17.459 L13.828 17.309 L13.691 17.161 L13.552 17.015 L13.411 16.872 L13.266 16.733 L13.119 16.599 L12.967 16.470 L12.812 16.346 L12.653 16.226 L12.490 16.111 L12.325 15.999 L12.157 15.890 L11.988 15.782 L11.819 15.674 L11.651 15.566 L11.484 15.455 L11.320 15.342 L11.159 15.225 L11.003 15.103 L10.850 14.977 L10.703 14.845 L10.560 14.709 L10.422 14.569 L10.288 14.424 L10.157 14.277 L10.028 14.127 L9.901 13.976 L9.775 13.824 L9.649 13.673 L9.522 13.524 L9.394 13.376 L9.264 13.230 L9.132 13.086 L8.997 12.946 L8.861 12.807 L8.723 12.670 L8.584 12.534 L8.445 12.398 L8.306 12.262 L8.169 12.125 L8.034 11.986 L7.902 11.844 L7.774 11.699 L7.767 12.730 L7.921 12.601 L8.078 12.477 L8.238 12.356 L8.402 12.238 L8.567 12.122 L8.734 12.008 L8.901 11.895 L9.068 11.780 L9.233 11.665 L9.395 11.546 L9.553 11.423 L9.707 11.297 L9.857 11.165 L10.001 11.027 L10.140 10.885 L10.274 10.736 L10.404 10.583 L10.530 10.426 L10.653 10.266 L10.774 10.103 L10.893 9.939 L11.013 9.774 L11.134 9.611 L11.256 9.449 L11.381 9.290 L11.509 9.134 L11.641 8.982 L11.775 8.833 L11.914 8.688 L12.055 8.546 L12.199 8.407 L12.344 8.270 L12.491 8.135 L12.639 8.000 L12.786 7.864 L12.932 7.727 L13.076 7.589 L13.219 7.448 L13.359 7.305 L13.497 7.159 L13.633 7.011 L13.768 6.861 L13.901 6.709 L14.035 6.558 L14.168 6.406 L14.304 6.257 L14.435 6.102 L14.560 5.941 L14.689 5.783 L14.823 5.632 L14.962 5.485 L15.106 5.344 L15.254 5.209 L15.407 5.080 L15.564 4.955 L15.725 4.833 L15.888 4.715 L16.052 4.598 Z\" fill=\"#1C1B19\" stroke=\"none\" stroke-width=\"1.0\" opacity=\"1.0\"/></svg></span></button>",
+      "css": ".ds-back { width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: #1C1B19; cursor: pointer; } .ds-back-face { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid #FFFDF8; border-radius: 18px; background: #F7F1E6; box-shadow: 0 4px 0 #C5BBAB, 3px 7px 11px #1C1B1928, inset 0 1px 1px #FFFFFF77, inset 0 -1px 1px #00000019; } .ds-back:hover .ds-back-face { background: #F7F1E6; } .ds-back:active .ds-back-face { transform: translateY(2px); } .ds-back:focus-visible { outline: 2px solid #1C1B19; outline-offset: 4px; } @media (prefers-reduced-motion: reduce) { .ds-back:active .ds-back-face { transform: none; } }"
+    },
+    {
+      "name": "Paint chip",
+      "kind": "chip",
+      "refersTo": "paint-chip",
+      "description": "PaintChip face and stock label; enamel blue is an example swatch, not a fabricated photo sample. The native source uses Skia paper texture.",
+      "html": "<button class=\"ds-chip\" aria-label=\"Primary: #426092. Show color detail.\"><span class=\"ds-chip-paint\"></span><span class=\"ds-chip-tints\"><i></i><i></i><i></i></span><span class=\"ds-chip-label\"><strong>PRIMARY</strong><span class=\"ds-chip-hex\">#426092</span></span></button>",
+      "css": ".ds-chip { display: block; width: 132px; min-height: 196px; padding: 0; overflow: hidden; border: .5px solid #1C1B1940; border-top-color: #FFFFFF99; border-left-color: #FFFFFF88; border-radius: 3px; background: #FBF8F2; color: #1C1B19; text-align: left; box-shadow: 1px 2px 1px #1C1B193B, 5px 9px 16px #1C1B191A; cursor: pointer; } .ds-chip-paint { display: block; height: 117px; background: #426092; } .ds-chip-tints { display: flex; height: 16px; } .ds-chip-tints i { flex: 1; background: #97A8C3; } .ds-chip-tints i:nth-child(2) { background: #6C83AA; } .ds-chip-tints i:nth-child(3) { background: #334B72; } .ds-chip-label { display: grid; gap: 0; padding: 3px 4px 6px; } .ds-chip-label strong { font: 600 14.6667px/1.2 \"Geist\", sans-serif; letter-spacing: -.7px; } .ds-chip-hex { font: 400 14.6667px/1.2 \"Geist Mono\", monospace; letter-spacing: -.7px; } .ds-chip:hover { box-shadow: 1px 2px 1px #1C1B193B, 5px 9px 16px #1C1B191A; } .ds-chip:active { box-shadow: 1px 2px 1px #1C1B193B, 3px 15px 25px #1C1B1945; } .ds-chip:focus-visible { outline: 2px solid #1C1B19; outline-offset: 4px; }"
+    },
+    {
+      "name": "Empty paint chip",
+      "kind": "chip",
+      "refersTo": "paint-chip-empty",
+      "description": "Empty role shown honestly on oatmeal stock. It leads to editing, with no invented sample color.",
+      "html": "<button class=\"ds-empty-chip\"><span class=\"ds-empty-body\"><em>No accent in this one. Add a color.</em></span><strong class=\"ds-empty-role\">ACCENT</strong></button>",
+      "css": ".ds-empty-chip { display: grid; width: 132px; min-height: 196px; padding: 0; border: .5px solid #1C1B1940; border-top-color: #FFFFFF99; border-left-color: #FFFFFF88; border-radius: 3px; background: #E4D9C6; color: #1C1B19; text-align: left; box-shadow: 1px 2px 1px #1C1B193B, 5px 9px 16px #1C1B191A; cursor: pointer; } .ds-empty-body { display: grid; align-items: center; padding: 6px 9px; } .ds-empty-body em { padding: 9px 0; border-top: 1px dashed #857B68; border-bottom: 1px dashed #857B68; font: italic 400 14.6667px/1.15 \"Geist\", sans-serif; } .ds-empty-role { padding: 3px 4px 6px; font: 600 14.6667px/1.2 \"Geist\", sans-serif; letter-spacing: -.7px; } .ds-empty-chip:hover { background: #E4D9C6; } .ds-empty-chip:active { box-shadow: 1px 2px 1px #1C1B193B, 3px 15px 25px #1C1B1945; } .ds-empty-chip:focus-visible { outline: 2px solid #1C1B19; outline-offset: 4px; }"
+    },
+    {
+      "name": "Film print frame",
+      "kind": "card",
+      "refersTo": "film-print",
+      "description": "FilmPrint frame geometry. The panel intentionally leaves its photo well empty; real imagery and sample pins come from the kit at runtime.",
+      "html": "<figure class=\"ds-print\" aria-label=\"Film print frame specimen, no photograph supplied\"><div class=\"ds-print-well\"></div></figure>",
+      "css": ".ds-print { width: 220px; margin: 0; padding: 12px 12px 36px; background: #FBF8F2; border: 1px solid #1C1B1940; border-top-color: #FFFFFF99; border-left-color: #FFFFFF88; box-shadow: 1px 2px 1px #1C1B193B, 5px 9px 16px #1C1B191A; } .ds-print-well { height: 240px; overflow: hidden; background: #F3EEE4; }"
+    },
+    {
+      "name": "Collection stock card",
+      "kind": "card",
+      "refersTo": "collection-card",
+      "description": "The navigable collection list container uses the same stock depth with heading and count.",
+      "html": "<button class=\"ds-collection\"><span class=\"ds-collection-title\">Your inspiration</span><span class=\"ds-collection-count\">3 kits</span></button>",
+      "css": ".ds-collection { display: grid; gap: 8px; min-height: 100px; padding: 24px; border: .5px solid #1C1B1940; border-top-color: #FFFFFF99; border-left-color: #FFFFFF88; background: #FBF8F2; color: #1C1B19; text-align: left; box-shadow: 1px 2px 1px #1C1B193B, 5px 9px 16px #1C1B191A; cursor: pointer; } .ds-collection-title { font: 400 32px/44px \"Akaya Kanadaka\", cursive; } .ds-collection-count { font: 400 16px/24px \"Geist\", sans-serif; } .ds-collection:hover { background: #FBF8F2; } .ds-collection:active { opacity: .8; } .ds-collection:focus-visible { outline: 2px solid #1C1B19; outline-offset: 4px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "A photographed moment becomes a usable creative kit",
+    "overview": "Inzpo's mobile world is a small collection of creative materials: cream paper, a photographic print, dimensional paint-chip stock, blue enamel controls, and a gray knitted Baku. Akaya Kanadaka gives the interface its friendly voice; Geist makes the working information clear. Photos and their extracted colors supply the changing character of each kit.\n\nThe tactile treatment carries meaning. A print holds source evidence, a chip holds a named color, and a fan deck makes a saved kit feel like something to keep and reuse. Baku's connected wool body and actual stitched panels carry the photo-to-palette performance. Material detail belongs to those objects and should leave their labels readable.",
+    "keyCharacteristics": [
+      "Warm paper and dark ink form the stable interface.",
+      "Photos and sampled colors lead the content.",
+      "Stock, enamel, and knit have distinct surfaces and depth.",
+      "Expressive headings sit above plain working text and precise hex values.",
+      "Motion connects a source photo to usable color controls."
+    ],
+    "rules": [
+      {
+        "name": "The Source Color Rule",
+        "body": "A kit's swatch, source-pin center, and Baku panel use the kit's actual color value. Decorative tint strips are material variations, not additional extracted colors or source evidence.",
+        "section": "colors"
+      },
+      {
+        "name": "The Honest Empty Rule",
+        "body": "A missing role stays empty: oatmeal chip stock and a gray Baku panel communicate the absence without inventing a swatch or sample pin.",
+        "section": "colors"
+      },
+      {
+        "name": "The Readable Stock Rule",
+        "body": "Keep paint-chip role names and hex values on light stock below the painted face. Let labels grow and painted areas compress when text needs room.",
+        "section": "typography"
+      },
+      {
+        "name": "The Material Depth Rule",
+        "body": "Match depth to the object: thin stock, compressed enamel, and soft knit have different surfaces. The lip of an enamel control and the contact shadow of paper are material cues, not a generic shadow for every container.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** preserve cream paper, photographic prints, paint-chip stock, blue enamel actions, and Baku's knit as distinct materials.",
+      "**Do** use actual kit colors for swatches, sample markers, and Baku panels; keep empty roles visibly empty.",
+      "**Do** keep readable chip labels on stock and accommodate font scaling with layout growth.",
+      "**Do** reuse the same paint-chip component in the interactive pile, saved deck, and keep fan.",
+      "**Do** preserve the explicit skip, Reduced Motion result path, and background pause.",
+      "**Do** treat phone layout, text scaling, performance, and gestures as pending until verified on the target device."
+    ],
+    "donts": [
+      "**Don't** promote decorative tint strips into extracted colors or source evidence.",
+      "**Don't** turn one screen's overlap, tilt, or artwork measurements into a universal layout rule.",
+      "**Don't** substitute the shared Fraunces export for the mobile Akaya display font.",
+      "**Don't** use sidecar previews or Skia character stills as proof of native phone acceptance."
+    ]
+  }
+}

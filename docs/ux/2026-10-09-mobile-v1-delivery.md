@@ -56,3 +56,24 @@ with EAS `--skip-bundler --input-dir dist-v1-pilot --environment preview`. Verif
 the compiled bundle contains the intended backend URL before publishing. Do not
 run a normal EAS rebundle with that shared environment until it is deliberately
 reconciled.
+
+## Published Expo receipt
+
+- Published October 9, 2026 at 23:10 UTC, branch `v1-pilot`, iOS only.
+- Native source commit: `f0198c1b30480fbfbdf0d32815601a03d7873c83`.
+- Group: `659b91ea-f0ae-458a-9086-19fa964180c6`.
+- Update: `01a122ee-83c0-732f-8f3b-8ec14bb8a909`.
+- Runtime: `exposdk:57.0.0`.
+- EAS update readback matches the published group/branch/commit. The served
+  manifest returns 200 and its launch-asset SHA256 matches the locally checked
+  iOS export: `74fea36014983a49f1a92c01dee89075d1797dff9b1d9411086ae47c6364deb7`.
+- The compiled bundle contains the new matched backend URL and omits the old
+  Grok backend URL. A direct CLI fetch from Expo's asset CDN received Cloudflare
+  403, so this receipt confirms manifest/hash agreement, not device download.
+- [Expo Go QR](https://qr.expo.dev/eas-update?projectId=529d6681-6398-4009-adff-18b6bb5a6108&groupId=659b91ea-f0ae-458a-9086-19fa964180c6)
+- [EAS update](https://expo.dev/accounts/jakebutler/projects/inzpo/updates/659b91ea-f0ae-458a-9086-19fa964180c6)
+
+On iPhone, scan the QR with Camera and open in Expo Go. Complete one real loop:
+sign in, take a photo, see the palette reveal, change a role, save, reopen from
+the collection, Copy kit, share CSS, and share JSON. Then check Reduced Motion,
+background/resume, a denied camera permission, and a failed-upload retry.
