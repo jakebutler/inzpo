@@ -97,12 +97,12 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
       <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <Animated.View style={styles.page} entering={FadeIn.duration(150).reduceMotion(ReduceMotion.Never)}>
       <PaperTexture />
-      <ScrollView testID="keep-scroll" contentContainerStyle={{ paddingTop: Math.max(40, insets.top),
+      <View testID="keep-header" style={{ width: contentWidth, alignSelf: 'center', gap: 4, paddingTop: Math.max(40, insets.top) }}>
+        <BackButton onPress={onClose} disabled={saving} />
+        <Text accessibilityRole="header" allowFontScaling style={[ui.heading, { fontSize: 30, lineHeight: 32 }]}>Keep this kit</Text>
+      </View>
+      <ScrollView testID="keep-scroll" contentContainerStyle={{
         paddingBottom: footerHeight + Math.max(insets.bottom, 24) + 32, alignItems: 'center' }} keyboardShouldPersistTaps="handled">
-        <View style={{ width: contentWidth, gap: 4 }}>
-          <BackButton onPress={onClose} disabled={saving} />
-          <Text accessibilityRole="header" allowFontScaling style={[ui.heading, { fontSize: 30, lineHeight: 32 }]}>Keep this kit</Text>
-        </View>
         {kit && <View style={{ width: contentWidth, height: 480 * artScale }}>
           <View style={{ width: contentWidth, height: 480, transformOrigin: '50% 0%', transform: [{ scale: artScale }] }}>
           <View style={styles.sourcePrint}>

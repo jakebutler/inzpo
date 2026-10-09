@@ -3,12 +3,14 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { COLOR_ROLES, colorHue, rolesFromColors } from '@inzpo/shared';
 import type { ItemDetail } from '@/lib/items';
 import { upgradeMobilePalette } from '@/lib/mobile-palette';
+import sharp from 'sharp';
 import { extractPalette } from '@/lib/palette-extract';
 
 const mocks = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock('@/lib/r2', async () => ({
   r2: () => ({ send: mocks.send }),
   GetObjectCommand: (await import('@aws-sdk/client-s3')).GetObjectCommand,
+  variantKey: (id: string, variant: string) => `items/${id}/${variant}.webp`,
 }));
 
 function legacy(key: string): ItemDetail {
@@ -74,4 +76,28 @@ it('a failed photo refresh can retry rather than caching a rejection', async () 
   mocks.send.mockResolvedValueOnce({ Body: { transformToByteArray: async () => input } });
   expect(colorHue(rolesFromColors((await upgradeMobilePalette(original)).colors).primary)).toBe('yellow');
   expect(mocks.send).toHaveBeenCalledTimes(2);
+});
+
+
+it('reanchors capture hexes using w640 rather than missing the match on the original JPEG', async () => {
+  const input = await readFile('public/sample/IMG_6505.jpg');
+  const variant = await sharp(input).resize({ width: 640 }).webp({ quality: 82 }).toBuffer();
+  const captured = await extractPalette(variant);
+  const originalPalette = await extractPalette(input);
+  const capturedPrimary = captured.swatches.find((swatch) => swatch.role === 'primary')!;
+  expect(capturedPrimary.hex).not.toBe(originalPalette.roles.primary);
+  const item = legacy('compressed-region-house');
+  item.colors = captured.swatches.map((swatch, position) => ({ hex: swatch.hex, role: swatch.role,
+    name: swatch.name, family: swatch.family, origin: swatch.origin, position,
+    // Simulate the pre-fix region centroid in a window.
+    pinX: 0.5, pinY: 0.3 }));
+  mocks.send.mockImplementation(async (command) => ({ Body: { transformToByteArray: async () =>
+    command.input.Key === 'items/compressed-region-house/w640.webp' ? variant : input } }));
+  const updated = await upgradeMobilePalette(item);
+  const primary = updated.colors.find((color) => color.role === 'primary')!;
+  expect(primary.hex).toBe(capturedPrimary.hex);
+  expect(primary.pinX).toBe(capturedPrimary.pinX);
+  expect(primary.pinY).toBe(capturedPrimary.pinY);
+  expect(captured.regionAtPin(primary.pinX!, primary.pinY!)?.role).toBe('primary');
+  expect(mocks.send.mock.calls[0][0].input.Key).toBe('items/compressed-region-house/w640.webp');
 });

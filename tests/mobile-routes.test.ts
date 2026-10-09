@@ -203,7 +203,7 @@ describe("mobile kit detail", () => {
     expect(response.status).toBe(200);
     const dto = await response.json();
     expect(dto).toEqual({
-      id: "kit_1", title: "Blue House",
+      id: "kit_1", title: "Warm House",
       photo: { url: "https://r2.test/photo?signed=1", width: 1000, height: 800, placeholder: null },
       roles: { primary: "#abcdef", secondary: null, accent: null, background: null, surface: null, text: null },
       colors: [{ hex: "#ABCDEF", role: "primary", name: "Wall", origin: "extracted", pinX: null, pinY: null }],
@@ -219,23 +219,35 @@ describe("mobile kit detail", () => {
     mocks.readBriefJob.mockResolvedValue(ready);
     mocks.getItemDetail.mockResolvedValue({ ...item, media: { ...item.media!, displayKey: null } });
     const response = await getKit(request(), context());
-    expect((await response.json()).title).toBe("Blue House");
+    expect((await response.json()).title).toBe("Warm House");
     expect(mocks.getSignedUrl.mock.calls[0]![1].input).toMatchObject({ Key: "items/kit_1/original.jpg" });
   });
 
-  it('uses Primary with a valid noun and falls back for adjective-only model titles', async () => {
+  it('names repeated captures from Primary regardless of model prose, title, labels or ordering', async () => {
+    mocks.getItemCollections.mockResolvedValue([]);
     const titles = [];
     for (const [title, brief] of [
-      ['Yellow Victorian', pending], ['Yellow Sunlit', ready],
-      ['A different model name', { ...ready, text: 'Cream trim and a blue sky.',
-        namedColors: [{ hex: '#426092', label: 'blue sky' }] }],
+      ['IMG_6505', pending],
+      ['Yellow Facade', { ...ready, text: 'A yellow facade.', namedColors: [{ hex: '#ffffff', label: 'white windows' }] }],
+      ['Yellow kit', { ...ready, text: 'Soft and sunlit.', namedColors: [{ hex: '#426092', label: 'blue sky' }] }],
     ] as const) {
-      mocks.getItemDetail.mockResolvedValue({ ...item, title,
-        colors: [{ ...item.colors[0]!, hex: '#d2d0a8', name: title }] });
-      mocks.readBriefJob.mockResolvedValue(brief);
-      titles.push((await (await getKit(request(), context())).json()).title);
+      const primary = { ...item.colors[0]!, hex: '#d2d0a8', name: title };
+      const secondary = { ...primary, role: 'secondary' as const, hex: '#426092', name: 'window' };
+      for (const colors of [[primary, secondary], [secondary, primary]]) {
+        mocks.getItemDetail.mockResolvedValue({ ...item, title, colors });
+        mocks.readBriefJob.mockResolvedValue(brief);
+        titles.push((await (await getKit(request(), context())).json()).title);
+      }
     }
-    expect(titles).toEqual(['Yellow Victorian', 'Yellow House', 'Yellow Trim']);
+    expect(titles).toEqual(Array(6).fill('Yellow kit'));
+  });
+
+  it('preserves an explicit saved name when the brief changes', async () => {
+    mocks.getItemDetail.mockResolvedValue({ ...item, title: 'Sunday walks' });
+    for (const brief of [pending, ready]) {
+      mocks.readBriefJob.mockResolvedValue(brief);
+      expect((await (await getKit(request(), context())).json()).title).toBe('Sunday walks');
+    }
   });
 
   it("supports a kit without media", async () => {
@@ -407,7 +419,7 @@ describe("mobile collection detail", () => {
     const response = await collectionDetail(request(), collectionContext());
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ id: "collection_1", name: "Houses", kits: [{
-      id: "kit_1", title: "Blue House",
+      id: "kit_1", title: "Warm House",
       roles: { primary: "#abcdef", secondary: null, accent: null, background: null, surface: null, text: null },
       photo: { url: "https://r2.test/photo?signed=1" },
     }] });

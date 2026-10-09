@@ -24,8 +24,10 @@ export async function buildMobileKit(ownerId: string, item: ItemDetail): Promise
   const roles = rolesFromColors(item.colors);
   return {
     id: item.id,
-    title: primaryKitTitle(roles.primary, { title: item.title, briefText: brief.text,
-      namedColors: [...brief.namedColors, ...item.colors.map((color) => ({ hex: color.hex, label: color.name }))] }),
+    // Automatic names depend only on the seeded photo palette. Brief prose,
+    // model labels and their ordering must never rename a fresh capture.
+    // Keep preserves the explicit name submitted when saving a collection kit.
+    title: collections.length && item.title?.trim() ? item.title.trim() : primaryKitTitle(roles.primary),
     photo,
     roles,
     colors: item.colors.map(({ hex, role, name, origin, pinX, pinY }) => ({ hex, role, name, origin, pinX, pinY })),

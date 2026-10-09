@@ -25,16 +25,16 @@ export function KitDeck({ kit, closed = false, typeSize = 11 }: { kit: MobileKit
   return <View testID={closed ? 'closed-kit-deck' : 'keep-kit-fan'} accessible={false}
     style={closed ? styles.closed : styles.fan}>
     {order.map((role, index) => <View key={role} style={closed ? {
-      position: 'absolute', left: 18 + index * 3, top: (5 - index) * 1.5, zIndex: index,
+      position: 'absolute', left: 18 + index * 4, top: (5 - index) * 1.5, zIndex: index,
       transformOrigin: '12px 154px', transform: [{ rotate: '-3deg' }],
     } : {
       position: 'absolute', left: 112, top: 80, zIndex: index,
       transformOrigin: '12px 170px', transform: [{ rotate: `${-30 + index * 12}deg` }],
     }}>
-      <PaintChip role={role} color={kit.roles[role]} width={closed ? 110 : 120} height={closed ? 168 : 184}
+      <PaintChip role={role} color={kit.roles[role]} width={closed ? 124 : 120} height={closed ? 168 : 184}
         typeSize={typeSize} deck labelInset={closed ? 29 : 36} />
       {closed && index < order.length - 1 && <View testID={`deck-edge-${role}`} pointerEvents="none"
-        style={{ position: 'absolute', left: 1, top: 2, width: 3, height: 168 * 0.62,
+        style={{ position: 'absolute', left: 0, top: 2, width: 3, height: 168 * 0.62,
           backgroundColor: kit.roles[role] ?? OATMEAL_STOCK }} />}
     </View>)}
     <View style={closed ? styles.closedRivet : styles.fanRivet}><Rivet size={closed ? 23 : 17} /></View>

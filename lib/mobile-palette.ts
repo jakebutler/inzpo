@@ -1,7 +1,7 @@
 import 'server-only';
 import type { ItemDetail } from '@/lib/items';
 import { extractPalette, type ExtractedPalette } from '@/lib/palette-extract';
-import { r2, GetObjectCommand } from '@/lib/r2';
+import { r2, GetObjectCommand, variantKey } from '@/lib/r2';
 
 const refreshed = new Map<string, Promise<ExtractedPalette>>();
 
@@ -16,12 +16,15 @@ export async function upgradeMobilePalette(item: ItemDetail): Promise<ItemDetail
     color.pinX != null && color.pinY != null);
   const needsPins = automatic.some((color) => color.origin === 'region');
   if (!item.media || (!legacy && !needsPins)) return item;
-  const key = `${process.env.R2_BUCKET}:${item.media.originalKey}`;
+  // Capture fits w640, whose lossy colors differ from the stored JPEG.
+  // Reanchoring against a different encoding misses exact hex matches and
+  // silently leaves the old centroid (which can fall inside a window).
+  const sourceKey = legacy ? item.media.originalKey : variantKey(item.id, 'w640');
+  const key = `${process.env.R2_BUCKET}:${item.media.originalKey}:${sourceKey}`;
   let pending = refreshed.get(key);
   if (!pending) {
-    const originalKey = item.media.originalKey;
     pending = (async () => {
-      const object = await r2().send(new GetObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: originalKey }));
+      const object = await r2().send(new GetObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: sourceKey }));
       if (!object.Body) throw new Error('Kit photo unavailable for palette refresh');
       return extractPalette(Buffer.from(await object.Body.transformToByteArray()));
     })();

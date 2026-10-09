@@ -1,4 +1,4 @@
-import type { ColorRole } from '@inzpo/shared';
+import { emptyRoles, type ColorRole } from '@inzpo/shared';
 import { Canvas, LinearGradient, Rect } from '@shopify/react-native-skia';
 import { router, Stack, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -23,6 +23,7 @@ import { useInzpoClient } from '@/lib/api';
 import { resultLayout } from '@/lib/result-layout';
 import { photoPins, primaryHue } from '@/lib/result-pins';
 import { useKit } from '@/lib/use-kit';
+import { capturePhoto } from '@/lib/photo-handoff';
 import { useResultSequence } from '@/lib/useResultSequence';
 import { useBakuPupils } from '@/lib/useBakuPupils';
 import { useBakuHop } from '@/lib/useBakuHop';
@@ -65,6 +66,12 @@ export default function ResultScreen() {
   const scrollY = useRef(0);
   const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
   const photoFailed = !!kit?.photo && kit.photo.url === failedPhotoUrl;
+  const localPhoto = capturePhoto(id);
+  const [displayedPhoto, setDisplayedPhoto] = useState<{ id: string; url: string } | null>(null);
+  const renderedPhoto = loading ? localPhoto : kit?.photo;
+  // A painted local preview cannot authorize playback for a new remote source.
+  const photoVisible = !!renderedPhoto && !photoFailed && displayedPhoto?.id === id &&
+    displayedPhoto.url === renderedPhoto.url;
   const ready = !!kit && (briefFailed || kit.brief.status !== 'pending');
   const failedBrief = briefFailed || kit?.brief.status === 'failed' || (kit?.brief.status === 'ready' && !kit.brief.text);
   const pupils = useBakuPupils(96);
@@ -97,13 +104,17 @@ export default function ResultScreen() {
           scrollY.current = nativeEvent.contentOffset.y;
           if (nativeEvent.contentOffset.x !== 0 || nativeEvent.contentOffset.y !== 0) sequence.skipToEnd();
         }} scrollEventThrottle={16}>
+        <View testID="result-first-screen" style={isSaved ? { minHeight: height - Math.max(40, insets.top) } : undefined}>
         <View style={[styles.header, isSaved && styles.savedHeader, { width: layout.contentWidth }]} onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height + 5)}>
           <BackButton onPress={() => router.dismissTo('/')} />
           <Text accessibilityRole="header" allowFontScaling style={[styles.heading, isSaved && styles.savedHeading]}>{isSaved && kit ? kit.title : 'Your colors'}</Text>
         </View>
-        {loading ? <View style={ui.center}>
-          <MunchPlayer key={id} width={munchWidth} active={focused} />
-        </View> : error ? <View style={ui.center}>
+        {loading ? localPhoto ? <View style={{ minHeight: layout.heroHeight }}>
+          <FilmPrint kit={{ photo: localPhoto, roles: emptyRoles(), colors: [] }} width={layout.printWidth} height={layout.printHeight}
+            failed={false} onError={() => setDisplayedPhoto(null)} onPhotoDisplay={() => setDisplayedPhoto({ id, url: localPhoto.url })}
+            showPins={false} onPinPress={() => {}} placeholder={null} />
+          {photoVisible && <View style={{ marginTop: -72, paddingBottom: 24 }}><MunchPlayer key={id} width={munchWidth} active={focused} /></View>}
+        </View> : <View style={ui.center}><Text style={ui.body}>Loading your photo…</Text></View> : error ? <View style={ui.center}>
           <Baku pose={error === 'notFound' ? 'notFound' : 'errorPhoto'} />
           <Text style={ui.message}>{error === 'notFound' ? 'This kit couldn’t be found.' : 'Couldn’t load this kit. Please try again.'}</Text>
           <ActionButton label="Try again" onPress={retry} />
@@ -121,13 +132,14 @@ export default function ResultScreen() {
             </View>
           </> : <View testID="result-hero" accessibilityLabel={kit.title} style={{ width: heroWidth, alignSelf: 'center', minHeight: layout.heroHeight }}>
             <FilmPrint kit={kit} width={layout.printWidth} height={layout.printHeight} failed={photoFailed}
-              onError={() => setFailedPhotoUrl(kit.photo!.url)} selectedRole={editing ? selectedRole : null}
+              preview={localPhoto?.url} onPhotoDisplay={() => setDisplayedPhoto({ id, url: kit.photo!.url })}
+              onError={() => { setDisplayedPhoto(null); setFailedPhotoUrl(kit.photo!.url); }} selectedRole={editing ? selectedRole : null}
               markerStyle={sequence.markerStyle} onPinPress={openRole} interactive={sequence.interactive} placeholder={<View style={styles.placeholder}>
                 <Baku pose={photoFailed ? 'errorPhoto' : 'empty'} roles={kit.roles} stripeProgress={sequence.stripeProgress} wipeMode={sequence.wipeMode} />
                 <Text style={ui.message}>{photoFailed ? 'Couldn’t load the photo.' : 'No photo in this kit.'}</Text>
                 {photoFailed && <ActionButton label="Reload photo" onPress={() => { setFailedPhotoUrl(null); retry(); }} />}
               </View>} />
-            {!ready && <View style={{ marginTop: -72, paddingBottom: 24 }}>
+            {!ready && photoVisible && <View style={{ marginTop: -72, paddingBottom: 24 }}>
               <MunchPlayer key={id} width={munchWidth} active={focused} />
             </View>}
             {ready && <View style={{ marginTop: -113, marginHorizontal: 20 }}>
@@ -142,6 +154,7 @@ export default function ResultScreen() {
                 }} />
             </View>}
             {ready && primaryPin && <PrimaryArrow width={heroWidth} height={layout.heroHeight}
+              start={{ x: 20 + layout.slots[0].x + 12, y: layout.printHeight - 113 + layout.slots[0].height * 0.25 }}
               end={{ x: printLeft + 13 + primaryPin.marker.x, y: 13 + primaryPin.marker.y }}
               hue={primaryHue(kit)} progress={sequence.values.markerOpacity} reducedMotion={sequence.reducedMotion} />}
           </View>}
@@ -156,11 +169,12 @@ export default function ResultScreen() {
               <ActionButton label="Snap another" onPress={() => router.dismissTo('/')} />
             </View>
           </View>}
-          <View style={[styles.brief, { width: layout.contentWidth, marginTop: isSaved ? 32 : ready ? 100 : 16 }]}>
-            <BriefBlock brief={kit.brief} failed={briefFailed} showBaku={false} motionStyle={ready ? sequence.briefStyle : undefined} />
-            {(briefFailed || kit.brief.status === 'failed') && <ActionButton label="Check brief again" onPress={retry} />}
-          </View>
         </> : null}
+        </View>
+        {kit && <View style={[styles.brief, { width: layout.contentWidth, marginTop: isSaved ? 32 : ready ? 100 : 16 }]}>
+          <BriefBlock brief={kit.brief} failed={briefFailed} showBaku={false} motionStyle={ready ? sequence.briefStyle : undefined} />
+          {(briefFailed || kit.brief.status === 'failed') && <ActionButton label="Check brief again" onPress={retry} />}
+        </View>}
       </ScrollView>
       {!isSaved && <View testID="result-actions" pointerEvents="box-none" style={[styles.footer, { bottom: footerBottom, maxWidth: 390 }]}>
         <Canvas accessible={false} pointerEvents="none" style={StyleSheet.flatten([styles.fade, { height: actionHeight + footerBottom + 20 }])}>
@@ -168,7 +182,7 @@ export default function ResultScreen() {
             <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 0, y: 40 }} colors={['#F3EEE400', PAPER]} />
           </Rect>
         </Canvas>
-        {(loading || (!!kit && !ready)) && <ChewingCaption key={id}
+        {photoVisible && (loading || (!!kit && !ready)) && <ChewingCaption key={id}
           style={{ position: 'absolute', left: 82, right: 16, bottom: actionHeight + 16 }} />}
         {ready && <View style={styles.host}>
           <CornerBaku size={62} focused={focused && sheet?.kitId !== id && detail?.kitId !== id} pose={hop.pose && hop.pose !== 'idle' ? hop.pose : failedBrief ? 'errorBrief' : 'idle'}

@@ -4,7 +4,7 @@ import { act, fireEvent, render, waitFor, within } from '@testing-library/react-
 import * as ImagePicker from 'expo-image-picker';
 import * as ExpoHaptics from 'expo-haptics';
 import * as Reanimated from 'react-native-reanimated';
-import { Keyboard, Platform } from 'react-native';
+import { Keyboard, Platform, StyleSheet } from 'react-native';
 import { fonts, INK } from '@/theme/tokens';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import SignInScreen from '@/app/(auth)/sign-in';
@@ -17,6 +17,9 @@ import { completedResultKits } from '@/lib/useResultSequence';
 import { useInzpoClient } from '@/lib/api';
 import { createHaptics, haptics } from '@/lib/haptics';
 import { uploadPhoto } from '@/lib/upload';
+import { capturePhoto, handoffPhoto } from '@/lib/photo-handoff';
+import { PrimaryArrow } from './PrimaryArrow';
+import { photoPins } from '@/lib/result-pins';
 import { resultSequenceBeats, SHUTTER_PRESS_SCALE, TAP_TIMING, BUTTON_PRESS_SCALE } from '@/theme/motion';
 import { kitFixture, mockClient } from '../../tests/fixtures';
 import { mockReanimatedMotion } from '../../tests/reanimated-motion';
@@ -24,6 +27,7 @@ import { restingBakuSize } from '@/theme/sign-in';
 
 jest.mock('@/lib/api', () => ({ useInzpoClient: jest.fn() }));
 jest.mock('@/lib/upload', () => ({ uploadPhoto: jest.fn() }));
+jest.mock('./PrimaryArrow', () => ({ PrimaryArrow: jest.fn(jest.requireActual('./PrimaryArrow').PrimaryArrow) }));
 
 let client: ReturnType<typeof mockClient>;
 const setActive = jest.fn();
@@ -34,6 +38,7 @@ const signIn = {
 
 beforeEach(() => {
   completedResultKits.clear();
+  handoffPhoto('other-kit', { uri: 'file:///other.jpg', width: 100, height: 100 });
   jest.mocked(useLocalSearchParams).mockReturnValue({ id: 'kit-1' });
   Object.assign(haptics, createHaptics());
   jest.mocked(Reanimated.useReducedMotion).mockReturnValue(false);
@@ -113,6 +118,33 @@ test('snap renders both actions and uploads a library image before navigating', 
   expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith(expect.objectContaining({ mediaTypes: ['images'] }));
   expect(uploadPhoto).toHaveBeenCalledWith(client, photo);
   expect(router.push).toHaveBeenCalledWith({ pathname: '/kit/[id]', params: { id: 'kit-1' } });
+});
+
+test.each(['camera', 'library'] as const)('%s shows the local photo before upload finishes and starts munching only after it paints', async (source) => {
+  const photo = { uri: 'file:///snapped.jpg', width: 1500, height: 2000 };
+  const picker = source === 'camera' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
+  jest.mocked(picker).mockResolvedValue({ canceled: false, assets: [photo] });
+  let resolveUpload!: (id: string) => void;
+  jest.mocked(uploadPhoto).mockReturnValue(new Promise((resolve) => { resolveUpload = resolve; }));
+  const view = await render(<SnapScreen />);
+  await fireEvent.press(view.getByRole('button', { name: source === 'camera' ? 'Snap a house' : 'Pick from library' }));
+
+  expect(uploadPhoto).toHaveBeenCalledWith(client, photo);
+  expect(view.getByLabelText('House photo').props.source).toEqual({ uri: photo.uri });
+  expect(router.push).not.toHaveBeenCalled();
+  expect(view.queryByTestId('munch-player')).toBeNull();
+  await fireEvent(view.getByLabelText('House photo'), 'loadEnd');
+  expect(view.queryByTestId('munch-player')).toBeNull();
+  await fireEvent(view.getByLabelText('House photo'), 'display');
+  expect(view.getByTestId('munch-player')).toBeTruthy();
+  expect(router.push).not.toHaveBeenCalled();
+
+  await fireEvent(view.getByLabelText('House photo'), 'error');
+  expect(view.queryByTestId('munch-player')).toBeNull();
+  await act(async () => resolveUpload('kit-1'));
+  expect(router.push).toHaveBeenCalledWith({ pathname: '/kit/[id]', params: { id: 'kit-1' } });
+  expect(capturePhoto('kit-1')?.url).toBe(photo.uri);
+  expect(view.queryByTestId('munch-player')).toBeNull();
 });
 
 test('camera permission denial shows photo-error Baku without launching the camera', async () => {
@@ -196,6 +228,8 @@ test('a pending brief polls and refetches the kit title after resolving', async 
   client.getBrief.mockReturnValue(new Promise((resolve) => { resolveBrief = resolve; }));
   const view = await render(<ResultScreen />);
   expect(view.queryByText('Chewing on it.')).toBeNull();
+  expect(view.queryByTestId('munch-player')).toBeNull();
+  await fireEvent(view.getByLabelText('House photo'), 'display');
   expect(view.getByTestId('baku-chewing')).toBeTruthy();
   expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
   expect(view.queryByRole('button', { name: 'Edit' })).toBeNull();
@@ -212,6 +246,7 @@ test('waiting shows the delayed caption above fixed Result actions, then removes
   let resolveBrief!: (brief: typeof kitFixture.brief) => void;
   client.getBrief.mockReturnValue(new Promise((resolve) => { resolveBrief = resolve; }));
   const view = await render(<ResultScreen />);
+  await fireEvent(view.getByLabelText('House photo'), 'display');
   await act(async () => jest.advanceTimersByTime(1999));
   expect(view.queryByText('Chewing on it.')).toBeNull();
   await act(async () => jest.advanceTimersByTime(1));
@@ -691,4 +726,63 @@ test('each filled role has a photo pin and an empty role has only its label and 
   expect(view.getByText('ACCENT')).toBeTruthy();
   expect(view.getByText('No accent in this one. Add a color.')).toBeTruthy();
   expect(view.queryByText(/No color yet/)).toBeNull();
+});
+
+
+test('the capture photo is present during the initial kit request and chew waits for display', async () => {
+  handoffPhoto('kit-1', { uri: 'file:///picked.jpg', width: 1500, height: 2000 });
+  client.getKit.mockReturnValue(new Promise(() => {}));
+  const view = await render(<ResultScreen />);
+  expect(view.getByLabelText('House photo').props.source).toEqual({ uri: 'file:///picked.jpg' });
+  expect(view.queryByTestId('munch-player')).toBeNull();
+  await fireEvent(view.getByLabelText('House photo'), 'display');
+  expect(view.getByTestId('munch-player')).toBeTruthy();
+  expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
+  await fireEvent(view.getByLabelText('House photo'), 'error');
+  expect(view.queryByTestId('munch-player')).toBeNull();
+});
+
+test('a painted capture does not start munching on the result image until that new source paints', async () => {
+  handoffPhoto('kit-1', { uri: 'file:///picked.jpg', width: 1500, height: 2000 });
+  let resolveKit!: (kit: typeof kitFixture) => void;
+  client.getKit.mockReturnValue(new Promise((resolve) => { resolveKit = resolve; }));
+  client.getBrief.mockReturnValue(new Promise(() => {}));
+  const view = await render(<ResultScreen />);
+  await fireEvent(view.getByLabelText('House photo'), 'display');
+  expect(view.getByTestId('munch-player')).toBeTruthy();
+
+  await act(async () => resolveKit({ ...kitFixture, brief: { ...kitFixture.brief, status: 'pending', text: null } }));
+  expect(view.getByLabelText('House photo').props.source).toEqual({ uri: kitFixture.photo!.url });
+  expect(view.queryByTestId('munch-player')).toBeNull();
+  await fireEvent(view.getByLabelText('House photo'), 'display');
+  expect(view.getByTestId('munch-player')).toBeTruthy();
+
+  await fireEvent(view.getByLabelText('House photo'), 'error');
+  expect(view.queryByTestId('munch-player')).toBeNull();
+  await fireEvent.press(view.getByRole('button', { name: 'Reload photo' }));
+  expect(view.queryByTestId('munch-player')).toBeNull();
+  await fireEvent(view.getByLabelText('House photo'), 'display');
+  expect(view.getByTestId('munch-player')).toBeTruthy();
+});
+
+test.each([null, kitFixture.photo])('without a displayed photo chewing never plays (%s)', async (photo) => {
+  client.getKit.mockResolvedValue({ ...kitFixture, photo, brief: { ...kitFixture.brief, status: 'pending', text: null } });
+  client.getBrief.mockReturnValue(new Promise(() => {}));
+  const view = await render(<ResultScreen />);
+  expect(view.queryByTestId('munch-player')).toBeNull();
+});
+
+test('the signature ends on Primary even when a window pin comes first in the color array', async () => {
+  const kit = { ...kitFixture, photo: { ...kitFixture.photo!, width: 1500, height: 2000 }, colors: [
+    { role: 'secondary' as const, hex: kitFixture.roles.secondary!, origin: 'sampled', name: 'window', pinX: 0.7, pinY: 0.3 },
+    { role: 'primary' as const, hex: kitFixture.roles.primary!, origin: 'sampled', name: 'siding', pinX: 307 / 1500, pinY: 889 / 2000 },
+  ] };
+  client.getKit.mockResolvedValue(kit);
+  const view = await render(<ResultScreen />);
+  const print = view.getByTestId('film-print');
+  const { width, height } = StyleSheet.flatten(print.props.style);
+  const primary = photoPins(kit, width - 26, height - 50).find((pin) => pin.role === 'primary')!;
+  const arrow = jest.mocked(PrimaryArrow).mock.calls.at(-1)![0];
+  expect(arrow.end.x).toBeCloseTo((arrow.width - width) / 2 + 13 + primary.marker.x);
+  expect(arrow.end.y).toBeCloseTo(13 + primary.marker.y);
 });

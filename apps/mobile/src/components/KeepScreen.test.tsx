@@ -1,4 +1,4 @@
-import { act, fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, within } from '@testing-library/react-native';
 import * as ExpoHaptics from 'expo-haptics';
 import { useReducedMotion } from 'react-native-reanimated';
 import { KeepScreen } from './KeepScreen';
@@ -126,4 +126,15 @@ test('unmounting after success cancels the automatic dismissal timer', async () 
   await view.unmount();
   await act(async () => { jest.advanceTimersByTime(3000); });
   expect(onClose).not.toHaveBeenCalled();
+});
+
+
+test('choosing a collection leaves the header outside the changing scroll area', async () => {
+  const view = await render(<KeepScreen kitId="kit-1" kit={kitFixture} onClose={onClose} />);
+  const before = view.getByTestId('keep-header').props.style;
+  await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
+  await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
+  expect(view.getByTestId('keep-header')).toHaveStyle(before);
+  expect(within(view.getByTestId('keep-scroll')).queryByText('Keep this kit')).toBeNull();
+  expect(view.getByText('Neighborhood')).toBeTruthy();
 });

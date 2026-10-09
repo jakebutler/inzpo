@@ -41,11 +41,11 @@ export function PaintChip({ role, color, width, height, typeSize = 44 / 3, lifte
         </> : <View testID={`role-empty-${role}`} style={[styles.empty, { minHeight: bodyHeight, backgroundColor: OATMEAL_STOCK }, bodyHeight < 90 && { paddingVertical: 2 }]}>
           {/* Limit mottle beneath oatmeal print to keep the measured 11.79:1. */}
           <PaperTexture opacity={0.25} />
-          <View style={[styles.emptyRuling, bodyHeight < 90 && { paddingVertical: 3 }]}>
+          {!deck && <View style={[styles.emptyRuling, bodyHeight < 90 && { paddingVertical: 3 }]}>
             <Text allowFontScaling style={{ fontFamily: fonts.body, fontSize: typeSize, lineHeight: typeSize * 1.15, fontStyle: 'italic', color: ink }}>
               {`No ${role} in this one. Add a color.`}
             </Text>
-          </View>
+          </View>}
         </View>}
         <View style={[styles.label, deck && { paddingLeft: labelInset, paddingTop: 3 }, { minHeight: labelHeight, backgroundColor: stock }]}>
           <PaperTexture opacity={color ? 1 : 0.25} />

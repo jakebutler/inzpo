@@ -21,7 +21,7 @@ export function roleSample(kit: Pick<MobileKit, 'roles' | 'colors'>, role: Color
 }
 
 /** Map normalized source points through the same top/center cover as expo-image. */
-export function photoPins(kit: MobileKit, width: number, height: number) {
+export function photoPins(kit: Pick<MobileKit, 'photo' | 'roles' | 'colors'>, width: number, height: number) {
   const sourceWidth = kit.photo?.width ?? 1500;
   const sourceHeight = kit.photo?.height ?? 2000;
   const scale = Math.max(width / sourceWidth, height / sourceHeight);

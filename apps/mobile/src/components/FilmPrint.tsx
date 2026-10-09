@@ -11,9 +11,10 @@ import { fonts, INK, VERMILION } from '@/theme/tokens';
 
 export const pinRing = Skia.Path.MakeFromSVGString('M4 -6 C-2 -10 -8 -5 -7 1 C-7 7 1 9 6 5 C9 2 8 -3 6 -5')!;
 
-export function FilmPrint({ kit, width, height, failed, onError, placeholder, markerStyle, selectedRole, onPinPress, interactive = true, showPins = true, date, photoPosition = 'top', borderInset = 12, foot = 36 }: {
-  kit: MobileKit; width: number; height: number; failed: boolean; onError: () => void; placeholder: ReactNode;
+export function FilmPrint({ kit, width, height, failed, onError, placeholder, markerStyle, selectedRole, onPinPress, interactive = true, showPins = true, onPhotoDisplay, preview, date, photoPosition = 'top', borderInset = 12, foot = 36 }: {
+  kit: Pick<MobileKit, 'photo' | 'roles' | 'colors'>; width: number; height: number; failed: boolean; onError: () => void; placeholder: ReactNode;
   markerStyle?: AnimatedProps<ViewProps>['style']; selectedRole?: ColorRole | null; onPinPress: (role: ColorRole) => void;
+  onPhotoDisplay?: () => void; preview?: string;
   interactive?: boolean; showPins?: boolean; date?: string; photoPosition?: React.ComponentProps<typeof Image>['contentPosition'];
   borderInset?: number; foot?: number;
 }) {
@@ -24,7 +25,8 @@ export function FilmPrint({ kit, width, height, failed, onError, placeholder, ma
     <View testID="film-print" style={[stockSurface, styles.print, { width, height, paddingTop: borderInset, paddingHorizontal: borderInset, paddingBottom: foot }]}>
       <View style={[styles.photo, { width: photoWidth, height: photoHeight }]}>
         {kit.photo && !failed ? <>
-          <Image key={kit.photo.url} source={{ uri: kit.photo.url }} placeholder={kit.photo.placeholder ?? undefined}
+          <Image key={kit.photo.url} source={{ uri: kit.photo.url }} placeholder={preview ? { uri: preview } : kit.photo.placeholder ?? undefined}
+            placeholderContentFit="cover" onDisplay={onPhotoDisplay}
             contentFit="cover" contentPosition={photoPosition} accessibilityLabel="House photo" onError={onError} style={StyleSheet.absoluteFill} />
           <Canvas testID="film-sheen" accessible={false} pointerEvents="none" style={StyleSheet.absoluteFill}>
             {/* A single fixed, broad, feathered ellipse bowed across the top-left.
