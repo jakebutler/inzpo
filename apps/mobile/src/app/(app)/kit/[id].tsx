@@ -149,10 +149,10 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
                 <Text style={ui.message}>{photoFailed ? 'Couldn’t load the photo.' : 'No photo in this kit.'}</Text>
                 {photoFailed && <ActionButton label="Reload photo" onPress={() => { setFailedPhotoUrl(null); retry(); }} />}
               </View>} />
-            {revealing && photoPins(kit, layout.printWidth - 26, layout.photoHeight, layout.pinHeight).map((pin, index) =>
-              <ColorInhale key={pin.role} color={pin.color} index={index} performance={performance}
-                source={{ x: printLeft + 13 + pin.target.x, y: 13 + pin.target.y }}
-                baku={{ x: bakuLeft, y: layout.printHeight - 100, width: bakuWidth }} />)}
+            {revealing && <ColorInhale width={heroWidth} height={layout.heroHeight} performance={performance}
+              samples={photoPins(kit, layout.printWidth - 26, layout.photoHeight, layout.pinHeight).map(pin => ({
+                color: pin.color, source: { x: printLeft + 13 + pin.target.x, y: 13 + pin.target.y },
+              }))} baku={{ x: bakuLeft, y: layout.printHeight - 100, width: bakuWidth }} />}
             {revealing && <View pointerEvents="none" style={{ position: 'absolute', left: bakuLeft, top: layout.printHeight - 100, zIndex: 10 }}>
               <KnitBaku width={bakuWidth} elapsed={performance.elapsed} readyAt={performance.readyAt} roles={kit.roles} onLoaded={performance.onLoaded} />
             </View>}

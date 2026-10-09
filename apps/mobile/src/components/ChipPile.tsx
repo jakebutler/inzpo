@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import type { ChipSlot } from '@/lib/result-layout';
 import type { PalettePerformance } from '@/baku/usePalettePerformance';
-import { anticipationAt, clamp, deform, poseAt, SNOUT, TIMING } from '@/baku/motion';
+import { chipFlight } from '@/baku/transport';
 import type { BandMotion } from '@/lib/useResultSequence';
 import { PaintChip } from './PaintChip';
 
@@ -20,19 +20,14 @@ function PileCard({ slot, color, typeSize, motion, disabled, onPress, selected, 
   }, [selected, reducedMotion, lift]);
   const animatedStyle = useAnimatedStyle(() => {
     if (performance && emitter && !performance.finished && !reducedMotion) {
-      const readyAt = performance.readyAt.value;
-      const release = anticipationAt(Math.max(0, readyAt)) + TIMING.anticipation + index * .045;
-      const progress = readyAt < 0 ? 0 : clamp((performance.elapsed.value - release) / .70);
-      const ease = 1 - Math.pow(1 - progress, 3);
-      const point = deform(SNOUT.x, SNOUT.y, poseAt(release + .085, Math.max(0, readyAt)));
-      const dx = emitter.x + point.x * emitter.width - slot.x - slot.width / 2;
-      const dy = emitter.y + point.y * emitter.width * 2 / 3 - slot.y - slot.height / 2;
+      const target = { x: slot.x + slot.width / 2, y: slot.y + slot.height / 2 };
+      const flight = chipFlight(performance.elapsed.value, performance.readyAt.value, emitter, target, index);
       // Empty roles arrive as blank stock, never as fabricated colored swatches.
-      return { opacity: color ? (progress > 0 ? 1 : 0) : clamp((progress - .7) / .3), transform: [
-        { translateX: color ? dx * (1 - ease) : 0 },
-        { translateY: color ? dy * (1 - ease) - Math.sin(progress * Math.PI) * 60 : 0 },
-        { scale: color ? .07 + .93 * ease : 1 },
-        { rotate: `${slot.rotation + (color ? (index % 2 ? -65 : 80) * (1 - ease) : 0)}deg` },
+      return { opacity: color ? flight.opacity : flight.blankOpacity, transform: [
+        { translateX: color ? flight.x - target.x : 0 },
+        { translateY: color ? flight.y - target.y : 0 },
+        { rotate: `${slot.rotation + (color ? flight.rotation : 0)}deg` },
+        { scale: color ? flight.scale : 1 },
       ] };
     }
     return { opacity: motion?.opacity.value ?? 1,

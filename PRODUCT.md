@@ -1,4 +1,34 @@
-# Inzpo — Product (v4, pivot, steelmanned in the Inzpo room)
+# Inzpo — Product
+
+## Current v1 decisions — October 9, 2026
+
+These direct user decisions supersede conflicting details in the historical v4
+brief below. The product is a mobile source of reusable creative inspiration:
+take or choose a photo, extract its colors and description, save a kit, and use
+it in products, apps, and creative projects.
+
+- Expo Go on iPhone is the primary delivery surface. Web supports the pilot.
+- Invite-only for Jake and a handful of friends; no open signup.
+- Six editable roles: Primary, Secondary, Accent, Background, Surface, Text.
+  Leave a role empty when no suitable color exists. Never invent sample pins.
+- Save and edit are available when the palette is ready. Description can finish
+  later, including after saving. Preserve the chosen photo when upload fails.
+- Copy kit includes hex colors and available description. CSS and JSON export
+  are available from each kit, including a reopened saved kit.
+- Akaya Kanadaka headlines, Geist body copy, cream paper, film prints, paint-chip
+  stock, and a saved fan deck are the current mobile visual direction.
+- Baku's approved knit performance starts gray, inhales colors from the photo,
+  fills its actual stitched panels, chews, then sneezes the palette into the
+  interactive controls. Empty panels stay gray. Reduced Motion and an explicit
+  skip preserve immediate access to the result.
+- Fonts for generated identities, photo textures/SVG, icons, and broader brand
+  briefs are later work, outside this v1 pilot.
+
+Current implementation and device verification boundary:
+[mobile v1 delivery](docs/ux/2026-10-09-mobile-v1-delivery.md).
+
+## Historical v4 brief (October 7)
+
 
 > Status: DRAFT for Jake's sign-off. Supersedes the v1 "design-inspiration
 > vault" framing. `docs/spec/v1.md` and `CONTEXT.md` stay normative for
