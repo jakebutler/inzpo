@@ -1,0 +1,155 @@
+import { BottomSheetModal, type BottomSheetModalProps, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { act, fireEvent, render, renderHook } from '@testing-library/react-native';
+import { Alert } from 'react-native';
+import { createRef, type ReactNode, type ReactElement } from 'react';
+import { ReduceMotion, useReducedMotion, useSharedValue } from 'react-native-reanimated';
+import { useInzpoClient } from '@/lib/api';
+import { createHaptics, haptics } from '@/lib/haptics';
+import { kitFixture, mockClient } from '../../tests/fixtures';
+import { EditSheet, type EditSheetHandle } from './EditSheet';
+import { EditBackdrop } from './MotionSheet';
+import { UseKitSheet } from './UseKitSheet';
+import { KeepScreen } from './KeepScreen';
+
+jest.mock('@/lib/api', () => ({ useInzpoClient: jest.fn() }));
+
+// Observe the props/methods of the installed official mock, preserving its
+// real mock render rather than substituting a homegrown sheet implementation.
+type ModalInstance = {
+  props: BottomSheetModalProps;
+  render: () => ReactNode;
+  present: () => void;
+  dismiss: () => void;
+  snapToIndex: (index: number) => void;
+};
+const MockModal = BottomSheetModal as unknown as { prototype: ModalInstance };
+let sheetProps: BottomSheetModalProps;
+let client: ReturnType<typeof mockClient>;
+beforeEach(() => {
+  client = mockClient();
+  jest.mocked(useInzpoClient).mockReturnValue(client);
+  jest.mocked(useReducedMotion).mockReturnValue(false);
+  Object.assign(haptics, createHaptics());
+  const originalRender = MockModal.prototype.render;
+  jest.spyOn(MockModal.prototype, 'render').mockImplementation(function (this: ModalInstance) {
+    sheetProps = this.props;
+    return originalRender.call(this);
+  });
+});
+afterEach(() => jest.restoreAllMocks());
+
+test('Edit opens fully with six chips and can peek to expose the source photo', async () => {
+  const ref = createRef<EditSheetHandle>();
+  const snap = jest.spyOn(MockModal.prototype, 'snapToIndex');
+  const view = await render(<EditSheet ref={ref} visible kit={kitFixture} onUpdated={jest.fn()} onClose={jest.fn()} />);
+  expect(sheetProps).toMatchObject({ snapPoints: [expect.any(Number), '88%'], index: 1, enableDynamicSizing: false, enablePanDownToClose: true });
+  expect(view.getByTestId('edit-role-primary-paint')).toHaveStyle({ backgroundColor: '#b35831' });
+  expect(view.getByTestId('edit-role-accent-paint')).toHaveStyle({ backgroundColor: '#E4D9C6', borderStyle: 'dashed' });
+  expect(view.queryByText('Color picking comes next')).toBeNull();
+  await fireEvent.press(view.getByTestId('edit-role-primary'));
+  expect(snap).toHaveBeenCalledWith(1);
+  expect(view.getByText('Choose primary')).toBeTruthy();
+  await act(async () => ref.current?.snapToPeek());
+  expect(snap).toHaveBeenCalledWith(0);
+  await act(async () => sheetProps.onChange?.(0, 156, 0));
+  expect(view.queryByText('Color picking comes next')).toBeNull();
+});
+
+test('Edit backdrop dims at its highest snap only', async () => {
+  const { result } = await renderHook(() => ({ animatedIndex: useSharedValue(0), animatedPosition: useSharedValue(0) }));
+  expect(EditBackdrop(result.current).props).toMatchObject({ opacity: 0.35, appearsOnIndex: 1, disappearsOnIndex: 0 });
+});
+
+test('a pin-opened editor can collapse to peek and respects reduced motion', async () => {
+  jest.mocked(useReducedMotion).mockReturnValue(true);
+  const view = await render(<EditSheet visible initialRole="primary" kit={kitFixture}
+    onUpdated={jest.fn()} onClose={jest.fn()} />);
+  expect(sheetProps.index).toBe(1);
+  expect(sheetProps.overrideReduceMotion).toBe(ReduceMotion.Always);
+  expect(view.getByText('Choose primary')).toBeTruthy();
+  await act(async () => sheetProps.onChange?.(0, 156, 0));
+  expect(view.queryByText('Choose primary')).toBeNull();
+  expect(view.queryByLabelText('Hex color')).toBeNull();
+  expect(view.getByTestId('edit-role-primary')).toBeTruthy();
+});
+
+test.each(['save', 'edit'])('%s keeps the editor open during a write so its success reaches the result', async (kind) => {
+  let finish!: () => void;
+  const onSuccess = jest.fn();
+  const onClose = jest.fn();
+  client.saveKit.mockReturnValue(new Promise((resolve) => { finish = () => resolve({ collectionId: 'collection-1' }); }));
+  if (kind === 'edit') {
+    client.updateKitColors.mockReturnValue(new Promise((resolve) => { finish = () => resolve(kitFixture); }));
+  }
+  const view = await render(kind === 'save'
+    ? <KeepScreen kitId="kit-1" onClose={onClose} onSaved={onSuccess} />
+    : <EditSheet visible kit={kitFixture} onClose={onClose} onUpdated={onSuccess} />);
+  if (kind === 'save') {
+    await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
+  } else {
+    await fireEvent.press(view.getByTestId('edit-role-primary'));
+    await fireEvent.press(view.getByRole('button', { name: 'Clear' }));
+    await fireEvent.press(view.getByRole('button', { name: 'Save colors' }));
+  }
+  const { result } = await renderHook(() => ({ animatedIndex: useSharedValue(0), animatedPosition: useSharedValue(0) }));
+  const backdrop = () => (sheetProps.backdropComponent as (props: BottomSheetBackdropProps) => ReactElement<{ pressBehavior: string }>)(result.current);
+  if (kind === 'edit') {
+    expect(sheetProps.enablePanDownToClose).toBe(false);
+    expect(backdrop().props.pressBehavior).toBe('none');
+  } else {
+    expect(view.getByRole('button', { name: 'Back' })).toBeDisabled();
+    expect(view.getByRole('button', { name: 'Not now' })).toBeDisabled();
+  }
+  expect(onSuccess).not.toHaveBeenCalled();
+  await act(async () => finish());
+  expect(onSuccess).toHaveBeenCalledTimes(1);
+  if (kind === 'edit') {
+    expect(sheetProps.enablePanDownToClose).toBe(true);
+    expect(backdrop().props.pressBehavior).toBe('close');
+  }
+});
+
+
+test('dirty colors retain Save and Cancel at peek and need explicit discard', async () => {
+  const alert = jest.spyOn(Alert, 'alert');
+  const dismiss = jest.spyOn(MockModal.prototype, 'dismiss');
+  const view = await render(<EditSheet visible initialRole="primary" kit={kitFixture} onUpdated={jest.fn()} onClose={jest.fn()} />);
+  await fireEvent.press(view.getByRole('button', { name: 'Clear' }));
+  expect(sheetProps.enablePanDownToClose).toBe(false);
+  expect(sheetProps.enableHandlePanningGesture).toBe(false);
+  // Switching the draggable wrapper off remounts the form in Gorhom v5.
+  expect(sheetProps.enableContentPanningGesture).toBeUndefined();
+  await act(async () => sheetProps.onChange?.(0, 240, 0));
+  expect(view.getByRole('button', { name: 'Save colors' })).toBeEnabled();
+  await fireEvent.press(view.getByRole('button', { name: 'Cancel' }));
+  expect(dismiss).not.toHaveBeenCalled();
+  expect(alert).toHaveBeenCalledWith('Discard color changes?', expect.any(String), expect.any(Array));
+  const discard = alert.mock.calls[0][2]!.find(button => button.text === 'Discard changes');
+  await act(async () => discard?.onPress?.());
+  expect(dismiss).toHaveBeenCalledTimes(1);
+});
+
+test('hidden sheets are not dismissed before their first presentation', async () => {
+  const dismiss = jest.spyOn(MockModal.prototype, 'dismiss');
+  const present = jest.spyOn(MockModal.prototype, 'present');
+  const view = await render(<EditSheet visible={false} kit={kitFixture} onUpdated={jest.fn()} onClose={jest.fn()} />);
+  expect(dismiss).not.toHaveBeenCalled();
+  await view.rerender(<EditSheet visible kit={kitFixture} onUpdated={jest.fn()} onClose={jest.fn()} />);
+  expect(present).toHaveBeenCalledTimes(1);
+  await view.unmount();
+  const reuse = await render(<UseKitSheet visible={false} kit={kitFixture} onClose={jest.fn()} />);
+  expect(dismiss).not.toHaveBeenCalled();
+  await reuse.rerender(<UseKitSheet visible kit={kitFixture} onClose={jest.fn()} />);
+  expect(present).toHaveBeenCalledTimes(2);
+});
+
+
+test('Edit starts on a real color without creating a change to save', async () => {
+  const view = await render(<EditSheet visible kit={{ ...kitFixture, roles: { ...kitFixture.roles, primary: null } }}
+    onUpdated={jest.fn()} onClose={jest.fn()} />);
+  expect(view.getByTestId('edit-role-secondary').props.accessibilityState).toMatchObject({ selected: true });
+  expect(view.getByLabelText('Hex color')).toHaveProp('value', kitFixture.roles.secondary);
+  expect(view.getByText('A supporting color for balance.')).toBeTruthy();
+  expect(view.getByRole('button', { name: 'Save colors' })).toBeDisabled();
+  expect(client.updateKitColors).not.toHaveBeenCalled();
+});

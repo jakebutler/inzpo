@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Images, LayoutGrid, Plus, Tags } from "lucide-react";
+import { Images, LayoutGrid, Plus } from "lucide-react";
 
 const HIDDEN_ON = ["/capture", "/login"];
 
@@ -35,13 +35,12 @@ export function BottomNav() {
         {item("/", "Wall", Images)}
         <Link
           href="/capture"
-          aria-label="Capture"
-          className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-black/40 transition-transform active:scale-95"
+          aria-label="Snap something"
+          className="-mt-6 flex h-14 w-14 items-center justify-center bg-primary text-primary-foreground transition-transform active:scale-95"
         >
           <Plus className="h-7 w-7" />
         </Link>
         {item("/boards", "Boards", LayoutGrid)}
-        {item("/vocab", "Vocabulary", Tags)}
       </div>
     </nav>
   );

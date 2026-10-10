@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getItemDetail, getArticleHtml } from "@/lib/items";
-import { getItemTags } from "@/lib/ontology";
 import { getItemCollections, listCollectionOptions } from "@/lib/item-collections";
 import { getItemBoards, getBoards } from "@/lib/item-boards";
 import { DeleteButton } from "../DeleteButton";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Pencil, X } from "lucide-react";
 import { BottomNav } from "@/app/components/BottomNav";
@@ -13,6 +11,17 @@ import { addToCollectionAction, removeFromCollectionAction } from "@/app/actions
 import { addItemToBoardAction, createBoardWithItemAction, removeItemFromBoardAction } from "@/app/actions/boards";
 import { saveExtractedAsPaletteAction } from "@/app/actions/palettes";
 import { getOrigin, getDerivedItems } from "@/lib/palettes";
+import { requireOwnerId } from "@/lib/auth/owner";
+import { KitResult } from "@/app/components/KitResult";
+import { SaveBar } from "@/app/components/SaveBar";
+import { TokenEditor } from "@/app/components/TokenEditor";
+import { BriefSlot } from "@/app/components/BriefSlot";
+import { KitChrome } from "@/app/components/KitChrome";
+import { kitFromColors } from "@/lib/mascot";
+import { readBriefJob } from "@/lib/brief";
+import { kitAltText } from "@/lib/kit-name";
+import { rolesFromColors } from "@/lib/tokens";
+import { listCollections } from "@/lib/collections";
 
 export const dynamic = "force-dynamic";
 
@@ -25,28 +34,66 @@ const KIND_LABEL: Record<string, string> = {
   video: "Video",
 };
 
-export default async function ItemDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ItemDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ c?: string; saved?: string }>;
+}) {
+  const ownerId = await requireOwnerId();
   const { id } = await params;
-  const item = await getItemDetail(id);
+  const query = await searchParams;
+  const item = await getItemDetail(ownerId, id);
   if (!item) notFound();
-  const tags = await getItemTags(id);
+  const collections = await listCollections(ownerId);
+  const isKit = item.kind === "photo" || item.kind === "screenshot";
+  if (isKit) {
+    const memberships = await getItemCollections(ownerId, id, "recent");
+    const saved = memberships.length > 0 || query.saved === "1";
+    const savedCollection = memberships[0] ?? (saved ? collections.find((c) => c.id === query.c) : null);
+    const collectionId = savedCollection?.id ?? query.c ?? null;
+    const collectionHref = collectionId ? `/?c=${collectionId}` : "/";
+    return (
+      <main className="min-h-screen bg-background text-foreground">
+        <KitChrome roles={rolesFromColors(item.colors)}>
+          <KitResult
+            itemId={item.id}
+            title={item.title}
+            initialBrief={await readBriefJob(item.id)}
+            imageSrc={item.media?.displayKey ? `/media/${item.media.displayKey}` : null}
+            width={item.media?.width ?? 390}
+            height={item.media?.height ?? 488}
+            colors={item.colors}
+            tileSrc={item.media?.tileKey ? `/media/${item.media.tileKey}` : null}
+            placeholderSrc={item.media?.placeholder ?? null}
+            saved={saved}
+            backHref={collectionHref}
+            showBack={!saved}
+          />
+          <SaveBar
+            itemId={item.id}
+            collections={collections.map((c) => ({ id: c.id, name: c.name }))}
+            saved={saved}
+            collectionId={collectionId}
+            collectionName={savedCollection?.name ?? null}
+          />
+        </KitChrome>
+      </main>
+    );
+  }
   const [memberships, options, articleHtml, boardMemberships, boardOptions] = await Promise.all([
-    getItemCollections(id),
-    listCollectionOptions(),
-    item.hasArticle ? getArticleHtml(id) : Promise.resolve(null),
-    getItemBoards(id),
-    getBoards(),
+    getItemCollections(ownerId, id),
+    listCollectionOptions(ownerId),
+    item.hasArticle ? getArticleHtml(ownerId, id) : Promise.resolve(null),
+    getItemBoards(ownerId, id),
+    getBoards(ownerId),
   ]);
   const joinable = options.filter((o) => !memberships.some((m) => m.id === o.id));
   const joinableBoards = boardOptions.filter((o) => !boardMemberships.some((m) => m.id === o.id));
-  const [originId, derived] = await Promise.all([getOrigin(id), getDerivedItems(id)]);
+  const [originId, derived] = await Promise.all([getOrigin(ownerId, id), getDerivedItems(ownerId, id)]);
 
   const embedSrc = item.oembedHtml?.match(/src=["']([^"']+)["']/i)?.[1] ?? null;
-
-  const facetGroups = new Map<string, string[]>();
-  for (const t of tags.facetTags) {
-    facetGroups.set(t.facet, [...(facetGroups.get(t.facet) ?? []), t.value]);
-  }
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -70,7 +117,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
         {item.media?.displayKey ? (
           <img
             src={`/media/${item.media.displayKey}`}
-            alt={item.title ?? "Item"}
+            alt={kitAltText({ title: item.title, briefText: item.note })}
             className="w-full rounded-xl bg-neutral-900"
           />
         ) : null}
@@ -82,7 +129,9 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
           </p>
         </div>
 
-        {item.note ? <p className="mt-3 whitespace-pre-wrap text-neutral-300">{item.note}</p> : null}
+        {item.note && item.colors.length === 0 ? (
+          <p className="mt-3 whitespace-pre-wrap text-neutral-300">{item.note}</p>
+        ) : null}
 
         {item.source ? (
           <section className="mt-6 rounded-xl border border-neutral-800 bg-neutral-900 p-4">
@@ -125,52 +174,22 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
           </section>
         ) : null}
 
+        <section className="mt-6">
+          <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Palette</h2>
+          <div className="mt-2">
+            <TokenEditor
+              itemId={item.id}
+              imageSrc={item.media?.displayKey ? `/media/${item.media.displayKey}` : null}
+              colors={item.colors}
+            />
+          </div>
+        </section>
         {item.colors.length > 0 ? (
-          <section className="mt-6">
-            <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Colors</h2>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {item.colors.map((c) => (
-                <span
-                  key={`${c.hex}-${c.position}`}
-                  title={`${c.hex} · ${c.family}`}
-                  className="flex items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-900 py-1 pl-1 pr-3"
-                >
-                  <span className="inline-block h-6 w-6 rounded-full border border-neutral-700" style={{ backgroundColor: c.hex }} />
-                  <span className="text-xs text-neutral-400">
-                    {c.hex} · {c.family}
-                  </span>
-                </span>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {facetGroups.size > 0 || tags.freeTags.length > 0 ? (
-          <section className="mt-6">
-            <h2 className="text-xs uppercase tracking-wide text-muted-foreground">Tags</h2>
-            <div className="mt-2 space-y-3">
-              {[...facetGroups.entries()].map(([facet, values]) => (
-                <div key={facet} className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs uppercase tracking-wide text-muted-foreground w-24">{facet}</span>
-                  {values.map((v) => (
-                    <Badge key={v} variant="outline" className="px-3 py-1.5 text-sm">
-                      {v}
-                    </Badge>
-                  ))}
-                </div>
-              ))}
-              {tags.freeTags.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs uppercase tracking-wide text-muted-foreground w-24">Free</span>
-                  {tags.freeTags.map((t) => (
-                    <Badge key={t} variant="secondary" className="px-3 py-1.5 text-sm">
-                      {t}
-                    </Badge>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </section>
+          <BriefSlot
+            status={item.note ? "ready" : "pending"}
+            kit={kitFromColors(item.colors)}
+            note={item.note}
+          />
         ) : null}
 
         {item.colors.length > 0 && (item.kind === "screenshot" || item.kind === "photo") ? (

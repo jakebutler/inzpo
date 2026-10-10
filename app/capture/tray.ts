@@ -6,7 +6,7 @@ export interface TrayFacet {
   values: string[];
 }
 
-export async function loadTrayFacets(): Promise<TrayFacet[]> {
-  const facets = await getFacetsWithValues();
+export async function loadTrayFacets(ownerId: string): Promise<TrayFacet[]> {
+  const facets = await getFacetsWithValues(ownerId);
   return facets.map((f) => ({ id: f.id, name: f.name, values: f.values.map((v) => v.value) }));
 }

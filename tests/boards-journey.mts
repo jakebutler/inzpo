@@ -14,6 +14,7 @@ function check(label: string, ok: boolean, detail = "") {
   if (!ok) failures.push(label);
 }
 
+const { TEST_OWNER_ID: OWNER } = await import("../lib/auth/owner-ids");
 const { createImageItem } = await import("../lib/items");
 const { db } = await import("../lib/db");
 const { itemSources, items } = await import("../lib/db/schema");
@@ -29,12 +30,12 @@ const seeded: string[] = [];
 let boardId = "";
 const browser = await chromium.launch();
 try {
-  const a = await createImageItem({ buffer: await img(150, 60, 40), filename: "journey-a.png" });
-  const b = await createImageItem({ buffer: await img(40, 150, 60), filename: "journey-b.png" });
-  const c = await createImageItem({ buffer: await img(60, 40, 150), filename: "journey-c.png" });
+  const a = await createImageItem({ ownerId: OWNER, buffer: await img(150, 60, 40), filename: "journey-a.png" });
+  const b = await createImageItem({ ownerId: OWNER, buffer: await img(40, 150, 60), filename: "journey-b.png" });
+  const c = await createImageItem({ ownerId: OWNER, buffer: await img(60, 40, 150), filename: "journey-c.png" });
   seeded.push(a, b, c);
   const linked = newId();
-  await db.insert(items).values({ id: linked, kind: "url", title: "Journey linked" });
+  await db.insert(items).values({ id: linked, ownerId: OWNER, kind: "url", title: "Journey linked", captureState: "ready" });
   await db.insert(itemSources).values({ itemId: linked, url: "https://example.com/journey", urlNormalized: "example.com/journey" });
   seeded.push(linked);
 
@@ -143,10 +144,10 @@ try {
   await mpage.screenshot({ path: "/tmp/journey-8-mobile.png" });
   await mctx.close();
 
-  const detail = await getBoardDetail(boardId);
+  const detail = await getBoardDetail(OWNER, boardId);
   check("board persisted placements server-side", (detail?.placements.length ?? 0) >= 4, `${detail?.placements.length} placements`);
 } finally {
-  if (boardId) await deleteBoard(boardId).catch(() => {});
+  if (boardId) await deleteBoard(OWNER, boardId).catch(() => {});
   for (const id of seeded) await db.delete(items).where(eq(items.id, id)).catch(() => {});
   await browser.close();
 }

@@ -74,7 +74,7 @@ function Tile({ p, background }: { p: PlacementData; background: string }) {
         light ? "bg-[#e4e4e7] text-[#18181b]" : "bg-[#262626] text-[#e4e4e7]"
       }`}
     >
-      <span className="line-clamp-3 text-xs leading-tight">{p.title ?? "Untitled"}</span>
+      <span className="whitespace-normal break-words text-balance text-xs leading-tight">{p.title ?? "Untitled"}</span>
       {hostOf(p.sourceUrl) ? (
         <span className={`truncate text-[10px] ${light ? "text-[#52525b]" : "text-[#a1a1aa]"}`}>{hostOf(p.sourceUrl)}</span>
       ) : null}
@@ -787,7 +787,7 @@ export function BoardEditor({
                     <Tile p={p} background={meta.background} />
                     {p.showLabel ? (
                       <span className="absolute inset-x-0 bottom-0 overflow-hidden rounded-b-lg bg-black/65 px-1.5 py-0.5 text-[10px] leading-tight text-white">
-                        <span className="line-clamp-1">{p.title ?? "Untitled"}</span>
+                        <span className="block whitespace-normal break-words text-balance">{p.title ?? "Untitled"}</span>
                       </span>
                     ) : null}
                     {isSelected ? (
@@ -812,7 +812,7 @@ export function BoardEditor({
                 </PopoverTrigger>
                 {isSelected ? (
                   <PopoverContent side="top" align="center" className="w-48 gap-1 p-1.5">
-                    <p className="truncate px-1.5 pb-1 text-xs font-medium text-muted-foreground">{p.title ?? "Untitled"}</p>
+                    <p className="whitespace-normal break-words text-balance px-1.5 pb-1 text-xs font-medium text-muted-foreground">{p.title ?? "Untitled"}</p>
                     <button
                       type="button"
                       onClick={() => toggleLabel(p.id)}

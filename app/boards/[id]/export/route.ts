@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
+import { optionalOwnerId } from "@/lib/auth/owner";
 import { getBoardDetail } from "@/lib/boards";
 import {
   exportDimensions,
@@ -20,8 +20,8 @@ function slugify(title: string): string {
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  if (!token || !(await verifySessionToken(token))) {
+  const ownerId = await optionalOwnerId();
+  if (!ownerId) {
     return new NextResponse(null, { status: 401 });
   }
 
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const { id } = await params;
-  const board = await getBoardDetail(id);
+  const board = await getBoardDetail(ownerId, id);
   if (!board) return new NextResponse(null, { status: 404 });
 
   const dims = exportDimensions(board, opts.scale);

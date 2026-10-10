@@ -180,11 +180,12 @@ try {
 
 // self-cleanup: remove everything this run created
 try {
+  const { TEST_OWNER_ID: OWNER } = await import("../lib/auth/owner-ids");
   const { deleteItem } = await import("../lib/items");
   const ids = [...new Set([...touchedIds.filter(Boolean), ...deletedViaUi])];
   for (const id of ids) {
     try {
-      await deleteItem(id);
+      await deleteItem(OWNER, id);
     } catch {}
   }
   console.log(`self-cleanup removed up to ${ids.length} item(s) by id`);

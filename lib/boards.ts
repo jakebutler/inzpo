@@ -1,6 +1,7 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { boardPlacements, boards } from "@/lib/db/schema";
+import { assertBoardOwned, ownerClause, ownerSql } from "@/lib/auth/owner";
 import type { ItemKind } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
 import {
@@ -45,11 +46,12 @@ export interface BoardSummary {
   count: number;
 }
 
-export async function createBoard(preset: BoardPresetName = "free", title?: string): Promise<string> {
+export async function createBoard(ownerId: string, preset: BoardPresetName = "free", title?: string): Promise<string> {
   const id = newId();
   const dims = BOARD_PRESETS[preset] ?? BOARD_PRESETS.free;
   await db.insert(boards).values({
     id,
+    ownerId,
     title: normalizeTitle(title ?? ""),
     background: "#0a0a0a",
     canvasW: dims.w,
@@ -67,7 +69,7 @@ export interface BoardMeta {
   updatedAt: Date;
 }
 
-export async function getBoardMeta(id: string): Promise<BoardMeta | null> {
+export async function getBoardMeta(ownerId: string, id: string): Promise<BoardMeta | null> {
   const rows = await db
     .select({
       id: boards.id,
@@ -78,7 +80,7 @@ export async function getBoardMeta(id: string): Promise<BoardMeta | null> {
       updatedAt: boards.updatedAt,
     })
     .from(boards)
-    .where(eq(boards.id, id))
+    .where(and(eq(boards.id, id), ownerClause(boards.ownerId, ownerId)))
     .limit(1);
   return rows[0] ?? null;
 }
@@ -100,8 +102,8 @@ interface PlacementRow {
   colors: string[] | null;
 }
 
-export async function getBoardDetail(id: string): Promise<BoardDetail | null> {
-  const meta = await getBoardMeta(id);
+export async function getBoardDetail(ownerId: string, id: string): Promise<BoardDetail | null> {
+  const meta = await getBoardMeta(ownerId, id);
   if (!meta) return null;
   const res = await db.execute(sql`
     select bp.id, bp.item_id, bp.x, bp.y, bp.w, bp.h, bp.z, bp.show_label,
@@ -135,11 +137,12 @@ export async function getBoardDetail(id: string): Promise<BoardDetail | null> {
   return { ...meta, placements };
 }
 
-export async function listBoards(): Promise<BoardSummary[]> {
+export async function listBoards(ownerId: string): Promise<BoardSummary[]> {
   const res = await db.execute(sql`
     select b.id, b.title, b.background, b.canvas_w, b.canvas_h, b.updated_at,
       (select count(*)::int from board_placements bp where bp.board_id = b.id) as count
     from boards b
+    where ${ownerSql(sql`b.owner_id`, ownerId)}
     order by b.updated_at desc
   `);
   return (res.rows as unknown as {
@@ -162,9 +165,11 @@ export async function listBoards(): Promise<BoardSummary[]> {
 }
 
 export async function updateBoardMeta(
+  ownerId: string,
   id: string,
   patch: { title?: string; background?: string; canvasW?: number; canvasH?: number },
 ): Promise<void> {
+  await assertBoardOwned(ownerId, id);
   const set: Record<string, unknown> = { updatedAt: new Date() };
   if (patch.title !== undefined) set.title = normalizeTitle(patch.title);
   if (patch.background !== undefined && isValidHex(patch.background)) set.background = patch.background.toLowerCase();
@@ -172,20 +177,21 @@ export async function updateBoardMeta(
     set.canvasW = patch.canvasW;
     set.canvasH = patch.canvasH;
   }
-  await db.update(boards).set(set).where(eq(boards.id, id));
+  await db.update(boards).set(set).where(and(eq(boards.id, id), ownerClause(boards.ownerId, ownerId)));
   if (set.canvasW !== undefined) {
-    const detail = await getBoardDetail(id);
+    const detail = await getBoardDetail(ownerId, id);
     if (detail) {
       const canvas = { w: set.canvasW as number, h: set.canvasH as number };
       const clamped = detail.placements
         .map((p) => clampPlacement(p, canvas))
         .filter((p): p is PlacementInput => p !== null);
-      await savePlacements(id, clamped);
+      await savePlacements(ownerId, id, clamped);
     }
   }
 }
 
-export async function savePlacements(boardId: string, placements: PlacementInput[]): Promise<void> {
+export async function savePlacements(ownerId: string, boardId: string, placements: PlacementInput[]): Promise<void> {
+  await assertBoardOwned(ownerId, boardId);
   await db.delete(boardPlacements).where(eq(boardPlacements.boardId, boardId));
   if (placements.length === 0) return;
   await db.insert(boardPlacements).values(
@@ -203,6 +209,7 @@ export async function savePlacements(boardId: string, placements: PlacementInput
   );
 }
 
-export async function deleteBoard(id: string): Promise<void> {
-  await db.delete(boards).where(eq(boards.id, id));
+export async function deleteBoard(ownerId: string, id: string): Promise<void> {
+  await assertBoardOwned(ownerId, id);
+  await db.delete(boards).where(and(eq(boards.id, id), ownerClause(boards.ownerId, ownerId)));
 }

@@ -1,13 +1,16 @@
+import "server-only";
 import sharp from "sharp";
 import { createHash } from "node:crypto";
 import { MEDIA_VARIANTS, variantKey, type MediaVariant } from "@/lib/r2";
+import { decodeHeicToPng, isHeicBuffer } from "@/lib/heic";
 
 const SUPPORTED = new Set(["jpeg", "png", "webp", "gif", "avif", "tiff"]);
-const EXT: Record<string, string> = { jpeg: "jpg" };
 
 // decompression-bomb caps (review M3): 40 MP pixel budget, 12000 px per side
 export const MAX_INPUT_PIXELS = 40_000_000;
 export const MAX_INPUT_DIMENSION = 12_000;
+/** Stored original is this long edge, not the phone's full-resolution file. */
+export const MAX_STORE_EDGE = 2000;
 
 export function exceedsPixelBudget(width: number, height: number): boolean {
   return width * height > MAX_INPUT_PIXELS || width > MAX_INPUT_DIMENSION || height > MAX_INPUT_DIMENSION;
@@ -25,42 +28,84 @@ export interface ProcessedImage {
   placeholder: string;
 }
 
-export async function processImage(input: Buffer, itemId: string): Promise<ProcessedImage> {
-  // header-only read; the size check below must run before any pixel work
-  const meta = await sharp(input, { failOn: "error" }).metadata();
-  if (!meta.width || !meta.height || !meta.format || !SUPPORTED.has(meta.format)) {
+async function rasterForStore(input: Buffer): Promise<Buffer> {
+  const decoded = isHeicBuffer(input) ? await decodeHeicToPng(input) : input;
+  const meta = await sharp(decoded, { failOn: "error" }).metadata();
+  if (!meta.width || !meta.height) {
+    throw new Error(`Unsupported media: format=${meta.format}`);
+  }
+  if (!isHeicBuffer(input) && (!meta.format || !SUPPORTED.has(meta.format))) {
     throw new Error(`Unsupported media: format=${meta.format}`);
   }
   if (exceedsPixelBudget(meta.width, meta.height)) {
-    throw new Error(`Image too large: ${meta.width}x${meta.height} (max ${MAX_INPUT_PIXELS / 1_000_000}MP, ${MAX_INPUT_DIMENSION}px per side)`);
+    throw new Error(
+      `Image too large: ${meta.width}x${meta.height} (max ${MAX_INPUT_PIXELS / 1_000_000}MP, ${MAX_INPUT_DIMENSION}px per side)`,
+    );
   }
-  const ext = EXT[meta.format] ?? meta.format;
-  const mime = `image/${meta.format === "jpeg" ? "jpeg" : meta.format}`;
-  const sha256 = createHash("sha256").update(input).digest("hex");
+  // Apply an embedded Display P3 (or other) ICC profile by converting to sRGB,
+  // then store the ~2000px copy rather than the original.
+  return sharp(decoded, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
+    .rotate()
+    .toColourspace("srgb")
+    .resize({
+      width: MAX_STORE_EDGE,
+      height: MAX_STORE_EDGE,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: 88, chromaSubsampling: "4:4:4" })
+    .toBuffer();
+}
+
+async function encodeVariant(original: Buffer, width: number) {
+  const { data, info } = await sharp(original, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
+    .resize({ width, withoutEnlargement: true })
+    .webp({ quality: 82 })
+    .toBuffer({ resolveWithObject: true });
+  return { buffer: data, width: info.width, height: info.height };
+}
+
+/** The server extracts from the w640 WebP of the stored sRGB JPEG. */
+export async function preparePaletteSource(input: Buffer) {
+  const original = await rasterForStore(input);
+  return { original, w640: await encodeVariant(original, 640) };
+}
+
+export async function processImage(input: Buffer, itemId: string): Promise<ProcessedImage> {
+  const { original, w640 } = await preparePaletteSource(input);
+  const meta = await sharp(original, { failOn: "error" }).metadata();
+  if (!meta.width || !meta.height) {
+    throw new Error("Processed image has no dimensions");
+  }
 
   const variants = {} as ProcessedImage["variants"];
-  for (const v of MEDIA_VARIANTS) {
-    const width = parseInt(v.slice(1), 10);
-    const pipeline = sharp(input, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS }).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 82 });
-    const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
-    variants[v] = { key: variantKey(itemId, v), buffer: data, width: info.width, height: info.height };
+  const [variantRows, placeholderBuffer] = await Promise.all([
+    Promise.all(
+      MEDIA_VARIANTS.map(async (v) => {
+        const width = parseInt(v.slice(1), 10);
+        const encoded = v === "w640" ? w640 : await encodeVariant(original, width);
+        return [v, { key: variantKey(itemId, v), ...encoded }] as const;
+      }),
+    ),
+    sharp(original, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
+      .resize({ width: 24, withoutEnlargement: true })
+      .webp({ quality: 40 })
+      .toBuffer(),
+  ]);
+  for (const [name, variant] of variantRows) {
+    variants[name] = variant;
   }
-
-  const placeholderBuffer = await sharp(input, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
-    .rotate()
-    .resize({ width: 24, withoutEnlargement: true })
-    .webp({ quality: 40 })
-    .toBuffer();
   const placeholder = `data:image/webp;base64,${placeholderBuffer.toString("base64")}`;
+  const sha256 = createHash("sha256").update(original).digest("hex");
 
   return {
     width: meta.width,
     height: meta.height,
-    mime,
-    ext,
-    original: input,
+    mime: "image/jpeg",
+    ext: "jpg",
+    original,
     sha256,
-    bytes: input.byteLength,
+    bytes: original.byteLength,
     variants,
     placeholder,
   };

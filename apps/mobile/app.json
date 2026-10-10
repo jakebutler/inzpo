@@ -1,0 +1,80 @@
+{
+  "expo": {
+    "name": "Inzpo",
+    "slug": "inzpo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon-1024.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "io.inzpo.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-foreground-1024.png",
+        "backgroundColor": "#1C1B19"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "io.inzpo.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon-32.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      [
+        "@clerk/expo",
+        {
+          "appleSignIn": false
+        }
+      ],
+      "expo-web-browser",
+      "expo-image",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#1C1B19",
+          "image": "./assets/adaptive-foreground-1024.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Inzpo uses the camera to capture inspiration and keep its colors.",
+          "photosPermission": "Inzpo reads the photo you pick to pull its colors.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-asset",
+      "expo-sharing"
+    ],
+    "scheme": "inzpo",
+    "backgroundColor": "#D8E3D9",
+    "experiments": {
+      "typedRoutes": true,
+      "tsconfigPaths": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "529d6681-6398-4009-adff-18b6bb5a6108"
+      }
+    },
+    "owner": "jakebutler",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/529d6681-6398-4009-adff-18b6bb5a6108"
+    },
+    "platforms": [
+      "ios",
+      "android"
+    ]
+  }
+}

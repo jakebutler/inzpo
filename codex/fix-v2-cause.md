@@ -1,0 +1,11 @@
+# Item 1 root cause — recorded before fixes
+
+The mobile build and r8.4 mock use different extraction implementations, not merely random sampling. This checkout's `lib/palette-extract.ts` uses deterministic 256px / 12-cluster fitting, assigns the largest-share swatch to Background first, assigns darkest remaining to Text, then distributes leftovers to Primary/Secondary/Accent/Surface and pads missing roles with generated tints. Yellow is consumed as Background before Primary is considered, allowing a shadow/gray leftover to become Primary. Its sky test rejects only bright low-chroma samples above y=.12; saturated blue sky remains eligible. This is not the newer no-sky rule pushing gray into Primary.
+
+Read-only reproduction on IMG_6505.jpg: the source JPEG produces Background #ccc8a0 and Primary #6d6856; through `processImage` and w640 it produces Background #cbc8a0 and Primary #6b6961, with sky #4e6a9a in Surface. The reported #60615e is not reproduced byte-for-byte from this JPEG, so its exact uploaded encoding/run remains unverified. The incorrect ordering is reproduced on both inputs. Archived r8.4 QA records Primary #d1cb9e. `/workspace/inzpo-r8/lib/palette-extract.ts` instead fits connected 384px / 16-cluster regions, reserves the subject before Background, prefers non-shadows, and leaves absent roles empty. r8.4 still allows sky in other roles; the fix must exclude it from all automatic role candidates while preserving user sampling.
+
+The arrow derives its hue from current Primary. The title is generated independently by `lib/kit-name.ts` / `lib/kit-title.ts` from the first brief named color and a brief subject, then persisted. `lib/mobile-kit.ts` returns this title separately from the palette, explaining “This gray.” with “White Victorian”. There is no evidence of a mobile role swap or mixed kit IDs.
+
+Fix direction: use measured connected-region subject selection in the backend, exclude sky globally from automatic role assignment, keep missing roles null, and derive the default kit name's color from the same current Primary used by the arrow. Preserve explicit sampled/user colors. Do not hardcode the mock's hexes or fabricate Accent/Surface.
+
+The requested destination `/workspace/inzpo/expo/codex/fix-v2-cause.md` returned EROFS (read-only filesystem). This report was written to the writable checkout before any fixes.

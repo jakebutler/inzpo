@@ -7,9 +7,10 @@ if (!process.env.DATABASE_URL) {
 }
 
 const sharp = (await import("sharp")).default;
+const { TEST_OWNER_ID: OWNER } = await import("../lib/auth/owner-ids");
 const { createImageItem, getWallItems, countWallItems, deleteItem } = await import("../lib/items");
-const { attachTags } = await import("../lib/ontology");
-const { getFacetsWithValues } = await import("../lib/ontology");
+const { attachTags, getFacetsWithValues, seedFacetsForOwner } = await import("../lib/ontology");
+await seedFacetsForOwner(OWNER);
 const { saveSearch, listSavedSearches, renameSavedSearch, deleteSavedSearch } = await import("../lib/saved-searches");
 const { EMPTY_FILTER, activeFilterCount } = await import("../lib/filter");
 
@@ -17,14 +18,14 @@ function img(r: number, g: number, b: number) {
   return sharp({ create: { width: 400, height: 300, channels: 3, background: { r, g, b } } }).png().toBuffer();
 }
 
-const facets = await getFacetsWithValues();
+const facets = await getFacetsWithValues(OWNER);
 const style = facets.find((f) => f.name === "Style")!;
 const mood = facets.find((f) => f.name === "Mood")!;
 
 const ids: string[] = [];
-async function make(filename: string, color: [number, number, number], tags: Parameters<typeof attachTags>[1]) {
-  const id = await createImageItem({ buffer: await img(...color), filename });
-  await attachTags(id, tags);
+async function make(filename: string, color: [number, number, number], tags: Parameters<typeof attachTags>[2]) {
+  const id = await createImageItem({ ownerId: OWNER, buffer: await img(...color), filename });
+  await attachTags(OWNER, id, tags);
   ids.push(id);
   return id;
 }
@@ -56,12 +57,12 @@ function expectSet(label: string, got: string[], expected: string[]) {
 }
 
 // 1. any-of within a facet
-expectSet("include Style:minimal", idsOf(await getWallItems(f({ facetValues: [{ facetId: style.id, value: "minimal", stance: "include" }] }))), [a, b]);
+expectSet("include Style:minimal", idsOf(await getWallItems(OWNER, f({ facetValues: [{ facetId: style.id, value: "minimal", stance: "include" }] }))), [a, b]);
 
 // 2. AND across facets
 expectSet(
   "include Style:minimal AND Mood:calm",
-  idsOf(await getWallItems(f({ facetValues: [
+  idsOf(await getWallItems(OWNER, f({ facetValues: [
     { facetId: style.id, value: "minimal", stance: "include" },
     { facetId: mood.id, value: "calm", stance: "include" },
   ] }))),
@@ -69,12 +70,12 @@ expectSet(
 );
 
 // 3. tri-state exclude
-expectSet("exclude Style:minimal", idsOf(await getWallItems(f({ facetValues: [{ facetId: style.id, value: "minimal", stance: "exclude" }] }))), [c, d]);
+expectSet("exclude Style:minimal", idsOf(await getWallItems(OWNER, f({ facetValues: [{ facetId: style.id, value: "minimal", stance: "exclude" }] }))), [c, d]);
 
 // 4. include + exclude in same dimension
 expectSet(
   "include Mood:calm, exclude Style:minimal -> none",
-  idsOf(await getWallItems(f({ facetValues: [
+  idsOf(await getWallItems(OWNER, f({ facetValues: [
     { facetId: mood.id, value: "calm", stance: "include" },
     { facetId: style.id, value: "minimal", stance: "exclude" },
   ] }))),
@@ -82,41 +83,41 @@ expectSet(
 );
 
 // 5. free tags
-expectSet("include free tag inspo", idsOf(await getWallItems(f({ freeTags: [{ name: "inspo", stance: "include" }] }))), [d]);
+expectSet("include free tag inspo", idsOf(await getWallItems(OWNER, f({ freeTags: [{ name: "inspo", stance: "include" }] }))), [d]);
 
 // 6. colors — any-carried-color family match
-expectSet("include blue family", idsOf(await getWallItems(f({ colors: [{ family: "blue", stance: "include" }] }))), [a, b]);
-expectSet("include red family", idsOf(await getWallItems(f({ colors: [{ family: "red", stance: "include" }] }))), [c]);
+expectSet("include blue family", idsOf(await getWallItems(OWNER, f({ colors: [{ family: "blue", stance: "include" }] }))), [a, b]);
+expectSet("include red family", idsOf(await getWallItems(OWNER, f({ colors: [{ family: "red", stance: "include" }] }))), [c]);
 
 // 7. text search reaches facet values + free tags + filenames
-expectSet("q=minimal (facet values)", idsOf(await getWallItems(f({ q: "minimal" }))), [a, b]);
-expectSet("q=inspo (free tags)", idsOf(await getWallItems(f({ q: "inspo" }))), [d]);
-expectSet("q=brutalist (facet)", idsOf(await getWallItems(f({ q: "brutalist" }))), [c]);
+expectSet("q=minimal (facet values)", idsOf(await getWallItems(OWNER, f({ q: "minimal" }))), [a, b]);
+expectSet("q=inspo (free tags)", idsOf(await getWallItems(OWNER, f({ q: "inspo" }))), [d]);
+expectSet("q=brutalist (facet)", idsOf(await getWallItems(OWNER, f({ q: "brutalist" }))), [c]);
 
 // 8. kinds
-expectSet("kind include photo", idsOf(await getWallItems(f({ kinds: { photo: "include" } }))), [a, b, c, d]);
-expectSet("kind exclude photo", idsOf(await getWallItems(f({ kinds: { photo: "exclude" } }))), []);
+expectSet("kind include photo", idsOf(await getWallItems(OWNER, f({ kinds: { photo: "include" } }))), [a, b, c, d]);
+expectSet("kind exclude photo", idsOf(await getWallItems(OWNER, f({ kinds: { photo: "exclude" } }))), []);
 
 // 9. sorts run without error
 for (const sort of ["newest", "oldest", "title", "shuffle"] as const) {
-  await getWallItems(f({ sort }));
+  await getWallItems(OWNER, f({ sort }));
   console.log(`✓ sort=${sort}`);
 }
-const allPhoto = await getWallItems(f({ kinds: { photo: "include" } }));
-const count = await countWallItems(f({ kinds: { photo: "include" } }));
+const allPhoto = await getWallItems(OWNER, f({ kinds: { photo: "include" } }));
+const count = await countWallItems(OWNER, f({ kinds: { photo: "include" } }));
 if (count !== allPhoto.length) throw new Error(`count ${count} != resolution ${allPhoto.length}`);
 
 // 10. active count + saved-search round trip
 if (activeFilterCount(f({ q: "x", freeTags: [{ name: "t", stance: "include" }] })) !== 2) throw new Error("active count wrong");
-const savedId = await saveSearch("e2e saved", f({ facetValues: [{ facetId: style.id, value: "minimal", stance: "include" }] }));
-const saved = (await listSavedSearches()).find((s) => s.id === savedId)!;
-expectSet("saved search applies", idsOf(await getWallItems(saved.state)), [a, b]);
-await renameSavedSearch(savedId, "e2e saved renamed");
-if (!(await listSavedSearches()).find((s) => s.id === savedId)?.name.includes("renamed")) throw new Error("rename failed");
-await deleteSavedSearch(savedId);
-if ((await listSavedSearches()).find((s) => s.id === savedId)) throw new Error("delete failed");
+const savedId = await saveSearch(OWNER, "e2e saved", f({ facetValues: [{ facetId: style.id, value: "minimal", stance: "include" }] }));
+const saved = (await listSavedSearches(OWNER)).find((s) => s.id === savedId)!;
+expectSet("saved search applies", idsOf(await getWallItems(OWNER, saved.state)), [a, b]);
+await renameSavedSearch(OWNER, savedId, "e2e saved renamed");
+if (!(await listSavedSearches(OWNER)).find((s) => s.id === savedId)?.name.includes("renamed")) throw new Error("rename failed");
+await deleteSavedSearch(OWNER, savedId);
+if ((await listSavedSearches(OWNER)).find((s) => s.id === savedId)) throw new Error("delete failed");
 console.log("✓ saved-search save/apply/rename/delete");
 
-for (const id of ids) await deleteItem(id);
+for (const id of ids) await deleteItem(OWNER, id);
 if (failures > 0) throw new Error(`${failures} filter assertions failed`);
 console.log("filter engine e2e passes");

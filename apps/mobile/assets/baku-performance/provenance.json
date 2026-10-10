@@ -1,0 +1,93 @@
+{
+  "tool": "Built-in image_gen.imagegen, transparent_background=true for all character masters; false for the sample photograph",
+  "registration": {
+    "width": 1536,
+    "height": 1024,
+    "primaryReference": "references/baku-02.jpg"
+  },
+  "assets": [
+    {
+      "output": "neutral.png",
+      "inputs": [
+        "references/baku-02.jpg",
+        "references/baku-01.png",
+        "references/baku-03.png"
+      ],
+      "prompt": "Use case: identity-preserve. Edit the FIRST reference (baku-02.jpg) into a production animation master cutout. Keep THIS EXACT Baku character, same left-facing three-quarter camera, cream wispy wool felt, same proportions, short tapered tapir snout, round body, tiny feet, fluffy tail, dimensional googly eyes and rounded ears. Preserve the blanket EXACTLY: top-to-bottom terracotta, mustard, sage, cream, dusty blue, dark charcoal; big visible knitted stitches and cream blanket stitching down the left edge. Remove only the room, floor, background and contact shadow. Genuine transparent alpha background, including between the feet. Keep the silhouette's fine wool fibers clean. Center the complete creature with 10% empty padding, no clipping. Make an exceptionally faithful standalone raster character asset, not sticker/vector/cartoon. Do not invent any new pose, outline, accessory, text, panel or watermark. Other supplied images are supporting identity/expression references, not additional characters to render. Single character only."
+    },
+    {
+      "output": "squeeze.png",
+      "inputs": [
+        "neutral.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Production facial expression asset for the SAME Baku animation. Edit ONLY BOTH EYES in this transparent character master. Replace the two white googly eyes with tightly squeezed shut eyes made of a short dark-brown felt/embroidered crease, each like a little sideways V (> on left side, < on right side), nestled into cream felt. Reconstruct the cream wool behind the removed white eye discs. Mild brow scrunch around each eye, expressing a sneeze about to happen. CRITICAL REGISTRATION: preserve EXACT 1536 by 1024 canvas, exact character size, position, silhouette, identical lighting and wool patterns everywhere else. Do not move body, ears, blanket, snout, feet or tail. The snout stays EXACTLY as original, no mouth additions. Blanket stripe order and stitches absolutely unchanged. Keep genuine transparent background and clean wool fringe. No text, no second character, no grid, no shadow. This asset will supply ONLY two small eye-region patches over the original master, so align the eye centers identically."
+    },
+    {
+      "output": "pleased.png",
+      "inputs": [
+        "neutral.png",
+        "references/baku-01.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Change ONLY both eyes of the supplied registered transparent Baku character master into a pleased soft smile: two small curved upward arches of dark-brown embroidered felt yarn (like the happy eyes in baku-01 reference), without white eye discs. Reconstruct cream wool behind removed googly eyes. Expression should be sweet, content, and relaxed after sneezing a palette. Preserve EXACT 1536x1024 canvas, same pixel positions, same silhouette, same camera and lighting, same face and snout, exactly same wool texture and knitted blanket everywhere except small eye regions. NO smile mouth, NO new accessories, NO change in body pose or size, NO background or shadow. Transparent alpha. This output will be used ONLY as two eye-region patches, everything else from original neutral master is retained."
+    },
+    {
+      "output": "cheeks.png",
+      "inputs": [
+        "neutral.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Prepare a registered cheek-volume pose for this exact transparent Baku master. Change ONLY the cream felt cheek regions just below the eyes alongside the snout. Inflate both cheeks into convincingly round, full, plush wool cheek pouches, like a hamster holding a mouthful of color. Near cheek is centered around pixel (670,650), occupies roughly x500..855 y525..800; far cheek lies beside the far side of snout around (380,540), smaller in perspective. Keep the eyes, snout, ears, feet, body outer silhouette, and entire stitched striped blanket EXACTLY pixel-aligned to the provided master, same 1536x1024 canvas. Preserve characteristic tangled wool fibers, same cream color, consistent soft top-left lighting. Only cheeks acquire extra soft dimensional shading and roundness; no colors painted on cheeks, no mouth, no ribbons, no props, no text. Both googly eyes stay open and identical. Transparent alpha background. This supplies LOCAL cheek patches; it must align with the neutral master."
+    },
+    {
+      "output": "../../public/baku/sample-house.jpg",
+      "inputs": [
+        "references/baku-03.png"
+      ],
+      "prompt": "Create a sample PHOTOGRAPH for a photo-to-palette design tool, based on the vivid Victorian houses visible inside the photograph in this reference. The output is only a real-looking street photograph: one pink San Francisco Victorian with teal wood trim beside an ochre Victorian, clear soft-blue sky, a little warm foliage. Portrait 4:5 composition, straight photograph, no white print border, no character, no wool, no ribbons, no paint, no overlays or text. The pink and teal Victorian is the clear focal point. Beautiful natural late-afternoon light, authentic weathered architectural detail."
+    }
+  ],
+  "export": "Character PNGs converted to WebP at quality 90, alpha quality 100, without resizing. Sample photograph resized to width 900 and encoded as JPEG quality 87. Runtime registration and feathered region masks are editable in lib/baku/renderer.ts; independent deformation weights are in lib/baku/motion.ts.",
+  "mobilePort": {
+    "sourceStudyCommit": "bb16e1ea39a78204cf1ad62169506727c433fc6b",
+    "sourceStudyBranch": "codex/baku-palette-performance",
+    "operation": "Byte-for-byte copies of approved study runtime WebPs. No new image generation or character editing.",
+    "renderer": "apps/mobile/src/baku/KnitBaku.tsx, shader.ts, motion.ts, transport.ts",
+    "runtimeAssets": [
+      {
+        "output": "neutral.webp",
+        "source": "public/baku/neutral.webp",
+        "sha256": "2f8cdad6ba146d024e75af533f2eab05759a3d01731b7492e7bc41a1258b46d9",
+        "derivation": "Encoded from neutral.png using the master-generation prompt above; WebP quality 90, alpha quality 100."
+      },
+      {
+        "output": "cheeks.webp",
+        "source": "public/baku/cheeks.webp",
+        "sha256": "a5fc28fce6635c529aa03fa1f5b2f539be5c8647d5d71a451e7c9c0510fe785c",
+        "derivation": "Encoded from cheeks.png using the master-generation prompt above; WebP quality 90, alpha quality 100."
+      },
+      {
+        "output": "squeeze.webp",
+        "source": "public/baku/squeeze.webp",
+        "sha256": "5df3ba421961345d668720838a409e00e82e2f6fc0125df18e43d08dca695471",
+        "derivation": "Encoded from squeeze.png using the master-generation prompt above; WebP quality 90, alpha quality 100."
+      },
+      {
+        "output": "pleased.webp",
+        "source": "public/baku/pleased.webp",
+        "sha256": "f6dddb537be0c626f0c1410466851b9d59ed27ebddadf71d63035e205970eaae",
+        "derivation": "Encoded from pleased.png using the master-generation prompt above; WebP quality 90, alpha quality 100."
+      },
+      {
+        "output": "coat-material.webp",
+        "source": "public/baku/coat-material.webp",
+        "sha256": "7d8dbc79d3eae1e035b9a1394296ffc7b77678f635003a7ff70932abd1e31266",
+        "derivation": "scripts/baku-coat-material.mts in source study: neutral.png and coat-mask.svg -> RGB knit mask, yarn relief, six curved panel identities; lossless WebP."
+      },
+      {
+        "output": "neutral-monotone.webp",
+        "source": "public/baku/neutral-monotone.webp",
+        "sha256": "b3c862a38b5651db2d666aea12384a80c5153f35a4e639967b5e882507890f38",
+        "derivation": "scripts/baku-coat-material.mts in source study: neutral.png and coat-mask.svg -> undyed blanket fallback; WebP quality 88."
+      }
+    ]
+  }
+}

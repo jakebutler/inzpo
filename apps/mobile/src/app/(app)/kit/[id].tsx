@@ -1,0 +1,283 @@
+import { ColorInhale } from '@/baku/ColorInhale';
+import { DustIntake } from '@/baku/DustIntake';
+import { FlyingBaku } from '@/baku/FlyingBaku';
+import { usePalettePerformance } from '@/baku/usePalettePerformance';
+import { emptyRoles, type ColorRole } from '@inzpo/shared';
+import { Canvas, LinearGradient, Rect } from '@shopify/react-native-skia';
+import { router, Stack, useIsFocused, useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import Animated from 'react-native-reanimated';
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActionButton } from '@/components/ActionButton';
+import { BackButton } from '@/components/BackButton';
+import { KnitCompanion } from '@/components/KnitCompanion';
+import { UseKitSheet } from '@/components/UseKitSheet';
+import { PaperPressable } from '@/components/PaperPressable';
+import { KitTools } from '@/components/KitTools';
+import { BriefBlock } from '@/components/BriefBlock';
+import { ChipPile } from '@/components/ChipPile';
+import { ChipDetail } from '@/components/ChipDetail';
+import { EditSheet, type EditSheetHandle } from '@/components/EditSheet';
+import { FilmPrint } from '@/components/FilmPrint';
+import { PaperTexture } from '@/components/PaperTexture';
+import { PrimaryArrow } from '@/components/PrimaryArrow';
+import { SavedKit } from '@/components/SavedKit';
+import { toggleChip } from '@/lib/chip-flip';
+import type { SavedCollection } from '@/components/KeepScreen';
+import { useInzpoClient } from '@/lib/api';
+import { resultLayout } from '@/lib/result-layout';
+import { photoPins, primaryHue } from '@/lib/result-pins';
+import { useKit } from '@/lib/use-kit';
+import { useCaptureSession } from '@/lib/capture-session';
+import { capturePhoto } from '@/lib/photo-handoff';
+import { useResultSequence } from '@/lib/useResultSequence';
+import { useBakuPupils } from '@/lib/useBakuPupils';
+import { useBakuHop } from '@/lib/useBakuHop';
+import { CANVAS } from '@/theme/tokens';
+import { ui } from '@/theme/styles';
+
+export default function ResultScreen() {
+  const params = useLocalSearchParams<{ id: string; saved?: string; c?: string; capture?: string }>();
+  return <ResultContent key={params.id} params={params} />;
+}
+
+function ResultContent({ params }: { params: { id: string; saved?: string; c?: string; capture?: string } }) {
+  const routeId = typeof params.id === 'string' ? params.id : '';
+  const capturing = params.capture === '1';
+  const capture = useCaptureSession(capturing ? routeId : null);
+  const id = capturing ? capture.snapshot?.kitId ?? '' : routeId;
+  const loaded = useKit(id);
+  const { kit, briefFailed, retry, replaceKit } = loaded;
+  const loading = capturing && !id ? !!capture.snapshot && !capture.snapshot.error : loaded.loading;
+  const error = capturing && !id ? capture.snapshot ? null : 'notFound' : loaded.error;
+  const captureFailed = !!capture.snapshot?.error;
+  const client = useInzpoClient();
+  const focused = useIsFocused();
+  const insets = useSafeAreaInsets();
+  const { width, height, fontScale } = useWindowDimensions();
+  const [actionHeight, setActionHeight] = useState(48);
+  const [headerHeight, setHeaderHeight] = useState<number>();
+  const layout = resultLayout({ width: width - insets.left - insets.right, height,
+    topInset: insets.top, bottomInset: insets.bottom, fontScale, actionHeight, measuredHeaderHeight: headerHeight });
+  const [savedCollection, setSavedCollection] = useState<(SavedCollection & { kitId: string }) | null>(null);
+  const savedId = savedCollection?.kitId === id ? savedCollection.collectionId
+    : kit?.collectionIds[0] ?? (params.saved === '1' ? params.c ?? '' : null);
+  const isSaved = savedId !== null;
+  const footerBottom = isSaved ? Math.max(26, insets.bottom + 16) : layout.footerBottom;
+  const collectionName = savedCollection?.kitId === id ? savedCollection.collectionName : 'your collection';
+  useEffect(() => {
+    if (savedId === null || savedCollection?.kitId === id) return;
+    let active = true;
+    client.listCollections().then((collections) => {
+      if (active) setSavedCollection({ kitId: id, collectionId: savedId,
+        collectionName: collections.find((collection) => collection.id === savedId)?.name ?? 'your collection' });
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [client, id, savedId, savedCollection?.kitId]);
+  const [usingKit, setUsingKit] = useState(false);
+  const [sheet, setSheet] = useState<{ kitId: string; type: 'edit'; role?: ColorRole } | null>(null);
+  const editing = sheet?.kitId === id && sheet.type === 'edit';
+  const editSheet = useRef<EditSheetHandle>(null);
+  const [selectedRole, setSelectedRole] = useState<ColorRole | null>(null);
+  const [detail, setDetail] = useState<{ kitId: string; role: ColorRole; scrollY: number } | null>(null);
+  const scrollY = useRef(0);
+  const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
+  const localPhoto = capture.snapshot?.photo ?? capturePhoto(id);
+  const [displayedPhoto, setDisplayedPhoto] = useState<{ id: string; url: string } | null>(null);
+  // Keep the already-painted local photo through palette readiness; switching
+  // to the signed URL here adds a second image fetch and pauses the performance.
+  const renderedPhoto = !isSaved && localPhoto && localPhoto.url !== failedPhotoUrl ? localPhoto : kit?.photo;
+  const photoFailed = !!renderedPhoto && renderedPhoto.url === failedPhotoUrl;
+  const displayKit = kit ? { ...kit, photo: renderedPhoto ?? null }
+    : renderedPhoto ? { photo: renderedPhoto, roles: emptyRoles(), colors: [] } : null;
+  const photoVisible = !!renderedPhoto && !photoFailed && displayedPhoto?.id === routeId &&
+    displayedPhoto.url === renderedPhoto.url;
+  const ready = !!kit;
+  const failedBrief = briefFailed || kit?.brief.status === 'failed' || (kit?.brief.status === 'ready' && !kit.brief.text);
+  const performance = usePalettePerformance({ kitId: id || routeId, ready, enabled: !!localPhoto && !isSaved,
+    processing: !capturing || capture.snapshot?.phase === 'processing',
+    photoVisible, focused: focused && !error && !captureFailed });
+  const revealing = ready && !performance.finished;
+  const hasKnitHost = !!localPhoto && !isSaved && !error;
+  const pupils = useBakuPupils(96);
+  const sequence = useResultSequence({ kitId: id, ready: ready && performance.finished, roles: kit?.roles, jiggle: pupils.jiggle, immediate: isSaved });
+  const hop = useBakuHop({ kitId: id, base: sequence.values, jiggle: pupils.jiggle });
+  const celebratedKit = useRef<string | null>(null);
+  const onSaved = hop.onSaved;
+  useEffect(() => {
+    if (params.saved !== '1' || !ready || celebratedKit.current === id) return;
+    celebratedKit.current = id;
+    onSaved();
+  }, [id, params.saved, ready, onSaved]);
+  const primaryPin = kit && displayKit?.photo && !photoFailed ? photoPins(displayKit, layout.printWidth - 26, layout.photoHeight, layout.pinHeight)
+    .find((pin) => pin.role === 'primary') : undefined;
+  const heroWidth = layout.contentWidth + 40;
+  const bakuWidth = Math.min(280, heroWidth * .76);
+  const bakuLeft = heroWidth - bakuWidth + 8;
+  const printLeft = (heroWidth - layout.printWidth) / 2;
+  const openRole = (role: ColorRole) => {
+    if (sequence.interactive && performance.finished) setSheet({ kitId: id, type: 'edit', role });
+  };
+
+  return (
+    <SafeAreaView style={ui.screen} edges={['left', 'right']} >
+      <Stack.Screen options={{ headerShown: false, title: isSaved && kit ? kit.title : 'Your colors' }} />
+      <PaperTexture />
+      <ScrollView testID="result-content" scrollEnabled={!hasKnitHost || (ready && performance.finished)} contentContainerStyle={{ paddingTop: Math.max(isSaved ? 40 : 20, insets.top),
+        paddingBottom: isSaved ? footerBottom : actionHeight + footerBottom + 32, minHeight: isSaved ? height : undefined }}
+        onScrollBeginDrag={sequence.skipToEnd} onMomentumScrollBegin={sequence.skipToEnd}
+        onScroll={({ nativeEvent }) => {
+          scrollY.current = nativeEvent.contentOffset.y;
+          if (nativeEvent.contentOffset.x !== 0 || nativeEvent.contentOffset.y !== 0) sequence.skipToEnd();
+        }} scrollEventThrottle={16}>
+        <View testID="result-first-screen" style={isSaved ? { minHeight: height - Math.max(40, insets.top) } : undefined}>
+        <View style={[styles.header, isSaved && styles.savedHeader, { width: layout.contentWidth }]} onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height + 5)}>
+          <BackButton onPress={() => {
+            if (capturing) router.dismissTo('/');
+            else if (params.saved === '1' && savedId) router.dismissTo({ pathname: '/collection/[id]', params: { id: savedId } });
+            else if (router.canGoBack()) router.back();
+            else router.dismissTo('/collections');
+          }} />
+          <Text accessibilityRole="header" allowFontScaling style={[styles.heading, isSaved && styles.savedHeading]}>{isSaved && kit ? kit.title : 'Your colors'}</Text>
+        </View>
+        {error ? <View style={ui.center}>
+          <KnitCompanion />
+          <Text style={ui.message}>{error === 'notFound' ? 'This kit couldn’t be found.' : 'Couldn’t load this kit. Please try again.'}</Text>
+          <ActionButton label="Try again" onPress={retry} />
+        </View> : displayKit ? <>
+          {isSaved && kit ? <>
+            <Text allowFontScaling accessibilityLabel={`${params.saved === '1' ? 'Saved to' : 'In'} ${collectionName}`} accessibilityLiveRegion="polite" style={[ui.body, styles.savedCopy]}>{params.saved === '1' ? `Saved to ${collectionName}.` : `In ${collectionName}.`}</Text>
+            <View accessibilityLabel={kit.title}>
+              <SavedKit kit={kit} failed={photoFailed} disabled={!sequence.interactive || revealing}
+                maxHeight={height - Math.max(40, insets.top) - (headerHeight ?? 89) - 48 * fontScale - Math.max(108, actionHeight) - footerBottom - 96}
+                onError={() => setFailedPhotoUrl(kit.photo!.url)} onEdit={() => setSheet({ kitId: id, type: 'edit' })}
+                placeholder={<View style={styles.placeholder}><KnitCompanion width={110} />
+                  <Text style={ui.message}>{photoFailed ? 'Couldn’t load the photo.' : 'No photo in this kit.'}</Text>
+                  {photoFailed && <ActionButton label="Reload photo" onPress={() => { setFailedPhotoUrl(null); retry(); }} />}
+                </View>} />
+            </View>
+          </> : <View testID="result-hero" accessibilityLabel={kit?.title} style={{ width: heroWidth, alignSelf: 'center',
+            minHeight: layout.heroHeight }}>
+            <FilmPrint kit={displayKit} width={layout.printWidth} height={layout.printHeight} pinHeight={layout.pinHeight} failed={photoFailed}
+              onPhotoDisplay={() => renderedPhoto && setDisplayedPhoto({ id: routeId, url: renderedPhoto.url })}
+              onError={() => { setDisplayedPhoto(null); if (renderedPhoto) setFailedPhotoUrl(renderedPhoto.url); }} selectedRole={editing ? selectedRole : null}
+              markerStyle={sequence.markerStyle} onPinPress={openRole} interactive={sequence.interactive && !revealing} showPins={ready && !revealing} placeholder={<View style={styles.placeholder}>
+                <KnitCompanion width={110} />
+                <Text style={ui.message}>{photoFailed ? 'Couldn’t load the photo.' : 'No photo in this kit.'}</Text>
+                {photoFailed && <ActionButton label="Reload photo" onPress={() => { setFailedPhotoUrl(null); retry(); }} />}
+              </View>} />
+            {revealing && kit && <ColorInhale width={heroWidth} height={layout.heroHeight} performance={performance}
+              samples={photoPins(displayKit, layout.printWidth - 26, layout.photoHeight, layout.pinHeight).map(pin => ({
+                color: pin.color, source: { x: printLeft + 13 + pin.target.x, y: 13 + pin.target.y },
+              }))} baku={{ x: bakuLeft, y: layout.printHeight - 100, width: bakuWidth }} />}
+            {hasKnitHost && !performance.reducedMotion && !captureFailed && !performance.finished && <DustIntake width={heroWidth} height={layout.heroHeight}
+              source={{ x: printLeft + layout.printWidth * .18, y: layout.printHeight * .83 }}
+              baku={{ x: bakuLeft, y: layout.printHeight - 100, width: bakuWidth }} performance={performance} />}
+            {kit && <View style={{ marginTop: -113, marginHorizontal: 20 }}>
+              <ChipPile roles={kit.roles} slots={layout.slots} height={layout.pileHeight} typeSize={layout.typeSize}
+                expandedRole={detail?.kitId === id ? detail.role : null} motion={sequence.bands} performance={performance} emitter={{ x: bakuLeft - 20, y: 13, width: bakuWidth }} disabled={!sequence.interactive || revealing} selectedRole={editing ? selectedRole : null}
+                onPress={(role) => {
+                  if (!kit.roles[role]) openRole(role);
+                  else setDetail((current) => {
+                    const next = toggleChip(current?.kitId === id ? current.role : null, role);
+                    return next ? { kitId: id, role: next, scrollY: scrollY.current } : null;
+                  });
+                }} />
+            </View>}
+            {kit && !revealing && primaryPin && <PrimaryArrow width={heroWidth} height={layout.heroHeight}
+              photoLeft={printLeft + 13}
+              start={{ x: 20 + layout.slots[0].x + 12, y: layout.printHeight - 113 + layout.slots[0].height * 0.25 }}
+              end={{ x: printLeft + 13 + primaryPin.marker.x, y: 13 + primaryPin.marker.y }}
+              hue={primaryHue(kit)} progress={sequence.values.markerOpacity} reducedMotion={sequence.reducedMotion} />}
+          </View>}
+          {isSaved && <View testID="result-actions" style={[styles.savedFooter, { flexWrap: 'wrap' }]}>
+            <Animated.View testID="saved-baku" style={[styles.savedHost, hop.bakuStyle]}>
+              <KnitCompanion width={78} roles={kit?.roles} />
+            </Animated.View>
+            <View style={styles.savedActions} onLayout={(event) => setActionHeight(Math.max(108, event.nativeEvent.layout.height))}>
+              <ActionButton label="Use this kit" primary onPress={() => setUsingKit(true)} />
+              <ActionButton label="Edit colors" onPress={() => setSheet({ kitId: id, type: 'edit' })} />
+
+            </View>
+            <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between', marginTop: 0 }}>
+              <PaperPressable accessibilityRole="button" accessibilityLabel="See your collection" disabled={!savedId}
+                onPress={() => { if (savedId) router.dismissTo({ pathname: '/collection/[id]', params: { id: savedId } }); }} style={{ minHeight: 44, padding: 8, justifyContent: 'center' }}>
+                <Text style={[ui.body, { textDecorationLine: 'underline' }]}>Your collection</Text>
+              </PaperPressable>
+              <PaperPressable accessibilityRole="button" accessibilityLabel="Snap another" onPress={() => router.dismissTo('/')} style={{ minHeight: 44, padding: 8, justifyContent: 'center' }}>
+                <Text style={[ui.body, { textDecorationLine: 'underline' }]}>Snap another</Text>
+              </PaperPressable>
+            </View>
+          </View>}
+        </> : <View style={ui.center}><Text style={ui.body}>Loading your photo…</Text></View>}
+        </View>
+        {kit && ready && <View style={[styles.brief, { width: layout.contentWidth, marginTop: isSaved ? 32 : 100 }]}>
+          <BriefBlock brief={kit.brief} failed={briefFailed} showBaku={false} motionStyle={ready ? sequence.briefStyle : undefined} />
+          {(briefFailed || kit.brief.status === 'failed') && <ActionButton label="Check description again" onPress={retry} />}
+          {!isSaved && <KitTools kit={kit} descriptionFailed={failedBrief} />}
+        </View>}
+      </ScrollView>
+      {!isSaved && <View testID="result-actions" pointerEvents="box-none" style={[styles.footer, { bottom: footerBottom, maxWidth: 390 }]}>
+        <Canvas accessible={false} pointerEvents="none" style={StyleSheet.flatten([styles.fade, { height: actionHeight + footerBottom + 20 }])}>
+          <Rect x={0} y={0} width={Math.min(width, 390)} height={actionHeight + footerBottom + 20}>
+            <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 0, y: 40 }} colors={[`${CANVAS}00`, CANVAS]} />
+          </Rect>
+        </Canvas>
+        {loading && localPhoto && <Text accessibilityLiveRegion="polite" style={[ui.body, { textAlign: 'center', marginHorizontal: 24 }]}>Finding your colors…</Text>}
+        {captureFailed && <View style={{ marginHorizontal: 24, gap: 12 }}>
+          <Text accessibilityRole="alert" style={[ui.body, { textAlign: 'center' }]}>Couldn’t process this photo. It’s still here—try again when you’re connected.</Text>
+          <ActionButton label="Retry this photo" primary onPress={capture.retry} />
+        </View>}
+        {revealing && <View style={{ marginHorizontal: 32, gap: 8 }}>
+          <Text style={[ui.body, { textAlign: 'center' }]}>A little color. A big ah-choo.</Text>
+          <ActionButton label="Show my colors" onPress={() => { performance.skip(); sequence.skipToEnd(); }} />
+        </View>}
+        {ready && !revealing && !hasKnitHost && <View style={styles.host}>
+          <Animated.View testID="result-baku" style={hop.bakuStyle}>
+            <KnitCompanion width={72} roles={kit?.roles} />
+          </Animated.View>
+        </View>}
+        {ready && !revealing && <View style={styles.actions} onLayout={(event) => setActionHeight(Math.max(48, event.nativeEvent.layout.height))}>
+          <View style={styles.edit}><ActionButton label="Edit" disabled={!sequence.interactive || revealing} onPress={() => setSheet({ kitId: id, type: 'edit' })} /></View>
+          <View style={styles.save}><ActionButton label="Save" primary disabled={!sequence.interactive || revealing}
+            onPress={() => router.push({ pathname: '/keep/[id]', params: { id } })} /></View>
+        </View>}
+      </View>}
+      {hasKnitHost && displayKit && <FlyingBaku id={routeId} performance={performance} roles={displayKit.roles}
+        settled={ready && performance.finished} bounds={{ width, height }}
+        origin={{ x: (width - heroWidth) / 2 + bakuLeft, y: layout.printTop + layout.printHeight - 100, width: bakuWidth }}
+        target={{ x: 10, y: height - footerBottom + 8 - 48, width: 72 }} />}
+      {kit && <>
+        <UseKitSheet kit={kit} descriptionFailed={failedBrief} visible={usingKit} onClose={() => setUsingKit(false)} />
+        {detail?.kitId === id && kit.roles[detail.role] && <ChipDetail key={`${id}-${detail.role}`} kit={kit} role={detail.role}
+          slot={layout.slots.find((slot) => slot.role === detail.role)!}
+          origin={{ x: (width - heroWidth) / 2 + 20 + layout.slots.find((slot) => slot.role === detail.role)!.x,
+            y: layout.pileTop + layout.slots.find((slot) => slot.role === detail.role)!.y - detail.scrollY }}
+          onClose={() => setDetail(null)} onEdit={() => { const role = detail.role; setDetail(null); openRole(role); }} />}
+        <EditSheet ref={editSheet} visible={sheet?.kitId === id && sheet.type === 'edit'} kit={kit}
+          initialRole={sheet?.kitId === id && sheet.type === 'edit' ? sheet.role : undefined} onSelectedRole={setSelectedRole}
+          onUpdated={replaceKit} onClose={() => { setSelectedRole(null); setSheet((current) => current?.kitId === id && current.type === 'edit' ? null : current); }} />
+      </>}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  header: { alignSelf: 'center', gap: 5, marginBottom: 5 },
+  heading: { ...ui.heading, fontSize: 30, lineHeight: 32 },
+  savedHeader: { gap: 9, marginBottom: 0 },
+  savedHeading: { maxWidth: 310, fontSize: 31, lineHeight: 31 },
+  savedCopy: { marginTop: 10, marginBottom: 18, marginHorizontal: 20, fontSize: 14, lineHeight: 20 },
+  savedFooter: { marginTop: 24, marginHorizontal: 16, flexDirection: 'row', alignItems: 'flex-end', gap: 16 },
+  savedHost: { width: 64, marginBottom: 4 },
+  savedActions: { flex: 1, gap: 12 },
+  placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  brief: { alignSelf: 'center', gap: 16 },
+  footer: { position: 'absolute', left: 0, right: 0, width: '100%', alignSelf: 'center' },
+  fade: { position: 'absolute', left: 0, right: 0, top: -20 },
+  host: { position: 'absolute', left: 10, bottom: -8 },
+  actions: { marginLeft: 82, marginRight: 16, flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+  edit: { width: 96 },
+  save: { flex: 1 },
+});

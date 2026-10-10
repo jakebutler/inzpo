@@ -9,6 +9,7 @@ import { extractOgType, bodyTextLength, guessLinkedKind, matchOembedProvider } f
 import { normalizeUrl } from "@/lib/url";
 import type { TagSelection } from "@/lib/tags";
 import { attachTags } from "@/lib/ontology";
+import { ownerSql } from "@/lib/auth/owner";
 
 type Scraper = (input: { url: string; html: string }) => Promise<Record<string, string>>;
 let scraper: Scraper | null = null;
@@ -38,6 +39,7 @@ async function getScraper(): Promise<Scraper> {
 }
 
 export interface CreateLinkedItemInput {
+  ownerId: string;
   rawUrl: string;
   tags?: TagSelection;
 }
@@ -102,6 +104,7 @@ export async function createLinkedItem(input: CreateLinkedItemInput): Promise<Cr
 
   await db.insert(items).values({
     id,
+    ownerId: input.ownerId,
     kind,
     title: metadata.title || null,
     captureState: "preparing",
@@ -186,7 +189,7 @@ export async function createLinkedItem(input: CreateLinkedItemInput): Promise<Cr
       }
     }
 
-    if (input.tags) await attachTags(id, input.tags);
+    if (input.tags) await attachTags(input.ownerId, id, input.tags);
     await db.update(items).set({ captureState: "ready" }).where(eq(items.id, id));
   } catch (err) {
     await deletePrefix(`items/${id}/`).catch(() => {});
@@ -197,13 +200,17 @@ export async function createLinkedItem(input: CreateLinkedItemInput): Promise<Cr
   return { itemId: id, kind, previewCaptured };
 }
 
-export async function findExistingByNormalizedUrl(rawOrNormalized: string): Promise<{ itemId: string; title: string | null } | null> {
+export async function findExistingByNormalizedUrl(
+  ownerId: string,
+  rawOrNormalized: string,
+): Promise<{ itemId: string; title: string | null } | null> {
   // normalizing inside makes the lookup safe for any caller (idempotent)
   const normalized = normalizeUrl(rawOrNormalized);
   const rows = await db.execute(sql`
     select i.id, i.title
     from item_sources s join items i on i.id = s.item_id
     where s.url_normalized = ${normalized} and i.capture_state = 'ready'
+      and ${ownerSql(sql`i.owner_id`, ownerId)}
     order by i.created_at asc
     limit 1
   `);

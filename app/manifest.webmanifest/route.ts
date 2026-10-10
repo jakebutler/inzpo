@@ -1,24 +1,35 @@
 import { NextResponse } from "next/server";
+import { PAPER } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
-
-const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="96" fill="#0a0a0a"/><text x="256" y="340" font-family="system-ui, sans-serif" font-size="280" font-weight="700" fill="#fafafa" text-anchor="middle">I</text></svg>`;
 
 export function GET() {
   const manifest = {
     name: "Inzpo",
     short_name: "Inzpo",
-    description: "A personal design-inspiration vault",
-    start_url: "/",
+    description: "Steal the colors off anything",
+    start_url: "/capture",
     display: "standalone",
-    background_color: "#0a0a0a",
-    theme_color: "#0a0a0a",
+    background_color: PAPER,
+    theme_color: PAPER,
     icons: [
       {
-        src: "/icon.svg",
-        sizes: "any",
-        type: "image/svg+xml",
+        src: "/icons/icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
         purpose: "any",
+      },
+      {
+        src: "/icons/icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/icons/icon-maskable-512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
       },
     ],
     share_target: {

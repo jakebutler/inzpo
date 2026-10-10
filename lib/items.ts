@@ -1,11 +1,16 @@
-import { desc, eq, and, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { itemColors, items, mediaAssets, type ItemKind } from "@/lib/db/schema";
+import { itemColors, items, mediaAssets, COLOR_ROLES, type ColorRole, type ItemKind } from "@/lib/db/schema";
+import { assertItemOwned, ownerClause } from "@/lib/auth/owner";
 import { newId } from "@/lib/ids";
-import { itemPrefix, originalKey, PutObjectCommand, GetObjectCommand, deletePrefix, r2 } from "@/lib/r2";
-import { processImage, looksLikeScreenshot, deriveTitleFromFilename } from "@/lib/media";
-import { extractColors } from "@/lib/extract-colors";
-import { hexToFamily } from "@/lib/colors";
+import { itemPrefix, originalKey, PutObjectCommand, GetObjectCommand, deletePrefix, r2, tileKey, textureMetaKey } from "@/lib/r2";
+import { chooseTextureCrop, makeSeamlessTile } from "@/lib/texture";
+import { startBriefJob } from "@/lib/brief";
+import { EMPTY_FILTER } from "@/lib/filter";
+import { processImage, looksLikeScreenshot } from "@/lib/media";
+import { extractPalette } from "@/lib/palette-extract";
+import { REGION_ORIGIN, type ColorWithRole } from "@/lib/derived-roles";
+import { rolesFromColors, type RoleColors } from "@/lib/tokens";
 import { buildWallQuery } from "@/lib/wall-query";
 import type { FilterState } from "@/lib/filter";
 
@@ -19,14 +24,15 @@ export interface WallItem {
   thumbKey: string | null;
   placeholder: string | null;
   aspect: number | null;
-  hexColors: string[];
+  hexColors: Array<string | null>;
+  roles: RoleColors;
   facetTags: Array<{ facet: string; value: string }>;
   freeTags: string[];
   sourceUrl: string | null;
 }
 
-export async function getWallItems(state: FilterState, collectionId?: string | null): Promise<WallItem[]> {
-  const { where, orderBy } = buildWallQuery(state, collectionId);
+export async function getWallItems(ownerId: string, state: FilterState, collectionId?: string | null): Promise<WallItem[]> {
+  const { where, orderBy } = buildWallQuery(state, collectionId, ownerId);
   const rows = await db.execute(sql`
     select i.id,
       i.kind,
@@ -37,7 +43,7 @@ export async function getWallItems(state: FilterState, collectionId?: string | n
       (select v.value from media_assets m, jsonb_each_text(m.variants) v where m.item_id = i.id and v.key = 'w256' limit 1) as "thumbKey",
       (select m.placeholder from media_assets m where m.item_id = i.id and m.role = 'primary' limit 1) as "placeholder",
       (select round(m.width::numeric / nullif(m.height, 0), 4)::float8 from media_assets m where m.item_id = i.id and m.role = 'primary' limit 1) as "aspect",
-      coalesce((select array_agg(c.hex order by c.position) from item_colors c where c.item_id = i.id), '{}') as "hexColors",
+      coalesce((select jsonb_agg(jsonb_build_object('hex', c.hex, 'role', c.role, 'origin', c.origin, 'pinX', c.pin_x, 'pinY', c.pin_y) order by c.position) from item_colors c where c.item_id = i.id), '[]') as "colorRows",
       coalesce((select jsonb_agg(jsonb_build_object('facet', f.name, 'value', fv.value) order by f.position, fv.value) from item_facet_values ifv join facet_values fv on fv.id = ifv.facet_value_id join facets f on f.id = fv.facet_id where ifv.item_id = i.id), '[]'::jsonb) as "facetTags",
       coalesce((select jsonb_agg(ft.name order by ft.name) from item_free_tags ift join free_tags ft on ft.id = ift.free_tag_id where ift.item_id = i.id), '[]'::jsonb) as "freeTags",
       (select s.url from item_sources s where s.item_id = i.id) as "sourceUrl"
@@ -45,11 +51,14 @@ export async function getWallItems(state: FilterState, collectionId?: string | n
     where ${where}
     order by ${orderBy}
   `);
-  return rows.rows as unknown as WallItem[];
+  return (rows.rows as unknown as Array<Omit<WallItem, "roles" | "hexColors"> & { colorRows: ColorWithRole[] }>).map(({ colorRows, ...item }) => {
+    const roles = rolesFromColors(colorRows);
+    return { ...item, roles, hexColors: COLOR_ROLES.map((role) => roles[role]) };
+  });
 }
 
-export async function countWallItems(state: FilterState, collectionId?: string | null): Promise<number> {
-  const { where } = buildWallQuery(state, collectionId);
+export async function countWallItems(ownerId: string, state: FilterState, collectionId?: string | null): Promise<number> {
+  const { where } = buildWallQuery(state, collectionId, ownerId);
   const rows = await db.execute(sql`select count(*)::int as n from items i where ${where}`);
   return (rows.rows[0] as { n: number }).n;
 }
@@ -63,12 +72,21 @@ export interface ItemDetail {
   source: { url: string; title: string | null; description: string | null } | null;
   oembedHtml: string | null;
   hasArticle: boolean;
-  media: { originalKey: string; displayKey: string | null; placeholder: string | null; mime: string; width: number; height: number } | null;
-  colors: Array<{ hex: string; family: string; origin: string; position: number }>;
+  media: { originalKey: string; displayKey: string | null; placeholder: string | null; mime: string; width: number; height: number; tileKey: string | null } | null;
+  colors: Array<{
+    hex: string;
+    family: string;
+    origin: string;
+    position: number;
+    name: string | null;
+    role: ColorRole | null;
+    pinX: number | null;
+    pinY: number | null;
+  }>;
   origin: { derivedItemId: string; originItemId: string } | null;
 }
 
-export async function getItemDetail(id: string): Promise<ItemDetail | null> {
+export async function getItemDetail(ownerId: string, id: string): Promise<ItemDetail | null> {
   const rows = await db
     .select({
       id: items.id,
@@ -83,24 +101,41 @@ export async function getItemDetail(id: string): Promise<ItemDetail | null> {
       articleKey: sql<string | null>`(select s.article_key from item_sources s where s.item_id = items.id)`,
       originalKey: sql<string | null>`(select m.original_key from media_assets m where m.item_id = items.id limit 1)`,
       displayKey: sql<string | null>`(select v.value from media_assets m, jsonb_each_text(m.variants) v where m.item_id = items.id and v.key = 'w1600' limit 1)`,
+      tileKey: sql<string | null>`(select v.value from media_assets m, jsonb_each_text(m.variants) v where m.item_id = items.id and v.key = 'tile' limit 1)`,
       placeholder: sql<string | null>`(select m.placeholder from media_assets m where m.item_id = items.id limit 1)`,
       mime: sql<string | null>`(select m.mime from media_assets m where m.item_id = items.id limit 1)`,
       width: sql<number | null>`(select m.width from media_assets m where m.item_id = items.id limit 1)`,
       height: sql<number | null>`(select m.height from media_assets m where m.item_id = items.id limit 1)`,
     })
     .from(items)
-    .where(and(eq(items.id, id), eq(items.captureState, "ready")))
+    .where(and(eq(items.id, id), eq(items.captureState, "ready"), ownerClause(items.ownerId, ownerId)))
     .limit(1);
   const row = rows[0];
   if (!row) return null;
   const tagRows = await db.execute(sql`
-    select hex, family, origin, position from item_colors where item_id = ${id} order by position
+    select hex, family, origin, position, name, role, pin_x as "pinX", pin_y as "pinY"
+    from item_colors where item_id = ${id} order by position
   `);
-  const colors = (tagRows.rows as Array<{ hex: string; family: string; origin: string; position: number }>).map((c) => ({
+  const colors = (
+    tagRows.rows as Array<{
+      hex: string;
+      family: string;
+      origin: string;
+      position: number;
+      name: string | null;
+      role: ColorRole | null;
+      pinX: number | null;
+      pinY: number | null;
+    }>
+  ).map((c) => ({
     hex: c.hex,
     family: c.family,
     origin: c.origin,
     position: c.position,
+    name: c.name,
+    role: c.role,
+    pinX: c.pinX,
+    pinY: c.pinY,
   }));
   return {
     id: row.id,
@@ -120,6 +155,7 @@ export async function getItemDetail(id: string): Promise<ItemDetail | null> {
             mime: row.mime,
             width: row.width,
             height: row.height,
+            tileKey: row.tileKey,
           }
         : null,
     colors,
@@ -127,12 +163,14 @@ export async function getItemDetail(id: string): Promise<ItemDetail | null> {
   };
 }
 
-export async function deleteItem(id: string): Promise<void> {
+export async function deleteItem(ownerId: string, id: string): Promise<void> {
+  await assertItemOwned(ownerId, id);
   await deletePrefix(itemPrefix(id));
-  await db.delete(items).where(eq(items.id, id));
+  await db.delete(items).where(and(eq(items.id, id), ownerClause(items.ownerId, ownerId)));
 }
 
 export async function createImageItem(input: {
+  ownerId: string;
   buffer: Buffer;
   filename?: string | null;
 }): Promise<string> {
@@ -140,32 +178,64 @@ export async function createImageItem(input: {
   const id = newId();
   await db.insert(items).values({
     id,
+    ownerId: input.ownerId,
     kind,
-    title: deriveTitleFromFilename(input.filename),
+    title: null,
     captureState: "preparing",
   });
   try {
     const processed = await processImage(input.buffer, id);
     const client = r2();
-    await client.send(
-      new PutObjectCommand({
-        Bucket: process.env.R2_BUCKET!,
-        Key: originalKey(id, processed.ext),
-        Body: processed.original,
-        ContentType: processed.mime,
-      }),
-    );
+    const bucket = process.env.R2_BUCKET!;
     const variantMap: Record<string, string> = {};
-    for (const [name, variant] of Object.entries(processed.variants)) {
-      await client.send(
+    const paletteSource = processed.variants.w640?.buffer ?? processed.original;
+    const palettePromise = extractPalette(paletteSource);
+    await Promise.all([
+      palettePromise,
+      client.send(
         new PutObjectCommand({
-          Bucket: process.env.R2_BUCKET!,
-          Key: variant.key,
-          Body: variant.buffer,
-          ContentType: "image/webp",
+          Bucket: bucket,
+          Key: originalKey(id, processed.ext),
+          Body: processed.original,
+          ContentType: processed.mime,
         }),
-      );
-      variantMap[name] = variant.key;
+      ),
+      ...Object.entries(processed.variants).map(([name, variant]) => {
+        variantMap[name] = variant.key;
+        return client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: variant.key,
+            Body: variant.buffer,
+            ContentType: "image/webp",
+          }),
+        );
+      }),
+    ]);
+    const palette = await palettePromise;
+    const crop = await chooseTextureCrop(processed.original);
+    if (!crop.flat) {
+      const tile = await makeSeamlessTile(processed.original, crop);
+      const key = tileKey(id);
+      variantMap.tile = key;
+      await Promise.all([
+        client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            Body: tile,
+            ContentType: "image/png",
+          }),
+        ),
+        client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: textureMetaKey(id),
+            Body: JSON.stringify({ ...crop, step: 0 }),
+            ContentType: "application/json",
+          }),
+        ),
+      ]);
     }
     await db.insert(mediaAssets).values({
       id: newId(),
@@ -180,22 +250,25 @@ export async function createImageItem(input: {
       variants: variantMap,
       placeholder: processed.placeholder,
     });
-
-    const extracted = await extractColors(input.buffer);
-    if (extracted.length > 0) {
+    if (palette.swatches.length > 0) {
       await db.insert(itemColors).values(
-        extracted.map((c, index) => ({
+        palette.swatches.map((c, index) => ({
           id: newId(),
           itemId: id,
           hex: c.hex,
-          family: hexToFamily(c.hex),
-          origin: c.origin,
+          family: c.family,
+          origin: REGION_ORIGIN,
           position: index,
+          name: c.name,
+          role: c.role,
+          pinX: c.pinX,
+          pinY: c.pinY,
         })),
       );
     }
 
     await db.update(items).set({ captureState: "ready" }).where(eq(items.id, id));
+    await startBriefJob(input.ownerId, id);
     return id;
   } catch (err) {
     await deletePrefix(itemPrefix(id)).catch(() => {});
@@ -204,7 +277,13 @@ export async function createImageItem(input: {
   }
 }
 
-export async function getArticleHtml(itemId: string): Promise<string | null> {
+export async function getLatestKit(ownerId: string): Promise<WallItem | null> {
+  const rows = await getWallItems(ownerId, EMPTY_FILTER, null);
+  return rows[0] ?? null;
+}
+
+export async function getArticleHtml(ownerId: string, itemId: string): Promise<string | null> {
+  await assertItemOwned(ownerId, itemId);
   const rows = await db.execute(sql`select article_key from item_sources where item_id = ${itemId} and article_key is not null limit 1`);
   const key = (rows.rows[0] as { article_key?: string } | undefined)?.article_key;
   if (!key) return null;

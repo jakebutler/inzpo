@@ -1,40 +1,36 @@
-import { login } from "./actions";
-import { SubmitButton } from "@/app/components/SubmitButton";
+import { redirect } from "next/navigation";
+import { SignInForm, ClerkMissing, SignInUnavailable } from "./SignInForm";
+import { isClerkConfigured } from "@/lib/auth/clerk-configured";
+import { isDevAuthBypassEnabled } from "@/lib/auth/dev-bypass";
+import { optionalOwnerId } from "@/lib/auth/owner";
+import { validateRelativePath } from "@/lib/auth/redirect";
 
 export const dynamic = "force-dynamic";
+
+function showClerkSetup(): boolean {
+  if (process.env.VERCEL_ENV === "production") return false;
+  return process.env.INZPO_DEV_AUTH === "1";
+}
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; error?: string }>;
+  searchParams: Promise<{ next?: string; __clerk_ticket?: string; error?: string }>;
 }) {
   const params = await searchParams;
-  const next = typeof params.next === "string" ? params.next : "/";
+  const next = validateRelativePath(typeof params.next === "string" ? params.next : "/capture");
+  const ticket = typeof params.__clerk_ticket === "string" ? params.__clerk_ticket : null;
+  const seedError = typeof params.error === "string" ? params.error : null;
 
-  return (
-    <main className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
-      <form action={login} className="w-full max-w-sm">
-        <input type="hidden" name="next" value={next} />
-        <h1 className="text-xl font-semibold tracking-tight">Inzpo</h1>
-        <p className="mt-1 text-sm text-muted-foreground">The vault is private. Sign in to continue.</p>
-        <input
-          type="password"
-          name="passphrase"
-          autoComplete="current-password"
-          autoFocus
-          required
-          placeholder="Passphrase"
-          aria-label="Passphrase"
-          aria-invalid={params.error ? true : undefined}
-          className="mt-6 min-h-[44px] w-full rounded-lg border border-input bg-card px-4 py-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
-        {params.error ? (
-          <p role="alert" className="mt-2 text-sm text-destructive">Incorrect passphrase — try again.</p>
-        ) : null}
-        <SubmitButton className="mt-4 min-h-[44px] w-full rounded-lg text-base font-medium" pendingLabel="Signing in…">
-          Sign in
-        </SubmitButton>
-      </form>
-    </main>
-  );
+  if (!isClerkConfigured()) {
+    if (showClerkSetup()) return <ClerkMissing next={next} />;
+    return <SignInUnavailable />;
+  }
+
+  if (isDevAuthBypassEnabled()) redirect(next);
+
+  const userId = await optionalOwnerId();
+  if (userId) redirect(next);
+
+  return <SignInForm next={next} ticket={ticket} seedError={seedError} />;
 }

@@ -1,19 +1,21 @@
-import Link from "next/link";
 import { CaptureForm } from "./CaptureForm";
-import { SavedToast } from "./SavedToast";
-import { loadTrayFacets } from "./tray";
-import { db } from "@/lib/db";
-import { items } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { getWallItems } from "@/lib/items";
+import { MascotStage } from "@/app/components/MascotStage";
+import { KitCard } from "@/app/components/KitCard";
+import { SAMPLE_KIT } from "@/lib/sample-kit";
+import { loadFoldKit } from "@/lib/fold-kit";
+import { rolesFromColors } from "@/lib/tokens";
+import { requireOwnerId } from "@/lib/auth/owner";
+import { EMPTY_FILTER } from "@/lib/filter";
+import { LINKS_UNSUPPORTED_ERROR, LINKS_UNSUPPORTED_MESSAGE, isLinksUnsupportedRequest } from "@/lib/links";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const ERRORS: Record<string, string> = {
-  "missing-image": "Paste a URL or choose an image first.",
-  "bad-url": "That doesn't look like a valid http(s) URL.",
-  "blocked-url": "That address is blocked (private/internal networks are not fetchable).",
-  "capture-failed": "Capture failed — try again.",
-  "bad-image": "That file could not be processed as an image.",
+  "missing-image": "Pick a photo first.",
+  "capture-failed": "That one didn't go through. Try again.",
+  [LINKS_UNSUPPORTED_ERROR]: LINKS_UNSUPPORTED_MESSAGE,
 };
 
 export default async function CapturePage({
@@ -21,40 +23,62 @@ export default async function CapturePage({
 }: {
   searchParams: Promise<{ error?: string; saved?: string; url?: string; shareToken?: string }>;
 }) {
+  const ownerId = await requireOwnerId();
   const params = await searchParams;
-  const facets = await loadTrayFacets();
-
-  let savedTitle: string | null = null;
-  if (params.saved) {
-    const rows = await db.select({ title: items.title }).from(items).where(eq(items.id, params.saved)).limit(1);
-    savedTitle = rows[0]?.title ?? null;
-  }
+  const unreadable = params.error === "bad-image";
+  const linksBlocked = isLinksUnsupportedRequest(params);
+  const recent = (await getWallItems(ownerId, EMPTY_FILTER, null)).slice(0, 3);
+  const sample = recent.length === 0 ? await loadFoldKit("IMG_6505") : null;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-xl p-6">
-        <div className="flex items-center justify-between">
-          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
-            ← Wall
-          </Link>
-          <span className="text-sm text-muted-foreground">Capture</span>
+      <div className="mx-auto max-w-xl pt-6">
+        <div className="px-4">
+          <h1 className="font-heading mt-4 max-w-[14ch] text-left text-[40px] leading-[1.15] tracking-tight">
+            Steal the colors off anything
+          </h1>
+
+          {linksBlocked ? (
+            <p role="status" className="mt-3 text-base">
+              {LINKS_UNSUPPORTED_MESSAGE}
+            </p>
+          ) : unreadable ? (
+            <div className="mt-4">
+              <MascotStage moment="error-unreadable" snapReady />
+            </div>
+          ) : params.error ? (
+            <p role="alert" className="mt-3 text-base text-primary">
+              {ERRORS[params.error] ?? "That didn't work. Try again."}
+            </p>
+          ) : null}
         </div>
 
-        {params.saved ? <SavedToast itemId={params.saved} title={savedTitle} /> : null}
-
-        <h1 className="mt-6 text-xl font-semibold tracking-tight">Capture</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Paste a link or drop an image. Inzpo detects what it is — tag if you feel like it.
-        </p>
-
-        {params.error ? (
-          <p role="alert" className="mt-3 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {ERRORS[params.error] ?? "Something went wrong."}
-          </p>
-        ) : null}
-
-        <div className="mt-5">
-          <CaptureForm facets={facets} prefilledUrl={params.url ?? ""} shareToken={params.shareToken ?? null} />
+        <div className="mt-5 px-4">
+          <CaptureForm shareToken={params.shareToken ?? null} firstOpen={!params.error}>
+            <div className="-mx-4 mt-8 flex flex-col">
+              {(recent.length > 0 ? recent : [null]).map((item) => {
+                if (!item) {
+                  return (
+                    <KitCard
+                      key="sample"
+                      title={SAMPLE_KIT.title}
+                      imageSrc={SAMPLE_KIT.imageSrc}
+                      roles={rolesFromColors(sample?.colors ?? [])}
+                    />
+                  );
+                }
+                return (
+                  <KitCard
+                    key={item.id}
+                    title={item.title}
+                    createdAt={item.createdAt}
+                    imageSrc={item.displayKey ? `/media/${item.displayKey}` : null}
+                    roles={item.roles}
+                  />
+                );
+              })}
+            </div>
+          </CaptureForm>
         </div>
       </div>
     </main>

@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   serverExternalPackages: [
     "sharp",
+    "heic-decode",
     "@aws-sdk/client-s3",
     "re2",
     "url-regex-safe",

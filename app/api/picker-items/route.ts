@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
+import { optionalOwnerId } from "@/lib/auth/owner";
 import { countWallItems, getWallItems } from "@/lib/items";
 import { parseFilterParam } from "@/lib/filter";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  if (!token || !(await verifySessionToken(token))) {
+  const ownerId = await optionalOwnerId();
+  if (!ownerId) {
     return new NextResponse(null, { status: 401 });
   }
 
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     : [];
   const exclude = new Set(excludeList);
 
-  const [rows, total] = await Promise.all([getWallItems(state), countWallItems(state)]);
+  const [rows, total] = await Promise.all([getWallItems(ownerId, state), countWallItems(ownerId, state)]);
   const items = rows
     .filter((r) => !exclude.has(r.id))
     .slice(0, 200)
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       kind: r.kind,
       thumb: r.thumbKey,
       aspect: r.aspect,
-      colors: r.hexColors,
+      colors: r.hexColors.filter((hex): hex is string => hex != null),
     }));
   return NextResponse.json({ items, count: total });
 }

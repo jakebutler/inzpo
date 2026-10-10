@@ -3,15 +3,15 @@ import { sql } from "drizzle-orm";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { db } from "@/lib/db";
 import { r2 } from "@/lib/r2";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
+import { optionalOwnerId, ownerSql } from "@/lib/auth/owner";
 
 export const dynamic = "force-dynamic";
 
 const CSP = "default-src 'none';";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ key: string[] }> }) {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  if (!token || !(await verifySessionToken(token))) {
+  const ownerId = await optionalOwnerId();
+  if (!ownerId) {
     return new NextResponse(null, { status: 401 });
   }
 
@@ -24,14 +24,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const known = await db.execute(sql`
     select m.mime as mime
     from media_assets m
-    where m.original_key = ${objectKey}
-       or exists (select 1 from jsonb_each_text(m.variants) v where v.value = ${objectKey})
+    join items i on i.id = m.item_id
+    where ${ownerSql(sql`i.owner_id`, ownerId)}
+      and (
+        m.original_key = ${objectKey}
+        or exists (select 1 from jsonb_each_text(m.variants) v where v.value = ${objectKey})
+      )
     limit 1
   `);
   let mime = (known.rows[0] as { mime?: string } | undefined)?.mime;
 
   const article = await db.execute(sql`
-    select s.article_key as key from item_sources s where s.article_key = ${objectKey} limit 1
+    select s.article_key as key
+    from item_sources s
+    join items i on i.id = s.item_id
+    where s.article_key = ${objectKey}
+      and ${ownerSql(sql`i.owner_id`, ownerId)}
+    limit 1
   `);
   const isArticle = article.rows.length > 0;
   if (isArticle) mime = "text/html; charset=utf-8";

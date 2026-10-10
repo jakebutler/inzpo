@@ -1,19 +1,15 @@
 import { getWallItems, countWallItems } from "@/lib/items";
-import { getFacetsWithValues } from "@/lib/ontology";
-import { db } from "@/lib/db";
-import { freeTags } from "@/lib/db/schema";
-import { parseFilterParam, serializeFilter } from "@/lib/filter";
-import { COLOR_FAMILIES } from "@/lib/colors";
-import { listSavedSearches } from "@/lib/saved-searches";
+import { EMPTY_FILTER } from "@/lib/filter";
 import { listCollections, collectionExists } from "@/lib/collections";
 import { getBoards } from "@/lib/item-boards";
-import { FilterBar } from "./components/FilterBar";
 import { WallGrid } from "./components/WallGrid";
 import { BottomNav } from "./components/BottomNav";
 import { Button } from "@/components/ui/button";
 import { LayoutGrid, Plus } from "lucide-react";
-import { SavedPopover } from "./components/SavedPopover";
 import { LogoutButton } from "./components/LogoutButton";
+import { ExportKitButton } from "./components/ExportKitButton";
+import { PhotoBackButton } from "./components/PhotoBackButton";
+import { requireOwnerId } from "@/lib/auth/owner";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -21,76 +17,63 @@ export const dynamic = "force-dynamic";
 export default async function Wall({
   searchParams,
 }: {
-  searchParams: Promise<{ f?: string; c?: string }>;
+  searchParams: Promise<{ c?: string }>;
 }) {
+  const ownerId = await requireOwnerId();
   const params = await searchParams;
-  const state = parseFilterParam(params.f ?? null);
-  const collectionId = typeof params.c === "string" && (await collectionExists(params.c)) ? params.c : null;
+  const collectionId = typeof params.c === "string" && (await collectionExists(ownerId, params.c)) ? params.c : null;
+  const state = EMPTY_FILTER;
 
-  const [wallItems, count, facets, tags, saved, collections, boards] = await Promise.all([
-    getWallItems(state, collectionId),
-    countWallItems(state, collectionId),
-    getFacetsWithValues(),
-    db.select({ name: freeTags.name }).from(freeTags).orderBy(freeTags.name),
-    listSavedSearches(),
-    listCollections(),
-    getBoards(),
+  const [wallItems, count, collections, boards] = await Promise.all([
+    getWallItems(ownerId, state, collectionId),
+    countWallItems(ownerId, state, collectionId),
+    listCollections(ownerId),
+    getBoards(ownerId),
   ]);
-
-  const savedSlot = (
-    <div className="flex items-center gap-2">
-      <Button asChild size="sm" className="hidden md:inline-flex">
-        <a href="/capture">
-          <Plus className="h-4 w-4" /> Capture
-        </a>
-      </Button>
-      <Button asChild size="sm" variant="outline" className="hidden md:inline-flex">
-        <Link href="/boards">
-          <LayoutGrid className="h-4 w-4" /> Boards
-        </Link>
-      </Button>
-      <SavedPopover
-        state={state}
-        entries={saved.map((s) => ({ id: s.id, name: s.name, f: serializeFilter(s.state) }))}
-        collections={collections.map((c) => ({ id: c.id, name: c.name, count: c.count }))}
-      />
-      <LogoutButton />
-    </div>
-  );
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <FilterBar
-        state={state}
-        facets={facets.map((f) => ({ id: f.id, name: f.name, values: f.values.map((v) => v.value) }))}
-        families={[...COLOR_FAMILIES]}
-        freeTags={tags.map((t) => t.name)}
-        matchCount={count}
-        savedSlot={savedSlot}
-      />
+      <header className="sticky top-0 z-10 bg-background">
+        <div
+          className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3"
+          style={{ paddingTop: collectionId ? "calc(env(safe-area-inset-top, 0px) + 8px)" : undefined }}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            {collectionId ? <PhotoBackButton href="/" placement="header" /> : null}
+            <h1 className="font-heading text-2xl">
+              {collectionId ? collections.find((c) => c.id === collectionId)?.name ?? "Collection" : "Wall"}
+            </h1>
+          </div>
+          <div className="flex items-center gap-2">
+            {collectionId && wallItems.length > 0 ? <ExportKitButton collectionId={collectionId} /> : null}
+            <Button asChild size="sm" className="hidden md:inline-flex">
+              <a href="/capture">
+                <Plus className="h-4 w-4" /> Snap something
+              </a>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="hidden md:inline-flex">
+              <Link href="/boards">
+                <LayoutGrid className="h-4 w-4" /> Boards
+              </Link>
+            </Button>
+            <LogoutButton />
+          </div>
+        </div>
+      </header>
 
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 pt-3">
-        <span className="text-xs text-muted-foreground">
-          {count} item{count === 1 ? "" : "s"}
+        <span className="text-base">
+          {count} kit{count === 1 ? "" : "s"}
           {collectionId ? (
             <>
               {" "}
-              in{" "}
-              <Link href="/" className="text-foreground underline decoration-muted-foreground/60">
-                {collections.find((c) => c.id === collectionId)?.name ?? "collection"}
-              </Link>{" "}
-              — <Link href="/" className="underline decoration-muted-foreground/60 hover:text-foreground">clear scope</Link>
+              in {collections.find((c) => c.id === collectionId)?.name ?? "collection"} ·{" "}
+              <Link href="/" className="underline decoration-muted-foreground/60 hover:text-foreground">
+                Show all
+              </Link>
             </>
           ) : null}
         </span>
-        <div className="flex items-center gap-4">
-          <Link href="/vocab" className="inline-flex min-h-[36px] items-center text-xs text-muted-foreground hover:text-foreground">
-            Vocabulary
-          </Link>
-          <Link href="/capture" className="inline-flex min-h-[36px] items-center text-xs text-muted-foreground hover:text-foreground">
-            + Capture
-          </Link>
-        </div>
       </div>
 
       <BottomNav />
@@ -99,9 +82,12 @@ export default async function Wall({
           id: w.id,
           kind: w.kind,
           title: w.title,
+          note: w.note,
+          createdAt: w.createdAt,
           displayKey: w.displayKey,
           aspect: w.aspect,
           hexColors: w.hexColors,
+          roles: w.roles,
           facetTags: w.facetTags,
           freeTags: w.freeTags,
           sourceUrl: w.sourceUrl,
@@ -110,7 +96,6 @@ export default async function Wall({
         totalCount={count}
         collections={collections.map((c) => ({ id: c.id, name: c.name }))}
         boards={boards}
-        facetOptions={facets.map((f) => ({ id: f.id, name: f.name }))}
         collectionId={collectionId}
       />
       <div className="pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-8" />

@@ -1,5 +1,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { FilterState } from "@/lib/filter";
+import { ownerSql } from "@/lib/auth/owner";
+import { WALL_VISIBLE_KINDS } from "@/lib/kinds";
 
 export interface WallQuery {
   where: SQL;
@@ -13,8 +15,12 @@ function inList(values: string[]): SQL {
   );
 }
 
-export function buildWallQuery(state: FilterState, collectionId?: string | null): WallQuery {
-  const conds: SQL[] = [sql`i.capture_state = 'ready'`];
+export function buildWallQuery(state: FilterState, collectionId: string | null | undefined, ownerId: string): WallQuery {
+  const conds: SQL[] = [
+    sql`i.capture_state = 'ready'`,
+    ownerSql(sql`i.owner_id`, ownerId),
+    sql`i.kind in (${inList([...WALL_VISIBLE_KINDS])})`,
+  ];
   if (collectionId) {
     conds.push(sql`exists (select 1 from collection_items ci where ci.item_id = i.id and ci.collection_id = ${collectionId})`);
   }
@@ -133,7 +139,7 @@ export function buildWallQuery(state: FilterState, collectionId?: string | null)
   return { where, orderBy };
 }
 
-export function buildWallFrom(state: FilterState): SQL {
-  const { where, orderBy } = buildWallQuery(state);
+export function buildWallFrom(state: FilterState, ownerId: string): SQL {
+  const { where, orderBy } = buildWallQuery(state, null, ownerId);
   return sql`from items i where ${where} order by ${orderBy}`;
 }
