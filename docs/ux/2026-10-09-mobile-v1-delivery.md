@@ -269,3 +269,23 @@ typecheck pass, all 390 Jest cases in 41 suites pass, four compiled-worklet
 checks pass, and the iOS Hermes export succeeds. The exported bundle contains
 the matched backend URL. No package, lockfile, Metro, or app configuration
 changes remain from the temporary browser fixture.
+
+## Rest-of-app publication receipt
+
+- Published October 9, 2026 at 7:21 PM PDT (2026-10-10T02:21:28.966Z).
+- Branch `v1-pilot`, iOS, runtime `exposdk:57.0.0`.
+- Source commit: `e8b6d9b140a0d64214ab683df1208d4478aaeb02`.
+- Group: `a1367b5b-d0f6-4135-8d1d-c9a378b48d4f`.
+- Update: `01a1239d-8806-7412-a9be-5581f775bf8e`.
+- Served manifest ID/runtime match; launch-asset hash matches the checked local
+  Hermes bundle, SHA256 `ccf2d94fd85e3f32e15c48713941c46197868df3285199661a9247da1a9e7ac5`.
+- Published the prebuilt local export with `--skip-bundler`; matched backend
+  remains in the bundle. Shared preview environment values were unchanged.
+- [Rest-of-app Expo Go QR](https://qr.expo.dev/eas-update?projectId=529d6681-6398-4009-adff-18b6bb5a6108&groupId=a1367b5b-d0f6-4135-8d1d-c9a378b48d4f)
+- [Rest-of-app EAS update](https://expo.dev/accounts/jakebutler/projects/inzpo/updates/a1367b5b-d0f6-4135-8d1d-c9a378b48d4f)
+
+This QR supersedes the earlier pilot links. The next phone pass should follow
+save → collection → reopen → edit → save colors → Use this kit → copy/export
+→ Back, checking keyboard/gesture continuity and Keep confirmation. Publication
+and automated checks are complete; native acceptance of this refinement remains
+with the phone pass.
