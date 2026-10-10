@@ -334,3 +334,14 @@ material preview is saved in `evidence/2026-10-09-button-shape/`; native
 appearance remains separate from that browser translation.
 
 The iOS Hermes export passes with the matched backend URL.
+
+### Button-shape publication receipt
+
+- Published October 9, 2026 at 7:45 PM PDT (2026-10-10T02:45:27.243Z).
+- Branch `v1-pilot`, iOS, runtime `exposdk:57.0.0`.
+- Source: `7668256a7f3324150e1da5611845d1a43debce79`.
+- Group: `80320a6f-5add-486d-a048-87a1eca8570f`; update: `01a123b3-7a4b-7edf-93e2-fb3c9b71355f`.
+- Served manifest ID/runtime and launch-asset hash match the checked local
+  Hermes bundle, SHA256 `03978617297cc72ca878bfd615b84b48fc1f45f11bfd8c793903b980370c3ec4`.
+- Prebuilt export published with `--skip-bundler`; matched backend unchanged.
+- [Consistent-button Expo Go QR](https://qr.expo.dev/eas-update?projectId=529d6681-6398-4009-adff-18b6bb5a6108&groupId=80320a6f-5add-486d-a048-87a1eca8570f) supersedes the earlier pilot links.
