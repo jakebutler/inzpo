@@ -406,3 +406,19 @@ actual component trees to static HTML. They support the material review, not
 native phone acceptance. Capture choreography, matte buttons, shared radius,
 backend and dependencies are unchanged. Phone review remains for native
 rendering, keyboard, larger text and sheet gestures.
+
+### Brand-continuity publication receipt
+
+- Published October 9, 2026 at 8:19 PM PDT (2026-10-10T03:19:48.165Z).
+- Branch `v1-pilot`, iOS, runtime `exposdk:57.0.0`.
+- Source: `2a27014e92645cb11e4cdd3d61039fff72c235d2`.
+- Group: `31897f98-a3fb-4c2e-941d-f5b783f1fbf9`; update: `01a123d2-ecc5-7ab9-87c9-617338ad95b2`.
+- Served manifest ID/runtime and launch-asset hash match the checked local
+  Hermes bundle, SHA256 `c28179df662677d7bc3186ad09fd786699d056d56c079e0051ec2e03785058d7`.
+- Prebuilt export published with `--skip-bundler`; matched backend unchanged.
+- [Brand-continuity Expo Go QR](https://qr.expo.dev/eas-update?projectId=529d6681-6398-4009-adff-18b6bb5a6108&groupId=31897f98-a3fb-4c2e-941d-f5b783f1fbf9) supersedes the earlier pilot links.
+
+The next phone pass should browse collections, reopen a kit, edit colors, and
+open Use this kit. Check light-color visibility, note-card status, larger text,
+keyboard and gestures. Publication is verified; native acceptance remains a
+phone check.
