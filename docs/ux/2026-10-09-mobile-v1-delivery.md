@@ -203,3 +203,23 @@ tests cover one navigation, retained photo and mesh identities, upload-to-chew
 phase change, readiness, explicit skip, same-screen retry, and Reduced Motion.
 Session tests cover duplicate subscriptions and explicit-only retries. Flight
 checks cover late palettes, continuity, bounds, and its exact settled endpoint.
+
+## Combined-flow publication receipt
+
+- Published October 9, 2026 at 6:49 PM PDT (October 10 at 01:49:54 UTC).
+- Branch `v1-pilot`, iOS, runtime `exposdk:57.0.0`.
+- Source commit: `821aa690221184e0724acffd2542179adcd952bd`.
+- Group: `8a475e7c-e0b8-46a9-9de8-b16f360afa95`.
+- Update: `01a12380-9f0e-7363-9470-008464c1d167`.
+- The served manifest ID/runtime match. Its launch-asset hash matches the
+  tested local Hermes bundle, SHA256
+  `47193bb094208ac2afc3bbad09a4a264aab607ae56dd4311a1dae22a38a98244`.
+- The local export retains the matched backend URL; EAS published the prebuilt
+  bundle with `--skip-bundler`. Shared preview environment values were unchanged.
+- [Combined-flow Expo Go QR](https://qr.expo.dev/eas-update?projectId=529d6681-6398-4009-adff-18b6bb5a6108&groupId=8a475e7c-e0b8-46a9-9de8-b16f360afa95)
+- [Combined-flow EAS update](https://expo.dev/accounts/jakebutler/projects/inzpo/updates/8a475e7c-e0b8-46a9-9de8-b16f360afa95)
+
+This QR supersedes the historical links above. On the next phone pass, verify
+that selection opens Your colors directly, dusty intake blends into chewing,
+and the sneeze sends the same colored Baku on a balloon-like flight to the
+lower-left corner without a swap or final-position jump.
