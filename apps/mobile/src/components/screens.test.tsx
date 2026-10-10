@@ -693,7 +693,7 @@ test('saved actions have matte blue/paper materials, navigate to the chosen coll
   expect(view.queryByTestId('photo-pins')).toBeNull();
   const collection = view.getByRole('button', { name: 'See your collection' });
   const snap = view.getByRole('button', { name: 'Snap another' });
-  expect(view.getByRole('button', { name: 'Use this kit' })).toHaveStyle({ backgroundColor: '#426092', borderRadius: 14, minHeight: 48 });
+  expect(view.getByRole('button', { name: 'Use this kit' })).toHaveStyle({ backgroundColor: '#426092', borderRadius: 8, minHeight: 48 });
   expect(view.getByRole('button', { name: 'Edit colors' })).toHaveStyle({ backgroundColor: '#EAE1D2', borderRadius: 8, minHeight: 48 });
   await fireEvent.press(collection);
   expect(router.dismissTo).toHaveBeenCalledWith({ pathname: '/collection/[id]', params: { id: 'collection-1' } });

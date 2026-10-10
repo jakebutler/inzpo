@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { usePressFeedback } from '@/lib/usePressFeedback';
-import { buttonSurface } from '@/theme/buttons';
+import { BUTTON_RADIUS, buttonSurface } from '@/theme/buttons';
 import { fonts, INK } from '@/theme/tokens';
 import { LABEL_STOCK } from '@/theme/materials';
 import { PaperTexture } from './PaperTexture';
@@ -38,10 +38,10 @@ export function ActionButton({ label, onPress, disabled = false, primary = false
       onPress={onPress}
       onPressIn={() => { setPressed(true); feedback.onPressIn(); }}
       onPressOut={() => { setPressed(false); feedback.onPressOut(); }}
-      style={[styles.button, primary && styles.primary, style,
+      style={[styles.button, style,
         buttonSurface(primary, pressed, disabled, reducedMotion), feedback.animatedStyle]}
     >
-      <View pointerEvents="none" accessible={false} style={[styles.texture, primary && styles.primary]}>
+      <View pointerEvents="none" accessible={false} style={styles.texture}>
         <PaperTexture kind={primary ? 'color' : 'paper'} tileSize={240} opacity={primary ? 1 : .75} />
       </View>
       {children ?? <Text allowFontScaling style={[styles.label, primary && styles.primaryLabel]}>{label}</Text>}
@@ -51,11 +51,10 @@ export function ActionButton({ label, onPress, disabled = false, primary = false
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 48, paddingHorizontal: 12, paddingVertical: 12, borderRadius: 8,
+    minHeight: 48, paddingHorizontal: 12, paddingVertical: 12,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1,
   },
-  primary: { borderRadius: 14 },
-  texture: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, overflow: 'hidden' },
+  texture: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: BUTTON_RADIUS, overflow: 'hidden' },
   label: { fontFamily: fonts.bodyMedium, fontSize: 16, color: INK, textAlign: 'center' },
   primaryLabel: { color: LABEL_STOCK },
 });

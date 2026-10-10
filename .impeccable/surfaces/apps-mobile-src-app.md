@@ -29,3 +29,5 @@ Saved kits make Use this kit primary and Edit colors immediately available. Reop
 The bounded source/rendered critique lives in `docs/ux/2026-10-09-mobile-rest-of-app-critique.md`. Expo Web fixtures establish selected compact layouts, not native keyboard, gestures or frame rate. Keep375 and confirmation need phone evidence after WebGL paint failures in the fixture.
 
 Button finish: matte blue primary stock and warmer paper secondary faces. Use the existing fine grain, muted edges, short contact shadows and two-unit press compression. Omit reflective bevels and gradient sheen; preserve existing labels, targets, actions and Reduced Motion behavior.
+
+All action button types and states share an 8-unit corner radius, including Back and texture masks. Hierarchy comes from color and depth; never mix capsule primary actions with rectangular secondary actions.

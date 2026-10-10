@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { usePressFeedback } from '@/lib/usePressFeedback';
-import { buttonSurface } from '@/theme/buttons';
+import { BUTTON_RADIUS, buttonSurface } from '@/theme/buttons';
 import { InkIcon } from './InkIcon';
 import { PaperTexture } from './PaperTexture';
 
@@ -26,6 +26,6 @@ export function BackButton({ onPress, disabled = false }: { onPress: () => void;
 
 const styles = StyleSheet.create({
   target: { width: 44, height: 44, alignSelf: 'flex-start' },
-  face: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  texture: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 18, overflow: 'hidden' },
+  face: { width: 36, height: 36, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  texture: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: BUTTON_RADIUS, overflow: 'hidden' },
 });

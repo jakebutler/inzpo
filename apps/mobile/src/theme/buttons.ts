@@ -15,6 +15,8 @@ export function shade(hex: string, amount: number): string {
   }).join('').toUpperCase();
 }
 
+export const BUTTON_RADIUS = 8;
+
 export const buttonColors = {
   primary: { fill: MATTE_BLUE, border: MATTE_BLUE_EDGE, shadow: MATTE_BLUE_BASE, ink: LABEL_STOCK },
   secondary: { fill: '#EAE1D2', border: '#D1C5B3', shadow: '#B8AA95', ink: INK },
@@ -31,6 +33,7 @@ export function buttonSurface(primary: boolean, pressed: boolean, disabled: bool
   const material = down ? SAVE_PRESS.pressed : SAVE_PRESS.rest;
   const depth = reducedMotion ? SAVE_PRESS.rest : material;
   return {
+    borderRadius: BUTTON_RADIUS,
     backgroundColor: down ? shade(colors.fill, primary ? material.darken : -0.04) : colors.fill,
     borderColor: colors.border,
     // Reduced motion changes opacity/face only; no physical compression.

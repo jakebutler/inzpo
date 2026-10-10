@@ -47,10 +47,9 @@ typography:
     fontWeight: 400
 rounded:
   stock: "3px"
-  paper-action: "8px"
+  action: "8px"
   field: "12px"
   sheet: "20px"
-  matte-action: "14px"
 spacing:
   fine: "4px"
   tight: "8px"
@@ -64,13 +63,13 @@ components:
     backgroundColor: "{colors.matte-blue}"
     textColor: "{colors.label-stock}"
     typography: "{typography.action}"
-    rounded: "{rounded.matte-action}"
+    rounded: "{rounded.action}"
     padding: "12px"
   button-secondary:
     backgroundColor: "{colors.secondary-face}"
     textColor: "{colors.ink}"
     typography: "{typography.action}"
-    rounded: "{rounded.paper-action}"
+    rounded: "{rounded.action}"
     padding: "12px"
   field:
     backgroundColor: "{colors.paper}"
@@ -187,7 +186,7 @@ Exact shadow recipes and press-state values live in `.impeccable/design.json`; t
 
 ## Shapes
 
-Film prints keep square photographic geometry and a deeper paper foot. Paint chips use nearly square stock corners; secondary actions use slightly softer corners. Fields, sheets, and matte stock primary actions use their own larger radii from the frontmatter. Primary actions use 14-unit corners; paper actions use 8-unit corners.
+Film prints keep square photographic geometry and a deeper paper foot. Paint chips use nearly square stock corners; secondary actions use slightly softer corners. Fields, sheets, and matte stock primary actions use their own larger radii from the frontmatter. All action faces, including Back, use the shared 8-unit corner radius in every state.
 
 Photo sample markers are drawn rings and leader lines, with the actual sample color at the center. Navigation icons use the local ink-path artwork. Saved and keep decks reuse the same six paint chips around a physical corner pivot and rivet. Their tilt and overlap are part of the deck composition, not permission to rotate normal text or forms.
 
@@ -195,7 +194,7 @@ Photo sample markers are drawn rings and leader lines, with the actual sample co
 
 ### Buttons
 
-`ActionButton` has two matte stock variants. The blue primary face retains its readable light label, now with fine color-grain fibers, a quiet dark edge, and 14-unit corners. Warm secondary paper uses 8-unit corners, paper fibers, and a muted edge. Both use clipped existing texture assets, with no gradient sheen or reflective inset bevel. Labels remain in medium Geist, and the 48-unit minimum grows with text.
+`ActionButton` has two matte stock variants. The blue primary face retains its readable light label, now with fine color-grain fibers, a quiet dark edge, and the shared 8-unit corners. Warm secondary paper uses 8-unit corners, paper fibers, and a muted edge. Both use clipped existing texture assets, with no gradient sheen or reflective inset bevel. Labels remain in medium Geist, and the 48-unit minimum grows with text.
 
 Two short contact shadows replace the tall hard lip and broad floating shadow. Pressing sinks the face two units, darkens it slightly, and compresses the contact shadow; the face stays full-width by default. The camera's explicit shutter scale remains. Reduced Motion uses nonspatial feedback with resting shadow geometry. Disabled controls remove depth. Back uses the same matte paper face inside its existing 44-unit target. `SaveButton` reuses the primary treatment and preserves its saving/saved check transition.
 
@@ -219,7 +218,7 @@ Shared fields use paper, a dark one-unit outline, the field radius, and regular 
 
 ### Navigation
 
-The native stack uses a paper header, dark ink, an Akaya title, and no header shadow. Custom back controls have a round paper face inside a larger tap target. Navigation and utility actions retain accessible labels even when their ink-path artwork is the visible affordance. Back preserves collection context; completing Keep clears the capture/Keep stack before opening the saved result. The native stack uses a short fade under Reduced Motion.
+The native stack uses a paper header, dark ink, an Akaya title, and no header shadow. Custom back controls have a softly squared paper face inside a larger tap target. Navigation and utility actions retain accessible labels even when their ink-path artwork is the visible affordance. Back preserves collection context; completing Keep clears the capture/Keep stack before opening the saved result. The native stack uses a short fade under Reduced Motion.
 
 ### Baku performance
 
@@ -267,3 +266,5 @@ Source anchors: `src/theme/{tokens,materials,buttons,styles,motion}.ts`; `src/ap
 The October 9 senior UX critique and bounded correction pass are in `../../docs/ux/2026-10-09-mobile-rest-of-app-critique.md`. Expo Web fixtures imported the shipping native components with a mocked API/router and checked saved layouts at 375/390 widths, plus reuse, editing and collections at 375. They exposed and corrected first-open modal lifecycle and draft-remount bugs. Keep at 375 and save confirmation were inconclusive because CanvasKit WebGL surfaces failed to paint; these are not native screenshots or native defects established by evidence. Phone acceptance still covers Keep, keyboard/dragging, larger text, VoiceOver, navigation and motion feel.
 
 The October 9 matte-button refinement follows the phone report that buttons were too shiny. The bounded material preview is generated from shipping surface tokens; it is not a native screenshot. No new raster assets or dependencies were added. Native appearance remains part of the Expo Go phone pass.
+
+**Consistent Button Shape Rule.** Primary, secondary, Save and Back share `BUTTON_RADIUS = 8` in their face and texture mask. Pressed, disabled, saving and saved states retain that shape; color and depth establish hierarchy, not different corner geometry.

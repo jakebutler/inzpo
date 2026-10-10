@@ -319,3 +319,18 @@ The iOS Hermes export passes and contains the matched backend URL.
   Hermes bundle, SHA256 `341659595796ee1447b0ae490810f3cbbe21338930ad362bc53ddd96195c8d83`.
 - Prebuilt export published with `--skip-bundler`; backend/environment unchanged.
 - [Matte-button Expo Go QR](https://qr.expo.dev/eas-update?projectId=529d6681-6398-4009-adff-18b6bb5a6108&groupId=a235f70e-fa5f-4722-8abd-0a6500f9506a) supersedes the earlier pilot links.
+
+## Consistent button shape
+
+The phone review accepted the matte direction but rejected mixed rounded and
+rectangular action shapes. All primary, secondary, Save and Back faces now
+use one `BUTTON_RADIUS = 8`, including texture clipping. The radius lives in
+the shared surface function, so resting, pressed, disabled, saving and saved
+states retain the same geometry. The primary-only and circular Back overrides
+are removed. Matte color, grain, press depth and target sizes are preserved.
+
+Native lint/typecheck and 86 targeted button/screen/Keep tests pass. A bounded
+material preview is saved in `evidence/2026-10-09-button-shape/`; native
+appearance remains separate from that browser translation.
+
+The iOS Hermes export passes with the matched backend URL.
