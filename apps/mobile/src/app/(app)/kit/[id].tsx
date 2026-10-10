@@ -1,5 +1,6 @@
 import { ColorInhale } from '@/baku/ColorInhale';
-import { KnitBaku } from '@/baku/KnitBaku';
+import { DustIntake } from '@/baku/DustIntake';
+import { FlyingBaku } from '@/baku/FlyingBaku';
 import { usePalettePerformance } from '@/baku/usePalettePerformance';
 import { emptyRoles, type ColorRole } from '@inzpo/shared';
 import { Canvas, LinearGradient, Rect } from '@shopify/react-native-skia';
@@ -26,7 +27,8 @@ import { useInzpoClient } from '@/lib/api';
 import { resultLayout } from '@/lib/result-layout';
 import { photoPins, primaryHue } from '@/lib/result-pins';
 import { useKit } from '@/lib/use-kit';
-import { captureElapsed, capturePhoto } from '@/lib/photo-handoff';
+import { useCaptureSession } from '@/lib/capture-session';
+import { capturePhoto } from '@/lib/photo-handoff';
 import { useResultSequence } from '@/lib/useResultSequence';
 import { useBakuPupils } from '@/lib/useBakuPupils';
 import { useBakuHop } from '@/lib/useBakuHop';
@@ -34,13 +36,20 @@ import { PAPER } from '@/theme/tokens';
 import { ui } from '@/theme/styles';
 
 export default function ResultScreen() {
-  const params = useLocalSearchParams<{ id: string; saved?: string; c?: string }>();
+  const params = useLocalSearchParams<{ id: string; saved?: string; c?: string; capture?: string }>();
   return <ResultContent key={params.id} params={params} />;
 }
 
-function ResultContent({ params }: { params: { id: string; saved?: string; c?: string } }) {
-  const id = typeof params.id === 'string' ? params.id : '';
-  const { kit, loading, error, briefFailed, retry, replaceKit } = useKit(id);
+function ResultContent({ params }: { params: { id: string; saved?: string; c?: string; capture?: string } }) {
+  const routeId = typeof params.id === 'string' ? params.id : '';
+  const capturing = params.capture === '1';
+  const capture = useCaptureSession(capturing ? routeId : null);
+  const id = capturing ? capture.snapshot?.kitId ?? '' : routeId;
+  const loaded = useKit(id);
+  const { kit, briefFailed, retry, replaceKit } = loaded;
+  const loading = capturing && !id ? !!capture.snapshot && !capture.snapshot.error : loaded.loading;
+  const error = capturing && !id ? capture.snapshot ? null : 'notFound' : loaded.error;
+  const captureFailed = !!capture.snapshot?.error;
   const client = useInzpoClient();
   const focused = useIsFocused();
   const insets = useSafeAreaInsets();
@@ -71,7 +80,7 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
   const [detail, setDetail] = useState<{ kitId: string; role: ColorRole; scrollY: number } | null>(null);
   const scrollY = useRef(0);
   const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
-  const localPhoto = capturePhoto(id);
+  const localPhoto = capture.snapshot?.photo ?? capturePhoto(id);
   const [displayedPhoto, setDisplayedPhoto] = useState<{ id: string; url: string } | null>(null);
   // Keep the already-painted local photo through palette readiness; switching
   // to the signed URL here adds a second image fetch and pauses the performance.
@@ -79,14 +88,15 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
   const photoFailed = !!renderedPhoto && renderedPhoto.url === failedPhotoUrl;
   const displayKit = kit ? { ...kit, photo: renderedPhoto ?? null }
     : renderedPhoto ? { photo: renderedPhoto, roles: emptyRoles(), colors: [] } : null;
-  const photoVisible = !!renderedPhoto && !photoFailed && displayedPhoto?.id === id &&
+  const photoVisible = !!renderedPhoto && !photoFailed && displayedPhoto?.id === routeId &&
     displayedPhoto.url === renderedPhoto.url;
   const ready = !!kit;
   const failedBrief = briefFailed || kit?.brief.status === 'failed' || (kit?.brief.status === 'ready' && !kit.brief.text);
-  const performance = usePalettePerformance({ kitId: id, ready, enabled: !!localPhoto && !isSaved,
-    photoVisible, focused: focused && !error, initialElapsed: captureElapsed(id) });
+  const performance = usePalettePerformance({ kitId: id || routeId, ready, enabled: !!localPhoto && !isSaved,
+    processing: !capturing || capture.snapshot?.phase === 'processing',
+    photoVisible, focused: focused && !error && !captureFailed });
   const revealing = ready && !performance.finished;
-  const hosting = !performance.finished || (loading && !!localPhoto);
+  const hasKnitHost = !!localPhoto && !isSaved && !error;
   const pupils = useBakuPupils(96);
   const sequence = useResultSequence({ kitId: id, ready: ready && performance.finished, roles: kit?.roles, jiggle: pupils.jiggle });
   const hop = useBakuHop({ kitId: id, base: sequence.values, jiggle: pupils.jiggle });
@@ -111,7 +121,7 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
     <SafeAreaView style={ui.screen} edges={['left', 'right']} >
       <Stack.Screen options={{ headerShown: false, title: isSaved && kit ? kit.title : 'Your colors' }} />
       <PaperTexture />
-      <ScrollView testID="result-content" contentContainerStyle={{ paddingTop: Math.max(isSaved ? 40 : 20, insets.top),
+      <ScrollView testID="result-content" scrollEnabled={!hasKnitHost || (ready && performance.finished)} contentContainerStyle={{ paddingTop: Math.max(isSaved ? 40 : 20, insets.top),
         paddingBottom: isSaved ? footerBottom : actionHeight + footerBottom + 32, minHeight: isSaved ? height : undefined }}
         onScrollBeginDrag={sequence.skipToEnd} onMomentumScrollBegin={sequence.skipToEnd}
         onScroll={({ nativeEvent }) => {
@@ -142,7 +152,7 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
           </> : <View testID="result-hero" accessibilityLabel={kit?.title} style={{ width: heroWidth, alignSelf: 'center',
             minHeight: layout.heroHeight }}>
             <FilmPrint kit={displayKit} width={layout.printWidth} height={layout.printHeight} pinHeight={layout.pinHeight} failed={photoFailed}
-              onPhotoDisplay={() => renderedPhoto && setDisplayedPhoto({ id, url: renderedPhoto.url })}
+              onPhotoDisplay={() => renderedPhoto && setDisplayedPhoto({ id: routeId, url: renderedPhoto.url })}
               onError={() => { setDisplayedPhoto(null); if (renderedPhoto) setFailedPhotoUrl(renderedPhoto.url); }} selectedRole={editing ? selectedRole : null}
               markerStyle={sequence.markerStyle} onPinPress={openRole} interactive={sequence.interactive && !revealing} showPins={ready && !revealing} placeholder={<View style={styles.placeholder}>
                 <Baku pose={photoFailed ? 'errorPhoto' : 'empty'} roles={displayKit.roles} stripeProgress={sequence.stripeProgress} wipeMode={sequence.wipeMode} />
@@ -153,9 +163,9 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
               samples={photoPins(displayKit, layout.printWidth - 26, layout.photoHeight, layout.pinHeight).map(pin => ({
                 color: pin.color, source: { x: printLeft + 13 + pin.target.x, y: 13 + pin.target.y },
               }))} baku={{ x: bakuLeft, y: layout.printHeight - 100, width: bakuWidth }} />}
-            {hosting && <View testID="baku-host" pointerEvents="none" style={{ position: 'absolute', left: bakuLeft, top: layout.printHeight - 100, zIndex: 10 }}>
-              <KnitBaku width={bakuWidth} elapsed={performance.elapsed} readyAt={performance.readyAt} roles={displayKit.roles} onLoaded={performance.onLoaded} />
-            </View>}
+            {hasKnitHost && !performance.reducedMotion && !captureFailed && !performance.finished && <DustIntake width={heroWidth} height={layout.heroHeight}
+              source={{ x: printLeft + layout.printWidth * .18, y: layout.printHeight * .83 }}
+              baku={{ x: bakuLeft, y: layout.printHeight - 100, width: bakuWidth }} performance={performance} />}
             {kit && <View style={{ marginTop: -113, marginHorizontal: 20 }}>
               <ChipPile roles={kit.roles} slots={layout.slots} height={layout.pileHeight} typeSize={layout.typeSize}
                 expandedRole={detail?.kitId === id ? detail.role : null} motion={sequence.bands} performance={performance} emitter={{ x: bakuLeft - 20, y: 13, width: bakuWidth }} disabled={!sequence.interactive || revealing} selectedRole={editing ? selectedRole : null}
@@ -199,11 +209,15 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
           </Rect>
         </Canvas>
         {loading && localPhoto && <Text accessibilityLiveRegion="polite" style={[ui.body, { textAlign: 'center', marginHorizontal: 24 }]}>Finding your colors…</Text>}
+        {captureFailed && <View style={{ marginHorizontal: 24, gap: 12 }}>
+          <Text accessibilityRole="alert" style={[ui.body, { textAlign: 'center' }]}>Couldn’t process this photo. It’s still here—try again when you’re connected.</Text>
+          <ActionButton label="Retry this photo" primary onPress={capture.retry} />
+        </View>}
         {revealing && <View style={{ marginHorizontal: 32, gap: 8 }}>
           <Text style={[ui.body, { textAlign: 'center' }]}>A little color. A big ah-choo.</Text>
           <ActionButton label="Show my colors" onPress={() => { performance.skip(); sequence.skipToEnd(); }} />
         </View>}
-        {ready && !revealing && <View style={styles.host}>
+        {ready && !revealing && !hasKnitHost && <View style={styles.host}>
           <CornerBaku size={62} focused={focused && sheet?.kitId !== id && detail?.kitId !== id} pose={hop.pose && hop.pose !== 'idle' ? hop.pose : failedBrief ? 'errorBrief' : 'idle'}
             motionStyle={hop.bakuStyle} shadowStyle={hop.shadowStyle} />
         </View>}
@@ -213,6 +227,10 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
             onPress={() => router.push({ pathname: '/keep/[id]', params: { id } })} /></View>
         </View>}
       </View>}
+      {hasKnitHost && displayKit && <FlyingBaku id={routeId} performance={performance} roles={displayKit.roles}
+        settled={ready && performance.finished} bounds={{ width, height }}
+        origin={{ x: (width - heroWidth) / 2 + bakuLeft, y: layout.printTop + layout.printHeight - 100, width: bakuWidth }}
+        target={{ x: 10, y: height - footerBottom + 8 - 48, width: 72 }} />}
       {kit && <>
         {detail?.kitId === id && kit.roles[detail.role] && <ChipDetail key={`${id}-${detail.role}`} kit={kit} role={detail.role}
           slot={layout.slots.find((slot) => slot.role === detail.role)!}

@@ -4,7 +4,7 @@ import { Canvas, ImageShader, Shader, Skia, useImage, Vertices, type SkImage, ty
 import { Image } from 'expo-image';
 import { useEffect, useMemo } from 'react';
 import { useDerivedValue, type SharedValue } from 'react-native-reanimated';
-import { coatFillAt, deform, poseAt } from './motion';
+import { coatFillAt, deform, performancePoseAt } from './motion';
 
 const sources = [require('../../assets/baku-performance/neutral.webp'), require('../../assets/baku-performance/cheeks.webp'),
   require('../../assets/baku-performance/squeeze.webp'), require('../../assets/baku-performance/pleased.webp'),
@@ -20,8 +20,8 @@ for (let y = 0; y < rows; y++) for (let x = 0; x < columns; x++) {
 }
 
 /** The approved continuous felt mesh, rendered natively. Empty roles keep undyed panels. */
-export function KnitBaku({ width, elapsed, readyAt, roles, onLoaded }: {
-  width: number; elapsed: SharedValue<number>; readyAt: SharedValue<number>; roles?: RoleColors | null; onLoaded?: () => void;
+export function KnitBaku({ width, elapsed, readyAt, roles, onLoaded, intakeElapsed, intakeBlend }: {
+  width: number; elapsed: SharedValue<number>; readyAt: SharedValue<number>; roles?: RoleColors | null; onLoaded?: () => void; intakeElapsed?: SharedValue<number>; intakeBlend?: SharedValue<number>;
 }) {
   const neutral = useImage(sources[0]), cheeks = useImage(sources[1]), squeeze = useImage(sources[2]);
   const pleased = useImage(sources[3]), material = useImage(sources[4]);
@@ -31,21 +31,21 @@ export function KnitBaku({ width, elapsed, readyAt, roles, onLoaded }: {
   if (!loaded) return <Image testID="knit-baku-fallback" accessible={false} source={require('../../assets/baku-performance/neutral-monotone.webp')}
     contentFit="contain" style={{ width, height }} />;
   return <Canvas testID="knit-baku" accessible={false} pointerEvents="none" style={{ width, height }}>
-    <KnitMesh width={width} elapsed={elapsed} readyAt={readyAt} roles={roles}
+    <KnitMesh width={width} elapsed={elapsed} readyAt={readyAt} roles={roles} intakeElapsed={intakeElapsed} intakeBlend={intakeBlend}
       images={[neutral!, cheeks!, squeeze!, pleased!, material!]} />
   </Canvas>;
 }
 
 /** Shared by the native Canvas and the real scene-graph regression renderer. */
-export function KnitMesh({ width, elapsed, readyAt, roles, images }: {
-  width: number; elapsed: SharedValue<number>; readyAt: SharedValue<number>; roles?: RoleColors | null; images: SkImage[];
+export function KnitMesh({ width, elapsed, readyAt, roles, images, intakeElapsed, intakeBlend }: {
+  width: number; elapsed: SharedValue<number>; readyAt: SharedValue<number>; roles?: RoleColors | null; images: SkImage[]; intakeElapsed?: SharedValue<number>; intakeBlend?: SharedValue<number>;
 }) {
   const height = width * 2 / 3;
   const palette = useMemo(() => COLOR_ROLES.flatMap(role => {
     const hex = roles?.[role];
     return hex ? [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).concat(1) : [.61, .61, .61, 0];
   }), [roles]);
-  const pose = useDerivedValue(() => poseAt(elapsed.value, readyAt.value < 0 ? null : readyAt.value));
+  const pose = useDerivedValue(() => performancePoseAt(elapsed.value, readyAt.value < 0 ? null : readyAt.value, intakeElapsed?.value ?? 0, intakeBlend?.value ?? 0));
   const vertices = useDerivedValue(() => uv.map(point => {
     const next = deform(point.x, point.y, pose.value);
     return { x: next.x * width, y: next.y * height };

@@ -166,3 +166,40 @@ outside this evidence.
 Earlier QR links remain pinned to their historical versions. This update is
 published for the next phone pass; Baku visibility and the upload/reveal
 continuity are not yet device-confirmed.
+
+## Phone refinement: one screen, dust intake, balloon exit
+
+The next phone report identified the separate upload/result handoff as jarring.
+Jake requested one continuous extraction screen, a gentle snout-and-dust intake
+while keeping the photograph, and a deflating-balloon flight from the sneeze to
+the lower-left host position.
+
+Selecting a photo now opens Your colors immediately with an opaque local capture
+ID. A deduplicated in-memory session handles upload and kit creation on that
+route. No second navigation or image replacement occurs at palette readiness.
+Failed processing retains the photograph and exposes retry on the same screen.
+
+Baku's empty-cheek intake opens the snout slightly; 18 small warm dust puffs curl
+from the photo edge into its actual moving tip. Upload completion blends into
+the chew over 0.32 seconds. Actual colors retain their separate inhale and coat
+fill. After the final swatch launches, the same colored knit mesh shrinks along
+a winding, capture-seeded flight (1.75 seconds) and stays in the lower-left
+corner. There is no replacement mascot at the endpoint. Flight uses transforms
+on the UI thread; scroll stays still during the performance. Skip and Reduced
+Motion place him directly at the endpoint, preserving real coat colors.
+
+The bounded visual pass rendered the shipping mesh/dust JSX at 375x667 and
+390x844. It moved the dust source to the lower-left photo edge after the first
+pass showed it hiding behind Baku's head. Confirmation frames cover intake,
+chew, sneeze, two flight samples, and the settled corner. They live under
+`/tmp/inzpo-balloon-frames`; these CanvasKit composition plates use rectangles
+for native chip controls and are not iPhone screenshots. No raster art changed.
+The implementation is ready for a phone pass; smoothness and the feel of the
+new transition still require device confirmation.
+
+Validation for this refinement: native lint/typecheck, all 379 Jest cases across
+40 suites, four compiled-worklet checks, and the iOS Hermes export pass. Screen
+tests cover one navigation, retained photo and mesh identities, upload-to-chew
+phase change, readiness, explicit skip, same-screen retry, and Reduced Motion.
+Session tests cover duplicate subscriptions and explicit-only retries. Flight
+checks cover late palettes, continuity, bounds, and its exact settled endpoint.

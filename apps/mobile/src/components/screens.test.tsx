@@ -17,7 +17,10 @@ import { completedResultKits } from '@/lib/useResultSequence';
 import { useInzpoClient } from '@/lib/api';
 import { createHaptics, haptics } from '@/lib/haptics';
 import { uploadPhoto } from '@/lib/upload';
-import { captureElapsed, capturePhoto, handoffPhoto } from '@/lib/photo-handoff';
+import { capturePhoto, handoffPhoto } from '@/lib/photo-handoff';
+import { beginCapture, captureSnapshot } from '@/lib/capture-session';
+import { TIMING } from '@/baku/motion';
+import { hostDurationFor } from '@/baku/host-motion';
 import { KnitBaku } from '@/baku/KnitBaku';
 import { resultSequenceBeats, SHUTTER_PRESS_SCALE, TAP_TIMING, BUTTON_PRESS_SCALE } from '@/theme/motion';
 import { kitFixture, mockClient } from '../../tests/fixtures';
@@ -110,47 +113,51 @@ test('auth layouts redirect signed-out app access and signed-in auth access', as
   expect(auth.getByText('redirect:/')).toBeTruthy();
 });
 
-test('snap renders both actions and uploads a library image before navigating', async () => {
-  const photo = { uri: 'file:///house.jpg', width: 4000, height: 3000 };
-  jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({ canceled: false, assets: [photo] });
-  const view = await render(<SnapScreen />);
-  expect(view.getByRole('button', { name: 'Take a photo' })).toBeTruthy();
-  await fireEvent.press(view.getByRole('button', { name: 'Choose from library' }));
-  expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith(expect.objectContaining({ mediaTypes: ['images'] }));
-  expect(uploadPhoto).toHaveBeenCalledWith(client, photo);
-  expect(router.push).toHaveBeenCalledWith({ pathname: '/kit/[id]', params: { id: 'kit-1' } });
-});
-
-test.each(['camera', 'library'] as const)('%s keeps the local photo visible throughout upload', async (source) => {
+test.each(['camera', 'library'] as const)('%s opens the result immediately and keeps the same photo and Baku through intake, extraction and reveal', async source => {
   const photo = { uri: 'file:///snapped.jpg', width: 1500, height: 2000 };
   const picker = source === 'camera' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
   jest.mocked(picker).mockResolvedValue({ canceled: false, assets: [photo] });
   let resolveUpload!: (id: string) => void;
-  jest.mocked(uploadPhoto).mockReturnValue(new Promise((resolve) => { resolveUpload = resolve; }));
-  const view = await render(<SnapScreen />);
-  await fireEvent.press(view.getByRole('button', { name: source === 'camera' ? 'Take a photo' : 'Choose from library' }));
-
-  expect(uploadPhoto).toHaveBeenCalledWith(client, photo);
-  expect(view.getByLabelText('Source photo').props.source).toEqual({ uri: photo.uri });
-  expect(view.getByTestId('capture-performance')).toBeTruthy();
-  expect(view.getByTestId('knit-baku-fallback')).toBeTruthy();
-  expect(router.push).not.toHaveBeenCalled();
-  expect(view.queryByTestId('munch-player')).toBeNull();
-  await fireEvent(view.getByLabelText('Source photo'), 'loadEnd');
-  expect(view.queryByTestId('munch-player')).toBeNull();
-  await fireEvent(view.getByLabelText('Source photo'), 'display');
-  expect(view.getByText('Keeping your photo…')).toBeTruthy();
-  const host = jest.mocked(KnitBaku).mock.calls.at(-1)![0];
-  await act(() => { host.elapsed.set(8); });
-  expect(router.push).not.toHaveBeenCalled();
-
-  await fireEvent(view.getByLabelText('Source photo'), 'error');
-  expect(view.queryByTestId('munch-player')).toBeNull();
-  await act(async () => resolveUpload('kit-1'));
-  expect(router.push).toHaveBeenCalledWith({ pathname: '/kit/[id]', params: { id: 'kit-1' } });
-  expect(capturePhoto('kit-1')?.url).toBe(photo.uri);
-  expect(captureElapsed('kit-1')).toBe(8);
-  expect(view.queryByTestId('munch-player')).toBeNull();
+  let processing!: () => void;
+  jest.mocked(uploadPhoto).mockImplementation((_client, _photo, onProcessing) => {
+    processing = onProcessing!;
+    return new Promise(resolve => { resolveUpload = resolve; });
+  });
+  const home = await render(<SnapScreen />);
+  await fireEvent.press(home.getByRole('button', { name: source === 'camera' ? 'Take a photo' : 'Choose from library' }));
+  expect(uploadPhoto).not.toHaveBeenCalled();
+  const route = jest.mocked(router.push).mock.calls.at(-1)![0] as { pathname: string; params: { id: string; capture: string } };
+  expect(route).toEqual({ pathname: '/kit/[id]', params: { id: expect.stringMatching(/^capture-/), capture: '1' } });
+  expect(captureSnapshot(route.params.id)?.photo.url).toBe(photo.uri);
+  await home.unmount();
+  jest.mocked(useLocalSearchParams).mockReturnValue(route.params);
+  const view = await render(<ResultScreen />);
+  expect(uploadPhoto).toHaveBeenCalledWith(client, photo, expect.any(Function));
+  const print = view.getByLabelText('Source photo');
+  const host = view.getByTestId('baku-host');
+  const mesh = jest.mocked(KnitBaku).mock.calls.at(-1)![0];
+  expect(print.props.source).toEqual({ uri: photo.uri });
+  expect(view.getByTestId('baku-intake-dust')).toBeTruthy();
+  expect(view.getByTestId('result-content').props.scrollEnabled).toBe(false);
+  expect(mesh.elapsed.get()).toBe(0);
+  expect(view.queryByRole('button', { name: 'Save' })).toBeNull();
+  expect(view.queryByText('Keeping your photo…')).toBeNull();
+  await fireEvent(print, 'display');
+  await act(() => { mesh.onLoaded?.(); mesh.intakeElapsed!.set(4); processing(); });
+  expect(mesh.elapsed.get()).toBe(TIMING.inhale);
+  await act(() => { mesh.elapsed.set(8); });
+  await act(async () => resolveUpload(`kit-${source}`));
+  expect(router.push).toHaveBeenCalledTimes(1);
+  expect(view.getByLabelText('Source photo')).toBe(print);
+  expect(view.getByTestId('baku-host')).toBe(host);
+  expect(jest.mocked(KnitBaku).mock.calls.at(-1)![0].elapsed).toBe(mesh.elapsed);
+  expect(mesh.readyAt.get()).toBe(8);
+  expect(capturePhoto(`kit-${source}`)?.url).toBe(photo.uri);
+  await fireEvent.press(view.getByRole('button', { name: 'Show my colors' }));
+  expect(mesh.elapsed.get()).toBe(hostDurationFor(8));
+  expect(view.getByTestId('baku-host')).toBe(host);
+  expect(view.getByRole('button', { name: 'Save' })).toBeEnabled();
+  expect(view.getByTestId('result-content').props.scrollEnabled).toBe(true);
 });
 
 test('camera denial offers Settings and library without launching the camera', async () => {
@@ -170,24 +177,23 @@ test('canceling the picker neither uploads nor navigates', async () => {
   expect(router.push).not.toHaveBeenCalled();
 });
 
-test('upload shows Baku without duplicate capture actions; failure restores the photo and retry', async () => {
-  jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///house.jpg', width: 2000, height: 1000 }] });
+test('failed capture stays on the result with its photo and retries without reopening the picker', async () => {
+  const id = beginCapture({ uri: 'file:///house.jpg', width: 2000, height: 1000 });
+  jest.mocked(useLocalSearchParams).mockReturnValue({ id, capture: '1' });
   let rejectUpload!: (reason: Error) => void;
   jest.mocked(uploadPhoto).mockReturnValue(new Promise((_resolve, reject) => { rejectUpload = reject; }));
-  const view = await render(<SnapScreen />);
-  await fireEvent.press(view.getByRole('button', { name: 'Choose from library' }));
-  expect(view.queryByText('Chewing on it.')).toBeNull();
-  expect(view.getByTestId('capture-performance')).toBeTruthy();
-  expect(view.queryByRole('button', { name: 'Take a photo' })).toBeNull();
-  expect(view.queryByRole('button', { name: 'Choose from library' })).toBeNull();
+  const view = await render(<ResultScreen />);
+  const photo = view.getByLabelText('Source photo');
   await act(async () => { rejectUpload(new Error('offline')); });
-  expect(view.getByText(/Couldn’t keep this photo/)).toBeTruthy();
+  expect(view.getByText(/Couldn’t process this photo/)).toBeTruthy();
   expect(view.getByRole('button', { name: 'Retry this photo' })).toBeEnabled();
-  jest.mocked(uploadPhoto).mockResolvedValue('kit-1');
+  jest.mocked(uploadPhoto).mockResolvedValue('retried-kit');
   await fireEvent.press(view.getByRole('button', { name: 'Retry this photo' }));
-  expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledTimes(1);
+  expect(view.getByLabelText('Source photo')).toBe(photo);
+  expect(ImagePicker.launchImageLibraryAsync).not.toHaveBeenCalled();
   expect(uploadPhoto).toHaveBeenCalledTimes(2);
-  expect(view.getByRole('button', { name: 'Take a photo' })).toBeEnabled();
+  expect(router.push).not.toHaveBeenCalled();
+  expect(view.getByRole('button', { name: 'Show my colors' })).toBeEnabled();
 });
 
 test('result renders filled bands and preserves an empty accent without a swatch', async () => {
@@ -772,28 +778,6 @@ test('a captured kit offers an explicit reveal skip without waiting for the remo
   expect(view.getByRole('button', { name: 'Edit' })).toBeEnabled();
 });
 
-test('upload progress and the painted local photo survive palette readiness without remounting Baku', async () => {
-  const id = 'continuous-capture';
-  jest.mocked(useLocalSearchParams).mockReturnValue({ id });
-  handoffPhoto(id, { uri: 'file:///continuous.jpg', width: 1500, height: 2000 }, 8);
-  let resolveKit!: (kit: typeof kitFixture) => void;
-  client.getKit.mockReturnValue(new Promise(resolve => { resolveKit = resolve; }));
-  const view = await render(<ResultScreen />);
-  const host = jest.mocked(KnitBaku).mock.calls.at(-1)![0];
-  const elapsed = host.elapsed;
-  expect(elapsed.get()).toBe(8);
-  expect(host.readyAt.get()).toBe(-1);
-  const photo = view.getByLabelText('Source photo');
-  await fireEvent(photo, 'display');
-  await act(() => { host.onLoaded?.(); });
-  await act(async () => { resolveKit({ ...kitFixture, id }); });
-  expect(jest.mocked(KnitBaku).mock.calls.at(-1)![0].elapsed).toBe(elapsed);
-  expect(jest.mocked(KnitBaku).mock.calls.at(-1)![0].readyAt.get()).toBe(8);
-  expect(view.getByLabelText('Source photo')).toBe(photo);
-  expect(photo.props.source).toEqual({ uri: 'file:///continuous.jpg' });
-  expect(view.getByRole('button', { name: 'Show my colors' })).toBeEnabled();
-});
-
 test('Reduced Motion keeps the waiting host still and exposes the palette as soon as it is ready', async () => {
   jest.useFakeTimers();
   const id = 'reduced-capture';
@@ -805,7 +789,10 @@ test('Reduced Motion keeps the waiting host still and exposes the palette as soo
   const view = await render(<ResultScreen />);
   expect(view.getByTestId('baku-host')).toBeTruthy();
   await act(async () => { resolveKit({ ...kitFixture, id }); });
-  expect(view.queryByTestId('baku-host')).toBeNull();
+  expect(view.getByTestId('baku-host')).toBeTruthy();
+  expect(view.queryByTestId('baku-intake-dust')).toBeNull();
+  const host = jest.mocked(KnitBaku).mock.calls.at(-1)![0];
+  expect(host.elapsed.get()).toBe(hostDurationFor(host.readyAt.get()));
   expect(view.queryByRole('button', { name: 'Show my colors' })).toBeNull();
   await act(async () => { jest.advanceTimersByTime(resultSequenceBeats(6, true).interactiveMs); });
   expect(view.getByRole('button', { name: 'Save' })).toBeEnabled();

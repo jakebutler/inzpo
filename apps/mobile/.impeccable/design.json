@@ -154,13 +154,23 @@
       },
       {
         "name": "chip-flight",
-        "value": "stagger 0.032s; exit 0.12s; flight 0.55s + index × 0.02s",
+        "value": "stagger 0.032s; exit 0.12s; flight 0.55s + index \u00d7 0.02s",
         "purpose": "A short jet follows the moving nostril axis before fanning to chip targets; approved study bb16e1e."
       },
       {
         "name": "performance-lifecycle",
-        "value": "start with selected photo during upload; carry elapsed clock into result; retain local photo through readiness; pause when backgrounded, unfocused, source photo undisplayed, or art unloaded; skip when ready; still waiting host under Reduced Motion",
+        "value": "one result route and mounted photo/Baku from selection through upload, extraction and reveal; UI-thread clock pauses while backgrounded, unfocused, photo undisplayed, art unloaded, or failed; skip to corner when ready; Reduced Motion omits dust/flight",
         "purpose": "Code behavior, not native performance or gesture acceptance."
+      },
+      {
+        "name": "baku-upload-intake",
+        "value": "1.35s dust cycles; 0.32s blend into chewing",
+        "purpose": "Subtle snout opening and neutral paper dust link the retained photograph to Baku while uploading."
+      },
+      {
+        "name": "baku-balloon-flight",
+        "value": "start 0.31s after sneeze onset; duration 1.75s; target width 72pt",
+        "purpose": "One colored knit mesh shrinks and winds into the lower-left corner after all swatches launch; capture-seeded variation stays deterministic."
       }
     ],
     "breakpoints": [

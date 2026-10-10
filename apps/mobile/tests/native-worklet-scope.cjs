@@ -82,3 +82,17 @@ test('caller-supplied choreography still overrides the default', () => {
   assert.equal(onUI(motion.anticipationAt)(0, timing), 4);
   assert.equal(onUI(motion.durationFor)(0, timing), motion.durationFor(0, timing));
 });
+
+const hostMotion = loadCompiled('src/baku/host-motion.ts');
+test('intake and balloon worklets execute with hydrated native closures', () => {
+  const origin = { x: 118, y: 410, width: 280 }, target = { x: 10, y: 754, width: 72 };
+  for (const time of [0, .5, 4, 8, 10, 12]) {
+    const pose = onUI(motion.performancePoseAt)(time, 8, time, time < 1 ? 1 : 0);
+    assert.ok(Number.isFinite(pose.trunkFlare));
+    const dust = onUI(hostMotion.intakeDust)(time, .5, 3, { x: 180, y: 300 }, origin, time, 8);
+    assert.ok(Number.isFinite(dust.x) && Number.isFinite(dust.opacity));
+    const flight = onUI(hostMotion.balloonFlight)(time, 8, origin, target, .2, { width: 390, height: 844 });
+    assert.ok(Number.isFinite(flight.x) && Number.isFinite(flight.scale));
+  }
+  assert.equal(onUI(hostMotion.hostDurationFor)(8), hostMotion.hostDurationFor(8));
+});

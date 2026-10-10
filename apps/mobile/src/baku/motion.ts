@@ -110,6 +110,32 @@ export function poseAt(time: number, readyAt: number | null, timingOverride?: ty
   return p;
 }
 
+/** Quiet intake while the upload is in flight; cheeks stay empty until chewing. */
+export function intakePoseAt(time: number): Pose {
+  'worklet';
+  const p = poseAt(0, null);
+  const reach = smooth(time / .5);
+  Object.assign(p, { lean: .32 * reach, snout: .25 * reach, trunkReach: .58 * reach,
+    trunkFlare: (.22 + .045 * Math.sin(time * 3)) * reach,
+    belly: .035 * Math.sin(time * 2.4), ears: .07 * Math.sin(time * 2), beat: 'inhale' });
+  return p;
+}
+
+export function performancePoseAt(time: number, readyAt: number | null, intakeTime: number, intakeBlend: number): Pose {
+  'worklet';
+  const p = poseAt(time, readyAt);
+  if (intakeBlend <= 0) return p;
+  const intake = intakePoseAt(intakeTime);
+  if (intakeBlend >= 1) return intake;
+  const blend = clamp(intakeBlend);
+  for (const key of ['belly', 'lean', 'cheekL', 'cheekR', 'fullness', 'snout', 'trunkReach', 'trunkFlare',
+    'tremble', 'ears', 'feet', 'squash', 'closed', 'happy', 'breath'] as const) {
+    p[key] += (intake[key] - p[key]) * blend;
+  }
+  if (blend > .5) p.beat = 'inhale';
+  return p;
+}
+
 export const SNOUT = { x: 0.203, y: 0.744 };
 // A second point inside the trunk gives the moving nostril's exit direction.
 export const SNOUT_INNER = { x: 0.245, y: 0.65 };

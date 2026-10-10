@@ -5,7 +5,7 @@ export type PhotoInput = { uri: string; width: number; height: number; fileName?
 const MAX_LONG_EDGE = 2048;
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
-export async function uploadPhoto(client: InzpoClient, photo: PhotoInput): Promise<string> {
+export async function uploadPhoto(client: InzpoClient, photo: PhotoInput, onProcessing?: () => void): Promise<string> {
   if (![photo.width, photo.height].every((value) => Number.isFinite(value) && value > 0)) {
     throw new Error('Invalid photo dimensions');
   }
@@ -23,6 +23,7 @@ export async function uploadPhoto(client: InzpoClient, photo: PhotoInput): Promi
     if (body.byteLength === 0 || body.byteLength > MAX_UPLOAD_BYTES) throw new Error('Invalid photo size');
     const presign = await client.presignUpload({ contentType: 'image/jpeg', bytes: body.byteLength });
     await client.uploadToPresignedUrl(presign, body);
+    onProcessing?.();
     const filename = `${(photo.fileName || 'house').replace(/\.[^.]*$/, '')}.jpg`;
     const { itemId } = await client.createKit({ uploadKey: presign.key, filename });
     return itemId;

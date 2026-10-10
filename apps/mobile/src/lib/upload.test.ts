@@ -24,7 +24,7 @@ test('normalizes JPEG then presigns, PUTs, and creates the kit in order', async 
   client.presignUpload.mockImplementation(async () => { order.push('presign'); return presign; });
   client.uploadToPresignedUrl.mockImplementation(async () => { order.push('PUT'); });
   client.createKit.mockImplementation(async () => { order.push('createKit'); return { itemId: 'kit-1' }; });
-  await expect(uploadPhoto(client, photo)).resolves.toBe('kit-1');
+  await expect(uploadPhoto(client, photo, () => order.push('processing'))).resolves.toBe('kit-1');
   expect(ImageManipulator.manipulate).toHaveBeenCalledWith(photo.uri);
   expect(context.resize).toHaveBeenCalledWith({ width: 2048 });
   expect(rendered.saveAsync).toHaveBeenCalledWith({ format: SaveFormat.JPEG, compress: 0.85 });
@@ -32,7 +32,7 @@ test('normalizes JPEG then presigns, PUTs, and creates the kit in order', async 
   expect(client.presignUpload).toHaveBeenCalledWith({ contentType: 'image/jpeg', bytes: 1234 });
   expect(client.uploadToPresignedUrl).toHaveBeenCalledWith(presign, body);
   expect(client.createKit).toHaveBeenCalledWith({ uploadKey: 'upload-1', filename: 'House.jpg' });
-  expect(order).toEqual(['presign', 'PUT', 'createKit']);
+  expect(order).toEqual(['presign', 'PUT', 'processing', 'createKit']);
   expect(rendered.release).toHaveBeenCalledTimes(1);
   expect(context.release).toHaveBeenCalledTimes(1);
 });
@@ -47,7 +47,9 @@ test('uses height for portrait photos and does not upscale small ones', async ()
 
 test('does not create a kit when the PUT fails', async () => {
   client.uploadToPresignedUrl.mockRejectedValue(new Error('offline'));
-  await expect(uploadPhoto(client, photo)).rejects.toThrow('offline');
+  const processing = jest.fn();
+  await expect(uploadPhoto(client, photo, processing)).rejects.toThrow('offline');
+  expect(processing).not.toHaveBeenCalled();
   expect(client.createKit).not.toHaveBeenCalled();
   expect(context.release).toHaveBeenCalled();
 });
