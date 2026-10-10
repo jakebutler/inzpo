@@ -345,3 +345,23 @@ The iOS Hermes export passes with the matched backend URL.
   Hermes bundle, SHA256 `03978617297cc72ca878bfd615b84b48fc1f45f11bfd8c793903b980370c3ec4`.
 - Prebuilt export published with `--skip-bundler`; matched backend unchanged.
 - [Consistent-button Expo Go QR](https://qr.expo.dev/eas-update?projectId=529d6681-6398-4009-adff-18b6bb5a6108&groupId=80320a6f-5add-486d-a048-87a1eca8570f) supersedes the earlier pilot links.
+
+
+## Forest canvas refinement
+
+The latest phone report found Baku blending into the cream environment. A
+bounded material comparison selected pale forest mist `#D8E3D9` over the old
+cream, blue clay and lilac chalk. A dedicated mobile `CANVAS` token separates
+warm knitted Baku and cream stock from the cool surroundings. Screens,
+navigation headers, Keep confirmation/footer, the result fade, long photo
+captions and detail scrims use it consistently. Cream remains on sheets,
+fields, photo borders and stock. Actual photo colors and the accepted Baku
+performance are untouched, as are matte button surfaces and the 8-unit radius.
+
+App configuration adopts the same background for future native builds. The
+screen/navigation implementation ships in the Expo Go update. No dependency,
+backend or native API changes were added. Lint/typecheck, 108 targeted cases
+across eight suites, and iOS Hermes export pass. The bundle contains the
+matched backend URL. `evidence/2026-10-09-forest-canvas/` records the material
+comparison and selected 375-point preview; both are browser translations, not
+native device acceptance.

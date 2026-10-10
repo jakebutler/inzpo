@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-10T02:43:54.682314+00:00",
+  "generatedAt": "2026-10-10T02:57:01.988920+00:00",
   "title": "Design System: Inzpo Mobile",
   "extensions": {
     "colorMeta": {
@@ -47,6 +47,10 @@
       "secondary-lip": {
         "role": "neutral",
         "displayName": "Secondary lip"
+      },
+      "forest-mist": {
+        "role": "neutral",
+        "displayName": "Forest mist"
       }
     },
     "typographyMeta": {
@@ -154,7 +158,7 @@
       },
       {
         "name": "chip-flight",
-        "value": "stagger 0.032s; exit 0.12s; flight 0.55s + index \u00d7 0.02s",
+        "value": "stagger 0.032s; exit 0.12s; flight 0.55s + index × 0.02s",
         "purpose": "A short jet follows the moving nostril axis before fanning to chip targets; approved study bb16e1e."
       },
       {
@@ -186,7 +190,8 @@
       "feedback": "Restrained paper press and one light haptic; nonspatial Reduced Motion feedback.",
       "verification": "Source and bounded Expo Web fixtures only; Keep375 paint inconclusive, native device acceptance pending.",
       "buttonMaterial": "Matte blue and warm paper, fine grain, muted edge, short contact shadows, 2-unit press without default face shrink. No sheen or inset highlights.",
-      "buttonShape": "One shared 8-unit radius for primary, secondary, Save and Back, including texture clipping, in every interaction state."
+      "buttonShape": "One shared 8-unit radius for primary, secondary, Save and Back, including texture clipping, in every interaction state.",
+      "canvasMaterial": "Pale forest mist #D8E3D9 for screens, headers, Keep footer, result fades and detail scrims; retain cream fields, sheets and stock. Photos, swatches and Baku colors remain unmodified."
     }
   },
   "components": [
@@ -256,15 +261,20 @@
   ],
   "narrative": {
     "northStar": "A photographed moment becomes a usable creative kit",
-    "overview": "Inzpo's mobile world is a small collection of creative materials: cream paper, a photographic print, dimensional paint-chip stock, blue matte controls, and a gray knitted Baku. Akaya Kanadaka gives the interface its friendly voice; Geist makes the working information clear. Photos and their extracted colors supply the changing character of each kit.\n\nThe tactile treatment carries meaning. A print holds source evidence, a chip holds a named color, and a fan deck makes a saved kit feel like something to keep and reuse. Baku's connected wool body and actual stitched panels carry the photo-to-palette performance. Material detail belongs to those objects and should leave their labels readable.",
+    "overview": "Inzpo's mobile world is a small collection of creative materials on a pale forest mist canvas: warm cream paper, a photographic print, dimensional paint-chip stock, blue matte controls, and a warm knitted Baku. Akaya Kanadaka gives the interface its friendly voice; Geist makes the working information clear. Photos and their extracted colors supply the changing character of each kit.\n\nThe tactile treatment carries meaning. A print holds source evidence, a chip holds a named color, and a fan deck makes a saved kit feel like something to keep and reuse. Baku's connected wool body and actual stitched panels carry the photo-to-palette performance. Material detail belongs to those objects and should leave their labels readable.",
     "keyCharacteristics": [
-      "Warm paper and dark ink form the stable interface.",
+      "Cool forest mist separates warm knit and paper objects; dark ink keeps the interface readable.",
       "Photos and sampled colors lead the content.",
       "Stock, matte, and knit have distinct surfaces and depth.",
       "Expressive headings sit above plain working text and precise hex values.",
       "Motion connects a source photo to usable color controls."
     ],
     "rules": [
+      {
+        "name": "The Canvas and Object Rule",
+        "body": "Use the mobile CANVAS token for the environment and PAPER or stock tokens for physical surfaces. Preserve that distinction through transitions. Never tint Baku, a photo, or an extracted color to harmonize with the canvas.",
+        "section": "colors"
+      },
       {
         "name": "The Source Color Rule",
         "body": "A kit's swatch, source-pin center, and Baku panel use the kit's actual color value. Decorative tint strips are material variations, not additional extracted colors or source evidence.",
@@ -287,7 +297,7 @@
       }
     ],
     "dos": [
-      "**Do** preserve cream paper, photographic prints, paint-chip stock, blue matte actions, and Baku's knit as distinct materials.",
+      "**Do** preserve the cool forest canvas, warm paper, photographic prints, paint-chip stock, matte blue actions, and Baku’s knit as distinct materials.",
       "**Do** use actual kit colors for swatches, sample markers, and Baku panels; keep empty roles visibly empty.",
       "**Do** keep readable chip labels on stock and accommodate font scaling with layout growth.",
       "**Do** reuse the same paint-chip component in the interactive pile, saved deck, and keep fan.",

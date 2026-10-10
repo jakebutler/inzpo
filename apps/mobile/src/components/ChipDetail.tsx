@@ -12,7 +12,7 @@ import type { ChipSlot } from '@/lib/result-layout';
 import { roleSample } from '@/lib/result-pins';
 import { FADE_TIMING } from '@/theme/motion';
 import { liftedStockShadow, LABEL_STOCK, stockSurface } from '@/theme/materials';
-import { fonts, INK } from '@/theme/tokens';
+import { CANVAS, fonts, INK } from '@/theme/tokens';
 import { pinRing } from './FilmPrint';
 import { InkIcon } from './InkIcon';
 import { PaintChip } from './PaintChip';
@@ -180,7 +180,7 @@ export function ChipDetail({ kit, role, slot, origin, onClose, onEdit }: {
 
 const styles = StyleSheet.create({
   overlay: { flex: 1 },
-  scrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#F3EEE4' },
+  scrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: CANVAS },
   face: { position: 'absolute', backfaceVisibility: 'hidden', borderRadius: 2 },
   detailContent: { paddingTop: 10, paddingHorizontal: 20, paddingBottom: 18 },
   hex: { fontFamily: fonts.mono, fontSize: 19, color: INK },

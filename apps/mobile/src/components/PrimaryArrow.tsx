@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { type SharedValue, useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
 import type { SamplePoint } from '@/lib/result-pins';
-import { fonts, INK, PAPER } from '@/theme/tokens';
+import { CANVAS, fonts, INK } from '@/theme/tokens';
 
 export function primaryCaptionLeft(photoLeft: number, textWidth: number) {
   return Math.max(4, Math.min(16, photoLeft - textWidth - 2));
@@ -37,8 +37,8 @@ export function PrimaryArrow({ width, height, start, end, hue, progress, reduced
       <Text allowFontScaling onTextLayout={(event) => {
         setCaptionWidth(Math.max(0, ...event.nativeEvent.lines.map((line) => line.width)));
       }} style={{ alignSelf: 'flex-start', fontFamily: fonts.hand, fontSize: 17, lineHeight: 26, paddingRight: 2, color: INK,
-        // Long hue names and larger type may need more than the paper gutter.
-        backgroundColor: captionLeft + captionWidth + 2 > photoLeft ? PAPER : 'transparent' }}>{`This ${hue}.`}</Text>
+        // Extend the canvas behind long captions when they outgrow the photo gutter.
+        backgroundColor: captionLeft + captionWidth + 2 > photoLeft ? CANVAS : 'transparent' }}>{`This ${hue}.`}</Text>
     </View>
   </Animated.View>;
 }

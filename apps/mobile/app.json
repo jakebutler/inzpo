@@ -54,7 +54,7 @@
       "expo-sharing"
     ],
     "scheme": "inzpo",
-    "backgroundColor": "#F3EEE4",
+    "backgroundColor": "#D8E3D9",
     "experiments": {
       "typedRoutes": true,
       "tsconfigPaths": true

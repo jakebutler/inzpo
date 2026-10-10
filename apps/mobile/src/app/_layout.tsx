@@ -16,7 +16,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { InzpoClientProvider } from '@/lib/api';
 import { ui } from '@/theme/styles';
-import { PAPER } from '@/theme/tokens';
+import { CANVAS } from '@/theme/tokens';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -38,7 +38,7 @@ function ReadyApp() {
     <InzpoClientProvider>
       {/* The modal portal host must inherit Clerk and the API client too. */}
       <BottomSheetModalProvider>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: PAPER } }} />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: CANVAS } }} />
       </BottomSheetModalProvider>
     </InzpoClientProvider>
   );

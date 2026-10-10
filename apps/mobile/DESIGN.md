@@ -1,7 +1,8 @@
 ---
 name: Inzpo Mobile
-description: Cream paper, photographic prints, paint-chip stock, and knitted Baku turn a photographed moment into a reusable creative kit.
+description: A forest mist canvas separates warm paper, photographic prints, paint-chip stock, and knitted Baku in a reusable creative kit.
 colors:
+  forest-mist: "#D8E3D9"
   matte-blue: "#426092"
   matte-blue-edge: "#354D72"
   matte-blue-base: "#304663"
@@ -100,13 +101,13 @@ components:
 
 **Creative North Star: "A photographed moment becomes a usable creative kit"**
 
-Inzpo's mobile world is a small collection of creative materials: cream paper, a photographic print, dimensional paint-chip stock, matte blue controls, and a gray knitted Baku. Akaya Kanadaka gives the interface its friendly voice; Geist makes the working information clear. Photos and their extracted colors supply the changing character of each kit.
+Inzpo's mobile world is a small collection of creative materials on a pale forest mist canvas: warm cream paper, a photographic print, dimensional paint-chip stock, matte blue controls, and a warm knitted Baku. Akaya Kanadaka gives the interface its friendly voice; Geist makes the working information clear. Photos and their extracted colors supply the changing character of each kit.
 
 The tactile treatment carries meaning. A print holds source evidence, a chip holds a named color, and a fan deck makes a saved kit feel like something to keep and reuse. Baku's connected wool body and actual stitched panels carry the photo-to-palette performance. Material detail belongs to those objects and should leave their labels readable.
 
 **Key Characteristics:**
 
-- Warm paper and dark ink form the stable interface.
+- Cool forest mist separates warm knit and paper objects; dark ink keeps the interface readable.
 - Photos and sampled colors lead the content.
 - Stock, matte stock, and knit have distinct surfaces and depth.
 - Expressive headings sit above plain working text and precise hex values.
@@ -118,7 +119,7 @@ The frontmatter transcribes reusable code values. Its `px` strings are portable 
 
 ## Colors
 
-Warm neutral materials support a restrained blue action accent. Kit colors are content and remain separate from interface tokens.
+A cool forest ground supports warm neutral objects and a restrained blue action accent. Kit colors are content and remain separate from interface tokens.
 
 ### Primary
 
@@ -130,10 +131,13 @@ Warm neutral materials support a restrained blue action accent. Kit colors are c
 
 ### Neutral
 
-- **Paper** is the page, sheet, and field ground; **ink** carries readable text and linework.
+- **Forest mist** is the environmental canvas behind Baku and the paper objects, including navigation, save confirmation, result fades, and detail scrims.
+- **Paper** stays warm on sheets and fields; **ink** carries readable text and linework.
 - **Label stock** is the photographic-print and populated-chip paper. It also supplies light text on matte stock actions.
 - **Oatmeal stock** makes an empty color role visibly different from a populated one.
 - **Secondary face**, **secondary edge**, and **secondary lip** give paper actions their own restrained depth.
+
+**The Canvas and Object Rule.** Use the mobile `CANVAS` token for the environment and `PAPER` or stock tokens for physical surfaces. Preserve that distinction through transitions. Never tint Baku, a photo, or an extracted color to harmonize with the canvas.
 
 **The Source Color Rule.** A kit's swatch, source-pin center, and Baku panel use the kit's actual color value. Decorative tint strips are material variations, not additional extracted colors or source evidence.
 
@@ -186,7 +190,7 @@ Exact shadow recipes and press-state values live in `.impeccable/design.json`; t
 
 ## Shapes
 
-Film prints keep square photographic geometry and a deeper paper foot. Paint chips use nearly square stock corners; secondary actions use slightly softer corners. Fields, sheets, and matte stock primary actions use their own larger radii from the frontmatter. All action faces, including Back, use the shared 8-unit corner radius in every state.
+Film prints keep square photographic geometry and a deeper paper foot. Paint chips use nearly square stock corners. All action faces, including Back, use the shared 8-unit corner radius in every state. Fields and sheets use their own radii from the frontmatter.
 
 Photo sample markers are drawn rings and leader lines, with the actual sample color at the center. Navigation icons use the local ink-path artwork. Saved and keep decks reuse the same six paint chips around a physical corner pivot and rivet. Their tilt and overlap are part of the deck composition, not permission to rotate normal text or forms.
 
@@ -218,7 +222,7 @@ Shared fields use paper, a dark one-unit outline, the field radius, and regular 
 
 ### Navigation
 
-The native stack uses a paper header, dark ink, an Akaya title, and no header shadow. Custom back controls have a softly squared paper face inside a larger tap target. Navigation and utility actions retain accessible labels even when their ink-path artwork is the visible affordance. Back preserves collection context; completing Keep clears the capture/Keep stack before opening the saved result. The native stack uses a short fade under Reduced Motion.
+The native stack uses the forest canvas behind its header, dark ink, an Akaya title, and no header shadow. Custom back controls have a softly squared paper face inside a larger tap target. Navigation and utility actions retain accessible labels even when their ink-path artwork is the visible affordance. Back preserves collection context; completing Keep clears the capture/Keep stack before opening the saved result. The native stack uses a short fade under Reduced Motion.
 
 ### Baku performance
 
@@ -242,7 +246,7 @@ The mesh uses default source-over paint; destination-only paint makes it invisib
 
 ### Do:
 
-- **Do** preserve cream paper, photographic prints, paint-chip stock, matte blue actions, and Baku's knit as distinct materials.
+- **Do** preserve the cool forest canvas, warm cream paper, photographic prints, paint-chip stock, matte blue actions, and Baku's knit as distinct materials.
 - **Do** use actual kit colors for swatches, sample markers, and Baku panels; keep empty roles visibly empty.
 - **Do** keep readable chip labels on stock and accommodate font scaling with layout growth.
 - **Do** reuse the same paint-chip component in the interactive pile, saved deck, and keep fan.
@@ -268,3 +272,5 @@ The October 9 senior UX critique and bounded correction pass are in `../../docs/
 The October 9 matte-button refinement follows the phone report that buttons were too shiny. The bounded material preview is generated from shipping surface tokens; it is not a native screenshot. No new raster assets or dependencies were added. Native appearance remains part of the Expo Go phone pass.
 
 **Consistent Button Shape Rule.** Primary, secondary, Save and Back share `BUTTON_RADIUS = 8` in their face and texture mask. Pressed, disabled, saving and saved states retain that shape; color and depth establish hierarchy, not different corner geometry.
+
+The forest-canvas material study in `../../docs/ux/evidence/2026-10-09-forest-canvas/` compares the actual Baku artwork and shipping button surfaces on four backgrounds. Forest mist separates his warm knit and cream stock. These are browser material translations, not native screenshots. The targeted contrast checks, screen-flow tests, lint/typecheck and iOS export pass; phone appearance remains the final check.

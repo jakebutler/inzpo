@@ -35,7 +35,7 @@ import { capturePhoto } from '@/lib/photo-handoff';
 import { useResultSequence } from '@/lib/useResultSequence';
 import { useBakuPupils } from '@/lib/useBakuPupils';
 import { useBakuHop } from '@/lib/useBakuHop';
-import { PAPER } from '@/theme/tokens';
+import { CANVAS } from '@/theme/tokens';
 import { ui } from '@/theme/styles';
 
 export default function ResultScreen() {
@@ -222,7 +222,7 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
       {!isSaved && <View testID="result-actions" pointerEvents="box-none" style={[styles.footer, { bottom: footerBottom, maxWidth: 390 }]}>
         <Canvas accessible={false} pointerEvents="none" style={StyleSheet.flatten([styles.fade, { height: actionHeight + footerBottom + 20 }])}>
           <Rect x={0} y={0} width={Math.min(width, 390)} height={actionHeight + footerBottom + 20}>
-            <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 0, y: 40 }} colors={['#F3EEE400', PAPER]} />
+            <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 0, y: 40 }} colors={[`${CANVAS}00`, CANVAS]} />
           </Rect>
         </Canvas>
         {loading && localPhoto && <Text accessibilityLiveRegion="polite" style={[ui.body, { textAlign: 'center', marginHorizontal: 24 }]}>Finding your colors…</Text>}

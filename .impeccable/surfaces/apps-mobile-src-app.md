@@ -9,7 +9,7 @@ related_targets: ["apps/mobile/src/components"]
 
 ## Direction contract
 THESIS: A photographed moment becomes a usable creative kit through Baku's performance.
-OWN-WORLD: Cream paper, photographic prints, dimensional paint chips, gray knitted Baku, Akaya Kanadaka headlines and Geist body copy.
+OWN-WORLD: A pale forest mist canvas, warm cream paper, photographic prints, dimensional paint chips, warm knitted Baku, Akaya Kanadaka headlines and Geist body copy.
 STORY: Notice color, photograph it, watch Baku inhale and sneeze it into editable roles, save and reuse it.
 FIRST VIEWPORT: One photo above a large Baku; its actual colors fill his stitched panels. Swatches leave his nostril, land in the existing six-chip pile, and become the controls. Save stays within thumb reach. Description arrives independently.
 FORM: Inherit the existing mobile composition and the user's approved Baku study. No concept roll: this is a precisely specified extension.
@@ -31,3 +31,5 @@ The bounded source/rendered critique lives in `docs/ux/2026-10-09-mobile-rest-of
 Button finish: matte blue primary stock and warmer paper secondary faces. Use the existing fine grain, muted edges, short contact shadows and two-unit press compression. Omit reflective bevels and gradient sheen; preserve existing labels, targets, actions and Reduced Motion behavior.
 
 All action button types and states share an 8-unit corner radius, including Back and texture masks. Hierarchy comes from color and depth; never mix capsule primary actions with rectangular secondary actions.
+
+Canvas: forest mist `#D8E3D9` separates warm knitted Baku from his surroundings. Carry the same canvas through navigation, Keep confirmation, result fades and detail scrims. Cream remains on fields, sheets, print borders and stock. Keep the actual photo, palette and Baku panel colors untouched.

@@ -4,7 +4,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInzpoClient } from '@/lib/api';
 import { haptics } from '@/lib/haptics';
-import { fonts, INK, PAPER } from '@/theme/tokens';
+import { CANVAS, fonts, INK } from '@/theme/tokens';
 import { ui } from '@/theme/styles';
 import { ActionButton } from './ActionButton';
 import { BackButton } from './BackButton';
@@ -212,7 +212,7 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: PAPER },
+  page: { flex: 1, backgroundColor: CANVAS },
   header: { position: 'absolute', top: 0, zIndex: 20, alignSelf: 'center', gap: 4, flexShrink: 0 },
   scroll: { flex: 1, flexBasis: 0, minHeight: 0 },
   sourcePrint: { position: 'absolute', left: 12, top: 310, transform: [{ rotate: '-3deg' }] },
@@ -229,6 +229,6 @@ const styles = StyleSheet.create({
   selected: { borderColor: '#426092', borderWidth: 1 },
   collectionName: { fontFamily: fonts.body, fontSize: 16, color: INK },
   choice: { width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: '#857B68' },
-  footer: { flexShrink: 0, paddingTop: 12, backgroundColor: PAPER },
+  footer: { flexShrink: 0, paddingTop: 12, backgroundColor: CANVAS },
   actions: { marginLeft: 16, marginRight: 16, flexDirection: 'row', gap: 8 },
 });

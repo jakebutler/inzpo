@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { StyleSheet } from 'react-native';
 import { PrimaryArrow } from './PrimaryArrow';
 import { resultLayout } from '@/lib/result-layout';
-import { PAPER } from '@/theme/tokens';
+import { CANVAS } from '@/theme/tokens';
 
 test.each([{ width: 390, height: 844 }, { width: 375, height: 667 }])('the actual Caveat glyphs fit beside the photo at $width', async (screen) => {
   const layout = resultLayout(screen);
@@ -48,11 +48,11 @@ test.each([{ width: 390, height: 844 }, { width: 375, height: 667 }])('the actua
   snapshot.dispose(); surface.dispose();
 });
 
-test('a long hue or enlarged text keeps a paper backing when it outgrows the gutter', async () => {
+test('a long hue or enlarged text keeps a canvas backing when it outgrows the gutter', async () => {
   const view = await render(<PrimaryArrow width={390} height={600} photoLeft={71}
     start={{ x: 32, y: 300 }} end={{ x: 140, y: 150 }} hue="yellow-green"
     progress={{ value: 1 } as never} reducedMotion />);
   await fireEvent(view.getByText('This yellow-green.'), 'textLayout', { nativeEvent: { lines: [{ width: 160 }] } });
-  expect(view.getByText('This yellow-green.')).toHaveStyle({ backgroundColor: PAPER });
+  expect(view.getByText('This yellow-green.')).toHaveStyle({ backgroundColor: CANVAS });
   expect(view.getByTestId('primary-caption')).toHaveStyle({ left: 4, width: 370 });
 });

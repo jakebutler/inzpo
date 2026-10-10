@@ -1,5 +1,5 @@
 import { contrastRatio } from '@/lib/contrast';
-import { INK, PAPER } from './tokens';
+import { CANVAS, INK, PAPER } from './tokens';
 import { buttonColors, buttonSurface, SAVE_PRESS, shade } from './buttons';
 import { LABEL_STOCK } from './materials';
 import { restingBakuSize } from './sign-in';
@@ -18,6 +18,9 @@ test('button borders, labels and helper ink retain accessible contrast', () => {
   expect(contrastRatio(INK, buttonColors.secondary.fill)).toBeGreaterThanOrEqual(4.5);
   expect(contrastRatio(LABEL_STOCK, buttonColors.primary.fill)).toBeGreaterThanOrEqual(5.9674);
   expect(contrastRatio(shade(INK, 0.28), PAPER)).toBeGreaterThanOrEqual(4.5);
+  expect(contrastRatio(INK, CANVAS)).toBeGreaterThanOrEqual(4.5);
+  expect(contrastRatio(shade(INK, 0.28), CANVAS)).toBeGreaterThanOrEqual(4.5);
+  expect(contrastRatio(buttonColors.primary.fill, CANVAS)).toBeGreaterThanOrEqual(3);
 });
 
 test.each([true, false])('pressed surface tightens shadow and darkens fill, disabled has no shadow (%s)', (primary) => {
