@@ -308,3 +308,14 @@ appearance remains for the next Expo Go phone pass. No dependency or API
 changes were introduced.
 
 The iOS Hermes export passes and contains the matched backend URL.
+
+### Matte-button publication receipt
+
+- Published October 9, 2026 at 7:33 PM PDT (2026-10-10T02:33:01.251Z).
+- Branch `v1-pilot`, iOS, runtime `exposdk:57.0.0`.
+- Source: `a97b40b35092991ba800d675b692a94c04d1d58d`.
+- Group: `a235f70e-fa5f-4722-8abd-0a6500f9506a`; update: `01a123a8-1843-7501-a99f-c96430e2392b`.
+- Served manifest ID/runtime and launch-asset hash match the checked local
+  Hermes bundle, SHA256 `341659595796ee1447b0ae490810f3cbbe21338930ad362bc53ddd96195c8d83`.
+- Prebuilt export published with `--skip-bundler`; backend/environment unchanged.
+- [Matte-button Expo Go QR](https://qr.expo.dev/eas-update?projectId=529d6681-6398-4009-adff-18b6bb5a6108&groupId=a235f70e-fa5f-4722-8abd-0a6500f9506a) supersedes the earlier pilot links.
