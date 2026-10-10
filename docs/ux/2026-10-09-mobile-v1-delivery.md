@@ -148,3 +148,21 @@ then passed all 69 tests; all other 36 suites passed in the full run. Actual
 scene-graph captures under `/tmp/inzpo-baku-visibility` show the gray waiting
 host and colored panels after readiness. Phone layout and frame rate remain
 outside this evidence.
+
+## Visible Baku publication receipt
+
+- Published October 9, 2026 at 6:27 PM PDT (October 10 at 01:27:36 UTC).
+- Branch `v1-pilot`, iOS, runtime `exposdk:57.0.0`.
+- Source commit: `39de3adb39bc3df52deb980bcd72b1023c044b82`.
+- Group: `58caf440-c1c4-4ca3-8aa2-18e5ff4afede`.
+- Update: `01a1236c-34b9-765c-8491-0f8f71d952d8`.
+- Served manifest ID/runtime match; launch-asset hash matches the checked local
+  Hermes bundle, SHA256
+  `47a094b0ef29b6f5ecdefe40cb71e47cdb20e0fbc361a1ab42852cd80e2b3663`.
+- Bundle contains the matched backend URL. No new assets were uploaded.
+- [Current Expo Go QR](https://qr.expo.dev/eas-update?projectId=529d6681-6398-4009-adff-18b6bb5a6108&groupId=58caf440-c1c4-4ca3-8aa2-18e5ff4afede)
+- [Current EAS update](https://expo.dev/accounts/jakebutler/projects/inzpo/updates/58caf440-c1c4-4ca3-8aa2-18e5ff4afede)
+
+Earlier QR links remain pinned to their historical versions. This update is
+published for the next phone pass; Baku visibility and the upload/reveal
+continuity are not yet device-confirmed.
