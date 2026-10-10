@@ -117,4 +117,34 @@ phone retry before the reported crash can be considered device-verified fixed.
 - [Replacement EAS update](https://expo.dev/accounts/jakebutler/projects/inzpo/updates/1b3cf7ce-aee6-4d93-9b55-582bbc668d1a)
 
 Use the replacement QR for the phone retry. The first QR is pinned to the old,
-crashing update. Device confirmation of this correction is still pending.
+crashing update. Jake subsequently confirmed that this correction fixed the
+crash; the next device report and correction follow below.
+
+## Device follow-up: visible Baku and an earlier start
+
+Jake confirmed the replacement update fixed the crash, but Baku was invisible
+during the reveal and the upload-to-processing handoff paused before animation.
+
+The mesh's JSX `blendMode="dst"` also set the canvas paint to destination-only,
+leaving a transparent canvas unchanged. The previous imperative renderer test
+did not exercise that paint property. A new regression renders the actual
+`KnitMesh` JSX through Skia's reconciler and paint visitor: it produced zero
+opaque pixels with the old property and visible Baku frames after removing it.
+This is real CanvasKit scene-graph evidence, not an iOS device capture.
+
+The selected photo now mounts Baku during upload and extraction. His elapsed
+clock passes into the result route, which retains the same local photo through
+palette readiness. A slow response keeps him chewing without invented colors;
+the returned samples trigger their own inhale before the sneeze. The explicit
+skip, background/focus pause, failed-upload photo retry, and Reduced Motion
+path remain. The new visibility and timing still require a phone retry.
+
+Validation for this correction: native typecheck and lint; three compiled
+worklet tests; iOS Hermes export. The full Jest run passed 373 of 374 tests;
+the sole failure was an existing result test racing a real animation timer
+against its one-second polling timeout. That test now advances the declared
+animation duration with fake timers. The corrected screen and transport suites
+then passed all 69 tests; all other 36 suites passed in the full run. Actual
+scene-graph captures under `/tmp/inzpo-baku-visibility` show the gray waiting
+host and colored panels after readiness. Phone layout and frame rate remain
+outside this evidence.

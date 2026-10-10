@@ -1,6 +1,6 @@
 import { KNIT_SHADER } from './shader';
 import { COLOR_ROLES, type RoleColors } from '@inzpo/shared';
-import { Canvas, ImageShader, Shader, Skia, useImage, Vertices, type Uniforms } from '@shopify/react-native-skia';
+import { Canvas, ImageShader, Shader, Skia, useImage, Vertices, type SkImage, type Uniforms } from '@shopify/react-native-skia';
 import { Image } from 'expo-image';
 import { useEffect, useMemo } from 'react';
 import { useDerivedValue, type SharedValue } from 'react-native-reanimated';
@@ -28,6 +28,19 @@ export function KnitBaku({ width, elapsed, readyAt, roles, onLoaded }: {
   const height = width * 2 / 3;
   const loaded = !!(neutral && cheeks && squeeze && pleased && material && effect);
   useEffect(() => { if (loaded) onLoaded?.(); }, [loaded, onLoaded]);
+  if (!loaded) return <Image testID="knit-baku-fallback" accessible={false} source={require('../../assets/baku-performance/neutral-monotone.webp')}
+    contentFit="contain" style={{ width, height }} />;
+  return <Canvas testID="knit-baku" accessible={false} pointerEvents="none" style={{ width, height }}>
+    <KnitMesh width={width} elapsed={elapsed} readyAt={readyAt} roles={roles}
+      images={[neutral!, cheeks!, squeeze!, pleased!, material!]} />
+  </Canvas>;
+}
+
+/** Shared by the native Canvas and the real scene-graph regression renderer. */
+export function KnitMesh({ width, elapsed, readyAt, roles, images }: {
+  width: number; elapsed: SharedValue<number>; readyAt: SharedValue<number>; roles?: RoleColors | null; images: SkImage[];
+}) {
+  const height = width * 2 / 3;
   const palette = useMemo(() => COLOR_ROLES.flatMap(role => {
     const hex = roles?.[role];
     return hex ? [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).concat(1) : [.61, .61, .61, 0];
@@ -39,14 +52,12 @@ export function KnitBaku({ width, elapsed, readyAt, roles, onLoaded }: {
   }));
   const uniforms = useDerivedValue<Uniforms>(() => ({ fullness: pose.value.fullness, closed: pose.value.closed,
     happy: pose.value.happy, coatFill: coatFillAt(elapsed.value, readyAt.value < 0 ? null : readyAt.value), palette }));
-  if (!loaded) return <Image accessible={false} source={require('../../assets/baku-performance/neutral-monotone.webp')}
-    contentFit="contain" style={{ width, height }} />;
-  return <Canvas testID="knit-baku" accessible={false} pointerEvents="none" style={{ width, height }}>
-    <Vertices vertices={vertices} textures={uv} indices={indices} mode="triangles" blendMode="dst">
+  // Leave the paint's default SrcOver intact. A dst prop also changes the
+  // Canvas paint, preserving transparent destination pixels and hiding Baku.
+  return <Vertices vertices={vertices} textures={uv} indices={indices} mode="triangles">
       <Shader source={effect!} uniforms={uniforms}>
-        {[neutral, cheeks, squeeze, pleased, material].map((image, i) => <ImageShader key={i} image={image!}
+        {images.map((image, i) => <ImageShader key={i} image={image}
           fit="fill" rect={{ x: 0, y: 0, width: 1, height: 1 }} tx="clamp" ty="clamp" />)}
       </Shader>
-    </Vertices>
-  </Canvas>;
+    </Vertices>;
 }

@@ -26,7 +26,7 @@ import { useInzpoClient } from '@/lib/api';
 import { resultLayout } from '@/lib/result-layout';
 import { photoPins, primaryHue } from '@/lib/result-pins';
 import { useKit } from '@/lib/use-kit';
-import { capturePhoto } from '@/lib/photo-handoff';
+import { captureElapsed, capturePhoto } from '@/lib/photo-handoff';
 import { useResultSequence } from '@/lib/useResultSequence';
 import { useBakuPupils } from '@/lib/useBakuPupils';
 import { useBakuHop } from '@/lib/useBakuHop';
@@ -71,17 +71,22 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
   const [detail, setDetail] = useState<{ kitId: string; role: ColorRole; scrollY: number } | null>(null);
   const scrollY = useRef(0);
   const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
-  const photoFailed = !!kit?.photo && kit.photo.url === failedPhotoUrl;
   const localPhoto = capturePhoto(id);
   const [displayedPhoto, setDisplayedPhoto] = useState<{ id: string; url: string } | null>(null);
-  const renderedPhoto = loading ? localPhoto : kit?.photo;
-  // A painted local preview cannot authorize playback for a new remote source.
+  // Keep the already-painted local photo through palette readiness; switching
+  // to the signed URL here adds a second image fetch and pauses the performance.
+  const renderedPhoto = !isSaved && localPhoto && localPhoto.url !== failedPhotoUrl ? localPhoto : kit?.photo;
+  const photoFailed = !!renderedPhoto && renderedPhoto.url === failedPhotoUrl;
+  const displayKit = kit ? { ...kit, photo: renderedPhoto ?? null }
+    : renderedPhoto ? { photo: renderedPhoto, roles: emptyRoles(), colors: [] } : null;
   const photoVisible = !!renderedPhoto && !photoFailed && displayedPhoto?.id === id &&
     displayedPhoto.url === renderedPhoto.url;
   const ready = !!kit;
   const failedBrief = briefFailed || kit?.brief.status === 'failed' || (kit?.brief.status === 'ready' && !kit.brief.text);
-  const performance = usePalettePerformance({ kitId: id, ready, enabled: !!localPhoto && !isSaved, photoVisible, focused });
+  const performance = usePalettePerformance({ kitId: id, ready, enabled: !!localPhoto && !isSaved,
+    photoVisible, focused: focused && !error, initialElapsed: captureElapsed(id) });
   const revealing = ready && !performance.finished;
+  const hosting = !performance.finished || (loading && !!localPhoto);
   const pupils = useBakuPupils(96);
   const sequence = useResultSequence({ kitId: id, ready: ready && performance.finished, roles: kit?.roles, jiggle: pupils.jiggle });
   const hop = useBakuHop({ kitId: id, base: sequence.values, jiggle: pupils.jiggle });
@@ -92,7 +97,7 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
     celebratedKit.current = id;
     onSaved();
   }, [id, params.saved, ready, onSaved]);
-  const primaryPin = kit && kit.photo && !photoFailed ? photoPins(kit, layout.printWidth - 26, layout.photoHeight, layout.pinHeight)
+  const primaryPin = kit && displayKit?.photo && !photoFailed ? photoPins(displayKit, layout.printWidth - 26, layout.photoHeight, layout.pinHeight)
     .find((pin) => pin.role === 'primary') : undefined;
   const heroWidth = layout.contentWidth + 40;
   const bakuWidth = Math.min(280, heroWidth * .76);
@@ -118,17 +123,12 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
           <BackButton onPress={() => router.dismissTo('/')} />
           <Text accessibilityRole="header" allowFontScaling style={[styles.heading, isSaved && styles.savedHeading]}>{isSaved && kit ? kit.title : 'Your colors'}</Text>
         </View>
-        {loading ? localPhoto ? <View testID="waiting-composition" style={{ minHeight: layout.waitingHeroHeight, justifyContent: 'center' }}>
-          <FilmPrint kit={{ photo: localPhoto, roles: emptyRoles(), colors: [] }} width={layout.waitingPrintWidth} height={layout.waitingPrintHeight}
-            failed={false} onError={() => setDisplayedPhoto(null)} onPhotoDisplay={() => setDisplayedPhoto({ id, url: localPhoto.url })}
-            showPins={false} onPinPress={() => {}} placeholder={null} />
-          <Text accessibilityLiveRegion="polite" style={[ui.body, { textAlign: 'center', marginTop: 16 }]}>Finding your colors…</Text>
-        </View> : <View style={ui.center}><Text style={ui.body}>Loading your photo…</Text></View> : error ? <View style={ui.center}>
+        {error ? <View style={ui.center}>
           <Baku pose={error === 'notFound' ? 'notFound' : 'errorPhoto'} />
           <Text style={ui.message}>{error === 'notFound' ? 'This kit couldn’t be found.' : 'Couldn’t load this kit. Please try again.'}</Text>
           <ActionButton label="Try again" onPress={retry} />
-        </View> : kit ? <>
-          {isSaved ? <>
+        </View> : displayKit ? <>
+          {isSaved && kit ? <>
             <Text allowFontScaling accessibilityLabel={`Saved to ${collectionName}`} accessibilityLiveRegion="polite" style={[ui.body, styles.savedCopy]}>Saved to your collection.</Text>
             <View accessibilityLabel={kit.title}>
               <SavedKit kit={kit} failed={photoFailed} disabled={!sequence.interactive || revealing}
@@ -139,24 +139,24 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
                   {photoFailed && <ActionButton label="Reload photo" onPress={() => { setFailedPhotoUrl(null); retry(); }} />}
                 </View>} />
             </View>
-          </> : <View testID="result-hero" accessibilityLabel={kit.title} style={{ width: heroWidth, alignSelf: 'center',
-            minHeight: ready ? layout.heroHeight : layout.waitingHeroHeight, justifyContent: ready ? undefined : 'center' }}>
-            <FilmPrint kit={kit} width={ready ? layout.printWidth : layout.waitingPrintWidth} height={ready ? layout.printHeight : layout.waitingPrintHeight} pinHeight={layout.pinHeight} failed={photoFailed}
-              preview={localPhoto?.url} onPhotoDisplay={() => setDisplayedPhoto({ id, url: kit.photo!.url })}
-              onError={() => { setDisplayedPhoto(null); setFailedPhotoUrl(kit.photo!.url); }} selectedRole={editing ? selectedRole : null}
-              markerStyle={sequence.markerStyle} onPinPress={openRole} interactive={sequence.interactive && !revealing} showPins={!revealing} placeholder={<View style={styles.placeholder}>
-                <Baku pose={photoFailed ? 'errorPhoto' : 'empty'} roles={kit.roles} stripeProgress={sequence.stripeProgress} wipeMode={sequence.wipeMode} />
+          </> : <View testID="result-hero" accessibilityLabel={kit?.title} style={{ width: heroWidth, alignSelf: 'center',
+            minHeight: layout.heroHeight }}>
+            <FilmPrint kit={displayKit} width={layout.printWidth} height={layout.printHeight} pinHeight={layout.pinHeight} failed={photoFailed}
+              onPhotoDisplay={() => renderedPhoto && setDisplayedPhoto({ id, url: renderedPhoto.url })}
+              onError={() => { setDisplayedPhoto(null); if (renderedPhoto) setFailedPhotoUrl(renderedPhoto.url); }} selectedRole={editing ? selectedRole : null}
+              markerStyle={sequence.markerStyle} onPinPress={openRole} interactive={sequence.interactive && !revealing} showPins={ready && !revealing} placeholder={<View style={styles.placeholder}>
+                <Baku pose={photoFailed ? 'errorPhoto' : 'empty'} roles={displayKit.roles} stripeProgress={sequence.stripeProgress} wipeMode={sequence.wipeMode} />
                 <Text style={ui.message}>{photoFailed ? 'Couldn’t load the photo.' : 'No photo in this kit.'}</Text>
                 {photoFailed && <ActionButton label="Reload photo" onPress={() => { setFailedPhotoUrl(null); retry(); }} />}
               </View>} />
-            {revealing && <ColorInhale width={heroWidth} height={layout.heroHeight} performance={performance}
-              samples={photoPins(kit, layout.printWidth - 26, layout.photoHeight, layout.pinHeight).map(pin => ({
+            {revealing && kit && <ColorInhale width={heroWidth} height={layout.heroHeight} performance={performance}
+              samples={photoPins(displayKit, layout.printWidth - 26, layout.photoHeight, layout.pinHeight).map(pin => ({
                 color: pin.color, source: { x: printLeft + 13 + pin.target.x, y: 13 + pin.target.y },
               }))} baku={{ x: bakuLeft, y: layout.printHeight - 100, width: bakuWidth }} />}
-            {revealing && <View pointerEvents="none" style={{ position: 'absolute', left: bakuLeft, top: layout.printHeight - 100, zIndex: 10 }}>
-              <KnitBaku width={bakuWidth} elapsed={performance.elapsed} readyAt={performance.readyAt} roles={kit.roles} onLoaded={performance.onLoaded} />
+            {hosting && <View testID="baku-host" pointerEvents="none" style={{ position: 'absolute', left: bakuLeft, top: layout.printHeight - 100, zIndex: 10 }}>
+              <KnitBaku width={bakuWidth} elapsed={performance.elapsed} readyAt={performance.readyAt} roles={displayKit.roles} onLoaded={performance.onLoaded} />
             </View>}
-            {ready && <View style={{ marginTop: -113, marginHorizontal: 20 }}>
+            {kit && <View style={{ marginTop: -113, marginHorizontal: 20 }}>
               <ChipPile roles={kit.roles} slots={layout.slots} height={layout.pileHeight} typeSize={layout.typeSize}
                 expandedRole={detail?.kitId === id ? detail.role : null} motion={sequence.bands} performance={performance} emitter={{ x: bakuLeft - 20, y: 13, width: bakuWidth }} disabled={!sequence.interactive || revealing} selectedRole={editing ? selectedRole : null}
                 onPress={(role) => {
@@ -167,7 +167,7 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
                   });
                 }} />
             </View>}
-            {ready && !revealing && primaryPin && <PrimaryArrow width={heroWidth} height={layout.heroHeight}
+            {kit && !revealing && primaryPin && <PrimaryArrow width={heroWidth} height={layout.heroHeight}
               photoLeft={printLeft + 13}
               start={{ x: 20 + layout.slots[0].x + 12, y: layout.printHeight - 113 + layout.slots[0].height * 0.25 }}
               end={{ x: printLeft + 13 + primaryPin.marker.x, y: 13 + primaryPin.marker.y }}
@@ -184,7 +184,7 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
               <ActionButton label="Snap another" onPress={() => router.dismissTo('/')} />
             </View>
           </View>}
-        </> : null}
+        </> : <View style={ui.center}><Text style={ui.body}>Loading your photo…</Text></View>}
         </View>
         {kit && ready && <View style={[styles.brief, { width: layout.contentWidth, marginTop: isSaved ? 32 : 100 }]}>
           <BriefBlock brief={kit.brief} failed={briefFailed} showBaku={false} motionStyle={ready ? sequence.briefStyle : undefined} />
@@ -198,6 +198,7 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
             <LinearGradient start={{ x: 0, y: 0 }} end={{ x: 0, y: 40 }} colors={['#F3EEE400', PAPER]} />
           </Rect>
         </Canvas>
+        {loading && localPhoto && <Text accessibilityLiveRegion="polite" style={[ui.body, { textAlign: 'center', marginHorizontal: 24 }]}>Finding your colors…</Text>}
         {revealing && <View style={{ marginHorizontal: 32, gap: 8 }}>
           <Text style={[ui.body, { textAlign: 'center' }]}>A little color. A big ah-choo.</Text>
           <ActionButton label="Show my colors" onPress={() => { performance.skip(); sequence.skipToEnd(); }} />

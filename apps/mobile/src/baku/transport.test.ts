@@ -1,4 +1,4 @@
-import { anticipationAt, deform, durationFor, poseAt, SNOUT, TIMING } from './motion';
+import { anticipationAt, coatFillAt, colorInhaleAt, deform, durationFor, poseAt, SNOUT, TIMING } from './motion';
 import { chipFlight, inhaleRibbon } from './transport';
 
 const baku = { x: 118, y: 280, width: 280 };
@@ -34,4 +34,24 @@ test.each([0, 3, 8])('all six controls arrive at their targets when readiness is
     expect(end).toMatchObject({ ...target, opacity: 1, blankOpacity: 1, scale: 1, rotation: 0 });
   }
   expect(chipFlight(9, -1, baku, target, 0).opacity).toBe(0);
+});
+
+test.each([.5, 3, 8, 30])('a palette arriving at %ss gets a visible color inhale before the sneeze', readyAt => {
+  const start = colorInhaleAt(readyAt);
+  expect(poseAt(readyAt, null).beat).not.toBe('sneeze');
+  expect(inhaleRibbon(readyAt - .01, readyAt, target, baku, 0).opacity).toBe(0);
+  expect(inhaleRibbon(start + .5, readyAt, target, baku, 0).opacity).toBeGreaterThan(.8);
+  expect(inhaleRibbon(start + .5, readyAt, target, baku, 0).points).toHaveLength(32);
+  expect(coatFillAt(start, readyAt)).toBe(0);
+  expect(coatFillAt(anticipationAt(readyAt) + .4, readyAt)).toBe(1);
+  expect(anticipationAt(readyAt)).toBeGreaterThan(start + TIMING.inhale);
+});
+
+test('the waiting chew loops without inventing colors or releasing chips', () => {
+  for (const time of [2, 10, 30, 60]) {
+    expect(poseAt(time, null).beat).toBe('chew');
+    expect(coatFillAt(time, null)).toBe(0);
+    expect(inhaleRibbon(time, null, target, baku, 0).opacity).toBe(0);
+    expect(chipFlight(time, -1, baku, target, 0).opacity).toBe(0);
+  }
 });

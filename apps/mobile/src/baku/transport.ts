@@ -1,4 +1,4 @@
-import { anticipationAt, clamp, deform, durationFor, poseAt, SNOUT, SNOUT_INNER, TIMING } from './motion';
+import { anticipationAt, clamp, colorInhaleAt, deform, durationFor, poseAt, SNOUT, SNOUT_INNER, TIMING } from './motion';
 
 export type Point = { x: number; y: number };
 export type Emitter = Point & { width: number };
@@ -14,13 +14,14 @@ function bezier(a: Point, b: Point, c: Point, d: Point, t: number): Point {
  * Native sources are the actual measured photo samples, not an invented origin. */
 export function inhaleRibbon(time: number, readyAt: number | null, source: Point, baku: Emitter, index: number) {
   'worklet';
+  if (readyAt === null || time < readyAt) return { points: [] as Point[], opacity: 0 };
   const pose = poseAt(time, readyAt);
   if (pose.breath <= 0) return { points: [] as Point[], opacity: 0 };
   const tip = deform(SNOUT.x, SNOUT.y, pose);
   const snout = { x: baku.x + tip.x * baku.width, y: baku.y + tip.y * baku.width * 2 / 3 };
   const c1 = { x: source.x + (snout.x - source.x) * .35, y: source.y - 25 - index * 5 };
   const c2 = { x: snout.x - 34, y: snout.y - 14 + index * 3 };
-  const progress = (time * 1.5 + index * .15) % 1;
+  const progress = ((time - colorInhaleAt(readyAt)) * 1.5 + index * .15) % 1;
   const head = clamp(progress * progress * 1.65), tail = Math.max(0, head - .57);
   const top: Point[] = [], bottom: Point[] = [];
   for (let n = 0; n <= 15; n++) {

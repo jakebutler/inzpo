@@ -1,4 +1,5 @@
 import { FilmPrint } from '@/components/FilmPrint';
+import { CaptureProgress, type CaptureProgressHandle } from '@/components/CaptureProgress';
 import { PaperTexture } from '@/components/PaperTexture';
 import { handoffPhoto } from '@/lib/photo-handoff';
 import { emptyRoles } from '@inzpo/shared';
@@ -23,13 +24,14 @@ export default function SnapScreen() {
   const inFlight = useRef(false);
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoInput | null>(null);
   const mounted = useRef(true);
+  const captureProgress = useRef<CaptureProgressHandle>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   async function upload(photo: PhotoInput) {
     setSelectedPhoto(photo);
     const itemId = await uploadPhoto(client, photo);
     if (!mounted.current) return;
-    handoffPhoto(itemId, photo);
+    handoffPhoto(itemId, photo, captureProgress.current?.readElapsed() ?? 0);
     setSelectedPhoto(null);
     router.push({ pathname: '/kit/[id]', params: { id: itemId } });
   }
@@ -63,6 +65,7 @@ export default function SnapScreen() {
       setBusy(false);
     }
   }
+  if (busy && selectedPhoto) return <CaptureProgress key={selectedPhoto.uri} photo={selectedPhoto} ref={captureProgress} />;
   return <SafeAreaView style={ui.screen} edges={['bottom', 'left', 'right']}>
     <PaperTexture />
     <ScrollView contentContainerStyle={[ui.content, { flexGrow: 1, justifyContent: 'center' }]}>

@@ -13,12 +13,20 @@ export interface Pose {
   closed: number; happy: number; breath: number; beat: Beat;
 }
 
-/** Success is latched to the next full chew, never halfway through one. */
+/** A slow palette gets its own inhale after the waiting loop. */
+export function colorInhaleAt(readyAt: number, timingOverride?: typeof TIMING) {
+  'worklet';
+  const timing = timingOverride ?? TIMING;
+  return readyAt > 0.22 ? Math.max(timing.inhale, readyAt) : 0;
+}
+
+/** Success follows the real-color inhale and a full chew boundary. */
 export function anticipationAt(readyAt: number, timingOverride?: typeof TIMING) {
   "worklet";
   const timing = timingOverride ?? TIMING;
   const earliest = timing.inhale + timing.chew;
-  return earliest + Math.ceil(Math.max(0, readyAt - earliest) / timing.loop) * timing.loop;
+  const colorEnd = colorInhaleAt(readyAt, timing) + timing.inhale + 0.15;
+  return earliest + Math.ceil(Math.max(0, colorEnd - earliest) / timing.loop) * timing.loop;
 }
 export function durationFor(readyAt: number, timingOverride?: typeof TIMING) {
   "worklet";
@@ -33,8 +41,9 @@ export function coatFillAt(time: number, readyAt: number | null, timingOverride?
   "worklet";
   const timing = timingOverride ?? TIMING;
   if (readyAt === null) return 0;
-  const start = Math.max(0.25, readyAt);
-  const end = Math.min(Math.max(timing.inhale + 0.28, readyAt + 0.65), anticipationAt(readyAt, timing) + 0.42);
+  const colorStart = colorInhaleAt(readyAt, timing);
+  const start = colorStart + 0.25;
+  const end = colorStart + timing.inhale + 0.28;
   return smooth((time - start) / (end - start));
 }
 
@@ -64,6 +73,16 @@ export function poseAt(time: number, readyAt: number | null, timingOverride?: ty
       snout: mix(0.65, 0.36 + 0.05 * Math.sin(cycle * Math.PI * 4 + 0.4), entry),
       lean: mix(0.7, 0.16 + 0.07 * Math.sin(cycle * Math.PI * 2 + 0.6), entry),
       ears: 0.12 * Math.sin(cycle * Math.PI * 2 - 0.4), beat: "chew" });
+    if (readyAt !== null && colorInhaleAt(readyAt, timing) > 0) {
+      const local = t - colorInhaleAt(readyAt, timing);
+      const breath = smooth((local - .12) / .25) * (1 - smooth((local - timing.inhale + .17) / .17));
+      const reach = smooth((local - .08) / .66) * (1 - smooth((local - timing.inhale + .06) / .42));
+      p.trunkReach = Math.max(p.trunkReach, reach);
+      p.breath = breath;
+      p.lean = mix(p.lean, .7, breath);
+      p.snout = mix(p.snout, .65, breath);
+      if (breath > 0) p.beat = 'inhale';
+    }
   } else {
     const a = t - stop;
     if (a < timing.anticipation) {

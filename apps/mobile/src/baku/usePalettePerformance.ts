@@ -6,14 +6,14 @@ import { completedResultKits } from '@/lib/useResultSequence';
 import { haptics } from '@/lib/haptics';
 
 const completed = new Set<string>();
-export function usePalettePerformance({ kitId, ready, enabled, photoVisible, focused }: {
-  kitId: string; ready: boolean; enabled: boolean; photoVisible: boolean; focused: boolean;
+export function usePalettePerformance({ kitId, ready, enabled, photoVisible, focused, initialElapsed = 0 }: {
+  kitId: string; ready: boolean; enabled: boolean; photoVisible: boolean; focused: boolean; initialElapsed?: number;
 }) {
   const initialReduce = useReducedMotion();
   const [reducedMotion, setReducedMotion] = useState(initialReduce);
   const [artLoaded, setArtLoaded] = useState(false);
   const [done, setDone] = useState(false);
-  const elapsed = useSharedValue(0);
+  const elapsed = useSharedValue(initialElapsed);
   const readyAt = useSharedValue(-1);
   const resume = useSharedValue(true);
   const notified = useSharedValue(false);

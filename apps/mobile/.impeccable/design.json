@@ -130,7 +130,7 @@
       {
         "name": "baku-inhale",
         "value": "1.2s",
-        "purpose": "Source-sample ribbons accelerate into moving nostril; real coat colors fill actual stitched panels."
+        "purpose": "Source-sample ribbons accelerate into moving nostril; real coat colors fill actual stitched panels. Late palette readiness gets a fresh inhale after the waiting loop."
       },
       {
         "name": "baku-chew",
@@ -159,7 +159,7 @@
       },
       {
         "name": "performance-lifecycle",
-        "value": "pause when backgrounded, unfocused, source photo undisplayed, or art unloaded; skip when ready; bypass under Reduced Motion",
+        "value": "start with selected photo during upload; carry elapsed clock into result; retain local photo through readiness; pause when backgrounded, unfocused, source photo undisplayed, or art unloaded; skip when ready; still waiting host under Reduced Motion",
         "purpose": "Code behavior, not native performance or gesture acceptance."
       }
     ],

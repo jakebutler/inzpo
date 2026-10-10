@@ -20,3 +20,5 @@ Expo Go on iPhone first. Invite-only. Six editable color roles with honest empty
 
 ## Acceptance
 Capture/library -> upload -> real extracted palette -> Baku reveal -> edit -> save -> reopen collection -> copy/export. Description latency must not block palette use. Retry preserves the chosen photo. Backgrounding pauses animation. Reduced motion preserves result and source truth. Check 375 and 390 point widths, large text, errors, and actual iPhone gestures.
+
+Baku starts with the local photo during upload and loops while processing. Carry his clock into the result and keep that photo mounted as data arrives. Real colors get a visible inhale even after a long wait; empty roles stay gray. Under Reduced Motion the waiting host stays still.
