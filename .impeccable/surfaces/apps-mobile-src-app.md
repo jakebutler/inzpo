@@ -33,3 +33,5 @@ Button finish: matte blue primary stock and warmer paper secondary faces. Use th
 All action button types and states share an 8-unit corner radius, including Back and texture masks. Hierarchy comes from color and depth; never mix capsule primary actions with rectangular secondary actions.
 
 Canvas: forest mist `#D8E3D9` separates warm knitted Baku from his surroundings. Carry the same canvas through navigation, Keep confirmation, result fades and detail scrims. Cream remains on fields, sheets, print borders and stock. Keep the actual photo, palette and Baku panel colors untouched.
+
+Brand continuity: collection folders get restrained blue count tabs and manila backing; the editor opens with a working role and uses stock-framed paint with cream labels; reuse shows the real thumbnail/title and named stock swatches. Photo notes keep their card through loading, success and failure. Remaining active mascot fallbacks use the approved knit. Do not add another hero, fake color preview, or extra network request to decorate summaries.

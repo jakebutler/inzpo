@@ -43,8 +43,8 @@ test('Edit opens fully with six chips and can peek to expose the source photo', 
   const snap = jest.spyOn(MockModal.prototype, 'snapToIndex');
   const view = await render(<EditSheet ref={ref} visible kit={kitFixture} onUpdated={jest.fn()} onClose={jest.fn()} />);
   expect(sheetProps).toMatchObject({ snapPoints: [expect.any(Number), '88%'], index: 1, enableDynamicSizing: false, enablePanDownToClose: true });
-  expect(view.getByTestId('edit-role-primary')).toHaveStyle({ backgroundColor: '#b35831' });
-  expect(view.getByTestId('edit-role-accent')).toHaveStyle({ backgroundColor: '#F3EEE4', borderStyle: 'dashed' });
+  expect(view.getByTestId('edit-role-primary-paint')).toHaveStyle({ backgroundColor: '#b35831' });
+  expect(view.getByTestId('edit-role-accent-paint')).toHaveStyle({ backgroundColor: '#E4D9C6', borderStyle: 'dashed' });
   expect(view.queryByText('Color picking comes next')).toBeNull();
   await fireEvent.press(view.getByTestId('edit-role-primary'));
   expect(snap).toHaveBeenCalledWith(1);
@@ -141,4 +141,15 @@ test('hidden sheets are not dismissed before their first presentation', async ()
   expect(dismiss).not.toHaveBeenCalled();
   await reuse.rerender(<UseKitSheet visible kit={kitFixture} onClose={jest.fn()} />);
   expect(present).toHaveBeenCalledTimes(2);
+});
+
+
+test('Edit starts on a real color without creating a change to save', async () => {
+  const view = await render(<EditSheet visible kit={{ ...kitFixture, roles: { ...kitFixture.roles, primary: null } }}
+    onUpdated={jest.fn()} onClose={jest.fn()} />);
+  expect(view.getByTestId('edit-role-secondary').props.accessibilityState).toMatchObject({ selected: true });
+  expect(view.getByLabelText('Hex color')).toHaveProp('value', kitFixture.roles.secondary);
+  expect(view.getByText('A supporting color for balance.')).toBeTruthy();
+  expect(view.getByRole('button', { name: 'Save colors' })).toBeDisabled();
+  expect(client.updateKitColors).not.toHaveBeenCalled();
 });

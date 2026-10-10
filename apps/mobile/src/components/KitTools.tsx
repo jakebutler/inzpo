@@ -50,7 +50,7 @@ export function KitTools({ kit, compact = false, descriptionFailed = false, onBu
   }
   const briefNote = !descriptionFailed && kit.brief.status === 'pending' ? 'Colors are ready to use. The description is still on its way.'
     : descriptionFailed || kit.brief.status === 'failed' || !kit.brief.text ? 'Colors are ready to use. The description is unavailable.'
-    : 'Copy the colors and description, or take a file into your project.';
+    : compact ? 'Your colors and description, ready to make with.' : 'Copy the colors and description, or take a file into your project.';
   return <View style={{ gap: 12, marginTop: compact ? 0 : 24 }}>
     {!compact && <Text accessibilityRole="header" style={ui.heading}>Make it yours.</Text>}
     <Text style={ui.body}>{briefNote}</Text>

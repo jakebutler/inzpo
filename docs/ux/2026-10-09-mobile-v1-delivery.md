@@ -380,3 +380,29 @@ native device acceptance.
 The next phone pass should check Baku against the forest canvas during intake,
 chewing and his landing in the corner, then the warm stock in Keep/collections.
 Publication is verified; native appearance remains a device check.
+
+
+## Brand continuity refinement
+
+The phone review accepted forest mist and requested a broader pass on lifeless
+or inconsistent screens. Collection summaries now read as warm folders with
+small blue count tabs and manila backing. The editor opens with the requested
+or first populated role, without making a dirty draft. Shared stock swatches
+frame real color, keep labels readable on cream and distinguish honest empty
+roles. Reuse carries the actual kit thumbnail/title into the same six-role
+stock treatment. Photo notes preserve their warm card while pending or failed;
+remaining active mascot fallbacks use the approved knit. Empty/loading
+collections avoid competing headings and premature zero-count copy.
+
+An independent senior UX review identified and verified two source corrections:
+count tabs now flow with scaled labels, and the unsaved Baku host ends before
+the Edit control. Native lint/typecheck, the final 101 targeted tests across
+seven suites, and iOS Hermes export pass. Earlier broad-run results and their
+one corrected test-matcher failure are recorded in
+`2026-10-09-brand-continuity-review.md`.
+
+The 375/390 material studies in `evidence/2026-10-09-brand-continuity/` translate
+actual component trees to static HTML. They support the material review, not
+native phone acceptance. Capture choreography, matte buttons, shared radius,
+backend and dependencies are unchanged. Phone review remains for native
+rendering, keyboard, larger text and sheet gestures.

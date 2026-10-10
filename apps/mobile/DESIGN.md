@@ -274,3 +274,32 @@ The October 9 matte-button refinement follows the phone report that buttons were
 **Consistent Button Shape Rule.** Primary, secondary, Save and Back share `BUTTON_RADIUS = 8` in their face and texture mask. Pressed, disabled, saving and saved states retain that shape; color and depth establish hierarchy, not different corner geometry.
 
 The forest-canvas material study in `../../docs/ux/evidence/2026-10-09-forest-canvas/` compares the actual Baku artwork and shipping button surfaces on four backgrounds. Forest mist separates his warm knit and cream stock. These are browser material translations, not native screenshots. The targeted contrast checks, screen-flow tests, lint/typecheck and iOS export pass; phone appearance remains the final check.
+
+
+## Brand continuity refinement
+
+The forest canvas supports a consistent set of physical objects throughout the
+working flow. Collection folders use a small matte blue tab with the real kit
+count, a warm face, and a thin manila backing. Tabs participate in layout so
+scaled labels retain their space. No palette or photo is invented for the
+collection summary endpoint, which only supplies name and count.
+
+The editor starts on the requested role, or the first populated role (Primary
+when all are empty), without changing the draft. Small stock swatches keep role
+labels on cream and frame even very light paint. Empty roles have unpainted
+oatmeal, a dashed boundary and a quiet blank line. Candidate colors retain
+48-unit targets; Save/Cancel remain anchored. The same stock treatment carries
+into reuse, beside the actual kit thumbnail and Akaya title. Copy remains the
+first action; a failed thumbnail drops away without affecting colors or export.
+
+Photo notes remain one warm card while pending, ready or failed. Waiting has
+honest status copy; it does not stage fake typing or block color use. Active
+result fallbacks use the approved knit host with actual kit colors, not older
+mascot artwork. The accepted capture performance and matte 8-unit buttons are
+unchanged. Collection loading/empty screens avoid a second competing headline,
+and an empty collection no longer announces zero ideas waiting.
+
+Source and static component-tree material studies are recorded in
+`../../docs/ux/2026-10-09-brand-continuity-review.md`. Their HTML translation is
+not native phone proof; target-device keyboard, larger text, gestures and
+rendering remain separate acceptance.

@@ -40,7 +40,7 @@ export default function CollectionScreen() {
       ListHeaderComponent={<View style={{ gap: 14, marginBottom: 8 }}>
         <BackButton onPress={() => router.canGoBack() ? router.back() : router.dismissTo('/collections')} />
         <Text accessibilityRole="header" style={ui.heading}>{current?.collection?.name ?? 'Your collection'}</Text>
-        {current?.collection && <Text style={ui.body}>{current.collection.kits.length} {current.collection.kits.length === 1 ? 'idea' : 'ideas'} waiting for your next project.</Text>}
+        {!!current?.collection?.kits.length && <Text style={ui.body}>{current.collection.kits.length} {current.collection.kits.length === 1 ? 'idea' : 'ideas'} waiting for your next project.</Text>}
         {current?.error && <><Text accessibilityRole="alert" style={ui.body}>{current.error}</Text>
           {current.collection && <Text style={ui.label}>Showing the kits already here.</Text>}
           <ActionButton label={refreshing ? 'Refreshing…' : 'Try again'} disabled={refreshing} onPress={retry} /></>}
@@ -48,7 +48,7 @@ export default function CollectionScreen() {
       ListEmptyComponent={!current ? <CollectionState title="Opening your inspiration" message="Making a little room for your ideas." busy />
         : current.collection?.kits.length === 0 ? <CollectionState title="Room for an idea" message="No kits in this collection yet. Find a color worth keeping."
           action="Take a photo" onAction={() => router.dismissTo('/')} />
-        : current.error ? <CollectionState title="A little snag" message="Your inspiration hasn’t gone anywhere. Try loading it again." /> : null}
+        : current.error ? <CollectionState title="A little snag" message="Try again, or go back to your collections." /> : null}
       renderItem={({ item }) => <CollectionKitCard kit={item} onPress={() => router.push({ pathname: '/kit/[id]', params: { id: item.id } })} />} />
   </SafeAreaView>;
 }

@@ -6,11 +6,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ReduceMotion, useReducedMotion } from 'react-native-reanimated';
 import { useInzpoClient } from '@/lib/api';
 import { haptics } from '@/lib/haptics';
-import { contrastTextColor } from '@/lib/contrast';
 import { fonts, INK, PAPER } from '@/theme/tokens';
 import { ui } from '@/theme/styles';
 import { PaperPressable } from './PaperPressable';
-import { PaperTexture } from './PaperTexture';
+import { StockSwatch } from './StockSwatch';
+import { MATTE_BLUE } from '@/theme/materials';
 import { ActionButton } from './ActionButton';
 import { EditBackdrop, sheetStyles, useSheetSpring } from './MotionSheet';
 
@@ -67,8 +67,9 @@ function EditSheetContent({ kit, expanded, onExpand, onClose, onUpdated, onSavin
   const client = useInzpoClient();
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<RoleColors>(() => ({ ...kit.roles }));
-  const [role, setRole] = useState<ColorRole | null>(initialRole ?? null);
-  const [hex, setHex] = useState(initialRole ? kit.roles[initialRole] ?? '' : '');
+  const firstRole = initialRole ?? COLOR_ROLES.find(key => kit.roles[key] !== null) ?? 'primary';
+  const [role, setRole] = useState<ColorRole>(firstRole);
+  const [hex, setHex] = useState(kit.roles[firstRole] ?? '');
   const [hexTouched, setHexTouched] = useState(false);
   const [hexError, setHexError] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -148,8 +149,8 @@ function EditSheetContent({ kit, expanded, onExpand, onClose, onUpdated, onSavin
               accessibilityLabel={color ? `${key}: ${color}` : `No ${key} in this one.`}
               accessibilityState={{ selected: role === key, disabled: saving }} disabled={saving}
               onPress={() => { setRole(key); setHex(color ?? ''); setHexError(false); setHexTouched(false); onExpand(); }}
-              style={[styles.chip, color === null ? styles.empty : { backgroundColor: color }, role === key && styles.selected]}>
-              <Text allowFontScaling style={[styles.role, { color: color === null ? INK : contrastTextColor(color) }]}>{key}</Text>
+              style={[styles.chip, role === key && styles.selected]}>
+              <StockSwatch color={color} label={key} testID={`edit-role-${key}-paint`} />
             </PaperPressable>
           );
         })}
@@ -158,8 +159,7 @@ function EditSheetContent({ kit, expanded, onExpand, onClose, onUpdated, onSavin
         <>
           {role ? <>
             <View style={styles.preview}>
-              <View testID="edit-color-preview" style={{ width: 82, minHeight: 102, backgroundColor: draft[role] ?? PAPER,
-                borderWidth: draft[role] ? 0 : 1, borderStyle: 'dashed', borderColor: INK }}><PaperTexture kind="color" /></View>
+              <View style={{ width: 82, minHeight: 102 }}><StockSwatch color={draft[role]} testID="edit-color-preview" /></View>
               <View style={{ flex: 1, gap: 6 }}>
                 <Text allowFontScaling style={[ui.heading, { fontSize: 27, lineHeight: 31 }]}>{role.charAt(0).toUpperCase() + role.slice(1)}</Text>
                 <Text style={ui.body}>{rolePurpose[role]}</Text>
@@ -198,10 +198,8 @@ const styles = StyleSheet.create({
   preview: { flexDirection: 'row', alignItems: 'stretch', gap: 16 },
   content: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 32, gap: 16 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { flexBasis: '30%', flexGrow: 1, minHeight: 44, padding: 8, borderRadius: 3, alignItems: 'center', justifyContent: 'center' },
-  empty: { backgroundColor: PAPER, borderWidth: 1, borderColor: INK, borderStyle: 'dashed' },
-  selected: { borderWidth: 3, borderColor: INK, outlineWidth: 2, outlineColor: PAPER, outlineOffset: -5 },
-  role: { fontFamily: fonts.bodyMedium, fontSize: 12 },
+  chip: { flexBasis: '30%', flexGrow: 1, minHeight: 70, padding: 2, borderRadius: 5, borderWidth: 2, borderColor: 'transparent' },
+  selected: { borderColor: MATTE_BLUE, borderWidth: 2, outlineWidth: 2, outlineColor: PAPER, outlineOffset: -5 },
   swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   swatch: { width: 48, height: 48, borderRadius: 3, borderWidth: 1, borderColor: INK },
 });

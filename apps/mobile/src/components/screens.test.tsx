@@ -268,12 +268,12 @@ test('pending prose leaves the colors, Save and exports available', async () => 
   expect(view.queryByTestId('munch-player')).toBeNull();
 });
 
-test('brief errors preserve the colors and render brief-error Baku', async () => {
+test('brief errors preserve the colors and retain the approved knit host', async () => {
   client.getKit.mockResolvedValue({ ...kitFixture, brief: { ...kitFixture.brief, status: 'pending', text: null } });
   client.getBrief.mockRejectedValue(new Error('offline'));
   const view = await render(<ResultScreen />);
-  expect(await view.findByText('Baku couldn’t finish the brief. Your colors are here.')).toBeTruthy();
-  expect(view.getByTestId('baku-errorBrief')).toBeTruthy();
+  expect(await view.findByText('Baku couldn’t find the words. Your colors are here.')).toBeTruthy();
+  expect(view.getByTestId('result-baku')).toBeTruthy();
   expect(view.getByText('No accent in this one. Add a color.')).toBeTruthy();
 });
 
@@ -359,7 +359,7 @@ test('Edit opens with all roles and preserves the empty accent chip', async () =
   await view.findByLabelText(kitFixture.title);
   await fireEvent(view.getByTestId('result-content'), 'scrollBeginDrag');
   await fireEvent.press(view.getByRole('button', { name: 'Edit' }));
-  expect(view.getByTestId('edit-role-accent')).toHaveStyle({ backgroundColor: '#F3EEE4', borderStyle: 'dashed' });
+  expect(view.getByTestId('edit-role-accent-paint')).toHaveStyle({ backgroundColor: '#E4D9C6', borderStyle: 'dashed' });
   expect(view.queryByText('Color picking comes next')).toBeNull();
   expect(ExpoHaptics.impactAsync).not.toHaveBeenCalled();
   expect(ExpoHaptics.notificationAsync).not.toHaveBeenCalled();
@@ -480,7 +480,7 @@ test('choosing an Edit role and swatch saves the changed role and updates the re
   expect(view.getByText('Choose accent')).toBeTruthy();
   expect(view.getByRole('button', { name: 'Save colors' })).toBeDisabled();
   await fireEvent.press(view.getByRole('button', { name: 'Color #B35831' }));
-  expect(view.getByTestId('edit-role-accent')).toHaveStyle({ backgroundColor: '#b35831' });
+  expect(view.getByTestId('edit-role-accent-paint')).toHaveStyle({ backgroundColor: '#b35831' });
   await fireEvent.press(view.getByRole('button', { name: 'Save colors' }));
   expect(client.updateKitColors).toHaveBeenCalledWith('kit-1', { roles: { accent: '#b35831' } });
   expect(view.getByTestId('role-swatch-accent')).toHaveStyle({ backgroundColor: '#b35831' });
@@ -517,7 +517,7 @@ test('Edit failure keeps the draft and displays one error haptic', async () => {
   await fireEvent.press(view.getByRole('button', { name: 'Save colors' }));
   expect(client.updateKitColors).toHaveBeenCalledWith('kit-1', { roles: { primary: null } });
   expect(view.getByText('Couldn’t save these colors. Please try again.')).toBeTruthy();
-  expect(view.getByTestId('edit-role-primary')).toHaveStyle({ backgroundColor: '#F3EEE4' });
+  expect(view.getByTestId('edit-role-primary-paint')).toHaveStyle({ backgroundColor: '#E4D9C6' });
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledTimes(1);
   expect(ExpoHaptics.notificationAsync).toHaveBeenCalledWith(ExpoHaptics.NotificationFeedbackType.Error);
 });
@@ -656,7 +656,7 @@ test('long kit names wrap in Akaya while description and controls retain their i
   expect(heading.props.numberOfLines).toBeUndefined();
   expect(heading.props.maxFontSizeMultiplier).toBeUndefined();
   expect(heading.props.allowFontScaling).not.toBe(false);
-  expect(view.getByText('The brief')).toHaveStyle({ fontFamily: fonts.heading, lineHeight: 30 });
+  expect(view.getByText('Photo notes')).toHaveStyle({ fontFamily: fonts.heading, lineHeight: 30 });
   expect(view.getByText(kitFixture.brief.text!)).toHaveStyle({ fontFamily: fonts.body });
   expect(view.getByRole('button', { name: 'Snap another' })).toBeTruthy();
 });

@@ -18,7 +18,6 @@ import { KitTools } from '@/components/KitTools';
 import { BriefBlock } from '@/components/BriefBlock';
 import { ChipPile } from '@/components/ChipPile';
 import { ChipDetail } from '@/components/ChipDetail';
-import { CornerBaku } from '@/components/CornerBaku';
 import { EditSheet, type EditSheetHandle } from '@/components/EditSheet';
 import { FilmPrint } from '@/components/FilmPrint';
 import { PaperTexture } from '@/components/PaperTexture';
@@ -215,7 +214,7 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
         </View>
         {kit && ready && <View style={[styles.brief, { width: layout.contentWidth, marginTop: isSaved ? 32 : 100 }]}>
           <BriefBlock brief={kit.brief} failed={briefFailed} showBaku={false} motionStyle={ready ? sequence.briefStyle : undefined} />
-          {(briefFailed || kit.brief.status === 'failed') && <ActionButton label="Check brief again" onPress={retry} />}
+          {(briefFailed || kit.brief.status === 'failed') && <ActionButton label="Check description again" onPress={retry} />}
           {!isSaved && <KitTools kit={kit} descriptionFailed={failedBrief} />}
         </View>}
       </ScrollView>
@@ -235,8 +234,9 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
           <ActionButton label="Show my colors" onPress={() => { performance.skip(); sequence.skipToEnd(); }} />
         </View>}
         {ready && !revealing && !hasKnitHost && <View style={styles.host}>
-          <CornerBaku size={62} focused={focused && sheet?.kitId !== id && detail?.kitId !== id} pose={hop.pose && hop.pose !== 'idle' ? hop.pose : failedBrief ? 'errorBrief' : 'idle'}
-            motionStyle={hop.bakuStyle} shadowStyle={hop.shadowStyle} />
+          <Animated.View testID="result-baku" style={hop.bakuStyle}>
+            <KnitCompanion width={72} roles={kit?.roles} />
+          </Animated.View>
         </View>}
         {ready && !revealing && <View style={styles.actions} onLayout={(event) => setActionHeight(Math.max(48, event.nativeEvent.layout.height))}>
           <View style={styles.edit}><ActionButton label="Edit" disabled={!sequence.interactive || revealing} onPress={() => setSheet({ kitId: id, type: 'edit' })} /></View>
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
   brief: { alignSelf: 'center', gap: 16 },
   footer: { position: 'absolute', left: 0, right: 0, width: '100%', alignSelf: 'center' },
   fade: { position: 'absolute', left: 0, right: 0, top: -20 },
-  host: { position: 'absolute', left: 16, bottom: -8 },
+  host: { position: 'absolute', left: 10, bottom: -8 },
   actions: { marginLeft: 82, marginRight: 16, flexDirection: 'row', alignItems: 'stretch', gap: 8 },
   edit: { width: 96 },
   save: { flex: 1 },

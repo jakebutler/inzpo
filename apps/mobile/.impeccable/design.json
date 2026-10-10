@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-10T02:57:01.988920+00:00",
+  "generatedAt": "2026-10-10T03:18:48.312733+00:00",
   "title": "Design System: Inzpo Mobile",
   "extensions": {
     "colorMeta": {
@@ -185,13 +185,15 @@
     ],
     "mobileInteractionContracts": {
       "savedKit": "Use this kit is primary; editing is immediate. Reopening does not replay extraction.",
-      "editing": "Expanded entry, live draft, anchored Save/Cancel, blur-or-submit validation, explicit dirty discard.",
-      "collections": "Actual photo and six-role stock cards; retain data through focus refresh failures. Index uses name/count without invented previews.",
+      "editing": "Expanded entry selects the requested or first populated role without dirtying the draft. Stock-framed paint, cream role labels, anchored Save/Cancel, blur-or-submit validation and explicit dirty discard.",
+      "collections": "Index folders use a matte blue real-count tab, warm face and manila backing; the tab stays in layout for scaled labels. No invented preview or extra request. Collection contents retain actual photo and six-role stock cards through refresh failure.",
       "feedback": "Restrained paper press and one light haptic; nonspatial Reduced Motion feedback.",
       "verification": "Source and bounded Expo Web fixtures only; Keep375 paint inconclusive, native device acceptance pending.",
       "buttonMaterial": "Matte blue and warm paper, fine grain, muted edge, short contact shadows, 2-unit press without default face shrink. No sheen or inset highlights.",
       "buttonShape": "One shared 8-unit radius for primary, secondary, Save and Back, including texture clipping, in every interaction state.",
-      "canvasMaterial": "Pale forest mist #D8E3D9 for screens, headers, Keep footer, result fades and detail scrims; retain cream fields, sheets and stock. Photos, swatches and Baku colors remain unmodified."
+      "canvasMaterial": "Pale forest mist #D8E3D9 for screens, headers, Keep footer, result fades and detail scrims; retain cream fields, sheets and stock. Photos, swatches and Baku colors remain unmodified.",
+      "reuse": "Actual kit thumbnail and Akaya title lead into six named stock swatches. Copy remains the first action; a failed thumbnail does not affect tools.",
+      "photoNotes": "One warm ruled-note card persists through pending, ready and failed description states. Honest waiting/failure copy leaves colors usable. Active mascot fallbacks use approved knitted Baku."
     }
   },
   "components": [
@@ -251,12 +253,12 @@
       "css": ".ds-print { width: 220px; margin: 0; padding: 12px 12px 36px; background: #FBF8F2; border: 1px solid #1C1B1940; border-top-color: #FFFFFF99; border-left-color: #FFFFFF88; box-shadow: 1px 2px 1px #1C1B193B, 5px 9px 16px #1C1B191A; } .ds-print-well { height: 240px; overflow: hidden; background: #F3EEE4; }"
     },
     {
-      "name": "Collection stock card",
+      "name": "Collection folder",
       "kind": "card",
       "refersTo": "collection-card",
-      "description": "The navigable collection list container uses the same stock depth with heading and count.",
-      "html": "<button class=\"ds-collection\"><span class=\"ds-collection-title\">Your inspiration</span><span class=\"ds-collection-count\">3 kits</span></button>",
-      "css": ".ds-collection { display: grid; gap: 8px; min-height: 100px; padding: 24px; border: .5px solid #1C1B1940; border-top-color: #FFFFFF99; border-left-color: #FFFFFF88; background: #FBF8F2; color: #1C1B19; text-align: left; box-shadow: 1px 2px 1px #1C1B193B, 5px 9px 16px #1C1B191A; cursor: pointer; } .ds-collection-title { font: 400 32px/44px \"Akaya Kanadaka\", cursive; } .ds-collection-count { font: 400 16px/24px \"Geist\", sans-serif; } .ds-collection:hover { background: #FBF8F2; } .ds-collection:active { opacity: .8; } .ds-collection:focus-visible { outline: 2px solid #1C1B19; outline-offset: 4px; }"
+      "description": "The navigable collection folder uses a matte blue real-count tab, a warm stock face and a thin manila backing.",
+      "html": "<button class=\"ds-folder\"><span class=\"ds-folder-tab\">3 kits</span><span class=\"ds-folder-face\"><strong>Your inspiration</strong><span>Open collection</span></span></button>",
+      "css": ".ds-folder { display:flex; flex-direction:column; padding:0 0 4px; border:0; background:transparent; color:#1C1B19; text-align:left; cursor:pointer; } .ds-folder-tab { align-self:flex-start; margin:0 0 -6px 14px; padding:5px 14px 7px; background:#426092; color:#FBF8F2; border-radius:5px 5px 0 0; font:500 13px/18px \"Geist\",sans-serif; } .ds-folder-face { display:grid; gap:16px; min-height:122px; padding:20px; border-radius:3px; background:#FBF8F2; box-shadow:1px 2px 1px #1C1B193B,5px 9px 16px #1C1B191A; } .ds-folder-face strong { font:400 29px/36px \"Akaya Kanadaka\",cursive; } .ds-folder-face > span { padding-top:12px; border-top:1px solid #D1C5B3; color:#426092; font:500 14px/20px \"Geist\",sans-serif; } .ds-folder:focus-visible { outline:2px solid #1C1B19; outline-offset:4px; }"
     }
   ],
   "narrative": {
