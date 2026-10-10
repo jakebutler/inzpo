@@ -365,3 +365,18 @@ across eight suites, and iOS Hermes export pass. The bundle contains the
 matched backend URL. `evidence/2026-10-09-forest-canvas/` records the material
 comparison and selected 375-point preview; both are browser translations, not
 native device acceptance.
+
+### Forest-canvas publication receipt
+
+- Published October 9, 2026 at 7:58 PM PDT (2026-10-10T02:58:49.691Z).
+- Branch `v1-pilot`, iOS, runtime `exposdk:57.0.0`.
+- Source: `b9a6ab4874e3c0f01085565624483e9699f6be7e`.
+- Group: `1682b795-be8d-4a52-97d9-6987e412549d`; update: `01a123bf-b8db-7ca5-b1ca-028c3b0ac07e`.
+- Served manifest ID/runtime and launch-asset hash match the checked local
+  Hermes bundle, SHA256 `dbdc2ba6cd16da367927ba59df8d7938641fdad7ce73be85893d94bc80c383a2`.
+- Prebuilt export published with `--skip-bundler`; matched backend unchanged.
+- [Forest-canvas Expo Go QR](https://qr.expo.dev/eas-update?projectId=529d6681-6398-4009-adff-18b6bb5a6108&groupId=1682b795-be8d-4a52-97d9-6987e412549d) supersedes the earlier pilot links.
+
+The next phone pass should check Baku against the forest canvas during intake,
+chewing and his landing in the corner, then the warm stock in Keep/collections.
+Publication is verified; native appearance remains a device check.
