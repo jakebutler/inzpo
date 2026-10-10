@@ -22,7 +22,7 @@ import { beginCapture, captureSnapshot } from '@/lib/capture-session';
 import { TIMING } from '@/baku/motion';
 import { hostDurationFor } from '@/baku/host-motion';
 import { KnitBaku } from '@/baku/KnitBaku';
-import { resultSequenceBeats, SHUTTER_PRESS_SCALE, TAP_TIMING, BUTTON_PRESS_SCALE } from '@/theme/motion';
+import { resultSequenceBeats, SHUTTER_PRESS_SCALE, TAP_TIMING } from '@/theme/motion';
 import { kitFixture, mockClient } from '../../tests/fixtures';
 import { mockReanimatedMotion } from '../../tests/reanimated-motion';
 import { restingBakuSize } from '@/theme/sign-in';
@@ -382,8 +382,8 @@ test('an empty Accent opens its picker and can be filled without changing other 
 
 test.each([
   ['Take a photo', SHUTTER_PRESS_SCALE],
-  ['Choose from library', BUTTON_PRESS_SCALE],
-] as const)('%s scales and fires Light on press-in, with spring release and no release haptic', async (label, scale) => {
+  ['Choose from library', 1],
+] as const)('%s responds and fires Light on press-in, with spring release and no release haptic', async (label, scale) => {
   const timing = jest.spyOn(Reanimated, 'withTiming');
   const spring = jest.spyOn(Reanimated, 'withSpring');
   const view = await render(<SnapScreen />);
@@ -682,7 +682,7 @@ test.each([false, true])('only one chip expands, replaces another, and returns t
   await view.unmount();
 });
 
-test('saved actions have enamel/paper materials, navigate to the chosen collection and keep Snap on the root', async () => {
+test('saved actions have matte blue/paper materials, navigate to the chosen collection and keep Snap on the root', async () => {
   completedResultKits.add('kit-1');
   client.getKit.mockResolvedValue({ ...kitFixture, collectionIds: ['collection-1'] });
   const view = await render(<ResultScreen />);
@@ -693,8 +693,8 @@ test('saved actions have enamel/paper materials, navigate to the chosen collecti
   expect(view.queryByTestId('photo-pins')).toBeNull();
   const collection = view.getByRole('button', { name: 'See your collection' });
   const snap = view.getByRole('button', { name: 'Snap another' });
-  expect(view.getByRole('button', { name: 'Use this kit' })).toHaveStyle({ backgroundColor: '#426092', borderRadius: 24, minHeight: 48 });
-  expect(view.getByRole('button', { name: 'Edit colors' })).toHaveStyle({ backgroundColor: '#F7F1E6', borderRadius: 5, minHeight: 48 });
+  expect(view.getByRole('button', { name: 'Use this kit' })).toHaveStyle({ backgroundColor: '#426092', borderRadius: 14, minHeight: 48 });
+  expect(view.getByRole('button', { name: 'Edit colors' })).toHaveStyle({ backgroundColor: '#EAE1D2', borderRadius: 8, minHeight: 48 });
   await fireEvent.press(collection);
   expect(router.dismissTo).toHaveBeenCalledWith({ pathname: '/collection/[id]', params: { id: 'collection-1' } });
   await fireEvent.press(snap);

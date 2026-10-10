@@ -17,7 +17,7 @@ test.each([false, true])('buttons share the raised and pressed surfaces (primary
   expect(view.getByText('Continue')).toHaveStyle({ fontFamily: fonts.bodyMedium });
   await fireEvent(button, 'pressIn');
   expect(button).toHaveStyle(surface(primary, true, false));
-  expect(button).toHaveStyle({ transform: [{ translateY: 2 }, { scale: primary ? 1 : 0.96 }] });
+  expect(button).toHaveStyle({ transform: [{ translateY: 2 }, { scale: 1 }] });
   await fireEvent(button, 'pressOut');
   expect(button).toHaveStyle(surface(primary, false, false));
   await view.rerender(<ActionButton label="Continue" primary={primary} disabled onPress={jest.fn()} />);

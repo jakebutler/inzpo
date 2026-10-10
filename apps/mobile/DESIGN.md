@@ -2,17 +2,17 @@
 name: Inzpo Mobile
 description: Cream paper, photographic prints, paint-chip stock, and knitted Baku turn a photographed moment into a reusable creative kit.
 colors:
-  sky-enamel: "#426092"
-  enamel-rim: "#7E93B5"
-  enamel-lip: "#2D4163"
+  matte-blue: "#426092"
+  matte-blue-edge: "#354D72"
+  matte-blue-base: "#304663"
   vermilion: "#C9341F"
   paper: "#F3EEE4"
   ink: "#1C1B19"
   label-stock: "#FBF8F2"
   oatmeal-stock: "#E4D9C6"
-  secondary-face: "#F7F1E6"
-  secondary-edge: "#FFFDF8"
-  secondary-lip: "#C5BBAB"
+  secondary-face: "#EAE1D2"
+  secondary-edge: "#D1C5B3"
+  secondary-lip: "#B8AA95"
 typography:
   display:
     fontFamily: "Akaya Kanadaka"
@@ -47,10 +47,10 @@ typography:
     fontWeight: 400
 rounded:
   stock: "3px"
-  paper-action: "5px"
+  paper-action: "8px"
   field: "12px"
   sheet: "20px"
-  enamel-action: "24px"
+  matte-action: "14px"
 spacing:
   fine: "4px"
   tight: "8px"
@@ -61,10 +61,10 @@ spacing:
   section: "32px"
 components:
   button-primary:
-    backgroundColor: "{colors.sky-enamel}"
+    backgroundColor: "{colors.matte-blue}"
     textColor: "{colors.label-stock}"
     typography: "{typography.action}"
-    rounded: "{rounded.enamel-action}"
+    rounded: "{rounded.matte-action}"
     padding: "12px"
   button-secondary:
     backgroundColor: "{colors.secondary-face}"
@@ -101,7 +101,7 @@ components:
 
 **Creative North Star: "A photographed moment becomes a usable creative kit"**
 
-Inzpo's mobile world is a small collection of creative materials: cream paper, a photographic print, dimensional paint-chip stock, blue enamel controls, and a gray knitted Baku. Akaya Kanadaka gives the interface its friendly voice; Geist makes the working information clear. Photos and their extracted colors supply the changing character of each kit.
+Inzpo's mobile world is a small collection of creative materials: cream paper, a photographic print, dimensional paint-chip stock, matte blue controls, and a gray knitted Baku. Akaya Kanadaka gives the interface its friendly voice; Geist makes the working information clear. Photos and their extracted colors supply the changing character of each kit.
 
 The tactile treatment carries meaning. A print holds source evidence, a chip holds a named color, and a fan deck makes a saved kit feel like something to keep and reuse. Baku's connected wool body and actual stitched panels carry the photo-to-palette performance. Material detail belongs to those objects and should leave their labels readable.
 
@@ -109,7 +109,7 @@ The tactile treatment carries meaning. A print holds source evidence, a chip hol
 
 - Warm paper and dark ink form the stable interface.
 - Photos and sampled colors lead the content.
-- Stock, enamel, and knit have distinct surfaces and depth.
+- Stock, matte stock, and knit have distinct surfaces and depth.
 - Expressive headings sit above plain working text and precise hex values.
 - Motion connects a source photo to usable color controls.
 
@@ -123,7 +123,7 @@ Warm neutral materials support a restrained blue action accent. Kit colors are c
 
 ### Primary
 
-- **Sky enamel** gives primary actions their painted face. **Enamel rim** and **enamel lip** supply the light edge and lower material thickness.
+- **Matte blue** gives primary actions their painted face. **Matte blue edge** and **matte blue base** supply the quiet dark edge and shallow material thickness.
 
 ### Secondary
 
@@ -132,7 +132,7 @@ Warm neutral materials support a restrained blue action accent. Kit colors are c
 ### Neutral
 
 - **Paper** is the page, sheet, and field ground; **ink** carries readable text and linework.
-- **Label stock** is the photographic-print and populated-chip paper. It also supplies light text on enamel actions.
+- **Label stock** is the photographic-print and populated-chip paper. It also supplies light text on matte stock actions.
 - **Oatmeal stock** makes an empty color role visibly different from a populated one.
 - **Secondary face**, **secondary edge**, and **secondary lip** give paper actions their own restrained depth.
 
@@ -172,22 +172,22 @@ The 375- and 390-point phone layouts, accessibility text sizes, keyboard interac
 
 ## Elevation & Depth
 
-The system uses material depth: a tight contact shadow plus a softer ambient shadow under stock, a stronger ambient shadow for lifted chips, and a shallow lower lip under enamel or paper actions. Fine light top/left edges and darker right/bottom edges make stock thickness visible. A broad feathered sheen on the photograph and low-opacity paper texture reinforce the materials without becoming extra interface layers.
+The system uses material depth: a tight contact shadow plus a softer ambient shadow under stock, a stronger ambient shadow for lifted chips, and a shallow lower lip under matte stock or paper actions. Fine light top/left edges and darker right/bottom edges make stock thickness visible. A broad feathered sheen on the photograph and low-opacity paper texture reinforce the materials without becoming extra interface layers.
 
 ### Shadow Vocabulary
 
 - **Resting stock**: the paired contact and ambient shadows from `src/theme/materials.ts`.
 - **Lifted stock**: the same contact shadow with a deeper, broader ambient shadow for selected chips and detail faces.
-- **Enamel action**: a lower material lip, ambient shadow, and subtle inner highlights from `src/theme/buttons.ts`.
+- **Matte action**: a shallow soft edge and short contact shadow from `src/theme/buttons.ts`, with fine grain instead of reflective highlights.
 - **Paper action**: the same press model with a quieter warm face and lip.
 
 Exact shadow recipes and press-state values live in `.impeccable/design.json`; the native source remains authoritative for rendering.
 
-**The Material Depth Rule.** Match depth to the object: thin stock, compressed enamel, and soft knit have different surfaces. The lip of an enamel control and the contact shadow of paper are material cues, not a generic shadow for every container.
+**The Material Depth Rule.** Match depth to the object: thin stock, compressed matte stock, and soft knit have different surfaces. The lip of a matte stock control and the contact shadow of paper are material cues, not a generic shadow for every container.
 
 ## Shapes
 
-Film prints keep square photographic geometry and a deeper paper foot. Paint chips use nearly square stock corners; secondary actions use slightly softer corners. Fields, sheets, and enamel primary actions use their own larger radii from the frontmatter. Do not apply the enamel capsule shape to printed materials.
+Film prints keep square photographic geometry and a deeper paper foot. Paint chips use nearly square stock corners; secondary actions use slightly softer corners. Fields, sheets, and matte stock primary actions use their own larger radii from the frontmatter. Primary actions use 14-unit corners; paper actions use 8-unit corners.
 
 Photo sample markers are drawn rings and leader lines, with the actual sample color at the center. Navigation icons use the local ink-path artwork. Saved and keep decks reuse the same six paint chips around a physical corner pivot and rivet. Their tilt and overlap are part of the deck composition, not permission to rotate normal text or forms.
 
@@ -195,9 +195,9 @@ Photo sample markers are drawn rings and leader lines, with the actual sample co
 
 ### Buttons
 
-`ActionButton` is a tactile control with two material variants. Primary enamel uses a rounded face, rim, lower lip, and light label. Secondary paper uses a small corner radius, warm face, dark label, and paper texture. Both keep the action label in medium Geist and grow beyond their minimum height when needed.
+`ActionButton` has two matte stock variants. The blue primary face retains its readable light label, now with fine color-grain fibers, a quiet dark edge, and 14-unit corners. Warm secondary paper uses 8-unit corners, paper fibers, and a muted edge. Both use clipped existing texture assets, with no gradient sheen or reflective inset bevel. Labels remain in medium Geist, and the 48-unit minimum grows with text.
 
-Pressing compresses the material lip and slightly darkens the face. Reduced Motion removes physical translation and uses nonspatial feedback. Disabled controls remove their shadows and expose the disabled accessibility state. `SaveButton` reuses the primary material, changes its label to Saving or Saved, and reveals a check with a fade under Reduced Motion. Native hover or custom keyboard-focus styling is not established by these components.
+Two short contact shadows replace the tall hard lip and broad floating shadow. Pressing sinks the face two units, darkens it slightly, and compresses the contact shadow; the face stays full-width by default. The camera's explicit shutter scale remains. Reduced Motion uses nonspatial feedback with resting shadow geometry. Disabled controls remove depth. Back uses the same matte paper face inside its existing 44-unit target. `SaveButton` reuses the primary treatment and preserves its saving/saved check transition.
 
 ### Chips
 
@@ -243,7 +243,7 @@ The mesh uses default source-over paint; destination-only paint makes it invisib
 
 ### Do:
 
-- **Do** preserve cream paper, photographic prints, paint-chip stock, blue enamel actions, and Baku's knit as distinct materials.
+- **Do** preserve cream paper, photographic prints, paint-chip stock, matte blue actions, and Baku's knit as distinct materials.
 - **Do** use actual kit colors for swatches, sample markers, and Baku panels; keep empty roles visibly empty.
 - **Do** keep readable chip labels on stock and accommodate font scaling with layout growth.
 - **Do** reuse the same paint-chip component in the interactive pile, saved deck, and keep fan.
@@ -265,3 +265,5 @@ Source anchors: `src/theme/{tokens,materials,buttons,styles,motion}.ts`; `src/ap
 ### Rest-of-app review evidence
 
 The October 9 senior UX critique and bounded correction pass are in `../../docs/ux/2026-10-09-mobile-rest-of-app-critique.md`. Expo Web fixtures imported the shipping native components with a mocked API/router and checked saved layouts at 375/390 widths, plus reuse, editing and collections at 375. They exposed and corrected first-open modal lifecycle and draft-remount bugs. Keep at 375 and save confirmation were inconclusive because CanvasKit WebGL surfaces failed to paint; these are not native screenshots or native defects established by evidence. Phone acceptance still covers Keep, keyboard/dragging, larger text, VoiceOver, navigation and motion feel.
+
+The October 9 matte-button refinement follows the phone report that buttons were too shiny. The bounded material preview is generated from shipping surface tokens; it is not a native screenshot. No new raster assets or dependencies were added. Native appearance remains part of the Expo Go phone pass.

@@ -25,22 +25,22 @@ test.each([true, false])('pressed surface tightens shadow and darkens fill, disa
   const pressed = buttonSurface(primary, true, false);
   expect(pressed.backgroundColor).toBe(shade(resting.backgroundColor as string, primary ? -0.07 : -0.04));
   expect(resting.boxShadow).toEqual(expect.arrayContaining([
-    expect.objectContaining({ offsetY: 4, blurRadius: 0 }),
-    expect.objectContaining({ offsetX: primary ? 4 : 3, offsetY: primary ? 8 : 7, blurRadius: primary ? 12 : 11 }),
+    expect.objectContaining({ offsetY: 3, blurRadius: 1 }),
+    expect.objectContaining({ offsetX: 1, offsetY: 4, blurRadius: 5 }),
   ]));
   expect(pressed.boxShadow).toEqual(expect.arrayContaining([
-    expect.objectContaining({ offsetY: 1, blurRadius: 0 }),
-    expect.objectContaining({ offsetX: 1, offsetY: 2, blurRadius: 4 }),
+    expect.objectContaining({ offsetY: 1, blurRadius: 1 }),
+    expect.objectContaining({ offsetX: 0, offsetY: 1, blurRadius: 2 }),
   ]));
   expect(pressed.transform).toEqual([{ translateY: 2 }]);
   expect(buttonSurface(primary, true, true)).toEqual(buttonSurface(primary, false, true));
   expect(buttonSurface(primary, false, true).boxShadow).toEqual([]);
 });
 
-test('Save material locks the designer press values and reduced motion keeps the face level', () => {
+test('matte stock compresses without adding a reflective bevel; reduced motion stays level', () => {
   expect(SAVE_PRESS).toEqual({
-    rest: { sink: 0, lip: 4, shadowX: 4, shadowY: 8, shadowBlur: 12, darken: 0 },
-    pressed: { sink: 2, lip: 1, shadowX: 1, shadowY: 2, shadowBlur: 4, darken: -0.07 },
+    rest: { sink: 0, lip: 3, shadowX: 1, shadowY: 4, shadowBlur: 5, darken: 0 },
+    pressed: { sink: 2, lip: 1, shadowX: 0, shadowY: 1, shadowBlur: 2, darken: -0.07 },
   });
   const pressed = buttonSurface(true, true, false, true);
   expect(pressed.transform).toEqual([{ translateY: 0 }]);

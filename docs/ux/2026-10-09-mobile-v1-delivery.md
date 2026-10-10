@@ -289,3 +289,22 @@ save → collection → reopen → edit → save colors → Use this kit → cop
 → Back, checking keyboard/gesture continuity and Keep confirmation. Publication
 and automated checks are complete; native acceptance of this refinement remains
 with the phone pass.
+
+## Matte button refinement
+
+The next phone report found the buttons too shiny beside knitted Baku. Shared
+ActionButton and BackButton now use matte blue or warm paper faces, muted
+edges, existing fine-grain textures, and short soft contact shadows. Primary
+corners are 14 units; secondary corners are 8. White inset bevels and the
+primary gradient sheen are removed. The default press compresses the face by
+two units without shrinking its width. Camera shutter scaling, readable
+labels, touch targets, saving/saved feedback and Reduced Motion are preserved.
+
+The material study in `evidence/2026-10-09-matte-buttons/` uses shipping surface
+tokens and existing assets. It is a browser translation, not a native capture.
+All 88 targeted tests across button surfaces, press behavior, screen flows,
+Keep and texture handling pass, along with native lint/typecheck. Native
+appearance remains for the next Expo Go phone pass. No dependency or API
+changes were introduced.
+
+The iOS Hermes export passes and contains the matched backend URL.

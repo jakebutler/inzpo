@@ -2,9 +2,9 @@ import type { ViewStyle } from 'react-native';
 
 export const LABEL_STOCK = '#FBF8F2';
 export const OATMEAL_STOCK = '#E4D9C6';
-export const SKY_ENAMEL = '#426092';
-export const ENAMEL_RIM = '#7E93B5';
-export const ENAMEL_LIP = '#2D4163';
+export const MATTE_BLUE = '#426092';
+export const MATTE_BLUE_EDGE = '#354D72';
+export const MATTE_BLUE_BASE = '#304663';
 
 // VISUAL-V2 stock: a tight contact shadow and a separate warm ambient shadow.
 export const stockSurface: ViewStyle = {
