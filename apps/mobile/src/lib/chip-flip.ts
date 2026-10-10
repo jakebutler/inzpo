@@ -16,8 +16,12 @@ export function chipFlipTiming(reducedMotion: boolean) {
 export function chipReadability(kit: MobileKit, role: ColorRole) {
   const hue = roleHue(kit, role);
   const color = kit.roles[role];
-  const passes = !!color && !!kit.roles.text && contrastRatio(kit.roles.text, color) >= 4.5;
+  const background = role === 'text' ? kit.roles.background : color;
+  const passes = !!background && !!kit.roles.text && contrastRatio(kit.roles.text, background) >= 4.5;
   const copy = !kit.roles.text ? 'Add a text color to check how it reads here.'
+    : !background ? 'Add a background color to check how this text reads.'
+    : role === 'text' ? passes ? 'Your text color reads well on your background.'
+      : 'Your text color is hard to read on your background. Try a different one.'
     : passes ? `Your text color reads well on this ${hue}.`
       : `Your text color is hard to read on this ${hue}. Try a different one.`;
   return { hue, passes, copy };

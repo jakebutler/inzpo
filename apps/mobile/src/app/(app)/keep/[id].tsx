@@ -13,12 +13,16 @@ export default function KeepRoute() {
   const id = typeof params.id === 'string' ? params.id : '';
   const { kit, error, retry } = useKit(id);
   const [saved, setSaved] = useState<(SavedCollection & { kitId: string }) | null>(null);
+  const [saving, setSaving] = useState(false);
   return <>
-    <Stack.Screen options={{ headerShown: false, title: 'Keep this kit' }} />
-    {kit ? <KeepScreen key={id} kitId={id} kit={kit}
+    <Stack.Screen options={{ headerShown: false, title: 'Keep this kit', gestureEnabled: !saving }} />
+    {kit ? <KeepScreen key={id} kitId={id} kit={kit} onSavingChange={setSaving}
       onSaved={(collection) => setSaved({ ...collection, kitId: id })}
       onClose={() => {
-        if (saved?.kitId === id) router.replace({ pathname: '/kit/[id]', params: { id, saved: '1', c: saved.collectionId } });
+        if (saved?.kitId === id) {
+          router.dismissTo('/');
+          router.push({ pathname: '/kit/[id]', params: { id, saved: '1', c: saved.collectionId } });
+        }
         else router.back();
       }} /> : <SafeAreaView style={[ui.screen, ui.content]}>
       <BackButton onPress={() => router.back()} />

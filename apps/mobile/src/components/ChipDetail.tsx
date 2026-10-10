@@ -1,5 +1,8 @@
 import type { ColorRole, MobileKit } from '@inzpo/shared';
 import { Canvas, Circle, Group, Path } from '@shopify/react-native-skia';
+import * as Clipboard from 'expo-clipboard';
+import { haptics } from '@/lib/haptics';
+import { ActionButton } from './ActionButton';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -22,6 +25,8 @@ export function ChipDetail({ kit, role, slot, origin, onClose, onEdit }: {
   const { width, height, fontScale } = useWindowDimensions();
   const timing = chipFlipTiming(reducedMotion);
   const [phase, setPhase] = useState<'opening' | 'back' | 'closing'>('opening');
+  const [copyState, setCopyState] = useState<'ready' | 'busy' | 'copied' | 'failed'>('ready');
+  const copying = useRef(false);
   const [photoFailed, setPhotoFailed] = useState(false);
   const angle = useSharedValue(0);
   const lift = useSharedValue(0);
@@ -100,9 +105,16 @@ export function ChipDetail({ kit, role, slot, origin, onClose, onEdit }: {
   }
   const touchY = useRef(0);
   const scrolling = useRef(false);
-  const backWidth = Math.min(width - 48, 210 * Math.min(fontScale, 1.3));
-  const backHeight = Math.min(height - 100, Math.max(390, 390 * fontScale));
+  const backWidth = Math.min(width - 48, 290 * Math.min(fontScale, 1.3));
+  const backHeight = Math.min(height - 100, Math.max(500, 480 * fontScale));
   const flipped = phase === 'back';
+  async function copyHex() {
+    if (copying.current) return;
+    copying.current = true; setCopyState('busy');
+    try { await Clipboard.setStringAsync(color.toLowerCase()); setCopyState('copied'); void haptics.success(); }
+    catch { setCopyState('failed'); }
+    finally { copying.current = false; }
+  }
   return <Modal transparent animationType="none" onRequestClose={close} statusBarTranslucent navigationBarTranslucent>
     <View testID="chip-detail-layer" style={styles.overlay} accessibilityViewIsModal
       onTouchStart={(event) => { touchY.current = event.nativeEvent.pageY; scrolling.current = false; }}
@@ -130,6 +142,7 @@ export function ChipDetail({ kit, role, slot, origin, onClose, onEdit }: {
               accessibilityState={{ expanded: flipped }} accessibilityActions={[{ name: 'edit', label: 'Edit color' }]}
               onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'edit') onEdit(); }}
               onPress={close} onLongPress={onEdit} style={{ gap: 20 }}>
+              <Text allowFontScaling style={styles.copy}>{role.charAt(0).toUpperCase() + role.slice(1)}</Text>
               <Text allowFontScaling style={styles.hex}>{color.toLowerCase()}</Text>
               <Text allowFontScaling style={styles.copy}>{copy}</Text>
               {kit.photo && sample && !photoFailed && <View style={styles.crop}>
@@ -148,6 +161,11 @@ export function ChipDetail({ kit, role, slot, origin, onClose, onEdit }: {
               </View>}
               <Text allowFontScaling style={styles.copy}>{sourceCopy}</Text>
             </Pressable>
+            <View style={{ gap: 10, marginTop: 18 }}>
+              <ActionButton label="Edit color" primary onPress={onEdit} />
+              <ActionButton label={copyState === 'copied' ? 'Hex copied' : copyState === 'busy' ? 'Copying…' : 'Copy hex'} disabled={copyState === 'busy'} onPress={() => void copyHex()} />
+              {copyState === 'failed' && <Text accessibilityRole="alert" style={styles.copy}>Couldn’t copy this color. Please try again.</Text>}
+            </View>
           </ScrollView>
         </Animated.View>
         <Animated.View pointerEvents="none" accessible={false} style={[styles.edge, { top: -slot.height / 2, height: slot.height }, edge]}>

@@ -24,7 +24,9 @@ test('passing and failing copy uses the kit Text role against the tapped chip', 
   expect(chipReadability({ ...kit, roles: { ...kit.roles, text: '#ffffff' } }, 'primary')).toEqual({
     hue: 'yellow', passes: false, copy: 'Your text color is hard to read on this yellow. Try a different one.',
   });
-  expect(chipReadability(kit, 'text')).toMatchObject({ passes: false });
+  expect(chipReadability(kit, 'text')).toMatchObject({ passes: true, copy: 'Your text color reads well on your background.' });
+  expect(chipReadability({ ...kit, roles: { ...kit.roles, background: '#050404' } }, 'text')).toMatchObject({ passes: false, copy: 'Your text color is hard to read on your background. Try a different one.' });
+  expect(chipReadability({ ...kit, roles: { ...kit.roles, background: null } }, 'text').copy).toBe('Add a background color to check how this text reads.');
   expect(chipReadability({ ...kit, roles: { ...kit.roles, text: null } }, 'primary').copy)
     .toBe('Add a text color to check how it reads here.');
 });

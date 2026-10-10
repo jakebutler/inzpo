@@ -113,7 +113,7 @@ The tactile treatment carries meaning. A print holds source evidence, a chip hol
 - Expressive headings sit above plain working text and precise hex values.
 - Motion connects a source photo to usable color controls.
 
-This file records the implemented Expo mobile pilot candidate as of October 9, 2026, within `apps/mobile`. It is not native device acceptance. Source inspection and real Skia renderer stills establish code and rendered character evidence; no Simulator or real-phone recording establishes layout, performance, or gesture approval. The current October 9 decisions in `../../PRODUCT.md` supersede the historical v4 brief. The route composition remains in `../../.impeccable/surfaces/apps-mobile-src-app.md`.
+This file records the implemented Expo mobile pilot candidate as of October 9, 2026, within `apps/mobile`. It is not native device acceptance. Source inspection, Skia renderer stills, and a bounded Expo Web fixture review establish code, character, and selected layout evidence; no Simulator or real-phone recording establishes layout, performance, or gesture approval. The current October 9 decisions in `../../PRODUCT.md` supersede the historical v4 brief. The route composition remains in `../../.impeccable/surfaces/apps-mobile-src-app.md`.
 
 The frontmatter transcribes reusable code values. Its `px` strings are portable representations of React Native layout units, not physical pixels; text remains subject to native font scaling. The sidecar's HTML/CSS is a documentation preview of native components, not an alternate implementation or device test.
 
@@ -203,23 +203,23 @@ Pressing compresses the material lip and slightly darkens the face. Reduced Moti
 
 `PaintChip` combines a color face, a narrow three-part tint strip, and a readable stock label. Empty roles use oatmeal stock and explain that a color can be added. The tint strip is a visual treatment; only the role's assigned hex is the kit token.
 
-`ChipPile` makes those same objects interactive. A populated chip opens its detail face; an empty role opens editing. Selection raises the chip and increases its stock shadow. `ChipDetail` presents the hex, source explanation, and a real source crop when available; touch-and-hold and an accessibility action lead to editing. These gesture implementations still need device review.
+`ChipPile` makes those same objects interactive. A populated chip opens its detail face; an empty role opens editing. Selection raises the chip and increases its stock shadow. `ChipDetail` presents the hex, source explanation, and a real source crop when available. Visible Edit color and Copy hex actions make the next step discoverable; touch-and-hold and the accessibility edit action remain. Text readability compares Text with Background, never Text with itself. These gesture implementations still need device review.
 
 ### Cards / Containers
 
 `FilmPrint` frames the real source photograph with label stock, a larger lower margin, and restrained photographic sheen. Source rings are drawn only for actual samples. Each pin carries a 44-unit edit target. A failed image uses an explicit placeholder/recovery state.
 
-`SavedKit` combines a larger print with a closed `KitDeck`; `KeepScreen` uses the open fan while naming and choosing a collection. Both reuse `PaintChip`, including empty roles. Collection list cards use stock material and generous internal padding; they are plain navigable containers rather than another chip shape.
+`SavedKit` combines a larger print with a closed `KitDeck`; `KeepScreen` uses the open fan while naming and choosing a collection. Both reuse `PaintChip`, including empty roles. Collection detail cards combine the actual photograph, six small paint chips, a title, and a truthful populated-color count. A failed photo leaves the colors usable in a stable placeholder. The collection index uses folder-tab stock with only its available name/count data. Both retain existing content during refresh failures.
 
 ### Inputs / Fields
 
-Shared fields use paper, a dark one-unit outline, the field radius, and regular Geist. The hex editor shows a textual validation error for anything other than six hex digits. The keep-name field is a local exception: an Akaya heading with a hand-drawn underline, not the default treatment for all inputs.
+Shared fields use paper, a dark one-unit outline, the field radius, and regular Geist. The hex editor accepts six hex digits, updates its live draft preview as a valid value is entered, and waits until blur or submit before showing validation errors. The keep-name field is a local exception: an Akaya heading with a hand-drawn underline, not the default treatment for all inputs.
 
-`EditSheet` uses a paper bottom sheet, dark grabber, and dimmed ink backdrop when expanded. Role choices and candidate swatches wrap, selected choices have a visible stroke, and empty choices have a dashed outline. Validation and saving state control the action's disabled state.
+`EditSheet` uses a paper bottom sheet, dark grabber, and dimmed ink backdrop when expanded. Role choices and candidate swatches wrap, selected choices have a visible stroke, and empty choices have a dashed outline. The sheet opens expanded; Save and Cancel remain anchored while its contents scroll, including at the shorter snap point. Dirty edits require explicit discard and cannot be lost through backdrop/pan-down dismissal. Validation and saving state control the action's disabled state. Keep waits for destinations, defaults to an existing collection, and holds its form/artwork geometry while the fan gathers into a saved deck.
 
 ### Navigation
 
-The native stack uses a paper header, dark ink, an Akaya title, and no header shadow. Custom back controls have a round paper face inside a larger tap target. Navigation and utility actions retain accessible labels even when their ink-path artwork is the visible affordance.
+The native stack uses a paper header, dark ink, an Akaya title, and no header shadow. Custom back controls have a round paper face inside a larger tap target. Navigation and utility actions retain accessible labels even when their ink-path artwork is the visible affordance. Back preserves collection context; completing Keep clears the capture/Keep stack before opening the saved result. The native stack uses a short fade under Reduced Motion.
 
 ### Baku performance
 
@@ -235,7 +235,9 @@ The mesh uses default source-over paint; destination-only paint makes it invisib
 
 ### Kit tools
 
-`KitTools` uses the established secondary actions for Copy kit, Export CSS, and Export JSON. Plain text reports completion or failure. The description remains independent of palette readiness; its waiting or failed state does not require a different button system.
+`UseKitSheet` makes reuse the primary action on a saved kit, with editing directly available below. Reopening skips the extraction entrance delay. The sheet summarizes six roles accessibly; populated light swatches retain solid stock edges, while absent roles stay dashed. `KitTools` labels the current operation, confirms clipboard success with Copied, and distinguishes pending descriptions, failed descriptions, and copy/export errors. Dismissing a native share sheet does not claim delivery. Temporary export files are cleaned up.
+
+`PaperPressable` gives stock cards, the saved deck, and color choices a restrained press response with one light haptic. Reduced Motion substitutes opacity for spatial movement. `KnitCompanion` and `CollectionState` use the approved knit identity for saved, empty, and error states. No additional raster asset was introduced.
 
 ## Do's and Don'ts
 
@@ -258,3 +260,8 @@ The mesh uses default source-over paint; destination-only paint makes it invisib
 Deliberately not canonized: legacy mini-Baku assets and their animation vocabulary, old web-only restrictions, the unused shared Fraunces display designation, and tiny decorative print as a readable type scale. They do not establish new mobile design rules. Existing legacy elements are not evidence that the approved knit performance should change identity.
 
 Source anchors: `src/theme/{tokens,materials,buttons,styles,motion}.ts`; `src/app/_layout.tsx`; `src/lib/result-layout.ts`; `src/components/{ActionButton,FilmPrint,PaintChip,SavedKit,KitDeck,KitTools,KeepScreen,EditSheet,MotionSheet,BackButton}.tsx`; `src/baku/{KnitBaku,ColorInhale,DustIntake,FlyingBaku}.tsx`; `src/baku/{motion,transport,host-motion,usePalettePerformance}.ts`.
+
+
+### Rest-of-app review evidence
+
+The October 9 senior UX critique and bounded correction pass are in `../../docs/ux/2026-10-09-mobile-rest-of-app-critique.md`. Expo Web fixtures imported the shipping native components with a mocked API/router and checked saved layouts at 375/390 widths, plus reuse, editing and collections at 375. They exposed and corrected first-open modal lifecycle and draft-remount bugs. Keep at 375 and save confirmation were inconclusive because CanvasKit WebGL surfaces failed to paint; these are not native screenshots or native defects established by evidence. Phone acceptance still covers Keep, keyboard/dragging, larger text, VoiceOver, navigation and motion feel.

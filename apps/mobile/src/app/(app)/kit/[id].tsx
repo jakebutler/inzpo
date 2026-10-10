@@ -6,11 +6,14 @@ import { emptyRoles, type ColorRole } from '@inzpo/shared';
 import { Canvas, LinearGradient, Rect } from '@shopify/react-native-skia';
 import { router, Stack, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
+import Animated from 'react-native-reanimated';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionButton } from '@/components/ActionButton';
-import { Baku } from '@/components/Baku';
 import { BackButton } from '@/components/BackButton';
+import { KnitCompanion } from '@/components/KnitCompanion';
+import { UseKitSheet } from '@/components/UseKitSheet';
+import { PaperPressable } from '@/components/PaperPressable';
 import { KitTools } from '@/components/KitTools';
 import { BriefBlock } from '@/components/BriefBlock';
 import { ChipPile } from '@/components/ChipPile';
@@ -73,6 +76,7 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
     }).catch(() => {});
     return () => { active = false; };
   }, [client, id, savedId, savedCollection?.kitId]);
+  const [usingKit, setUsingKit] = useState(false);
   const [sheet, setSheet] = useState<{ kitId: string; type: 'edit'; role?: ColorRole } | null>(null);
   const editing = sheet?.kitId === id && sheet.type === 'edit';
   const editSheet = useRef<EditSheetHandle>(null);
@@ -98,7 +102,7 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
   const revealing = ready && !performance.finished;
   const hasKnitHost = !!localPhoto && !isSaved && !error;
   const pupils = useBakuPupils(96);
-  const sequence = useResultSequence({ kitId: id, ready: ready && performance.finished, roles: kit?.roles, jiggle: pupils.jiggle });
+  const sequence = useResultSequence({ kitId: id, ready: ready && performance.finished, roles: kit?.roles, jiggle: pupils.jiggle, immediate: isSaved });
   const hop = useBakuHop({ kitId: id, base: sequence.values, jiggle: pupils.jiggle });
   const celebratedKit = useRef<string | null>(null);
   const onSaved = hop.onSaved;
@@ -130,21 +134,26 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
         }} scrollEventThrottle={16}>
         <View testID="result-first-screen" style={isSaved ? { minHeight: height - Math.max(40, insets.top) } : undefined}>
         <View style={[styles.header, isSaved && styles.savedHeader, { width: layout.contentWidth }]} onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height + 5)}>
-          <BackButton onPress={() => router.dismissTo('/')} />
+          <BackButton onPress={() => {
+            if (capturing) router.dismissTo('/');
+            else if (params.saved === '1' && savedId) router.dismissTo({ pathname: '/collection/[id]', params: { id: savedId } });
+            else if (router.canGoBack()) router.back();
+            else router.dismissTo('/collections');
+          }} />
           <Text accessibilityRole="header" allowFontScaling style={[styles.heading, isSaved && styles.savedHeading]}>{isSaved && kit ? kit.title : 'Your colors'}</Text>
         </View>
         {error ? <View style={ui.center}>
-          <Baku pose={error === 'notFound' ? 'notFound' : 'errorPhoto'} />
+          <KnitCompanion />
           <Text style={ui.message}>{error === 'notFound' ? 'This kit couldn’t be found.' : 'Couldn’t load this kit. Please try again.'}</Text>
           <ActionButton label="Try again" onPress={retry} />
         </View> : displayKit ? <>
           {isSaved && kit ? <>
-            <Text allowFontScaling accessibilityLabel={`Saved to ${collectionName}`} accessibilityLiveRegion="polite" style={[ui.body, styles.savedCopy]}>Saved to your collection.</Text>
+            <Text allowFontScaling accessibilityLabel={`${params.saved === '1' ? 'Saved to' : 'In'} ${collectionName}`} accessibilityLiveRegion="polite" style={[ui.body, styles.savedCopy]}>{params.saved === '1' ? `Saved to ${collectionName}.` : `In ${collectionName}.`}</Text>
             <View accessibilityLabel={kit.title}>
               <SavedKit kit={kit} failed={photoFailed} disabled={!sequence.interactive || revealing}
-                maxHeight={height - Math.max(40, insets.top) - (headerHeight ?? 89) - 48 * fontScale - Math.max(108, actionHeight) - footerBottom - 40}
+                maxHeight={height - Math.max(40, insets.top) - (headerHeight ?? 89) - 48 * fontScale - Math.max(108, actionHeight) - footerBottom - 96}
                 onError={() => setFailedPhotoUrl(kit.photo!.url)} onEdit={() => setSheet({ kitId: id, type: 'edit' })}
-                placeholder={<View style={styles.placeholder}><Baku pose={photoFailed ? 'errorPhoto' : 'empty'} />
+                placeholder={<View style={styles.placeholder}><KnitCompanion width={110} />
                   <Text style={ui.message}>{photoFailed ? 'Couldn’t load the photo.' : 'No photo in this kit.'}</Text>
                   {photoFailed && <ActionButton label="Reload photo" onPress={() => { setFailedPhotoUrl(null); retry(); }} />}
                 </View>} />
@@ -155,7 +164,7 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
               onPhotoDisplay={() => renderedPhoto && setDisplayedPhoto({ id: routeId, url: renderedPhoto.url })}
               onError={() => { setDisplayedPhoto(null); if (renderedPhoto) setFailedPhotoUrl(renderedPhoto.url); }} selectedRole={editing ? selectedRole : null}
               markerStyle={sequence.markerStyle} onPinPress={openRole} interactive={sequence.interactive && !revealing} showPins={ready && !revealing} placeholder={<View style={styles.placeholder}>
-                <Baku pose={photoFailed ? 'errorPhoto' : 'empty'} roles={displayKit.roles} stripeProgress={sequence.stripeProgress} wipeMode={sequence.wipeMode} />
+                <KnitCompanion width={110} />
                 <Text style={ui.message}>{photoFailed ? 'Couldn’t load the photo.' : 'No photo in this kit.'}</Text>
                 {photoFailed && <ActionButton label="Reload photo" onPress={() => { setFailedPhotoUrl(null); retry(); }} />}
               </View>} />
@@ -183,15 +192,23 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
               end={{ x: printLeft + 13 + primaryPin.marker.x, y: 13 + primaryPin.marker.y }}
               hue={primaryHue(kit)} progress={sequence.values.markerOpacity} reducedMotion={sequence.reducedMotion} />}
           </View>}
-          {isSaved && <View testID="result-actions" style={styles.savedFooter}>
-            <View style={styles.savedHost}>
-              <CornerBaku size={64} focused={focused && sheet?.kitId !== id && detail?.kitId !== id}
-                pose={hop.pose && hop.pose !== 'idle' ? hop.pose : 'success'} motionStyle={hop.bakuStyle} shadowStyle={hop.shadowStyle} />
-            </View>
+          {isSaved && <View testID="result-actions" style={[styles.savedFooter, { flexWrap: 'wrap' }]}>
+            <Animated.View testID="saved-baku" style={[styles.savedHost, hop.bakuStyle]}>
+              <KnitCompanion width={78} roles={kit?.roles} />
+            </Animated.View>
             <View style={styles.savedActions} onLayout={(event) => setActionHeight(Math.max(108, event.nativeEvent.layout.height))}>
-              <ActionButton label="See your collection" primary disabled={!savedId}
-                onPress={() => { if (savedId) router.push({ pathname: '/collection/[id]', params: { id: savedId } }); }} />
-              <ActionButton label="Snap another" onPress={() => router.dismissTo('/')} />
+              <ActionButton label="Use this kit" primary onPress={() => setUsingKit(true)} />
+              <ActionButton label="Edit colors" onPress={() => setSheet({ kitId: id, type: 'edit' })} />
+
+            </View>
+            <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between', marginTop: 0 }}>
+              <PaperPressable accessibilityRole="button" accessibilityLabel="See your collection" disabled={!savedId}
+                onPress={() => { if (savedId) router.dismissTo({ pathname: '/collection/[id]', params: { id: savedId } }); }} style={{ minHeight: 44, padding: 8, justifyContent: 'center' }}>
+                <Text style={[ui.body, { textDecorationLine: 'underline' }]}>Your collection</Text>
+              </PaperPressable>
+              <PaperPressable accessibilityRole="button" accessibilityLabel="Snap another" onPress={() => router.dismissTo('/')} style={{ minHeight: 44, padding: 8, justifyContent: 'center' }}>
+                <Text style={[ui.body, { textDecorationLine: 'underline' }]}>Snap another</Text>
+              </PaperPressable>
             </View>
           </View>}
         </> : <View style={ui.center}><Text style={ui.body}>Loading your photo…</Text></View>}
@@ -199,7 +216,7 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
         {kit && ready && <View style={[styles.brief, { width: layout.contentWidth, marginTop: isSaved ? 32 : 100 }]}>
           <BriefBlock brief={kit.brief} failed={briefFailed} showBaku={false} motionStyle={ready ? sequence.briefStyle : undefined} />
           {(briefFailed || kit.brief.status === 'failed') && <ActionButton label="Check brief again" onPress={retry} />}
-          <KitTools kit={kit} />
+          {!isSaved && <KitTools kit={kit} descriptionFailed={failedBrief} />}
         </View>}
       </ScrollView>
       {!isSaved && <View testID="result-actions" pointerEvents="box-none" style={[styles.footer, { bottom: footerBottom, maxWidth: 390 }]}>
@@ -232,6 +249,7 @@ function ResultContent({ params }: { params: { id: string; saved?: string; c?: s
         origin={{ x: (width - heroWidth) / 2 + bakuLeft, y: layout.printTop + layout.printHeight - 100, width: bakuWidth }}
         target={{ x: 10, y: height - footerBottom + 8 - 48, width: 72 }} />}
       {kit && <>
+        <UseKitSheet kit={kit} descriptionFailed={failedBrief} visible={usingKit} onClose={() => setUsingKit(false)} />
         {detail?.kitId === id && kit.roles[detail.role] && <ChipDetail key={`${id}-${detail.role}`} kit={kit} role={detail.role}
           slot={layout.slots.find((slot) => slot.role === detail.role)!}
           origin={{ x: (width - heroWidth) / 2 + 20 + layout.slots.find((slot) => slot.role === detail.role)!.x,

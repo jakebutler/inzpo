@@ -1,75 +1,54 @@
-import { COLOR_ROLES, InzpoApiError, type MobileCollection } from '@inzpo/shared';
-import { Image } from 'expo-image';
-import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { InzpoApiError, type MobileCollection } from '@inzpo/shared';
+import { router, Stack, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useReducedMotion } from 'react-native-reanimated';
 import { ActionButton } from '@/components/ActionButton';
 import { BackButton } from '@/components/BackButton';
 import { PaperTexture } from '@/components/PaperTexture';
+import { CollectionState } from '@/components/CollectionState';
+import { CollectionKitCard } from '@/components/CollectionKitCard';
 import { useInzpoClient } from '@/lib/api';
-import { stockSurface } from '@/theme/materials';
-import { fonts, INK } from '@/theme/tokens';
 import { ui } from '@/theme/styles';
 
 export default function CollectionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const client = useInzpoClient();
+  const focused = useIsFocused();
   const insets = useSafeAreaInsets();
-  const reducedMotion = useReducedMotion();
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<{ id: string; attempt: number; collection?: MobileCollection; error?: string }>();
+  const [refreshing, setRefreshing] = useState(false);
+  const [state, setState] = useState<{ id: string; collection?: MobileCollection; error?: string }>();
   useEffect(() => {
+    if (!focused || typeof id !== 'string' || !id) return;
     let active = true;
-    if (typeof id !== 'string' || !id) return;
-    client.getCollection(id).then((collection) => { if (active) setState({ id, attempt, collection }); })
-      .catch((error: unknown) => { if (active) setState({ id, attempt, error: error instanceof InzpoApiError && error.status === 404
-        ? 'This collection couldn’t be found.' : 'Couldn’t load this collection. Please try again.' }); });
+    client.getCollection(id).then(collection => { if (active) setState({ id, collection }); })
+      .catch((error: unknown) => { if (active) setState(previous => ({ id, collection: previous?.id === id ? previous.collection : undefined,
+        error: error instanceof InzpoApiError && error.status === 404 ? 'This collection couldn’t be found.' : 'Couldn’t load this collection. Please try again.' })); })
+      .finally(() => { if (active) setRefreshing(false); });
     return () => { active = false; };
-  }, [client, id, attempt]);
+  }, [client, id, attempt, focused]);
   const current = typeof id !== 'string' || !id ? { error: 'This collection couldn’t be found.', collection: undefined }
-    : state?.id === id && state.attempt === attempt ? state : undefined;
+    : state?.id === id ? state : undefined;
+  const retry = () => { setRefreshing(true); setAttempt(value => value + 1); };
   return <SafeAreaView style={ui.screen} edges={['left', 'right']}>
-    <Stack.Screen options={{ headerShown: false, animation: reducedMotion ? 'fade' : 'default', animationDuration: reducedMotion ? 150 : undefined }} />
+    <Stack.Screen options={{ headerShown: false }} />
     <PaperTexture />
-    <FlatList data={current?.collection?.kits ?? []} keyExtractor={(kit) => kit.id}
-      initialNumToRender={6} maxToRenderPerBatch={4} windowSize={5}
-      contentContainerStyle={[ui.content, { paddingTop: Math.max(40, insets.top), paddingBottom: insets.bottom + 24 }]}
-      ListHeaderComponent={<View style={{ gap: 20 }}>
-      <BackButton onPress={() => router.back()} />
-      <Text accessibilityRole="header" allowFontScaling style={ui.heading}>{current?.collection?.name ?? 'Your collection'}</Text>
-      {!current && <Text style={ui.body}>Loading collection…</Text>}
-      {current?.error && <>
-        <Text accessibilityRole="alert" style={ui.body}>{current.error}</Text>
-        <ActionButton label="Try again" onPress={() => setAttempt((value) => value + 1)} />
-      </>}
-      {current?.collection?.kits.length === 0 && <Text style={ui.body}>No kits in this collection yet.</Text>}
+    <FlatList testID="collection-list" data={current?.collection?.kits ?? []} keyExtractor={kit => kit.id}
+      initialNumToRender={6} maxToRenderPerBatch={4} windowSize={5} refreshing={refreshing} onRefresh={retry}
+      contentContainerStyle={[ui.content, { gap: 8, paddingTop: Math.max(40, insets.top), paddingBottom: insets.bottom + 24 }]}
+      ListHeaderComponent={<View style={{ gap: 14, marginBottom: 8 }}>
+        <BackButton onPress={() => router.canGoBack() ? router.back() : router.dismissTo('/collections')} />
+        <Text accessibilityRole="header" style={ui.heading}>{current?.collection?.name ?? 'Your collection'}</Text>
+        {current?.collection && <Text style={ui.body}>{current.collection.kits.length} {current.collection.kits.length === 1 ? 'idea' : 'ideas'} waiting for your next project.</Text>}
+        {current?.error && <><Text accessibilityRole="alert" style={ui.body}>{current.error}</Text>
+          {current.collection && <Text style={ui.label}>Showing the kits already here.</Text>}
+          <ActionButton label={refreshing ? 'Refreshing…' : 'Try again'} disabled={refreshing} onPress={retry} /></>}
       </View>}
-      renderItem={({ item: kit }) => <Pressable accessibilityRole="button" accessibilityLabel={`Open ${kit.title}`} onPress={() => router.push({ pathname: "/kit/[id]", params: { id: kit.id } })} testID={`collection-kit-${kit.id}`} style={[stockSurface, styles.kit]}>
-        <PaperTexture />
-        {kit.photo ? <Image source={{ uri: kit.photo.url }} contentFit="cover" style={styles.photo}
-          accessibilityLabel={`Photo for ${kit.title}`} /> : <Text style={ui.body}>No photo in this kit.</Text>}
-        <Text allowFontScaling style={styles.title}>{kit.title}</Text>
-        <View style={styles.colors} accessible accessibilityLabel={COLOR_ROLES.map((role) => `${role}: ${kit.roles[role] ?? 'No color yet'}`).join(', ')}>
-          {COLOR_ROLES.map((role) => <View key={role} style={[styles.color, { backgroundColor: kit.roles[role] ?? '#E4D9C6' }]} />)}
-        </View>
-      </Pressable>} />
+      ListEmptyComponent={!current ? <CollectionState title="Opening your inspiration" message="Making a little room for your ideas." busy />
+        : current.collection?.kits.length === 0 ? <CollectionState title="Room for an idea" message="No kits in this collection yet. Find a color worth keeping."
+          action="Take a photo" onAction={() => router.dismissTo('/')} />
+        : current.error ? <CollectionState title="A little snag" message="Your inspiration hasn’t gone anywhere. Try loading it again." /> : null}
+      renderItem={({ item }) => <CollectionKitCard kit={item} onPress={() => router.push({ pathname: '/kit/[id]', params: { id: item.id } })} />} />
   </SafeAreaView>;
 }
-
-const styles = StyleSheet.create({
-  kit: { padding: 12, gap: 12, borderRadius: 3, marginVertical: 4,
-    borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1,
-    borderTopColor: '#FFFFFFCC', borderLeftColor: '#FFFFFFCC',
-    borderRightColor: '#E5DFD4', borderBottomColor: '#E5DFD4',
-    boxShadow: [
-      { offsetX: 1, offsetY: 2, blurRadius: 1, color: '#1C1B1945' },
-      { offsetX: 4, offsetY: 8, blurRadius: 14, color: '#1C1B1929' },
-    ],
-  },
-  photo: { height: 220, width: '100%' },
-  title: { fontFamily: fonts.heading, fontSize: 24, color: INK },
-  colors: { flexDirection: 'row', gap: 4 },
-  color: { flex: 1, height: 28, borderRadius: 2 },
-});

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-09T23:11:08.642995Z",
+  "generatedAt": "2026-10-10T02:18:44.256562+00:00",
   "title": "Design System: Inzpo Mobile",
   "extensions": {
     "colorMeta": {
@@ -178,7 +178,14 @@
         "name": "accessible-chip-column",
         "value": "fontScale > 1.25 (native text-scale threshold, not a CSS viewport breakpoint)"
       }
-    ]
+    ],
+    "mobileInteractionContracts": {
+      "savedKit": "Use this kit is primary; editing is immediate. Reopening does not replay extraction.",
+      "editing": "Expanded entry, live draft, anchored Save/Cancel, blur-or-submit validation, explicit dirty discard.",
+      "collections": "Actual photo and six-role stock cards; retain data through focus refresh failures. Index uses name/count without invented previews.",
+      "feedback": "Restrained paper press and one light haptic; nonspatial Reduced Motion feedback.",
+      "verification": "Source and bounded Expo Web fixtures only; Keep375 paint inconclusive, native device acceptance pending."
+    }
   },
   "components": [
     {

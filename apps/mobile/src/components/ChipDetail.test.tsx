@@ -32,7 +32,7 @@ test('lifts then flips with 3D perspective, exposes the back, and reverses befor
   await act(async () => jest.advanceTimersByTime(540));
   const toggle = view.getByRole('button', { name: /Your text color reads well on this yellow/ });
   expect(toggle.props.accessibilityState).toEqual({ expanded: true });
-  expect(view.getByTestId('chip-detail-back')).toHaveStyle({ width: 210, height: 390,
+  expect(view.getByTestId('chip-detail-back')).toHaveStyle({ width: 290, height: 500,
     transform: [{ perspective: 900 }, { rotateY: '0deg' }] });
   expect(view.getByTestId('chip-detail-front', { includeHiddenElements: true }).props.accessibilityElementsHidden).toBe(true);
   await fireEvent.press(toggle);

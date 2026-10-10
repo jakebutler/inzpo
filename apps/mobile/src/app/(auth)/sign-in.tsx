@@ -111,7 +111,7 @@ export default function SignInScreen() {
         <ScrollView contentContainerStyle={[ui.content, { flexGrow: 1, justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
           <Animated.View testID="sign-in-baku-slot" style={bakuSlotStyle}>
             <Animated.View style={[{ position: 'absolute', width: 224, height: 224, transformOrigin: 'top left' }, bakuSpriteStyle]}>
-              <Image testID="baku-idle" source={require('../../../assets/baku-v7/idle-login.png')} contentFit="contain"
+              <Image testID="baku-idle" source={require('../../../assets/baku-performance/neutral-monotone.webp')} contentFit="contain"
                 accessible={false} style={{ width: 224, height: 224 }} />
             </Animated.View>
           </Animated.View>

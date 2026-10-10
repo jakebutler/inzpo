@@ -1,6 +1,6 @@
 import { type CollectionSummary, type MobileKit } from '@inzpo/shared';
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInzpoClient } from '@/lib/api';
 import { haptics } from '@/lib/haptics';
@@ -15,6 +15,7 @@ import { PaperTexture } from './PaperTexture';
 import { stockSurface } from '@/theme/materials';
 import { Canvas, Path, Skia } from '@shopify/react-native-skia';
 import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
+import { PaperPressable } from './PaperPressable';
 import { SaveButton } from './SaveButton';
 
 export type SavedCollection = { collectionId: string; collectionName: string };
@@ -37,9 +38,11 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
   const scrollRef = useRef<ScrollView>(null);
   const [fieldHeight, setFieldHeight] = useState(40);
   const [underline, setUnderline] = useState({ left: 0, width: contentWidth });
+  const [stableArtScale, setStableArtScale] = useState(artScale);
   const [photoFailed, setPhotoFailed] = useState(false);
   const [collections, setCollections] = useState<CollectionSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const destinationTouched = useRef(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const defaultTitle = kit?.title.trim() || 'Untitled kit';
   const [kitName, setKitName] = useState(defaultTitle);
@@ -65,7 +68,7 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
   useEffect(() => {
     let current = true;
     client.listCollections()
-      .then((items) => { if (current) setCollections(items); })
+      .then((items) => { if (current) { setCollections(items); setSelectedId(previous => destinationTouched.current ? previous : items[0]?.id ?? null); setCollectionError(null); } })
       .catch(() => { if (current) setCollectionError('Couldn’t load collections. Please try again.'); })
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
@@ -79,7 +82,8 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
   }, [saved]);
 
   async function save() {
-    if (saveInFlight.current || saved) return;
+    if (saveInFlight.current || saved || loading || collectionError) return;
+    setStableArtScale(artScale);
     saveInFlight.current = true;
     setSaving(true);
     setSaveError(null);
@@ -114,19 +118,19 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
       <ScrollView ref={scrollRef} testID="keep-scroll" style={[styles.scroll, { marginTop: headerHeight }]}
         onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
         contentContainerStyle={{ paddingBottom: 16, alignItems: 'center' }} keyboardShouldPersistTaps="handled">
-        {kit && <View testID="keep-art" style={{ width: contentWidth, height: 480 * artScale }}>
-          <View style={{ width: contentWidth, height: 480, transformOrigin: '50% 0%', transform: [{ scale: artScale }] }}>
+        {kit && <View testID="keep-art" style={{ width: contentWidth, height: 480 * (saving || saved ? stableArtScale : artScale) }}>
+          <View style={{ width: contentWidth, height: 480, transformOrigin: '50% 0%', transform: [{ scale: saving || saved ? stableArtScale : artScale }] }}>
           <View style={styles.sourcePrint}>
             <FilmPrint kit={kit} width={145} height={167} borderInset={7} foot={23} photoPosition={{ left: '50%', top: '34.7%' }}
               failed={photoFailed} onError={() => setPhotoFailed(true)}
               showPins={false} onPinPress={() => {}} placeholder={<Text style={ui.body}>No photo in this kit.</Text>} />
           </View>
-          <KitDeck kit={kit} />
+          <KitDeck kit={kit} gathered={saved} />
           </View>
         </View>}
-        <View testID="keep-form" style={{ width: contentWidth, gap: 12 }}
-          onLayout={(event) => setFormHeight(event.nativeEvent.layout.height)}>
-          {saved ? <Text allowFontScaling accessibilityLiveRegion="polite" style={ui.body}>Saved to your collection.</Text> : <>
+        <View testID="keep-form" style={{ width: contentWidth, gap: 12, minHeight: saved ? formHeight : undefined }}
+          onLayout={(event) => { if (!saved && !saving) setFormHeight(event.nativeEvent.layout.height); }}>
+          {saved ? <Text allowFontScaling accessibilityLiveRegion="polite" style={ui.body}>Saved to {selectedId ? collections.find(collection => collection.id === selectedId)?.name ?? 'your collection' : newName.trim() || defaultName}.</Text> : <>
             <View>
               <Text allowFontScaling style={styles.fieldLabel}>Kit name</Text>
               <Text allowFontScaling accessible={false} pointerEvents="none" style={[styles.name, styles.measureName]}
@@ -152,28 +156,27 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
             <Text allowFontScaling style={styles.hint}>{"Name it the way you'd write it on the back of a photo."}</Text>
             <View testID="keep-collection-row" style={styles.collectionRow}>
               <Text allowFontScaling style={styles.fieldLabel}>Collection</Text>
-              {selectedId ? <Text allowFontScaling style={styles.collectionValue}>{collections.find((collection) => collection.id === selectedId)?.name}</Text>
+              {loading ? <Text style={styles.collectionValue}>Finding your collections…</Text> : collectionError ? <Text style={styles.collectionValue}>Choose a destination</Text> : selectedId ? <Text allowFontScaling style={styles.collectionValue}>{collections.find((collection) => collection.id === selectedId)?.name}</Text>
                 : <TextInput accessibilityLabel="New collection name" value={newName} onChangeText={setNewName}
                   editable={!saving} maxLength={100} placeholder="Collection name" underlineColorAndroid="transparent"
                   style={[styles.collectionValue, { padding: 0, height: 20 * fontScale }]} />}
-              <Pressable accessibilityRole="button" accessibilityLabel="Choose collection" disabled={saving}
+              <PaperPressable accessibilityRole="button" accessibilityLabel="Choose collection" disabled={saving || loading || !!collectionError}
                 onPress={() => setChoosingCollection((value) => !value)} style={styles.collectionChange}>
                 <Text style={styles.fieldLabel}>{choosingCollection ? 'Done' : 'Change'}</Text>
-              </Pressable>
+              </PaperPressable>
             </View>
             {choosingCollection && <>
-            {loading && <Text allowFontScaling style={ui.body}>Loading collections…</Text>}
             {!loading && collections.length === 0 && !collectionError && <Text allowFontScaling style={ui.body}>Your first collection starts here.</Text>}
             <View style={styles.collections}>
-              <Pressable accessibilityRole="radio" accessibilityLabel="Start a new collection"
+              <PaperPressable accessibilityRole="radio" accessibilityLabel="Start a new collection"
                 accessibilityState={{ checked: selectedId === null, disabled: saving }} disabled={saving}
-                onPress={() => { setSelectedId(null); setChoosingCollection(false); }} style={[stockSurface, styles.collection]}>
+                onPress={() => { destinationTouched.current = true; setSelectedId(null); setChoosingCollection(false); }} style={[stockSurface, styles.collection]}>
                 <Text style={styles.collectionName}>Start a new collection</Text>
-              </Pressable>
-              {collections.map((collection) => <Pressable key={collection.id} accessibilityRole="radio"
+              </PaperPressable>
+              {collections.map((collection) => <PaperPressable key={collection.id} accessibilityRole="radio"
                 accessibilityLabel={`${collection.name}, ${collection.count} kits`}
                 accessibilityState={{ checked: selectedId === collection.id, disabled: saving }} disabled={saving}
-                onPress={() => { setSelectedId(collection.id); setChoosingCollection(false); }}
+                onPress={() => { destinationTouched.current = true; setSelectedId(collection.id); setChoosingCollection(false); }}
                 style={[stockSurface, styles.collection, selectedId === collection.id && styles.selected]}>
                 <PaperTexture />
                 <View style={{ flex: 1, gap: 4 }}>
@@ -181,16 +184,16 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
                   <Text allowFontScaling style={ui.label}>{`${collection.count} kits`}</Text>
                 </View>
                 {selectedId === collection.id ? <InkIcon name="check" /> : <View style={styles.choice} />}
-              </Pressable>)}
+              </PaperPressable>)}
             </View>
+            </>}
+          </>}
             {collectionError && <>
               <Text allowFontScaling accessibilityRole="alert" style={ui.body}>{collectionError}</Text>
               <ActionButton label="Reload collections" disabled={loading || saving} onPress={() => {
                 setLoading(true); setCollectionError(null); setAttempt((value) => value + 1);
               }} />
             </>}
-            </>}
-          </>}
           {saveError && <Text allowFontScaling accessibilityRole="alert" style={ui.message}>{saveError}</Text>}
         </View>
       </ScrollView>
@@ -199,7 +202,7 @@ export function KeepScreen({ kitId, onClose, onSaved, onSaveError, onSavingChang
         <View style={styles.actions}>
           <View style={{ width: 96 }}><ActionButton label={saved ? 'Done' : 'Not now'} disabled={saving} onPress={onClose} /></View>
           <View style={{ flex: 1 }}><SaveButton label="Save kit" saved={saved} saving={saving}
-            disabled={saving} onPress={() => void save()} /></View>
+            disabled={saving || loading || !!collectionError} onPress={() => void save()} /></View>
         </View>
       </View>
       </Animated.View>

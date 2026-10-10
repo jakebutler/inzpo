@@ -223,3 +223,49 @@ This QR supersedes the historical links above. On the next phone pass, verify
 that selection opens Your colors directly, dusty intake blends into chewing,
 and the sneeze sends the same colored Baku on a balloon-like flight to the
 lower-left corner without a swap or final-position jump.
+
+## Rest-of-app UX refinement
+
+Jake accepted the combined capture performance as a useful baseline and asked
+for the rest of the app to meet a much higher interaction standard. A separate
+senior UX reviewer audited the working app and recorded eight concrete gaps in
+`2026-10-09-mobile-rest-of-app-critique.md`; the follow-up source review found
+those gaps materially addressed, with device acceptance kept separate.
+
+Saved kits now put Use this kit first and make editing available immediately.
+The reuse sheet gives honest operation progress, copied feedback, description
+availability, and native-share cancellation behavior. Color detail exposes Edit
+and Copy; the editor opens expanded with a live draft and anchored Save/Cancel,
+delayed validation, and explicit discard for dirty changes. Keep resolves its
+destination before saving, reuses an existing collection by default, and holds
+its composition while the fan gathers into a saved deck. Back navigation
+retains browsing context and clears stale capture/Keep history after saving.
+
+Collections use actual photos and six-role stock cards, keep existing data
+through refresh failures, and offer knitted-host recovery states. Stock
+controls share restrained press/haptic feedback. Saved, sign-in, empty and error
+hosts use the approved knit identity. No new art, native dependencies, API
+contract, backend deployment, or change to the accepted capture performance
+was introduced.
+
+A temporary Expo Web fixture imported the shipping native components with a
+mocked API/router. It confirmed compact saved/reuse/collection/editor layouts
+and exposed two additional bugs: dismissing an unpresented Gorhom modal could
+swallow its first opening, and toggling its content-panning option remounted the
+draft. Both are corrected. The fixture successfully changed Primary to
+#264D62, saved it, and rendered the updated kit. Fixture and temporary web
+configuration were removed before packaging. Selected captures and their
+limitations are in `evidence/2026-10-09-rest-of-app/README.md`.
+
+Keep at 375 and its saved confirmation remain inconclusive: CanvasKit WebGL
+failed to paint some surfaces in the fixture. This is not evidence of a native
+defect or native approval. The phone pass still needs Keep confirmation,
+keyboard and dragging, larger text, VoiceOver, contextual navigation, and
+motion feel. The independent rendered review found no additional native
+blocker it could establish from the available evidence.
+
+Final verification after restoring the locked native dependencies: lint and
+typecheck pass, all 390 Jest cases in 41 suites pass, four compiled-worklet
+checks pass, and the iOS Hermes export succeeds. The exported bundle contains
+the matched backend URL. No package, lockfile, Metro, or app configuration
+changes remain from the temporary browser fixture.

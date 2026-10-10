@@ -1,5 +1,7 @@
 import type { MobileKit, ColorRole } from '@inzpo/shared';
 import { Canvas, Circle, RadialGradient } from '@shopify/react-native-skia';
+import { useEffect } from 'react';
+import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { StyleSheet, View } from 'react-native';
 import { PaintChip } from './PaintChip';
 import { OATMEAL_STOCK } from '@/theme/materials';
@@ -21,25 +23,28 @@ function Rivet({ size }: { size: number }) {
 }
 
 /** Six pieces of stock, including empty roles, share the physical corner pivot. */
-export function KitDeck({ kit, closed = false, typeSize = 11 }: { kit: MobileKit; closed?: boolean; typeSize?: number }) {
+export function KitDeck({ kit, closed = false, typeSize = 11, gathered = false }: { kit: MobileKit; closed?: boolean; typeSize?: number; gathered?: boolean }) {
+  const progress = useSharedValue(0);
+  const reducedMotion = useReducedMotion();
+  useEffect(() => { progress.set(withTiming(gathered ? 1 : 0, { duration: reducedMotion ? 0 : 420 })); return () => cancelAnimation(progress); }, [gathered, reducedMotion, progress]);
   return <View testID={closed ? 'closed-kit-deck' : 'keep-kit-fan'} accessible={false}
     style={closed ? styles.closed : styles.fan}>
-    {order.map((role, index) => <View key={role} style={closed ? {
-      position: 'absolute', left: 18 + index * 4, top: (5 - index) * 1.5, zIndex: index,
-      transformOrigin: '12px 154px', transform: [{ rotate: '-3deg' }],
-    } : {
-      position: 'absolute', left: 112, top: 80, zIndex: index,
-      transformOrigin: '12px 170px', transform: [{ rotate: `${-30 + index * 12}deg` }],
-    }}>
-      <PaintChip role={role} color={kit.roles[role]} width={closed ? 124 : 120} height={closed ? 168 : 184}
-        typeSize={typeSize} deck labelInset={closed ? 29 : 36} />
-      {closed && index < order.length - 1 && <View testID={`deck-edge-${role}`} pointerEvents="none"
-        style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
-          borderTopLeftRadius: 3, borderBottomLeftRadius: 3,
-          backgroundColor: kit.roles[role] ?? OATMEAL_STOCK }} />}
-    </View>)}
+    {order.map((role, index) => <DeckLeaf key={role} role={role} index={index} kit={kit} closed={closed} typeSize={typeSize} progress={progress} />)}
     <View testID="deck-rivet" style={closed ? styles.closedRivet : styles.fanRivet}><Rivet size={closed ? 23 : 17} /></View>
   </View>;
+}
+
+function DeckLeaf({ role, index, kit, closed, typeSize, progress }: { role: ColorRole; index: number; kit: MobileKit;
+  closed: boolean; typeSize: number; progress: SharedValue<number> }) {
+  const motion = useAnimatedStyle(() => ({ transform: [{ rotate: `${closed ? -3 : (-30 + index * 12) * (1 - progress.value) + (-4 + (index - 5) * 1.1) * progress.value}deg` }] }));
+  return <Animated.View style={[closed ? { position: 'absolute', left: 18 + index * 4, top: (5 - index) * 1.5, zIndex: index, transformOrigin: '12px 154px' }
+    : { position: 'absolute', left: 112, top: 80, zIndex: index, transformOrigin: '12px 170px' }, motion]}>
+    <PaintChip role={role} color={kit.roles[role]} width={closed ? 124 : 120} height={closed ? 168 : 184}
+      typeSize={typeSize} deck labelInset={closed ? 12 : 36} />
+    {closed && index < order.length - 1 && <View testID={`deck-edge-${role}`} pointerEvents="none"
+      style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, borderTopLeftRadius: 3, borderBottomLeftRadius: 3,
+        backgroundColor: kit.roles[role] ?? OATMEAL_STOCK }} />}
+  </Animated.View>;
 }
 
 const styles = StyleSheet.create({

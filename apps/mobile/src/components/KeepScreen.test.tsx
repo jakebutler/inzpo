@@ -22,7 +22,7 @@ test('renders collections, picks one, and saves with collectionId', async () => 
   const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
   expect(view.getByText('Keep this kit')).toBeTruthy();
   await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
-  expect(await view.findByText('Neighborhood')).toBeTruthy();
+  expect(await view.findAllByText('Neighborhood')).not.toHaveLength(0);
   expect(view.getByRole('button', { name: 'Save kit' })).toBeEnabled();
   await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
@@ -39,7 +39,7 @@ test('renders collections, picks one, and saves with collectionId', async () => 
 test('starting a new collection replaces the existing collection choice', async () => {
   const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
   await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
-  await view.findByText('Neighborhood');
+  await view.findAllByText('Neighborhood');
   await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
   await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
   await fireEvent.press(view.getByRole('radio', { name: 'Start a new collection' }));
@@ -54,7 +54,7 @@ test('a save error keeps the selection available for retry', async () => {
   client.saveKit.mockRejectedValueOnce(new Error('offline'));
   const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
   await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
-  await view.findByText('Neighborhood');
+  await view.findAllByText('Neighborhood');
   await fireEvent.press(view.getByRole('radio', { name: /Neighborhood/ }));
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
   expect(view.getByText('Couldn’t save this kit. Please try again.')).toBeTruthy();
@@ -71,10 +71,11 @@ test('collection loading failure can be retried', async () => {
   await fireEvent.press(view.getByRole('button', { name: 'Choose collection' }));
   expect(await view.findByText('Couldn’t load collections. Please try again.')).toBeTruthy();
   await fireEvent.press(view.getByRole('button', { name: 'Reload collections' }));
-  expect(await view.findByText('Neighborhood')).toBeTruthy();
+  expect(await view.findAllByText('Neighborhood')).not.toHaveLength(0);
 });
 
 test('clearing the name uses the default and keeps Save enabled', async () => {
+  client.listCollections.mockResolvedValue([]);
   const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
   await fireEvent.changeText(view.getByLabelText('New collection name'), '   ');
   expect(view.getByRole('button', { name: 'Save kit' })).toBeEnabled();
@@ -87,11 +88,12 @@ test('a full-screen Keep prefills the kit title and omits Baku', async () => {
   expect(view.getByTestId('keep-screen')).toBeTruthy();
   expect(view.getAllByText('Keep this kit')).toHaveLength(1);
   expect(view.getByLabelText('Kit name').props.value).toBe(kitFixture.title);
-  expect(view.getByLabelText('New collection name').props.autoFocus).not.toBe(true);
+  expect(view.getByText('Neighborhood')).toBeTruthy();
+  expect(view.queryByLabelText('New collection name')).toBeNull();
   expect(view.queryByTestId('keep-baku')).toBeNull();
   expect(view.getByRole('button', { name: 'Save kit' })).toBeEnabled();
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
-  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { newName: 'My collection', title: kitFixture.title });
+  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { collectionId: 'collection-1', title: kitFixture.title });
 });
 
 test('success reports the collection and automatically dismisses after 900ms', async () => {
@@ -112,6 +114,7 @@ test('success reports the collection and automatically dismisses after 900ms', a
 });
 
 test('success reports the trimmed new collection name', async () => {
+  client.listCollections.mockResolvedValue([]);
   const onSaved = jest.fn();
   const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} onSaved={onSaved} />);
   await fireEvent.changeText(view.getByLabelText('New collection name'), '  Walks  ');
@@ -122,7 +125,6 @@ test('success reports the trimmed new collection name', async () => {
 test('unmounting after success cancels the automatic dismissal timer', async () => {
   jest.useFakeTimers();
   const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
-  await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
   await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
   await view.unmount();
   await act(async () => { jest.advanceTimersByTime(3000); });
@@ -179,4 +181,29 @@ test.each([{ width: 390, height: 844 }, { width: 375, height: 667 }])('the compl
   expect(scrollTo).toHaveBeenLastCalledWith({ y: 0, animated: false });
   expect(view.getByTestId('keep-footer')).toHaveStyle({ flexShrink: 0 });
   expect(view.getByRole('button', { name: 'Save kit' })).toBeEnabled();
+});
+
+test('Save waits for destinations, then reuses the existing collection without creating a duplicate', async () => {
+  let resolve!: (rows: { id: string; name: string; count: number }[]) => void;
+  client.listCollections.mockReturnValue(new Promise(done => { resolve = done; }));
+  const view = await render(<KeepScreen kitId="kit-1" onClose={onClose} />);
+  expect(view.getByRole('button', { name: 'Save kit' })).toBeDisabled();
+  await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
+  expect(client.saveKit).not.toHaveBeenCalled();
+  await act(async () => resolve([{ id: 'existing', name: 'My collection', count: 7 }]));
+  await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
+  expect(client.saveKit).toHaveBeenCalledWith('kit-1', { title: 'Untitled kit', collectionId: 'existing' });
+  expect(view.getByText('Saved to My collection.')).toBeTruthy();
+});
+
+test('save confirmation retains the measured form and artwork footprint', async () => {
+  jest.useFakeTimers();
+  const view = await render(<KeepScreen kitId="kit-1" kit={kitFixture} onClose={onClose} />);
+  await fireEvent(view.getByTestId('keep-scroll'), 'layout', { nativeEvent: { layout: { height: 460 } } });
+  await fireEvent(view.getByTestId('keep-form'), 'layout', { nativeEvent: { layout: { height: 182 } } });
+  const before = Native.StyleSheet.flatten(view.getByTestId('keep-art').props.style).height;
+  await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
+  await fireEvent(view.getByTestId('keep-form'), 'layout', { nativeEvent: { layout: { height: 24 } } });
+  expect(view.getByTestId('keep-art')).toHaveStyle({ height: before });
+  expect(view.getByTestId('keep-form')).toHaveStyle({ minHeight: 182 });
 });

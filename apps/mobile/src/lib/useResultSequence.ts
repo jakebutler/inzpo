@@ -21,7 +21,7 @@ function useBandMotion(): BandMotion {
   return useMemo(() => ({ opacity, translateY }), [opacity, translateY]);
 }
 
-export function useResultSequence({ kitId, ready, roles, jiggle }: { kitId: string; ready: boolean; roles?: RoleColors | null; jiggle?: BakuJiggle }) {
+export function useResultSequence({ kitId, ready, roles, jiggle, immediate = false }: { kitId: string; ready: boolean; roles?: RoleColors | null; jiggle?: BakuJiggle; immediate?: boolean }) {
   const reducedMotion = useReducedMotion();
   // Fixed hook order, matching COLOR_ROLES. No hooks in a map or variable loop.
   const primary = useBandMotion();
@@ -128,7 +128,7 @@ export function useResultSequence({ kitId, ready, roles, jiggle }: { kitId: stri
       return cancel;
     }
     // Refreshing a title or signed photo URL must not replay the hero.
-    if (scope.current.started || completedResultKits.has(kitId)) {
+    if (immediate || scope.current.started || completedResultKits.has(kitId)) {
       setEndValues();
       completedResultKits.add(kitId);
       setFinishedKit(kitId);
@@ -189,7 +189,7 @@ export function useResultSequence({ kitId, ready, roles, jiggle }: { kitId: stri
       // frame. Resume an interrupted pre-landing run instead of marking it done.
       if (!scope.current.landed && !scope.current.skipped && !completedResultKits.has(kitId)) scope.current.started = false;
     };
-  }, [kitId, ready, reducedMotion, bands, primary.opacity, stripeProgress, filledStripes, bakuY, bakuScaleX, bakuScaleY, bakuOpacity,
+  }, [kitId, ready, immediate, reducedMotion, bands, primary.opacity, stripeProgress, filledStripes, bakuY, bakuScaleX, bakuScaleY, bakuOpacity,
     markerScale, markerOpacity, briefY, briefOpacity, cancel, setEndValues, jiggle]);
 
   const bakuStyle = useAnimatedStyle(() => ({
@@ -202,7 +202,7 @@ export function useResultSequence({ kitId, ready, roles, jiggle }: { kitId: stri
   return {
     stripeProgress, wipeMode: (reducedMotion ? 1 : 0) as WipeMode,
     bands, bakuStyle, markerStyle, briefStyle, skipToEnd, reducedMotion,
-    interactive: ready && finishedKit === kitId,
+    interactive: ready && (immediate || finishedKit === kitId),
     values: { bakuY, bakuScaleX, bakuScaleY, bakuOpacity, markerScale, markerOpacity, briefY, briefOpacity },
   };
 }

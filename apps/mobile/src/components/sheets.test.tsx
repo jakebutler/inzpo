@@ -1,5 +1,6 @@
 import { BottomSheetModal, type BottomSheetModalProps, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { act, fireEvent, render, renderHook } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 import { createRef, type ReactNode, type ReactElement } from 'react';
 import { ReduceMotion, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { useInzpoClient } from '@/lib/api';
@@ -7,6 +8,7 @@ import { createHaptics, haptics } from '@/lib/haptics';
 import { kitFixture, mockClient } from '../../tests/fixtures';
 import { EditSheet, type EditSheetHandle } from './EditSheet';
 import { EditBackdrop } from './MotionSheet';
+import { UseKitSheet } from './UseKitSheet';
 import { KeepScreen } from './KeepScreen';
 
 jest.mock('@/lib/api', () => ({ useInzpoClient: jest.fn() }));
@@ -36,17 +38,17 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
-test('Edit peeks with six chips, expands to the picker, and exposes snapToPeek', async () => {
+test('Edit opens fully with six chips and can peek to expose the source photo', async () => {
   const ref = createRef<EditSheetHandle>();
   const snap = jest.spyOn(MockModal.prototype, 'snapToIndex');
   const view = await render(<EditSheet ref={ref} visible kit={kitFixture} onUpdated={jest.fn()} onClose={jest.fn()} />);
-  expect(sheetProps).toMatchObject({ snapPoints: [156, '64%'], index: 0, enableDynamicSizing: false, enablePanDownToClose: true });
+  expect(sheetProps).toMatchObject({ snapPoints: [expect.any(Number), '88%'], index: 1, enableDynamicSizing: false, enablePanDownToClose: true });
   expect(view.getByTestId('edit-role-primary')).toHaveStyle({ backgroundColor: '#b35831' });
   expect(view.getByTestId('edit-role-accent')).toHaveStyle({ backgroundColor: '#F3EEE4', borderStyle: 'dashed' });
   expect(view.queryByText('Color picking comes next')).toBeNull();
   await fireEvent.press(view.getByTestId('edit-role-primary'));
   expect(snap).toHaveBeenCalledWith(1);
-  expect(view.getByText('Pick a primary color')).toBeTruthy();
+  expect(view.getByText('Choose primary')).toBeTruthy();
   await act(async () => ref.current?.snapToPeek());
   expect(snap).toHaveBeenCalledWith(0);
   await act(async () => sheetProps.onChange?.(0, 156, 0));
@@ -64,9 +66,9 @@ test('a pin-opened editor can collapse to peek and respects reduced motion', asy
     onUpdated={jest.fn()} onClose={jest.fn()} />);
   expect(sheetProps.index).toBe(1);
   expect(sheetProps.overrideReduceMotion).toBe(ReduceMotion.Always);
-  expect(view.getByText('Pick a primary color')).toBeTruthy();
+  expect(view.getByText('Choose primary')).toBeTruthy();
   await act(async () => sheetProps.onChange?.(0, 156, 0));
-  expect(view.queryByText('Pick a primary color')).toBeNull();
+  expect(view.queryByText('Choose primary')).toBeNull();
   expect(view.queryByLabelText('Hex color')).toBeNull();
   expect(view.getByTestId('edit-role-primary')).toBeTruthy();
 });
@@ -83,7 +85,6 @@ test.each(['save', 'edit'])('%s keeps the editor open during a write so its succ
     ? <KeepScreen kitId="kit-1" onClose={onClose} onSaved={onSuccess} />
     : <EditSheet visible kit={kitFixture} onClose={onClose} onUpdated={onSuccess} />);
   if (kind === 'save') {
-    await fireEvent.changeText(view.getByLabelText('New collection name'), 'Walks');
     await fireEvent.press(view.getByRole('button', { name: 'Save kit' }));
   } else {
     await fireEvent.press(view.getByTestId('edit-role-primary'));
@@ -106,4 +107,38 @@ test.each(['save', 'edit'])('%s keeps the editor open during a write so its succ
     expect(sheetProps.enablePanDownToClose).toBe(true);
     expect(backdrop().props.pressBehavior).toBe('close');
   }
+});
+
+
+test('dirty colors retain Save and Cancel at peek and need explicit discard', async () => {
+  const alert = jest.spyOn(Alert, 'alert');
+  const dismiss = jest.spyOn(MockModal.prototype, 'dismiss');
+  const view = await render(<EditSheet visible initialRole="primary" kit={kitFixture} onUpdated={jest.fn()} onClose={jest.fn()} />);
+  await fireEvent.press(view.getByRole('button', { name: 'Clear' }));
+  expect(sheetProps.enablePanDownToClose).toBe(false);
+  expect(sheetProps.enableHandlePanningGesture).toBe(false);
+  // Switching the draggable wrapper off remounts the form in Gorhom v5.
+  expect(sheetProps.enableContentPanningGesture).toBeUndefined();
+  await act(async () => sheetProps.onChange?.(0, 240, 0));
+  expect(view.getByRole('button', { name: 'Save colors' })).toBeEnabled();
+  await fireEvent.press(view.getByRole('button', { name: 'Cancel' }));
+  expect(dismiss).not.toHaveBeenCalled();
+  expect(alert).toHaveBeenCalledWith('Discard color changes?', expect.any(String), expect.any(Array));
+  const discard = alert.mock.calls[0][2]!.find(button => button.text === 'Discard changes');
+  await act(async () => discard?.onPress?.());
+  expect(dismiss).toHaveBeenCalledTimes(1);
+});
+
+test('hidden sheets are not dismissed before their first presentation', async () => {
+  const dismiss = jest.spyOn(MockModal.prototype, 'dismiss');
+  const present = jest.spyOn(MockModal.prototype, 'present');
+  const view = await render(<EditSheet visible={false} kit={kitFixture} onUpdated={jest.fn()} onClose={jest.fn()} />);
+  expect(dismiss).not.toHaveBeenCalled();
+  await view.rerender(<EditSheet visible kit={kitFixture} onUpdated={jest.fn()} onClose={jest.fn()} />);
+  expect(present).toHaveBeenCalledTimes(1);
+  await view.unmount();
+  const reuse = await render(<UseKitSheet visible={false} kit={kitFixture} onClose={jest.fn()} />);
+  expect(dismiss).not.toHaveBeenCalled();
+  await reuse.rerender(<UseKitSheet visible kit={kitFixture} onClose={jest.fn()} />);
+  expect(present).toHaveBeenCalledTimes(2);
 });
